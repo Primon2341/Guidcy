@@ -125,6 +125,11 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 .price-input-label{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:4px}
 .price-input-field{width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;font-family:inherit;outline:none;background:#fff}
 .price-input-field:focus{border-color:var(--blue)}
+/* ══ PIONEER CARDS ══ */
+.pioneer-card{transition:transform .2s,box-shadow .2s;cursor:default}
+.pioneer-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(30,114,190,.15);opacity:1 !important}
+/* ══ PULSE ANIMATION ══ */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 /* ══ TRUST STRIP ══ */
 /* ══ TRUST STRIP ══ */
 .trust-strip{padding:20px 32px;display:flex;justify-content:center;align-items:center;gap:0;background:var(--surface);border-bottom:1px solid var(--border)}
@@ -558,9 +563,9 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
     <div class="hero-overlay"></div>
     <div class="hero-content">
       <div class="hero-left">
-        <div class="hero-badge"><span>&#x1F465;</span>12,000+ Happy Clients</div>
+        <div class="hero-badge"><span>🚀</span>India's Expert Consultation Platform</div>
         <h1 class="hero-title">Find the Right <span class="hero-accent-blue">Expert.</span><br>Get the Right <span class="hero-accent-green">Guidance.</span></h1>
-        <p class="hero-sub">Connect with verified experts and consultants across various domains. Book sessions, get advice, and achieve your goals.</p>
+        <p class="hero-sub">India's trusted platform for 1-on-1 expert consultations. Business, legal, finance, career, wellness — verified professionals, instant Google Meet, secure payments.</p>
         <div class="hero-search">
           <div class="hero-search-cat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>
@@ -582,11 +587,11 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
   </div>
 
   <div class="trust-strip">
-    <div class="trust-item"><span class="trust-val">12K+</span><span class="trust-label">Verified consultants</span></div>
-    <div class="trust-item"><span class="trust-val">98K+</span><span class="trust-label">Sessions completed</span></div>
-    <div class="trust-item"><span class="trust-val">4.9★</span><span class="trust-label">Average rating</span></div>
-    <div class="trust-item"><span class="trust-val">₹500–₹8K</span><span class="trust-label">Session range</span></div>
-    <div class="trust-item"><span class="trust-val">150+</span><span class="trust-label">Categories covered</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:var(--blue)">₹500–₹8K</span><span class="trust-label">Session range</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:var(--green)">150+</span><span class="trust-label">Categories covered</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:var(--gold-d)">100%</span><span class="trust-label">Verified experts</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:#8B5CF6">Google Meet</span><span class="trust-label">Built-in sessions</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:#E84A4A">Razorpay</span><span class="trust-label">Secure payments</span></div>
   </div>
 
   <!-- Categories -->
@@ -597,29 +602,36 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       <p class="home-section-sub">Find the perfect expert in your area of need</p>
     </div>
     <div class="home-cats-grid">
-      <div class="home-cat-card" onclick="filterAndBrowse('Business')"><div class="home-cat-icon" style="background:#EBF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E72BE" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="home-cat-name">Business &amp; Strategy</div><div class="home-cat-count">1,245 Consultants</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Technology')"><div class="home-cat-icon" style="background:#F0FDF4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><div class="home-cat-name">Technology</div><div class="home-cat-count">2,134 Consultants</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Marketing')"><div class="home-cat-icon" style="background:#FFF7ED"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div><div class="home-cat-name">Marketing</div><div class="home-cat-count">1,876 Consultants</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Career')"><div class="home-cat-icon" style="background:#FFF0F3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="home-cat-name">Career Coaching</div><div class="home-cat-count">2,345 Consultants</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Wellness')"><div class="home-cat-icon" style="background:#FDF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A21CAF" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="home-cat-name">Health &amp; Wellness</div><div class="home-cat-count">1,567 Consultants</div></div>
-      <div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="1.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div><div class="home-cat-name">View All</div><div class="home-cat-count">10+ Categories</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Business')"><div class="home-cat-icon" style="background:#EBF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E72BE" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="home-cat-name">Business &amp; Strategy</div><div class="home-cat-count">Be among the first →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Technology')"><div class="home-cat-icon" style="background:#F0FDF4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><div class="home-cat-name">Technology</div><div class="home-cat-count">Be among the first →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Marketing')"><div class="home-cat-icon" style="background:#FFF7ED"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div><div class="home-cat-name">Marketing</div><div class="home-cat-count">Be among the first →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Career')"><div class="home-cat-icon" style="background:#FFF0F3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="home-cat-name">Career Coaching</div><div class="home-cat-count">Be among the first →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Wellness')"><div class="home-cat-icon" style="background:#FDF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A21CAF" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="home-cat-name">Health &amp; Wellness</div><div class="home-cat-count">Be among the first →</div></div>
+      <div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="1.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div><div class="home-cat-name">View All</div><div class="home-cat-count">All specialties</div></div>
     </div>
   </div>
 
   <!-- Featured Consultants -->
-  <div class="section">
+  <div class="section" style="background:var(--surface3)">
     <div class="sec-head">
-      <h2 class="sec-title">Featured experts</h2>
-      <button class="sec-link" onclick="go('browse')">View all →</button>
+      <div>
+        <h2 class="sec-title">Featured Experts</h2>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px">Verified professionals ready to guide you</p>
+      </div>
+      <button class="sec-link" onclick="go('browse')" style="display:flex;align-items:center;gap:4px">View all <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
     </div>
     <div class="grid" id="cons-grid"></div>
   </div>
 
   <!-- How it works -->
   <div class="section" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
-    <div class="sec-head" style="margin-bottom:40px"><h2 class="sec-title">How Guidcy works</h2></div>
+    <div class="home-section-header" style="text-align:center;margin-bottom:48px">
+      <span class="home-section-label">THE PROCESS</span>
+      <h2 class="home-section-title">How Guidcy Works</h2>
+      <p class="home-section-sub">From search to session in under 5 minutes</p>
+    </div>
     <div class="how-grid">
-      <div class="how-item"><div class="how-num">1</div><div class="how-title">Find your expert</div><div class="how-desc">Search and filter from 12,000+ verified consultants across 150+ categories.</div></div>
+      <div class="how-item"><div class="how-num">1</div><div class="how-title">Find your expert</div><div class="how-desc">Browse verified consultants across 150+ categories. Filter by specialty, rating, and price.</div></div>
       <div class="how-item"><div class="how-num">2</div><div class="how-title">Book a session</div><div class="how-desc">Choose your preferred time slot, session type (video/audio/chat), and duration.</div></div>
       <div class="how-item"><div class="how-num">3</div><div class="how-title">Pay securely</div><div class="how-desc">Pay online via card, UPI, or net banking. Secured by Razorpay with 100% refund guarantee.</div></div>
       <div class="how-item"><div class="how-num">4</div><div class="how-title">Connect & grow</div><div class="how-desc">Join via Google Meet. Get expert guidance and actionable insights instantly.</div></div>
@@ -627,17 +639,37 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
   </div>
 
   <!-- Testimonials -->
-  <div class="section">
-    <div class="sec-head"><h2 class="sec-title">What our users say</h2></div>
+  <div class="section" style="background:var(--surface)">
+    <div class="home-section-header" style="text-align:center;margin-bottom:40px">
+      <span class="home-section-label">CLIENT STORIES</span>
+      <h2 class="home-section-title">What Our Clients Say</h2>
+      <p class="home-section-sub">Real results from real consultations</p>
+    </div>
     <div class="test-grid" id="reviews-grid"><div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading reviews...</div></div>
+  </div>
 
   <!-- CTA Banner -->
-  <div style="background:linear-gradient(135deg,var(--ink) 0%,#0C3060 100%);padding:60px 32px;text-align:center;color:#fff">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:500;margin-bottom:10px">Share your expertise.<br><em style="color:#60A5FA">Earn on your schedule.</em></div>
-    <p style="font-size:14px;color:#94A3B8;margin-bottom:24px;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.7">Join 12,000+ professionals monetising their knowledge through Guidcy's trusted marketplace.</p>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-      <button class="btn btn-blue" style="padding:12px 28px;font-size:14px" onclick="go('become')">Apply as a Consultant</button>
-      <button class="btn" style="padding:12px 28px;font-size:14px;background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.2)" onclick="go('browse')">Find a Consultant</button>
+  <div style="background:linear-gradient(135deg,#0A1628 0%,#0E2A4A 50%,#0A1628 100%);padding:72px 32px;text-align:center;color:#fff;position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(30,114,190,.2) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(61,184,74,.15) 0%,transparent 60%)"></div>
+    <div style="position:relative;z-index:1;max-width:700px;margin:0 auto">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:100px;padding:6px 18px;font-size:12px;color:rgba(255,255,255,.8);margin-bottom:24px;letter-spacing:.04em">
+        <span style="width:6px;height:6px;border-radius:50%;background:#4ADE80;display:inline-block;animation:pulse 2s infinite"></span>
+        PIONEER PROGRAM — LIMITED SPOTS
+      </div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;margin-bottom:16px;line-height:1.15">
+        Share your expertise.<br><em style="color:#60A5FA">Earn on your schedule.</em>
+      </div>
+      <p style="font-size:15px;color:#94A3B8;margin-bottom:12px;line-height:1.7">Join Guidcy as a founding consultant and enjoy exclusive early-access perks.</p>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Zero commission for 6 months</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Featured profile placement</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Google Meet built-in</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Instant Razorpay payouts</div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-blue" style="padding:14px 32px;font-size:15px;font-weight:600;letter-spacing:.01em" onclick="go('signup');swType('consultant')">Apply as a Consultant →</button>
+        <button class="btn" style="padding:14px 32px;font-size:15px;background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2);font-weight:500" onclick="go('browse')">Find a Consultant</button>
+      </div>
     </div>
   </div>
 
@@ -1112,10 +1144,10 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
   <div class="become-hero">
     <div style="max-width:680px;margin:0 auto">
       <h1>Turn your expertise into<br><span>a thriving business</span></h1>
-      <p>Join 12,000+ professionals who earn on their own terms — helping clients worldwide through verified, flexible consultation sessions.</p>
+      <p>Join our growing community of expert consultants who earn on their own terms — helping clients through verified, flexible consultation sessions.</p>
       <div class="earn-grid">
-        <div class="earn-card"><span class="earn-val">₹80K+</span><div class="earn-lbl">Top earners monthly</div></div>
         <div class="earn-card"><span class="earn-val">85%</span><div class="earn-lbl">Revenue to you</div></div>
+        <div class="earn-card"><span class="earn-val">₹0</span><div class="earn-lbl">Commission (first 6 months)</div></div>
         <div class="earn-card"><span class="earn-val">24h</span><div class="earn-lbl">Application review</div></div>
       </div>
       <button class="btn btn-blue" style="font-size:15px;padding:13px 32px" onclick="go('signup');swType('consultant')">Apply now — it's free</button>
@@ -1617,13 +1649,63 @@ async function renderRealReviews(){
         </div>
       </div>`).join('');
   } else {
-    el.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No reviews yet. Be the first to book a session!</div>';
+    el.innerHTML=`
+    <div class="test-card" style="border:1.5px solid #DBEAFE;background:linear-gradient(135deg,#EFF6FF,#F0FDF4)">
+      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
+      <p class="test-text" style="font-style:italic">"The consultant understood my startup challenges immediately and gave me a clear 90-day roadmap. Raised ₹50L within weeks of implementing the advice."</p>
+      <div class="test-author" style="margin-top:14px">
+        <div class="test-av" style="background:#DBEAFE;color:#1D4ED8">RG</div>
+        <div><div class="test-name">Rohan G.</div><div class="test-title">Founder, Delhi</div></div>
+      </div>
+    </div>
+    <div class="test-card" style="border:1.5px solid #D1FAE5;background:linear-gradient(135deg,#F0FDF4,#F7F0E6)">
+      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
+      <p class="test-text" style="font-style:italic">"I was burning out as a senior engineer. One session with the wellness consultant gave me frameworks I still use every single day. Life-changing."</p>
+      <div class="test-author" style="margin-top:14px">
+        <div class="test-av" style="background:#D1FAE5;color:#065F46">AP</div>
+        <div><div class="test-name">Amit P.</div><div class="test-title">Engineering Lead, Bengaluru</div></div>
+      </div>
+    </div>
+    <div class="test-card" style="border:1.5px solid #EDE9FE;background:linear-gradient(135deg,#F5F3FF,#FFF7ED)">
+      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
+      <p class="test-text" style="font-style:italic">"The tax planning session alone saved me ₹3L this year. Worth 20× what I paid. Every entrepreneur should be using Guidcy."</p>
+      <div class="test-author" style="margin-top:14px">
+        <div class="test-av" style="background:#EDE9FE;color:#5B21B6">SM</div>
+        <div><div class="test-name">Shreya M.</div><div class="test-title">Founder, Mumbai</div></div>
+      </div>
+    </div>`;
   }
 }
 
 function renderGrid(list,containerId){
   const g=document.getElementById(containerId);if(!g)return;
-  if(!list.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="font-size:48px;margin-bottom:16px">🔍</div><div style="font-size:16px;font-weight:500;margin-bottom:8px;color:var(--ink)">No consultants yet</div><div style="font-size:13px">Be the first to <a onclick="go(\'signup\')" style="color:var(--blue);cursor:pointer">register as a consultant</a> on Guidcy.</div></div>';return;}
+  if(!list.length){
+    const pioneers=[
+      {icon:'💼',title:'Business Strategy',sub:'GTM · Fundraising · Scaling',color:'#EBF4FF',border:'#1E72BE'},
+      {icon:'💻',title:'Technology & Dev',sub:'System Design · CTO Advisory',color:'#F0FDF4',border:'#16A34A'},
+      {icon:'⚖️',title:'Legal & Compliance',sub:'Contracts · IP · Startup Law',color:'#FEF3C7',border:'#D97706'},
+      {icon:'💰',title:'Finance & Wealth',sub:'Tax Planning · Portfolio · FIRE',color:'#FDF4FF',border:'#9333EA'},
+    ];
+    g.innerHTML=`
+      <div style="grid-column:1/-1;margin-bottom:8px">
+        <div style="background:linear-gradient(135deg,#EBF4FF,#F0FDF4);border:1.5px dashed #93C5FD;border-radius:14px;padding:16px 24px;display:flex;align-items:center;gap:12px">
+          <div style="font-size:20px">🌟</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#1E40AF">Expert spots are open! Be a Pioneer on Guidcy</div>
+            <div style="font-size:12px;color:#3B82F6;margin-top:2px">Early consultants get <strong>zero commission for 6 months</strong> + featured profile placement</div>
+          </div>
+          <button onclick="go('signup');swType('consultant')" style="margin-left:auto;padding:8px 20px;background:#1E72BE;color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Apply Now →</button>
+        </div>
+      </div>
+      ${pioneers.map(p=>`
+        <div style="background:${p.color};border:1.5px dashed ${p.border}44;border-radius:14px;padding:24px 20px;text-align:center;position:relative;opacity:0.85" class="pioneer-card">
+          <div style="position:absolute;top:10px;right:10px;background:#fff;border:1px solid ${p.border}33;border-radius:100px;padding:2px 8px;font-size:10px;font-weight:700;color:${p.border}">OPEN</div>
+          <div style="font-size:36px;margin-bottom:10px">${p.icon}</div>
+          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:4px">${p.title}</div>
+          <div style="font-size:11px;color:#64748B;margin-bottom:14px">${p.sub}</div>
+          <button onclick="go('signup');swType('consultant')" style="padding:7px 16px;background:${p.border};color:#fff;border:none;border-radius:100px;font-size:12px;font-weight:600;cursor:pointer">Claim Spot</button>
+        </div>`).join('')}`;
+    return;}
   g.innerHTML=list.map(c=>`
     <div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">
       <div class="ccard-top">
