@@ -1793,6 +1793,13 @@ function selSTypeFn(type,el){
     });
   }
 }
+function getSTypePrice(c){
+  if(!c) return 0;
+  if(selSType==='video') return c.video_price||c.price||2000;
+  if(selSType==='audio') return c.audio_price||Math.round((c.video_price||c.price||2000)*0.75);
+  if(selSType==='chat') return c.chat_price||Math.round((c.video_price||c.price||2000)*0.5);
+  return c.price||2000;
+}
 function buildAvailSlots(c, dateIdx){
   const dates=buildDates();
   const dt=dates[dateIdx];
@@ -2131,7 +2138,7 @@ async function swCD(view,btn){
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="offer-chat" ${(consRecord?.session_types||[]).includes('chat')?'checked':''}>💬 Message</label>
           </div>
         </div>
-        <button class="primary-btn" onclick="saveSchedule()">Save Availability &amp; Pricing</button>
+        <button class="primary-btn" onclick="saveSchedule()">Save Availability & Pricing</button>
       </div>
     </div>`;
 
