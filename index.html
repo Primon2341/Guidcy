@@ -33,12 +33,12 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 /* ══ NAV ══ */
 .nav{display:flex;align-items:center;gap:16px;padding:0 32px;height:68px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.95);backdrop-filter:blur(12px);position:sticky;top:0;z-index:200;box-shadow:0 1px 0 var(--border)}
 .logo-wrap{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:0}
-.logo-svg-wrap{width:auto;height:52px;display:flex;align-items:center}
+.logo-svg-wrap{width:auto;height:72px;display:flex;align-items:center}
 .logo-text{display:flex;flex-direction:column;line-height:1}
-.logo-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.5px}
+.logo-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:700;letter-spacing:-0.5px}
 .logo-name span:first-child{color:var(--blue)}
 .logo-name span:last-child{color:var(--green)}
-.logo-tagline{font-size:9px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:1px}
+.logo-tagline{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
 .nav-links{display:flex;gap:2px;flex:1;justify-content:center}
 .nav-link{padding:6px 13px;border-radius:var(--rs);font-size:13px;color:var(--muted);cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;transition:all .15s;font-weight:500}
 .nav-link:hover{color:var(--ink);background:var(--surface2)}
@@ -1518,7 +1518,7 @@ async function doSignup(type){
       if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Create account';}return;}
       if(data.user){
         await sb.from('profiles').upsert({id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
-        loggedIn='user';currentProfile={full_name:fn+' '+ln,role:'user',avatar_initials:mkInitials(fn+' '+ln)};
+        currentUser=data.user;loggedIn='user';currentProfile={full_name:fn+' '+ln,role:'user',avatar_initials:mkInitials(fn+' '+ln)};
         updateNav();toast('Account created! Welcome to Guidcy 🎉','green');
         setTimeout(()=>go('user-dash'),700);
       }
@@ -1557,6 +1557,7 @@ async function doSignup(type){
           session_types:['video'], rating:0, review_count:0
         });
         if(cErr)console.warn('Consultant insert error',cErr);
+        currentUser=data.user;
         loggedIn='consultant';
         currentProfile={full_name:fn+' '+ln,role:'consultant',avatar_initials:mkInitials(fn+' '+ln)};
         updateNav();
@@ -1849,6 +1850,35 @@ function selDateFn(i,el){
   // Refresh available slots for new date
   const asc=document.getElementById('avail-slots-container');
   if(asc&&curCons) asc.innerHTML=buildAvailSlots(curCons,i);
+}
+function selSlotFn(el,slot){
+  selSlot=slot;
+  document.querySelectorAll('.avail-slot').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function selDurFn(dur,el){
+  selDur=dur;
+  document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+  // Update price display
+  if(curCons){
+    const base=getSTypePrice(curCons);
+    const fee=Math.round(base*getDurMultiplier());
+    const pfee=Math.round(fee*.05);
+    const sf=document.getElementById('sum-fee');const sp=document.getElementById('sum-plat');const st=document.getElementById('sum-total');const sd=document.getElementById('sd-dur');
+    if(sf)sf.textContent='₹'+fee.toLocaleString();
+    if(sp)sp.textContent='₹'+pfee.toLocaleString();
+    if(st)st.textContent='₹'+(fee+pfee).toLocaleString();
+    if(sd)sd.textContent=dur;
+  }
+}
+function clearFilters(){
+  document.querySelectorAll('.filter-check input[type=checkbox]').forEach(cb=>cb.checked=false);
+  const ps=document.getElementById('price-slider');if(ps)ps.value=ps.max;
+  const pv=document.getElementById('price-val');if(pv)pv.textContent='Any';
+  const rs=document.getElementById('rating-select');if(rs)rs.value='';
+  const ss=document.getElementById('sort-select');if(ss)ss.value='';
+  applyFilters();
 }
 function selSTypeFn(type,el){
   selSType=type;
