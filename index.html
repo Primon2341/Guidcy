@@ -1306,38 +1306,7 @@ const aspectNames=['Knowledge','Communication','Clarity','Punctuality'];
 /* ═══════════════════════════════════════════
    STATIC SEED DATA (shown only in demo mode)
 ═══════════════════════════════════════════ */
-const SEED_CONSULTANTS=[
-  {id:0,name:'Dr. Riya Sharma',initials:'RS',role:'Business Strategy',bg:'#F7F0E6',color:'#8B6E3F',rating:4.9,reviews:127,price:2500,exp:'8 yrs',badge:'verified',
-   tags:['Startup Growth','GTM Strategy','Fundraising','SaaS','Pitch Decks'],
-   bio:"Former McKinsey engagement manager turned startup advisor. I've helped over 50 founders build scalable businesses — from first product-market fit to Series B fundraising.",
-   avail:['Mon','Tue','Thu','Fri'],slots:['10:00 AM','11:30 AM','2:00 PM','4:00 PM'],
-   reviews:[{n:'Rohan Gupta',d:'Apr 10, 2025',s:5,t:"Exceptional clarity and depth. Dr. Riya restructured our entire go-to-market approach in a single session — we raised ₹2Cr within 6 weeks."},{n:'Meera Nair',d:'Mar 28, 2025',s:5,t:"The most actionable advice I've received from any consultant. She walks you through the thinking, not just the answer."}]},
-  {id:1,name:'Arjun Kapoor',initials:'AK',role:'Technology & Engineering',bg:'#E6F1FB',color:'#0C447C',rating:4.8,reviews:98,price:2000,exp:'7 yrs',badge:'verified',
-   tags:['System Design','CTO Advisory','Product Roadmap','Team Scaling','Architecture'],
-   bio:'2x startup CTO, ex-Google. I help technical founders and engineering leaders make the right architectural decisions before they become expensive mistakes.',
-   avail:['Mon','Wed','Fri'],slots:['9:00 AM','11:00 AM','3:00 PM','5:00 PM'],
-   reviews:[{n:'Dev Rajan',d:'Apr 5, 2025',s:5,t:"Arjun's system design advice saved us months of rework. He identified three critical flaws in our architecture in the first 20 minutes."},{n:'Sneha Kapoor',d:'Mar 20, 2025',s:4,t:"Very practical and direct. Great perspective on scaling engineering teams from 5 to 50."}]},
-  {id:2,name:'Kavya Nair',initials:'KN',role:'Mental Health & Wellness',bg:'#FBEAF0',color:'#72243E',rating:4.9,reviews:214,price:1500,exp:'10 yrs',badge:'verified',
-   tags:['Burnout Recovery','Anxiety','CBT','Executive Wellness','Mindfulness'],
-   bio:'Licensed psychotherapist specialising in high-achiever burnout and performance anxiety. I work with founders, executives and professionals navigating intense work environments.',
-   avail:['Tue','Thu','Sat'],slots:['8:00 AM','10:00 AM','12:00 PM','6:00 PM'],
-   reviews:[{n:'Amit Patel',d:'Apr 12, 2025',s:5,t:"Kavya creates an exceptionally safe and structured space. Her CBT framework gave me practical tools I use every single day."},{n:'Priya Shah',d:'Mar 31, 2025',s:5,t:"I was on the verge of leaving my company due to burnout. Kavya helped me reframe everything. Cannot recommend her enough."}]},
-  {id:3,name:'Vikram Mehta',initials:'VM',role:'Finance & Wealth Planning',bg:'#FAEEDA',color:'#633806',rating:4.9,reviews:182,price:3000,exp:'15 yrs',badge:'verified',
-   tags:['Portfolio Strategy','Tax Planning','FIRE','HNI Wealth','Equity'],
-   bio:'Certified financial planner and former head of wealth at Kotak. I build comprehensive, tax-efficient financial plans for founders, HNIs and senior professionals.',
-   avail:['Mon','Tue','Wed','Thu'],slots:['10:00 AM','2:00 PM','4:30 PM'],
-   reviews:[{n:'Ananya Rao',d:'Apr 8, 2025',s:5,t:"Vikram rebuilt my entire financial plan from scratch. My net worth grew 40% in 18 months while my tax burden dropped significantly."},{n:'Karan Sethi',d:'Mar 25, 2025',s:5,t:"Best financial advice I've received. He thinks in 10-year horizons, not quarterly cycles."}]},
-  {id:4,name:'Rahul Joshi',initials:'RJ',role:'Corporate & Startup Law',bg:'#F1EFE8',color:'#444441',rating:4.8,reviews:76,price:4000,exp:'12 yrs',badge:'verified',
-   tags:['Term Sheets','ESOP','IP Protection','Compliance','Contracts'],
-   bio:"Senior advocate with 12 years in corporate and startup law. I've reviewed over 300 term sheets and helped founders avoid costly legal mistakes at every stage.",
-   avail:['Tue','Thu','Fri'],slots:['11:00 AM','2:00 PM','4:00 PM'],
-   reviews:[{n:'Ravi Teja',d:'Apr 14, 2025',s:5,t:"Rahul caught three major red flags in our investor agreement that we had completely missed. Incredible attention to detail."},{n:'Nisha Kapoor',d:'Apr 2, 2025',s:4,t:"Very thorough and communicative. Worth every rupee for the peace of mind."}]},
-  {id:5,name:'Priya Reddy',initials:'PR',role:'Career Transition & Coaching',bg:'#EEEDFE',color:'#3C3489',rating:4.7,reviews:143,price:1800,exp:'6 yrs',badge:'new',
-   tags:['FAANG Placement','Resume Building','Interview Prep','Salary Negotiation','Career Switch'],
-   bio:"Ex-Amazon PM who built a second career from scratch. I've coached 200+ professionals into FAANG companies and top startups — specialising in career pivots and negotiations.",
-   avail:['Mon','Wed','Sat'],slots:['9:30 AM','11:00 AM','2:30 PM','5:00 PM'],
-   reviews:[{n:'Aditya Verma',d:'Apr 16, 2025',s:5,t:"Priya's mock interview sessions were transformative. I got a PM offer at Google within 6 weeks of working with her."},{n:'Sonia Lal',d:'Apr 7, 2025',s:4,t:"Negotiation coaching alone was worth 10x the session fee. Got a 45% increase in my offer."}]},
-]
+const SEED_CONSULTANTS=[]
 
 const CATEGORIES_FULL=[
   {icon:'💼',name:'Business Strategy',count:2840,subs:['Startup Growth','GTM Strategy','Business Model Design','Market Entry','Competitive Analysis','M&A Advisory']},
@@ -1635,14 +1604,8 @@ async function fetchConsultants(filters={}){
       }
     }catch(e){console.warn('Fetch consultants error',e);}
   }
-  // No Supabase data — fall back to demo profiles
-  let seed=[...SEED_CONSULTANTS];
-  if(filters.category)seed=seed.filter(c=>c.role.toLowerCase().includes(filters.category.toLowerCase())||c.tags.some(t=>t.toLowerCase().includes(filters.category.toLowerCase())));
-  if(filters.minPrice)seed=seed.filter(c=>c.price>=filters.minPrice);
-  if(filters.maxPrice)seed=seed.filter(c=>c.price<=filters.maxPrice);
-  if(filters.sort==='price_asc')seed.sort((a,b)=>a.price-b.price);
-  else if(filters.sort==='price_desc')seed.sort((a,b)=>b.price-a.price);
-  return seed;
+  // No Supabase connection — return empty (no fake profiles)
+  return [];
 }
 
 async function fetchReviews(){
@@ -1698,7 +1661,31 @@ async function renderRealReviews(){
 function renderGrid(list,containerId){
   const g=document.getElementById(containerId);if(!g)return;
   if(!list.length){
-    g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:15px;font-weight:600;color:var(--ink);margin-bottom:6px">No experts found</div><div style="font-size:13px">Try adjusting your filters or <button onclick="go('browse')" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:13px;font-weight:600">browse all categories</button></div></div>';
+    const pioneers=[
+      {icon:'💼',title:'Business Strategy',sub:'GTM · Fundraising · Scaling',color:'#EBF4FF',border:'#1E72BE'},
+      {icon:'💻',title:'Technology & Dev',sub:'System Design · CTO Advisory',color:'#F0FDF4',border:'#16A34A'},
+      {icon:'⚖️',title:'Legal & Compliance',sub:'Contracts · IP · Startup Law',color:'#FEF3C7',border:'#D97706'},
+      {icon:'💰',title:'Finance & Wealth',sub:'Tax Planning · Portfolio · FIRE',color:'#FDF4FF',border:'#9333EA'},
+    ];
+    g.innerHTML=`
+      <div style="grid-column:1/-1;margin-bottom:8px">
+        <div style="background:linear-gradient(135deg,#EBF4FF,#F0FDF4);border:1.5px dashed #93C5FD;border-radius:14px;padding:16px 24px;display:flex;align-items:center;gap:12px">
+          <div style="font-size:20px">🌟</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#1E40AF">Be among the first experts on Guidcy</div>
+            <div style="font-size:12px;color:#3B82F6;margin-top:2px">Register now, set your own rate, and start accepting bookings instantly.</div>
+          </div>
+          <button onclick="go('signup');swType('consultant')" style="margin-left:auto;padding:8px 20px;background:#1E72BE;color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Register Now →</button>
+        </div>
+      </div>
+      ${pioneers.map(p=>`
+        <div style="background:${p.color};border:1.5px dashed ${p.border}44;border-radius:14px;padding:24px 20px;text-align:center;position:relative;opacity:0.85" class="pioneer-card">
+          <div style="position:absolute;top:10px;right:10px;background:#fff;border:1px solid ${p.border}33;border-radius:100px;padding:2px 8px;font-size:10px;font-weight:700;color:${p.border}">OPEN</div>
+          <div style="font-size:36px;margin-bottom:10px">${p.icon}</div>
+          <div style="font-size:13px;font-weight:700;color:#0F172A;margin-bottom:4px">${p.title}</div>
+          <div style="font-size:11px;color:#64748B;margin-bottom:14px">${p.sub}</div>
+          <button onclick="go('signup');swType('consultant')" style="padding:7px 16px;background:${p.border};color:#fff;border:none;border-radius:100px;font-size:12px;font-weight:600;cursor:pointer">Claim Spot</button>
+        </div>`).join('')}`;
     return;}
   g.innerHTML=list.map(c=>`
     <div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">
