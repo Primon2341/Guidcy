@@ -587,7 +587,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
   </div>
 
   <div class="trust-strip">
-    <div class="trust-item"><span class="trust-val" style="color:var(--blue)">₹500–₹8K</span><span class="trust-label">Session range</span></div>
+    <div class="trust-item"><span class="trust-val" style="color:var(--blue)">₹100+</span><span class="trust-label">Starting per session</span></div>
     <div class="trust-item"><span class="trust-val" style="color:var(--green)">150+</span><span class="trust-label">Categories covered</span></div>
     <div class="trust-item"><span class="trust-val" style="color:var(--gold-d)">100%</span><span class="trust-label">Verified experts</span></div>
     <div class="trust-item"><span class="trust-val" style="color:#8B5CF6">Google Meet</span><span class="trust-label">Built-in sessions</span></div>
@@ -641,9 +641,9 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
   <!-- Testimonials -->
   <div class="section" style="background:var(--surface)">
     <div class="home-section-header" style="text-align:center;margin-bottom:40px">
-      <span class="home-section-label">CLIENT STORIES</span>
-      <h2 class="home-section-title">What Our Clients Say</h2>
-      <p class="home-section-sub">Real results from real consultations</p>
+      <span class="home-section-label">USER STORIES</span>
+      <h2 class="home-section-title">What Our Users Say</h2>
+      <p class="home-section-sub">Honest reviews from our community</p>
     </div>
     <div class="test-grid" id="reviews-grid"><div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading reviews...</div></div>
   </div>
@@ -654,20 +654,20 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
     <div style="position:relative;z-index:1;max-width:700px;margin:0 auto">
       <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:100px;padding:6px 18px;font-size:12px;color:rgba(255,255,255,.8);margin-bottom:24px;letter-spacing:.04em">
         <span style="width:6px;height:6px;border-radius:50%;background:#4ADE80;display:inline-block;animation:pulse 2s infinite"></span>
-        PIONEER PROGRAM — LIMITED SPOTS
+        OPEN PLATFORM — JOIN FREE
       </div>
       <div style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;margin-bottom:16px;line-height:1.15">
         Share your expertise.<br><em style="color:#60A5FA">Earn on your schedule.</em>
       </div>
       <p style="font-size:15px;color:#94A3B8;margin-bottom:12px;line-height:1.7">Join Guidcy as a founding consultant and enjoy exclusive early-access perks.</p>
       <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px">
-        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Zero commission for 6 months</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Set your own rates</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Featured profile placement</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Google Meet built-in</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Instant Razorpay payouts</div>
       </div>
       <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-blue" style="padding:14px 32px;font-size:15px;font-weight:600;letter-spacing:.01em" onclick="go('signup');swType('consultant')">Apply as a Consultant →</button>
+        <button class="btn btn-blue" style="padding:14px 32px;font-size:15px;font-weight:600;letter-spacing:.01em" onclick="go('signup');swType('consultant')">Join as a Consultant →</button>
         <button class="btn" style="padding:14px 32px;font-size:15px;background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2);font-weight:500" onclick="go('browse')">Find a Consultant</button>
       </div>
     </div>
@@ -732,7 +732,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
         <div class="filter-title">Price range (per session)</div>
         <div class="filter-range">
           <span>₹500</span>
-          <input type="range" id="price-range" min="500" max="8000" step="500" value="8000" oninput="document.getElementById('price-val').textContent='₹'+this.value;applyFilters()"/>
+          <input type="range" id="price-range" min="100" max="8000" step="500" value="8000" oninput="document.getElementById('price-val').textContent='₹'+this.value;applyFilters()"/>
           <span id="price-val">₹8000</span>
         </div>
       </div>
@@ -855,7 +855,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
           </div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Rate per hour (₹)</label><input type="number" id="sc-rate" placeholder="2500"/></div>
+          <div class="field"><label>Rate per hour (₹)</label><input type="number" id="sc-rate" placeholder="1000"/></div>
           <div class="field"><label>Languages spoken</label><input placeholder="English, Hindi"/></div>
         </div>
         <div class="field"><label>Session types offered</label>
@@ -867,10 +867,9 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
         </div>
         <div class="field"><label>Short bio</label><textarea id="sc-bio" placeholder="Tell clients about your background, expertise, and what value you deliver in sessions..."></textarea></div>
         <div class="field"><label>LinkedIn / Portfolio URL</label><input type="url" placeholder="https://linkedin.com/in/yourname"/></div>
-        <div class="field"><label>Upload ID proof (for verification)</label><input type="file" style="padding:6px"/></div>
         <div class="field"><label>Password</label><input type="password" id="sc-pw" placeholder="Min 8 characters"/></div>
-        <button class="green-btn" id="cons-signup-btn" onclick="doSignup('consultant')">Apply as consultant</button>
-        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Applications are reviewed within 24 hours. You'll receive an email upon approval.</p>
+        <button class="green-btn" id="cons-signup-btn" onclick="doSignup('consultant')">Create consultant account</button>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Free to join. Set your own rates. Start accepting bookings immediately.</p>
       </div>
       <div class="switch-txt">Already have an account? <button onclick="go('login')">Sign in</button></div>
     </div>
@@ -944,7 +943,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       <p class="confirm-sub">Your session is scheduled and paid. All details have been sent to your email and phone.</p>
       <div class="remind-box">
         <div style="font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px">🔔 Smart reminders enabled</div>
-        You'll be notified 24 hours, 1 hour, and 15 minutes before your session via email and SMS.
+        You'll be notified instantly, 1 hour, and 15 minutes before your session via email and SMS.
       </div>
       <div class="meet-card">
         <div class="meet-card-label">
@@ -1059,7 +1058,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Analytics
         </button>
         <button class="side-btn" onclick="swAD('consultants',this)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Consultants <span class="status-pill sp-pending" style="margin-left:auto;font-size:9px;padding:1px 5px">5</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Consultants
         </button>
         <button class="side-btn" onclick="swAD('users',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users
@@ -1147,10 +1146,10 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       <p>Join our growing community of expert consultants who earn on their own terms — helping clients through verified, flexible consultation sessions.</p>
       <div class="earn-grid">
         <div class="earn-card"><span class="earn-val">85%</span><div class="earn-lbl">Revenue to you</div></div>
-        <div class="earn-card"><span class="earn-val">₹0</span><div class="earn-lbl">Commission (first 6 months)</div></div>
+        <div class="earn-card"><span class="earn-val">₹100+</span><div class="earn-lbl">Min. session rate</div></div>
         <div class="earn-card"><span class="earn-val">24h</span><div class="earn-lbl">Application review</div></div>
       </div>
-      <button class="btn btn-blue" style="font-size:15px;padding:13px 32px" onclick="go('signup');swType('consultant')">Apply now — it's free</button>
+      <button class="btn btn-blue" style="font-size:15px;padding:13px 32px" onclick="go('signup');swType('consultant')">Join free — start today</button>
     </div>
   </div>
   <div style="padding:60px 32px;max-width:900px;margin:0 auto">
@@ -1167,7 +1166,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       <h2 style="font-family:'Cormorant Garamond',serif;font-size:28px;margin-bottom:10px">How to get started</h2>
       <div class="how-grid" style="margin-top:28px">
         <div class="how-item"><div class="how-num" style="border-color:var(--blue)">1</div><div class="how-title">Apply online</div><div class="how-desc">Complete your profile and upload your credentials. Takes 10 minutes.</div></div>
-        <div class="how-item"><div class="how-num" style="border-color:var(--blue)">2</div><div class="how-title">Get verified</div><div class="how-desc">Our team reviews your application within 24 hours and verifies your identity.</div></div>
+        <div class="how-item"><div class="how-num" style="border-color:var(--blue)">2</div><div class="how-title">Get verified</div><div class="how-desc">Our team reviews your application within instantly and verifies your identity.</div></div>
         <div class="how-item"><div class="how-num" style="border-color:var(--blue)">3</div><div class="how-title">Set availability</div><div class="how-desc">Configure your schedule, session types, durations, and pricing.</div></div>
         <div class="how-item"><div class="how-num" style="border-color:var(--blue)">4</div><div class="how-title">Start earning</div><div class="how-desc">Clients book directly. Sessions via Google Meet. Earnings paid weekly.</div></div>
       </div>
@@ -1261,11 +1260,11 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 </div>
 
 <!-- ════ LEGAL PAGES ════ -->
-<div id="page-terms" class="page"><div class="info-page"><h1>Terms & Conditions</h1><p class="lead">Last updated: April 2025</p><h2>1. Acceptance of Terms</h2><p>By accessing or using Guidcy, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our platform.</p><h2>2. Platform Description</h2><p>Guidcy is a consultation marketplace that connects clients with verified independent consultants. Guidcy facilitates the connection but is not a party to the consultation agreement.</p><h2>3. User Accounts</h2><p>You must provide accurate, complete information when creating your account. You are responsible for maintaining the security of your account credentials.</p><h2>4. Bookings & Cancellations</h2><p>Sessions must be cancelled at least 24 hours in advance for a full refund. Cancellations within 24 hours may be subject to a 50% cancellation fee.</p><h2>5. Platform Fees</h2><p>Guidcy charges a 15% platform commission on all completed sessions. This is deducted from the consultant's earnings, not charged to the client separately.</p><h2>6. Prohibited Conduct</h2><p>Users may not exchange personal contact information to bypass the platform, post false reviews, or use the platform for any illegal purpose.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-terms" class="page"><div class="info-page"><h1>Terms & Conditions</h1><p class="lead">Last updated: April 2025</p><h2>1. Acceptance of Terms</h2><p>By accessing or using Guidcy, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our platform.</p><h2>2. Platform Description</h2><p>Guidcy is a consultation marketplace that connects clients with verified independent consultants. Guidcy facilitates the connection but is not a party to the consultation agreement.</p><h2>3. User Accounts</h2><p>You must provide accurate, complete information when creating your account. You are responsible for maintaining the security of your account credentials.</p><h2>4. Bookings & Cancellations</h2><p>Sessions must be cancelled at least instantly in advance for a full refund. Cancellations within instantly may be subject to a 50% cancellation fee.</p><h2>5. Platform Fees</h2><p>Guidcy charges a 15% platform commission on all completed sessions. This is deducted from the consultant's earnings, not charged to the client separately.</p><h2>6. Prohibited Conduct</h2><p>Users may not exchange personal contact information to bypass the platform, post false reviews, or use the platform for any illegal purpose.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
 <div id="page-privacy" class="page"><div class="info-page"><h1>Privacy Policy</h1><p class="lead">Last updated: April 2025</p><h2>Information We Collect</h2><p>We collect information you provide directly (name, email, phone), information from your use of the platform (booking history, session data, reviews), and technical data (device type, IP address, browser).</p><h2>How We Use Your Information</h2><ul><li>To facilitate bookings and sessions between clients and consultants</li><li>To send transactional notifications (booking confirmations, reminders)</li><li>To improve our platform and personalise your experience</li><li>To prevent fraud and ensure platform safety</li></ul><h2>Data Security</h2><p>We use 256-bit SSL encryption for all data in transit and AES-256 encryption for sensitive data at rest. Payment information is handled exclusively by Razorpay and is never stored on Guidcy servers.</p><h2>Your Rights</h2><p>Under India's DPDP Act 2023, you have the right to access, correct, and delete your personal data. Contact privacy@guidcy.com to exercise these rights.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
-<div id="page-refund" class="page"><div class="info-page"><h1>Refund Policy</h1><p class="lead">Last updated: April 2025</p><h2>Full Refunds</h2><p>You are eligible for a full refund if: you cancel at least 24 hours before the scheduled session; the consultant cancels or does not show up; or a technical issue prevents the session from taking place.</p><h2>Partial Refunds</h2><p>A 50% refund may be issued for cancellations made between 12 and 24 hours before the session.</p><h2>No Refunds</h2><p>No refund will be issued for cancellations made less than 12 hours before the session, sessions that have already commenced, or sessions completed as scheduled.</p><h2>Processing Time</h2><p>Approved refunds are processed within 5–7 business days to the original payment method.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-refund" class="page"><div class="info-page"><h1>Refund Policy</h1><p class="lead">Last updated: April 2025</p><h2>Full Refunds</h2><p>You are eligible for a full refund if: you cancel at least instantly before the scheduled session; the consultant cancels or does not show up; or a technical issue prevents the session from taking place.</p><h2>Partial Refunds</h2><p>A 50% refund may be issued for cancellations made between 12 and instantly before the session.</p><h2>No Refunds</h2><p>No refund will be issued for cancellations made less than 12 hours before the session, sessions that have already commenced, or sessions completed as scheduled.</p><h2>Processing Time</h2><p>Approved refunds are processed within 5–7 business days to the original payment method.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
 <div id="page-disclaimer" class="page"><div class="info-page"><h1>Disclaimer</h1><p class="lead">Important information about the nature of consultations on Guidcy.</p><p>Consultations provided through Guidcy are for informational and advisory purposes only. They do not constitute professional legal, medical, financial, or psychological advice in a formal client-advisor relationship unless explicitly agreed upon separately.</p><p>Guidcy does not guarantee any specific outcomes from consultations. The expertise and credentials of consultants are self-reported and verified to the best of our ability, but Guidcy cannot guarantee their accuracy in all cases.</p><p>For medical emergencies, please contact emergency services immediately. For urgent legal matters, please consult a licensed attorney directly.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
@@ -1327,12 +1326,12 @@ const CATEGORIES_FULL=[
 const FAQ_CLIENT=[
   {q:'How do I book a session?',a:'Browse consultants, select one, pick your date and time, then complete payment. A Google Meet link is generated instantly on confirmation.'},
   {q:'What payment methods are accepted?',a:'Cards (Visa, Mastercard, Amex), UPI (Google Pay, PhonePe, Paytm), net banking, and digital wallets via Razorpay.'},
-  {q:'Can I reschedule or cancel?',a:'Yes — up to 24 hours before your session for a full refund. Within 24 hours, a 50% fee applies. Within 2 hours, non-refundable.'},
+  {q:'Can I reschedule or cancel?',a:'Yes — up to instantly before your session for a full refund. Within instantly, a 50% fee applies. Within 2 hours, non-refundable.'},
   {q:'Are consultants verified?',a:'Yes. Every consultant goes through identity verification and credential checks before being listed. Verified consultants have a gold badge.'},
   {q:'What if a consultant doesn\'t show up?',a:'You receive a full automatic refund. Contact support@guidcy.com for urgent help.'},
 ];
 const FAQ_CONSULTANT=[
-  {q:'How do I apply?',a:'Click "Become a Consultant", fill your profile and submit. Our team reviews within 24–48 hours.'},
+  {q:'How do I apply?',a:'Click "Become a Consultant", fill your profile and submit. Our team reviews within instantly.'},
   {q:'How much do I earn?',a:'You keep 85% of every session fee. Guidcy charges a 15% platform commission. You set your own rates.'},
   {q:'When do I get paid?',a:'Payouts are processed weekly every Monday via NEFT/IMPS or UPI within 1–2 business days.'},
   {q:'Can I set my own availability?',a:'Absolutely — set available days, hours, and break intervals any time from your dashboard.'},
@@ -1511,7 +1510,7 @@ async function doSignup(type){
     if(btn){btn.disabled=true;btn.textContent='Submitting application...';}
     try{
       const{data,error}=await sb.auth.signUp({email,password:pass,options:{data:{full_name:fn+' '+ln,role:'consultant'}}});
-      if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Apply as consultant';}return;}
+      if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Join as Consultant';}return;}
       if(data.user){
         // Save to profiles
         await sb.from('profiles').upsert({id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
@@ -1523,18 +1522,18 @@ async function doSignup(type){
           avatar_bg:'#EBF4FF', avatar_color:'#1E72BE',
           specialty:category, category,
           bio, experience:exp, rate,
-          badge:'pending', is_active:false,
+          badge:'new', is_active:true,
           session_types:['video'], rating:0, review_count:0
         });
         if(cErr)console.warn('Consultant insert error',cErr);
         loggedIn='consultant';
         currentProfile={full_name:fn+' '+ln,role:'consultant',avatar_initials:mkInitials(fn+' '+ln)};
         updateNav();
-        toast('Application submitted! Our team will review within 24–48 hours 🎉','green');
-        setTimeout(()=>go('cons-dash'),800);
+        toast('Account created! Welcome to Guidcy — start setting up your profile 🎉','green');
+        setTimeout(()=>go('cons-dash'),700);
       }
     }catch(e){toast('Signup failed: '+e.message,'red');console.error(e);}
-    if(btn){btn.disabled=false;btn.textContent='Apply as consultant';}
+    if(btn){btn.disabled=false;btn.textContent='Join as Consultant';}
   }
 }
 
@@ -1578,7 +1577,7 @@ async function fetchConsultants(filters={}){
   // Try Supabase first
   if(sb){
     try{
-      let q=sb.from('consultants').select('*').eq('is_active',true).eq('badge','verified');
+      let q=sb.from('consultants').select('*').eq('is_active',true);
       if(filters.category)q=q.or(`specialty.ilike.%${filters.category}%,category.ilike.%${filters.category}%`);
       if(filters.minRating)q=q.gte('rating',filters.minRating);
       if(filters.minPrice)q=q.gte('rate',filters.minPrice);
@@ -1650,29 +1649,11 @@ async function renderRealReviews(){
       </div>`).join('');
   } else {
     el.innerHTML=`
-    <div class="test-card" style="border:1.5px solid #DBEAFE;background:linear-gradient(135deg,#EFF6FF,#F0FDF4)">
-      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
-      <p class="test-text" style="font-style:italic">"The consultant understood my startup challenges immediately and gave me a clear 90-day roadmap. Raised ₹50L within weeks of implementing the advice."</p>
-      <div class="test-author" style="margin-top:14px">
-        <div class="test-av" style="background:#DBEAFE;color:#1D4ED8">RG</div>
-        <div><div class="test-name">Rohan G.</div><div class="test-title">Founder, Delhi</div></div>
-      </div>
-    </div>
-    <div class="test-card" style="border:1.5px solid #D1FAE5;background:linear-gradient(135deg,#F0FDF4,#F7F0E6)">
-      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
-      <p class="test-text" style="font-style:italic">"I was burning out as a senior engineer. One session with the wellness consultant gave me frameworks I still use every single day. Life-changing."</p>
-      <div class="test-author" style="margin-top:14px">
-        <div class="test-av" style="background:#D1FAE5;color:#065F46">AP</div>
-        <div><div class="test-name">Amit P.</div><div class="test-title">Engineering Lead, Bengaluru</div></div>
-      </div>
-    </div>
-    <div class="test-card" style="border:1.5px solid #EDE9FE;background:linear-gradient(135deg,#F5F3FF,#FFF7ED)">
-      <div style="font-size:28px;margin-bottom:10px">⭐⭐⭐⭐⭐</div>
-      <p class="test-text" style="font-style:italic">"The tax planning session alone saved me ₹3L this year. Worth 20× what I paid. Every entrepreneur should be using Guidcy."</p>
-      <div class="test-author" style="margin-top:14px">
-        <div class="test-av" style="background:#EDE9FE;color:#5B21B6">SM</div>
-        <div><div class="test-name">Shreya M.</div><div class="test-title">Founder, Mumbai</div></div>
-      </div>
+    <div style="grid-column:1/-1;text-align:center;padding:52px 20px">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">💬</div>
+      <div style="font-size:17px;font-weight:600;color:var(--ink);margin-bottom:8px">No reviews yet</div>
+      <p style="font-size:14px;color:var(--muted);max-width:340px;margin:0 auto 20px;line-height:1.6">Reviews will appear here after users complete their first sessions. Be the first to book!</p>
+      <button onclick="go('browse')" style="padding:10px 24px;background:var(--blue);color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer">Browse Experts →</button>
     </div>`;
   }
 }
@@ -1691,10 +1672,10 @@ function renderGrid(list,containerId){
         <div style="background:linear-gradient(135deg,#EBF4FF,#F0FDF4);border:1.5px dashed #93C5FD;border-radius:14px;padding:16px 24px;display:flex;align-items:center;gap:12px">
           <div style="font-size:20px">🌟</div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:#1E40AF">Expert spots are open! Be a Pioneer on Guidcy</div>
-            <div style="font-size:12px;color:#3B82F6;margin-top:2px">Early consultants get <strong>zero commission for 6 months</strong> + featured profile placement</div>
+            <div style="font-size:13px;font-weight:600;color:#1E40AF">Be among the first experts on Guidcy</div>
+            <div style="font-size:12px;color:#3B82F6;margin-top:2px">Register now, set your own rate, and start accepting bookings instantly.</div>
           </div>
-          <button onclick="go('signup');swType('consultant')" style="margin-left:auto;padding:8px 20px;background:#1E72BE;color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Apply Now →</button>
+          <button onclick="go('signup');swType('consultant')" style="margin-left:auto;padding:8px 20px;background:#1E72BE;color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">Register Now →</button>
         </div>
       </div>
       ${pioneers.map(p=>`
@@ -2096,14 +2077,14 @@ async function swCD(view,btn){
     consRecord=data||null;
   }
   const isActive=consRecord?.is_active||false;
-  const isPending=consRecord&&!isActive;
+  const isPending=consRecord&&!isActive&&false; // no longer used
 
   if(isPending&&view==='overview'){
-    m.innerHTML=`<div class="dash-title">Application under review</div>
+    m.innerHTML=`<div class="dash-title">Account Inactive</div>
     <div style="text-align:center;padding:48px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
-      <div style="font-size:48px;margin-bottom:16px">⏳</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:500;margin-bottom:10px">Your application is being reviewed</div>
-      <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto">Our team will verify your profile within 24–48 hours. You'll receive an email at <strong>${currentUser?.email||''}</strong> once approved.</div>
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:500;margin-bottom:10px">Your account is currently inactive</div>
+      <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto">If you believe this is an error, please contact us at <strong>support@guidcy.com</strong>. Your account may have been deactivated.</div>
       <div style="margin-top:24px;background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:14px;font-size:13px;color:var(--blue-d)">
         <strong>While you wait</strong> — complete your profile below to get approved faster.
       </div>
@@ -2359,20 +2340,21 @@ async function swAD(view,btn){
     if(sb){
       const{data,error}=await sb.from('consultants').select('*').order('created_at',{ascending:false});
       if(!error && data)consultants=data;
-    }// no seed data — real DB only
-    const pendingCount=consultants.filter(c=>!c.is_active).length;
+    }
+    const activeCount=consultants.filter(c=>c.is_active).length;
+    const suspendedCount=consultants.filter(c=>!c.is_active).length;
     const rows=consultants.map((c,i)=>{
-      const isPending=!c.is_active;
-      const statusCls=isPending?'sp-pending':c.badge==='verified'?'sp-upcoming':'sp-done';
-      const statusTxt=isPending?'Pending':c.badge==='verified'?'Active':'Inactive';
-      const actions=isPending
-        ?`<button class="action-btn ab-approve" onclick="approveConsultant('${c.id||''}',${i})">✓ Approve</button><button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">✕ Reject</button>`
-        :`<span style="color:var(--green-d);font-size:12px">✓ Live</span> <button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">Suspend</button>`;
-      const applied=c.created_at?new Date(c.created_at).toLocaleDateString('en-IN'):'—';
-      return `<tr><td><div style="font-weight:600">${c.name}</div><div style="font-size:11px;color:var(--muted)">${c.experience||c.exp||''} ${c.specialty||c.category||''}</div></td><td>Rs.${(c.rate||c.price||0).toLocaleString()}</td><td>${applied}</td><td><span id="ad-s-${i}" class="status-pill ${statusCls}">${statusTxt}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td></tr>`;
+      const isActive=c.is_active;
+      const statusCls=isActive?'sp-upcoming':'sp-cancelled';
+      const statusTxt=isActive?'Active':'Suspended';
+      const actions=isActive
+        ?`<button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">Suspend</button>`
+        :`<button class="action-btn ab-approve" onclick="approveConsultant('${c.id||''}',${i})">↑ Reinstate</button>`;
+      const joined=c.created_at?new Date(c.created_at).toLocaleDateString('en-IN'):'—';
+      return `<tr><td><div style="font-weight:600">${c.name}</div><div style="font-size:11px;color:var(--muted)">${c.experience||c.exp||''} ${c.specialty||c.category||''}</div></td><td>₹${(c.rate||c.price||0).toLocaleString()}</td><td>${joined}</td><td><span id="ad-s-${i}" class="status-pill ${statusCls}">${statusTxt}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td></tr>`;
     }).join('');
-    const banner=pendingCount>0?`<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:var(--rs);padding:12px 16px;margin-bottom:16px;font-size:13px;color:#92400E;font-weight:500">⏳ ${pendingCount} application(s) waiting for your approval — approve to make them live and searchable by users.</div>`:'';
-    m.innerHTML=`<div class="dash-title">Manage consultants</div>${banner}<table class="data-table"><tr><th>Name & Category</th><th>Rate/hr</th><th>Applied</th><th>Status</th><th>Actions</th></tr>${rows}${!rows?'<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No consultant applications yet</td></tr>':''}</table>`
+    const statsBar=`<div style="display:flex;gap:12px;margin-bottom:20px"><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--green-d);font-weight:600">${activeCount} Active</div><div style="background:#FCEBEB;border:1px solid #F9A8A8;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#A32D2D;font-weight:600">${suspendedCount} Suspended</div><div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--muted);font-weight:600">${consultants.length} Total</div></div>`;
+    m.innerHTML=`<div class="dash-title">Manage Consultants</div>${statsBar}<table class="data-table"><tr><th>Name & Category</th><th>Rate/hr</th><th>Joined</th><th>Status</th><th>Actions</th></tr>${rows}${!rows?'<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No consultants registered yet</td></tr>':''}</table>`
   }else if(view==='bookings'){
     let bookings=[];
     if(sb){const{data}=await sb.from('bookings').select('*').order('created_at',{ascending:false}).limit(50);bookings=data||[];}
