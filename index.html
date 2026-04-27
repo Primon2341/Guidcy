@@ -130,6 +130,7 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 .pioneer-card:hover{transform:translateY(-4px);box-shadow:0 12px 32px rgba(30,114,190,.15);opacity:1 !important}
 /* ══ PULSE ANIMATION ══ */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulse2{0%,100%{opacity:.7}50%{opacity:.35}}
 /* ══ TRUST STRIP ══ */
 /* ══ TRUST STRIP ══ */
 .trust-strip{padding:20px 32px;display:flex;justify-content:center;align-items:center;gap:0;background:var(--surface);border-bottom:1px solid var(--border)}
@@ -1562,7 +1563,7 @@ async function doSignup(type){
         currentProfile={full_name:fn+' '+ln,role:'consultant',avatar_initials:mkInitials(fn+' '+ln)};
         updateNav();
         toast('Account created! Welcome to Guidcy — start setting up your profile 🎉','green');
-        setTimeout(()=>go('cons-dash'),700);
+        go('cons-dash');
       }
     }catch(e){toast('Signup failed: '+e.message,'red');console.error(e);}
     if(btn){btn.disabled=false;btn.textContent='Join as Consultant';}
@@ -2111,36 +2112,41 @@ async function swCD(view,btn){
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
   const m=document.getElementById('cdash-main');if(!m)return;
 
-  // Load consultant record from DB
+  // ── 1. Update sidebar IMMEDIATELY from currentProfile (no await needed) ──
+  const quickName=currentProfile?.full_name||'Consultant';
+  const quickInitials=currentProfile?.avatar_initials||mkInitials(quickName);
+  const avEl=document.getElementById('cdash-av');const nmEl=document.getElementById('cdash-name');const tyEl=document.getElementById('cdash-type');
+  if(avEl)avEl.textContent=quickInitials;
+  if(nmEl)nmEl.textContent=quickName;
+
+  // ── 2. Show skeleton immediately so main area is never blank ──
+  m.innerHTML='<div style="padding:24px"><div style="height:24px;width:160px;background:var(--surface2);border-radius:6px;margin-bottom:16px;animation:pulse2 1.2s infinite"></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">'+'<div style="height:80px;background:var(--surface2);border-radius:var(--r);animation:pulse2 1.2s infinite"></div>'.repeat(3)+'</div><div style="height:200px;background:var(--surface2);border-radius:var(--r);animation:pulse2 1.2s infinite"></div></div>';
+
+  // ── 3. Load consultant record safely ──
   let consRecord=null;
   if(sb&&currentUser){
-    const{data,error:cErr}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).maybeSingle().catch(()=>({data:null,error:'catch'}));
-    consRecord=(!cErr&&data)?data:null;
+    try{
+      const{data}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).limit(1);
+      consRecord=(data&&data.length>0)?data[0]:null;
+    }catch(e){console.warn('consRecord load failed',e);}
   }
-  const isActive=consRecord?.is_active||false;
-  const isPending=consRecord&&!isActive&&false; // no longer used
 
-  // ── Update sidebar with real name/initials ──────────────────────────
-  const realName=currentProfile?.full_name||consRecord?.name||'Consultant';
-  const realInitials=currentProfile?.avatar_initials||consRecord?.avatar_initials||mkInitials(realName);
+  // ── 4. Update sidebar with DB specialty once loaded ──
+  const realName=currentProfile?.full_name||consRecord?.name||quickName;
   const realSpecialty=consRecord?.specialty||consRecord?.category||'Consultant';
-  const avEl=document.getElementById('cdash-av');
-  const nmEl=document.getElementById('cdash-name');
-  const tyEl=document.getElementById('cdash-type');
-  if(avEl) avEl.textContent=realInitials;
-  if(nmEl) nmEl.textContent=realName;
-  if(tyEl) tyEl.textContent=realSpecialty;
+  if(avEl)avEl.textContent=currentProfile?.avatar_initials||consRecord?.avatar_initials||mkInitials(realName);
+  if(nmEl)nmEl.textContent=realName;
+  if(tyEl)tyEl.textContent=realSpecialty;
 
-  // ── Update booking requests badge count ─────────────────────────────
-  if(consRecord&&sb){
-    if(!consRecord?.id) return;
-    const{data:pendingBks}=await sb.from('bookings').select('id').eq('consultant_id',consRecord.id).eq('status','pending').catch(()=>({data:[]}));
-    const cnt=(pendingBks||[]).length;
-    const badge=document.getElementById('req-count-badge');
-    if(badge){badge.textContent=cnt;badge.style.display=cnt>0?'inline-flex':'none';}
+  // ── 5. Update booking requests badge (non-blocking) ──
+  if(consRecord?.id&&sb){
+    sb.from('bookings').select('id').eq('consultant_id',consRecord.id).eq('status','pending')
+      .then(({data:bks})=>{const cnt=(bks||[]).length;const badge=document.getElementById('req-count-badge');if(badge){badge.textContent=cnt;badge.style.display=cnt>0?'inline-flex':'none';}})
+      .catch(()=>{});
   }
 
-  if(isPending&&view==='overview'){
+  const isActive=consRecord?.is_active!==false; // treat missing as active
+  if(!isActive&&consRecord){
     m.innerHTML=`<div class="dash-title">Account Inactive</div>
     <div style="text-align:center;padding:48px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
       <div style="font-size:48px;margin-bottom:16px">⚠️</div>
