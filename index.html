@@ -2186,31 +2186,17 @@ async function doPay(){
   const dates=buildDates();
   const fee=Math.round(curCons.price*getDurMultiplier());
   const tot=Math.round(fee*1.05);
-  if(CFG.razorpay_key){
-    const options={
-      key:CFG.razorpay_key,amount:tot*100,currency:'INR',
-      name:'Guidcy',description:`${selDur}-min session · ${curCons.name}`,
-      prefill:{name:currentProfile?.full_name||'',email:currentUser?.email||'',contact:currentProfile?.phone||''},
-      notes:{consultant:curCons.name,date:dates[selDate].full,time:selSlot},
-      theme:{color:'#1E72BE'},
-      handler:async function(response){
-        await saveBooking(response.razorpay_payment_id,dates[selDate].full,fee,tot);
-        toast('Payment successful! Booking confirmed 🎉','green');
-        setTimeout(()=>go('confirm'),700);
-      },
-      modal:{ondismiss:()=>toast('Payment cancelled')}
-    };
-    try{const rzp=new Razorpay(options);rzp.on('payment.failed',e=>toast('Payment failed: '+e.error.description,'red'));rzp.open();}
-    catch(e){toast('Razorpay error. Check internet.','red');}
-  }else{
-    // Demo payment
+  // ── PAYMENT BYPASS (TEMPORARY) — confirms booking without charging ──
+  // To re-enable Razorpay later, restore the original branch that checks CFG.razorpay_key.
+  {
     const btn=document.querySelector('#page-payment .green-btn');
-    if(btn){btn.disabled=true;btn.textContent='Processing...';}
-    await new Promise(r=>setTimeout(r,1400));
+    if(btn){btn.disabled=true;btn.textContent='Confirming...';}
+    await new Promise(r=>setTimeout(r,800));
     if(btn){btn.disabled=false;btn.textContent='Confirm & Pay securely';}
-    await saveBooking('DEMO-'+Math.floor(Math.random()*900000+100000),dates[selDate].full,fee,tot);
-    toast('Payment successful! Booking confirmed 🎉','green');
+    await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate].full,fee,tot);
+    toast('Booking confirmed (payment bypassed) 🎉','green');
     setTimeout(()=>go('confirm'),700);
+    return;
   }
 }
 
