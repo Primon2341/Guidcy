@@ -94,7 +94,165 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 .home-section-title{font-size:34px;font-weight:700;color:#0F172A;font-family:'Cormorant Garamond',serif;margin-bottom:10px}
 .home-section-sub{font-size:15px;color:#64748B}
 .home-cats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;max-width:1100px;margin:0 auto}
-@media(max-width:900px){.home-cats-grid{grid-template-columns:repeat(3,1fr)}}
+/* ══════════════════════════════════════════════
+   RESPONSIVE — MOBILE & TABLET
+══════════════════════════════════════════════ */
+
+/* Hamburger button — hidden on desktop */
+.mobile-burger{display:none;background:none;border:none;cursor:pointer;padding:8px;flex-direction:column;gap:4px;width:36px;height:36px;align-items:center;justify-content:center}
+.mobile-burger span{display:block;width:22px;height:2px;background:var(--ink);border-radius:2px;transition:transform .25s,opacity .25s}
+.mobile-burger.on span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+.mobile-burger.on span:nth-child(2){opacity:0}
+.mobile-burger.on span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+
+/* Dashboard mobile menu toggle button — hidden on desktop */
+.dash-mobile-toggle{display:none;align-items:center;gap:8px;width:100%;padding:12px 18px;background:var(--surface);border:none;border-bottom:1px solid var(--border);font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;position:sticky;top:64px;z-index:30}
+.dash-mobile-toggle span{display:inline-block;width:18px;height:2px;background:var(--ink);border-radius:2px;margin-right:2px}
+.dash-mobile-toggle span:not(:first-child){margin-left:-18px;margin-top:5px}
+
+/* TABLET — 901px to 1024px */
+@media(max-width:1024px){
+  .home-cats-grid{grid-template-columns:repeat(3,1fr)}
+  .browse-layout{grid-template-columns:240px 1fr}
+  .profile-layout{grid-template-columns:1fr 320px}
+  .dash-wrap{grid-template-columns:200px 1fr}
+  .footer-grid{grid-template-columns:1.5fr 1fr 1fr 1fr}
+  .stats-grid{grid-template-columns:repeat(3,1fr)}
+}
+
+/* TABLET PORTRAIT & LARGE PHONES — 768px and below */
+@media(max-width:900px){
+  .nav{padding:0 16px;height:60px}
+  .logo-svg-wrap img{height:32px !important}
+  .nav-links{
+    display:none;
+    position:fixed;top:60px;left:0;right:0;bottom:0;
+    background:var(--surface);
+    flex-direction:column;
+    padding:20px 16px 100px;
+    gap:4px;
+    z-index:99;
+    overflow-y:auto;
+    border-top:1px solid var(--border);
+    box-shadow:0 8px 24px rgba(0,0,0,.08);
+  }
+  .nav-links.on{display:flex}
+  .nav-link{
+    width:100%;
+    text-align:left;
+    padding:14px 16px;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:500;
+  }
+  .nav-link:hover,.nav-link:active{background:var(--surface2)}
+  .mobile-burger{display:flex}
+  .nav-right{gap:6px}
+  .nav-right .btn{padding:7px 12px;font-size:12px}
+  body.menu-open{overflow:hidden}
+
+  /* Hero */
+  .hero{padding:32px 16px 28px;min-height:auto}
+  .hero h1{font-size:30px;line-height:1.15}
+  .hero-content{grid-template-columns:1fr;gap:20px}
+  .hero-sub{font-size:14px}
+  .hero-search{flex-direction:column;padding:12px;gap:10px}
+  .hero-search input{width:100%}
+  .hero-cats{justify-content:center}
+  .hero-stats{grid-template-columns:1fr 1fr;gap:12px}
+  .hero-right{display:none}
+
+  /* Layout */
+  .section{padding:32px 16px}
+  .home-cats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .browse-layout,.profile-layout{grid-template-columns:1fr;gap:0}
+  .filter-panel{position:relative;top:auto;border-right:none;border-bottom:1px solid var(--border);max-height:none;padding:16px}
+  .profile-sidebar{position:relative;top:auto;border-left:none;border-top:1px solid var(--border);padding:20px 16px}
+  .profile-main{padding:20px 16px}
+  .profile-name{font-size:24px}
+  .profile-hero{flex-direction:column;align-items:flex-start;gap:14px}
+
+  /* Trust strip */
+  .trust-strip{grid-template-columns:repeat(2,1fr) !important;padding:18px 16px}
+  .trust-item{padding:10px 12px;border-right:none !important;border-bottom:1px solid var(--border)}
+  .trust-item:nth-last-child(-n+2){border-bottom:none}
+  .trust-val{font-size:20px !important}
+
+  /* Sections */
+  .stats-grid,.admin-stats{grid-template-columns:1fr 1fr;gap:10px}
+  .how-grid{grid-template-columns:1fr;gap:14px}
+  .contact-grid{grid-template-columns:1fr}
+  .test-grid{grid-template-columns:1fr;gap:12px}
+  .benefit-grid{grid-template-columns:1fr 1fr;gap:12px}
+  .footer-grid{grid-template-columns:1fr 1fr;gap:24px;padding:28px 16px}
+  .footer-bottom{flex-direction:column;gap:12px;text-align:center;padding:20px 16px}
+
+  /* Dashboard — DRAWER PATTERN */
+  .dash-wrap{grid-template-columns:1fr;min-height:calc(100vh - 60px)}
+  .dash-mobile-toggle{display:flex;top:60px}
+  .dash-side{
+    position:fixed;
+    top:60px;left:-100%;bottom:0;
+    width:280px;max-width:85vw;
+    z-index:90;
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    transition:left .3s ease;
+    overflow-y:auto;
+    box-shadow:4px 0 20px rgba(0,0,0,.08);
+  }
+  .dash-side.on{left:0}
+  .dash-main{padding:18px 16px;overflow-x:hidden}
+  .dash-title{font-size:22px}
+  .side-btn{padding:14px 16px;font-size:14px}
+  .dash-overlay{display:none;position:fixed;top:60px;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:80}
+  .dash-overlay.on{display:block}
+
+  /* Booking */
+  .book-box{position:relative}
+  .pay-method-row{flex-wrap:wrap}
+  .pay-method{flex:1 1 calc(50% - 4px);min-width:0}
+  .field-row{grid-template-columns:1fr;gap:0}
+  .form-page{padding:24px 16px}
+  .form-card{padding:24px 18px;max-width:100%}
+  .pay-wrap,.confirm-wrap{padding:24px 16px}
+
+  /* Tables become cards */
+  .data-table{font-size:12px}
+  .data-table th,.data-table td{padding:10px 8px}
+
+  /* Availability calendar */
+  .avail-date-grid{grid-template-columns:repeat(auto-fill,minmax(72px,1fr)) !important;max-height:none}
+  .slot-pick-grid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr)) !important}
+
+  /* Schedule grid breaks to single column */
+  .dash-main > div[style*="grid-template-columns:1fr 320px"]{grid-template-columns:1fr !important}
+  .dash-main > div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important}
+}
+
+/* SMALL PHONES — 480px and below */
+@media(max-width:480px){
+  .hero h1{font-size:26px}
+  .home-cats-grid{grid-template-columns:1fr 1fr}
+  .grid{grid-template-columns:1fr}
+  .stats-grid,.admin-stats,.trust-strip{grid-template-columns:1fr 1fr !important}
+  .benefit-grid{grid-template-columns:1fr}
+  .footer-grid{grid-template-columns:1fr}
+  .nav-right .btn{padding:6px 10px;font-size:11px}
+  .hero-cats{flex-direction:column;align-items:stretch}
+  .hero-cats button{width:100%}
+  .pay-method{flex:1 1 calc(50% - 4px)}
+  .pay-amount{font-size:28px}
+  .form-card{padding:20px 14px}
+  .field input,.field select,.field textarea{font-size:16px} /* prevents zoom on iOS focus */
+  .bk-item{flex-direction:column;align-items:flex-start;gap:10px}
+  .bk-actions{flex-wrap:wrap;width:100%}
+  .bk-btn{flex:1}
+  .home-cat-card{padding:14px}
+  .ccard{padding:14px}
+}
+
 .home-cat-card{background:#fff;border:1.5px solid #E2E8F0;border-radius:16px;padding:24px 16px;text-align:center;cursor:pointer;transition:all .2s}
 .home-cat-card:hover{border-color:var(--blue);box-shadow:0 4px 20px rgba(30,114,190,0.12);transform:translateY(-3px)}
 .home-cat-icon{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
@@ -531,18 +689,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 .earn-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:600px;margin:0 auto 32px}
 
 /* ══ RESPONSIVE HELPERS ══ */
-@media(max-width:768px){
-  .nav-links{display:none}
-  .hero h1{font-size:38px}
-  .profile-layout,.browse-layout{grid-template-columns:1fr}
-  .profile-sidebar,.filter-panel{display:none}
-  .dash-wrap{grid-template-columns:1fr}
-  .dash-side{display:none}
-  .stats-grid,.admin-stats{grid-template-columns:1fr 1fr}
-  .how-grid{grid-template-columns:1fr 1fr}
-  .contact-grid,.test-grid,.benefit-grid{grid-template-columns:1fr}
-  .footer-grid{grid-template-columns:1fr 1fr}
-}
+/* end responsive block */
 
 /* ══ ANIMATIONS ══ */
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -565,12 +712,15 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       
     </div>
   </div>
-  <div class="nav-links">
-    <button class="nav-link" onclick="go('home')">Explore</button>
-    <button class="nav-link" onclick="go('browse')">Browse</button>
-    <button class="nav-link" onclick="go('categories')">Categories</button>
-    <button class="nav-link" onclick="go('become')">Become a Consultant</button>
-    <button class="nav-link" onclick="go('about')">About</button>
+  <button class="mobile-burger" id="mobile-burger" onclick="toggleMobileMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <button class="nav-link" onclick="go('home');closeMobileMenu()">Explore</button>
+    <button class="nav-link" onclick="go('browse');closeMobileMenu()">Browse</button>
+    <button class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</button>
+    <button class="nav-link" onclick="go('become');closeMobileMenu()">Become a Consultant</button>
+    <button class="nav-link" onclick="go('about');closeMobileMenu()">About</button>
   </div>
   <div class="nav-right" id="nav-right">
     <button class="btn" onclick="go('login')">Log in</button>
@@ -983,6 +1133,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 
 <!-- ════ USER DASHBOARD ════ -->
 <div id="page-user-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('user')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
       <div class="dash-user-block">
@@ -1026,6 +1177,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 
 <!-- ════ CONSULTANT DASHBOARD ════ -->
 <div id="page-cons-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('cons')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
       <div class="dash-user-block">
@@ -1066,6 +1218,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 
 <!-- ════ ADMIN DASHBOARD ════ -->
 <div id="page-admin-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('admin')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
       <div class="dash-user-block">
@@ -1393,6 +1546,44 @@ const FAQ_CONSULTANT=[
 /* ═══════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════ */
+// ── Mobile menu toggles ──
+function toggleMobileMenu(){
+  const links=document.getElementById('nav-links');
+  const burger=document.getElementById('mobile-burger');
+  if(!links||!burger)return;
+  const isOn=links.classList.toggle('on');
+  burger.classList.toggle('on',isOn);
+  document.body.classList.toggle('menu-open',isOn);
+}
+function closeMobileMenu(){
+  const links=document.getElementById('nav-links');
+  const burger=document.getElementById('mobile-burger');
+  if(links)links.classList.remove('on');
+  if(burger)burger.classList.remove('on');
+  document.body.classList.remove('menu-open');
+}
+function toggleDashMenu(which){
+  const pageId=which==='user'?'page-user-dash':which==='cons'?'page-cons-dash':'page-admin-dash';
+  const page=document.getElementById(pageId);if(!page)return;
+  const side=page.querySelector('.dash-side');if(!side)return;
+  // Toggle existing overlay or create one
+  let overlay=page.querySelector('.dash-overlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.className='dash-overlay';
+    overlay.onclick=()=>closeDashMenu(which);
+    page.appendChild(overlay);
+  }
+  const isOn=side.classList.toggle('on');
+  overlay.classList.toggle('on',isOn);
+}
+function closeDashMenu(which){
+  const pageId=which==='user'?'page-user-dash':which==='cons'?'page-cons-dash':'page-admin-dash';
+  const page=document.getElementById(pageId);if(!page)return;
+  const side=page.querySelector('.dash-side');if(side)side.classList.remove('on');
+  const overlay=page.querySelector('.dash-overlay');if(overlay)overlay.classList.remove('on');
+}
+
 function toast(msg,type=''){
   const t=document.getElementById('toastbar');
   const bg={green:'#166534',red:'#991b1b',blue:'#1E72BE'}[type]||'#1a1a1a';
@@ -1401,6 +1592,7 @@ function toast(msg,type=''){
   setTimeout(()=>t.className='toast-bar',3400);
 }
 function go(page){
+  closeMobileMenu();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('page-'+page); if(!el)return;
   el.classList.add('on'); window.scrollTo(0,0);
@@ -2064,7 +2256,7 @@ function updateConfirmPage(){
    USER DASHBOARD
 ═══════════════════════════════════════════ */
 async function swUD(view,btn){
-  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;
   const name=currentProfile?.full_name||'Guest';
   const initials=currentProfile?.avatar_initials||mkInitials(name);
@@ -2151,7 +2343,7 @@ async function saveUserProfile(){
    CONSULTANT DASHBOARD
 ═══════════════════════════════════════════ */
 async function swCD(view,btn){
-  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
   const m=document.getElementById('cdash-main');if(!m)return;
 
   // ── 1. Update sidebar IMMEDIATELY from currentProfile (no await needed) ──
@@ -2511,7 +2703,7 @@ async function saveSchedule(){
    ADMIN DASHBOARD
 ═══════════════════════════════════════════ */
 async function swAD(view,btn){
-  if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('admin');}
   const m=document.getElementById('adash-main');if(!m)return;
 
   if(view==='overview'){
