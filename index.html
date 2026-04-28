@@ -2203,22 +2203,89 @@ async function doPay(){
 async function saveBooking(payId,dateLabel,fee,tot){
   const meetLink=genMeetLink();
   const bookId='GDY-'+Math.floor(Math.random()*90000+10000);
-  lastBooking={booking_id:bookId,consultant_name:curCons.name,consultant_id:curCons.dbId||curCons.id,
+  const consId=(typeof curCons.dbId==='string'&&curCons.dbId)?curCons.dbId:(typeof curCons.id==='string'?curCons.id:null);
+  lastBooking={booking_id:bookId,consultant_name:curCons.name,consultant_id:consId,
     date_label:dateLabel,time_slot:selSlot,duration:selDur,session_type:selSType,
     fee,total_amount:tot,payment_id:payId,meet_link:meetLink,status:'upcoming'};
+  let savedRow=null;
   if(sb&&currentUser){
-    const{data}=await sb.from('bookings').insert({
-      user_id:currentUser.id,consultant_id:typeof curCons.dbId==='string'?curCons.dbId:null,
-      consultant_name:curCons.name,user_name:currentProfile?.full_name||'Guest',
-      date_label:dateLabel,time_slot:selSlot,duration:selDur,session_type:selSType,
-      amount:fee,platform_fee:Math.round(fee*.05),total_amount:tot,
-      status:'upcoming',payment_id:payId,meet_link:meetLink
-    }).select().single().catch(()=>({}));
-    if(data?.id)lastBooking.id=data.id;
-    // Notification
-    await sb.from('notifications').insert({user_id:currentUser.id,text:`✅ Booking confirmed with ${curCons.name} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`,type:'booking'}).catch(()=>{});
+    try{
+      const{data,error}=await sb.from('bookings').insert({
+        user_id:currentUser.id,consultant_id:consId,
+        consultant_name:curCons.name,user_name:currentProfile?.full_name||'Guest',
+        user_email:currentUser.email||null,
+        date_label:dateLabel,time_slot:selSlot,duration:selDur,session_type:selSType,
+        amount:fee,platform_fee:Math.round(fee*.05),total_amount:tot,
+        status:'upcoming',payment_id:payId,meet_link:meetLink
+      }).select().single();
+      if(error){
+        console.error('Booking insert error:',error);
+        toast('Could not save booking: '+error.message,'red');
+      } else {
+        savedRow=data;
+        if(data?.id) lastBooking.id=data.id;
+      }
+    }catch(e){
+      console.error('Booking insert exception:',e);
+      toast('Save error: '+(e.message||'unknown'),'red');
+    }
+    // Get consultant's email so we can notify them
+    let consEmail=null,consProfileId=null;
+    if(consId){
+      try{
+        const{data:cdata}=await sb.from('consultants').select('profile_id').eq('id',consId).single();
+        if(cdata?.profile_id){
+          consProfileId=cdata.profile_id;
+          const{data:pdata}=await sb.from('profiles').select('email').eq('id',consProfileId).single();
+          if(pdata?.email)consEmail=pdata.email;
+        }
+      }catch(e){console.warn('Could not fetch consultant email',e);}
+    }
+    // In-app notifications for both parties
+    const userMsg=`✅ Booking confirmed with ${curCons.name} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+    const consMsg=`📅 New booking from ${currentProfile?.full_name||'a user'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+    await sb.from('notifications').insert({user_id:currentUser.id,text:userMsg,type:'booking'}).catch(e=>console.warn('user notif',e));
+    if(consProfileId){
+      await sb.from('notifications').insert({user_id:consProfileId,text:consMsg,type:'booking'}).catch(e=>console.warn('cons notif',e));
+    }
+    // Send confirmation emails (to both user and consultant) via Supabase Edge Function
+    sendBookingEmail({
+      booking_id:savedRow?.id||bookId,
+      user_email:currentUser.email,
+      user_name:currentProfile?.full_name||'Guest',
+      consultant_email:consEmail,
+      consultant_name:curCons.name,
+      date_label:dateLabel,time_slot:selSlot,duration:selDur,
+      session_type:selSType,meet_link:meetLink,total_amount:tot
+    }).catch(e=>console.warn('email send failed',e));
   }
   updateConfirmPage();
+}
+
+// Sends booking-confirmation emails to both user and consultant via a Supabase Edge Function.
+// The function is called "send-booking-email" — see the SQL/Edge Function setup notes.
+async function sendBookingEmail(payload){
+  if(!sb||!CFG.supabase_url)return;
+  try{
+    const url=CFG.supabase_url.replace(/\/$/,'')+'/functions/v1/send-booking-email';
+    const resp=await fetch(url,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+CFG.supabase_key,
+        'apikey':CFG.supabase_key
+      },
+      body:JSON.stringify(payload)
+    });
+    if(!resp.ok){
+      const t=await resp.text();
+      console.warn('Email function response:',resp.status,t);
+    } else {
+      console.log('Booking emails dispatched');
+    }
+  }catch(e){
+    console.warn('sendBookingEmail error',e);
+  }
 }
 
 function updateConfirmPage(){
@@ -2360,7 +2427,7 @@ async function swCD(view,btn){
 
   // ── 5. Update booking requests badge (non-blocking) ──
   if(consRecord?.id&&sb){
-    sb.from('bookings').select('id').eq('consultant_id',consRecord.id).eq('status','pending')
+    sb.from('bookings').select('id').eq('consultant_id',consRecord.id).in('status',['upcoming','pending'])
       .then(({data:bks})=>{const cnt=(bks||[]).length;const badge=document.getElementById('req-count-badge');if(badge){badge.textContent=cnt;badge.style.display=cnt>0?'inline-flex':'none';}})
       .catch(()=>{});
   }
@@ -2406,13 +2473,18 @@ async function swCD(view,btn){
 
   }else if(view==='requests'){
     let requests=[];
-    if(sb&&consRecord){const{data}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).eq('status','pending').order('created_at',{ascending:false});requests=data||[];}
+    if(sb&&consRecord){
+      // Show all upcoming + pending bookings for this consultant
+      const{data,error}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).in('status',['upcoming','pending']).order('created_at',{ascending:false});
+      if(error)console.warn('Bookings load error',error);
+      requests=data||[];
+    }
     m.innerHTML=`<div class="dash-title">Booking requests</div>
     ${requests.length?requests.map((r,i)=>`<div class="bk-item" id="req-${i}">
       <div class="bk-av" style="background:var(--surface2);font-size:18px">👤</div>
-      <div class="bk-info"><div class="bk-name">${r.user_name||'Client'}<span class="status-pill sp-pending" id="req-s-${i}">Pending</span></div><div class="bk-meta">${r.date_label} · ${r.time_slot} · ${r.duration} min</div></div>
-      <div class="bk-actions"><button class="bk-btn green" onclick="acceptBookingReq('${r.id}',${i})">✓ Accept</button><button class="bk-btn danger" onclick="declineBookingReq('${r.id}',${i})">✕ Decline</button></div>
-    </div>`).join(''):`<div style="text-align:center;padding:40px;color:var(--muted)">No pending requests</div>`}`;
+      <div class="bk-info"><div class="bk-name">${r.user_name||'Client'}<span class="status-pill ${r.status==='upcoming'?'sp-upcoming':'sp-pending'}" id="req-s-${i}">${r.status==='upcoming'?'Confirmed':'Pending'}</span></div><div class="bk-meta">${r.date_label} · ${r.time_slot} · ${r.duration} min ${r.session_type==='video'?'📹':r.session_type==='audio'?'📞':'💬'}</div>${r.meet_link?`<div class="bk-meta" style="margin-top:3px"><a href="${r.meet_link}" target="_blank" style="color:#1a73e8;font-size:12px">📹 ${r.meet_link}</a></div>`:''}</div>
+      <div class="bk-actions">${r.status==='upcoming'&&r.meet_link?`<button class="bk-btn blue" onclick="window.open('${r.meet_link}','_blank')">Join Meet</button>`:''}${r.status==='pending'?`<button class="bk-btn green" onclick="acceptBookingReq('${r.id}',${i})">✓ Accept</button><button class="bk-btn danger" onclick="declineBookingReq('${r.id}',${i})">✕ Decline</button>`:''}</div>
+    </div>`).join(''):`<div style="text-align:center;padding:40px;color:var(--muted)">No bookings yet. New bookings will appear here automatically.</div>`}`;
 
   }else if(view==='schedule'){
     // Build availability for next 30 days from a per-date map saved in DB
