@@ -701,6 +701,8 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <!-- Razorpay -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -1455,6 +1457,11 @@ const CFG = {
   supabase_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4',
   razorpay_key: 'rzp_test_Shko313dMXo3WQ',
   admin_email: 'tripathiprakhar41@gmail.com',
+  // ── EmailJS (fill these in after Step 1 below) ──
+  emailjs_public_key: '-ipWArwb4uP2VAxLN',
+  emailjs_service_id: 'service_evgg31g',
+  emailjs_template_user: 'template_dwk2n3g',       // template for user confirmation
+  emailjs_template_consultant: 'template_vrhh6qk', // template for consultant notification
 };
 
 // ── Handle OAuth redirect IMMEDIATELY (before anything else) ──
@@ -1604,7 +1611,12 @@ function go(page){
 }
 function mkInitials(n){return(n||'').split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2);}
 function starsHtml(r){const f=Math.floor(r),h=r%1>=.5?1:0;return'★'.repeat(f)+(h?'★':'')+'☆'.repeat(5-f-h);}
-function genMeetLink(){const c='abcdefghijklmnopqrstuvwxyz';const r=n=>[...Array(n)].map(()=>c[Math.random()*26|0]).join('');return`https://meet.google.com/${r(3)}-${r(4)}-${r(3)}`;}
+function genMeetLink(){
+  // Jitsi Meet — free, open, no API key, links actually work
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
+  return `https://meet.jit.si/Guidcy-${r(4)}-${r(4)}-${r(4)}`;
+}
 function getDurMultiplier(){return selDur===30?.5:selDur===90?1.4:1;}
 function timeAgo(ts){const m=Math.floor((Date.now()-new Date(ts))/60000);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 function buildDates(){
@@ -2262,29 +2274,44 @@ async function saveBooking(payId,dateLabel,fee,tot){
   updateConfirmPage();
 }
 
-// Sends booking-confirmation emails to both user and consultant via a Supabase Edge Function.
-// The function is called "send-booking-email" — see the SQL/Edge Function setup notes.
+// Sends booking-confirmation emails using EmailJS (runs entirely in the browser)
 async function sendBookingEmail(payload){
-  if(!sb||!CFG.supabase_url)return;
+  if(!CFG.emailjs_public_key||!CFG.emailjs_service_id){
+    console.warn('EmailJS not configured — add keys to CFG to enable emails');
+    return;
+  }
   try{
-    const url=CFG.supabase_url.replace(/\/$/,'')+'/functions/v1/send-booking-email';
-    const resp=await fetch(url,{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+CFG.supabase_key,
-        'apikey':CFG.supabase_key
-      },
-      body:JSON.stringify(payload)
-    });
-    if(!resp.ok){
-      const t=await resp.text();
-      console.warn('Email function response:',resp.status,t);
-    } else {
-      console.log('Booking emails dispatched');
+    // Init EmailJS (safe to call multiple times)
+    if(window.emailjs) emailjs.init({publicKey: CFG.emailjs_public_key});
+
+    const templateParams = {
+      to_user_email:      payload.user_email        || '',
+      to_cons_email:      payload.consultant_email  || '',
+      to_user_name:       payload.user_name         || 'Guest',
+      consultant_name:    payload.consultant_name   || '',
+      date_label:         payload.date_label        || '',
+      time_slot:          payload.time_slot         || '',
+      duration:           payload.duration          || 60,
+      session_type:       payload.session_type==='video'?'📹 Video':payload.session_type==='audio'?'📞 Audio':'💬 Chat',
+      meet_link:          payload.meet_link         || '',
+      total_amount:       '₹'+(payload.total_amount||0).toLocaleString(),
+      booking_id:         payload.booking_id        || '',
+    };
+
+    // Email to user
+    if(payload.user_email && CFG.emailjs_template_user){
+      await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user,
+        {...templateParams, to_email: payload.user_email});
+      console.log('✅ Confirmation email sent to user:', payload.user_email);
+    }
+    // Email to consultant
+    if(payload.consultant_email && CFG.emailjs_template_consultant){
+      await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_consultant,
+        {...templateParams, to_email: payload.consultant_email});
+      console.log('✅ Notification email sent to consultant:', payload.consultant_email);
     }
   }catch(e){
-    console.warn('sendBookingEmail error',e);
+    console.warn('EmailJS send error:', e);
   }
 }
 
