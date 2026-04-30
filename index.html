@@ -703,6 +703,8 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <!-- EmailJS -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<!-- Jitsi External API for embedded video calls -->
+<script src="https://meet.jit.si/external_api.js"></script>
 </head>
 <body>
 
@@ -885,13 +887,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 
       <div class="filter-section">
         <div class="filter-title">Category</div>
-        <label class="filter-check"><input type="checkbox" value="Business" onchange="applyFilters()"/> Business & Entrepreneurship</label>
-        <label class="filter-check"><input type="checkbox" value="Technology" onchange="applyFilters()"/> Technology & Engineering</label>
-        <label class="filter-check"><input type="checkbox" value="Finance" onchange="applyFilters()"/> Finance & Investment</label>
-        <label class="filter-check"><input type="checkbox" value="Legal" onchange="applyFilters()"/> Legal & Compliance</label>
-        <label class="filter-check"><input type="checkbox" value="Wellness" onchange="applyFilters()"/> Health & Wellness</label>
-        <label class="filter-check"><input type="checkbox" value="Career" onchange="applyFilters()"/> Career Coaching</label>
-        <label class="filter-check"><input type="checkbox" value="Marketing" onchange="applyFilters()"/> Marketing & Growth</label>
+        <div id="filter-cat-list" style="max-height:240px;overflow-y:auto"></div>
       </div>
 
       <div class="filter-section">
@@ -1128,6 +1124,17 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
       <button class="primary-btn" style="margin-bottom:8px" onclick="go('user-dash')">Go to my dashboard</button>
       <button onclick="go('home')" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--rx);font-size:13px;cursor:pointer;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:500">Browse more consultants</button>
     </div>
+  </div>
+</div>
+
+<!-- ════ EMBEDDED MEETING PAGE ════ -->
+<div id="page-meeting" class="page">
+  <div style="background:#000;min-height:calc(100vh - 64px);position:relative">
+    <div style="position:absolute;top:14px;left:14px;z-index:20;display:flex;gap:10px;align-items:center;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);padding:8px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.12)">
+      <button onclick="leaveMeeting()" style="background:#dc2626;color:#fff;border:none;border-radius:100px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">← Leave Meeting</button>
+      <div style="color:#fff;font-size:12px;opacity:.85" id="meeting-room-label">Connecting...</div>
+    </div>
+    <div id="jitsi-container" style="width:100%;height:calc(100vh - 64px)"></div>
   </div>
 </div>
 
@@ -1455,11 +1462,14 @@ const CFG = {
   supabase_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4',
   razorpay_key: 'rzp_test_Shko313dMXo3WQ',
   admin_email: 'tripathiprakhar41@gmail.com',
-  // ── EmailJS (fill these in after Step 1 below) ──
+  // ── EmailJS (legacy — still tries first if configured) ──
   emailjs_public_key: '-ipWArwb4uP2VAxLN',
   emailjs_service_id: 'service_evgg31g',
-  emailjs_template_user: 'template_dwk2n3g',       // template for user confirmation
-  emailjs_template_consultant: 'template_vrhh6qk', // template for consultant notification
+  emailjs_template_user: 'template_dwk2n3g',
+  emailjs_template_consultant: 'template_vrhh6qk',
+  // ── Web3Forms (recommended — fallback if EmailJS fails. Free, no signup hassle) ──
+  // Get your access key in 30 seconds at https://web3forms.com — just enter your email, no signup
+  web3forms_access_key: '1ba497bc-b13f-4a6c-9108-596cc5c66357',  // paste your access_key here, e.g. 'a1b2c3d4-e5f6-...'
 };
 
 // ── Init EmailJS at startup ──
@@ -1619,10 +1629,85 @@ function go(page){
 function mkInitials(n){return(n||'').split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2);}
 function starsHtml(r){const f=Math.floor(r),h=r%1>=.5?1:0;return'★'.repeat(f)+(h?'★':'')+'☆'.repeat(5-f-h);}
 function genMeetLink(){
-  // Jitsi Meet — free, open, no API key, links actually work
+  // Generate a unique Jitsi room name. The room is opened via embedded JitsiMeetExternalAPI
+  // which bypasses meet.jit.si\'s moderator-lobby screen by setting prejoinPageEnabled=false.
   const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-  return `https://meet.jit.si/Guidcy-${r(4)}-${r(4)}-${r(4)}`;
+  return `https://meet.jit.si/Guidcy${r(8)}${Date.now().toString(36)}`;
+}
+
+// JitsiMeetExternalAPI instance reference (singleton)
+let jitsiApi=null;
+
+// Open the embedded meeting page (bypasses the meet.jit.si lobby/moderator screen)
+function joinMeeting(meetLink, displayName){
+  if(!meetLink){toast('No meeting link available','red');return;}
+  let room=meetLink.split('/').pop();
+  if(room.includes('#'))room=room.split('#')[0];
+  const myName=displayName||currentProfile?.full_name||currentUser?.email?.split('@')[0]||'Guest';
+  const lbl=document.getElementById('meeting-room-label');
+  if(lbl)lbl.textContent='Connecting to room: '+room;
+  go('meeting');
+  setTimeout(()=>{
+    const container=document.getElementById('jitsi-container');
+    if(!container){toast('Meeting container missing','red');return;}
+    if(jitsiApi){try{jitsiApi.dispose();}catch(e){}jitsiApi=null;}
+    container.innerHTML='';
+    if(typeof JitsiMeetExternalAPI==='undefined'){
+      container.innerHTML='<div style="color:#fff;text-align:center;padding:80px 20px"><h2 style="margin-bottom:14px">Meeting service loading...</h2><p style="margin-bottom:24px;opacity:.7">If this takes too long, click below to open the meeting in a new tab.</p><a href="'+meetLink+'" target="_blank" style="background:#1E72BE;color:#fff;padding:12px 28px;border-radius:100px;text-decoration:none;font-weight:600;display:inline-block">Open in new tab →</a></div>';
+      return;
+    }
+    try{
+      jitsiApi=new JitsiMeetExternalAPI('meet.jit.si',{
+        roomName:room,
+        parentNode:container,
+        width:'100%',height:'100%',
+        userInfo:{displayName:myName,email:currentUser?.email||''},
+        configOverwrite:{
+          prejoinPageEnabled:false,
+          startWithAudioMuted:false,
+          startWithVideoMuted:false,
+          disableModeratorIndicator:true,
+          enableWelcomePage:false,
+          requireDisplayName:false,
+          disableProfile:true,
+          enableLobbyChat:false,
+          enableInsecureRoomNameWarning:false,
+          disableDeepLinking:true,
+          // Disable lobby/moderator wait
+          membersOnly:false,
+          lobby:{autoKnock:false,enableChat:false},
+          // Skip the "waiting for moderator" screen
+          startAudioOnly:false,
+        },
+        interfaceConfigOverwrite:{
+          SHOW_JITSI_WATERMARK:false,
+          SHOW_WATERMARK_FOR_GUESTS:false,
+          MOBILE_APP_PROMO:false,
+          SHOW_PROMOTIONAL_CLOSE_PAGE:false,
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS:false,
+          TOOLBAR_BUTTONS:['microphone','camera','desktop','fullscreen','hangup','chat','tileview','toggle-camera','settings'],
+        }
+      });
+      jitsiApi.addEventListener('readyToClose',leaveMeeting);
+      jitsiApi.addEventListener('videoConferenceJoined',()=>{
+        if(lbl)lbl.textContent='In meeting · '+room;
+      });
+      // If user gets kicked to lobby, try to skip it
+      jitsiApi.addEventListener('participantKickedOut',()=>{toast('You left the meeting','blue');});
+    }catch(e){
+      console.error('Jitsi init failed',e);
+      container.innerHTML='<div style="color:#fff;text-align:center;padding:80px 20px"><h2>Could not start meeting</h2><a href="'+meetLink+'" target="_blank" style="background:#1E72BE;color:#fff;padding:12px 28px;border-radius:100px;text-decoration:none;font-weight:600;display:inline-block;margin-top:20px">Open in new tab instead</a></div>';
+    }
+  },300);
+}
+
+function leaveMeeting(){
+  if(jitsiApi){try{jitsiApi.dispose();}catch(e){}jitsiApi=null;}
+  const container=document.getElementById('jitsi-container');
+  if(container)container.innerHTML='';
+  if(currentProfile?.role==='consultant')go('cons-dash');
+  else go('user-dash');
 }
 function getDurMultiplier(){return selDur===30?.5:selDur===90?1.4:1;}
 function timeAgo(ts){const m=Math.floor((Date.now()-new Date(ts))/60000);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
@@ -2020,6 +2105,14 @@ async function filterAndBrowse(category){
   },150);
 }
 async function initBrowse(){
+  // Populate category checkboxes from CATEGORIES_FULL master list
+  const catList=document.getElementById('filter-cat-list');
+  if(catList && !catList.innerHTML.trim()){
+    catList.innerHTML=CATEGORIES_FULL.map(c=>{
+      const v=c.name.split(' ')[0]; // first word as filter value
+      return `<label class="filter-check"><input type="checkbox" value="${v}" onchange="applyFilters()"/> ${c.icon} ${c.name}</label>`;
+    }).join('');
+  }
   const list=await fetchConsultants(browseFilters);
   renderGrid(list,'browse-grid');
 }
@@ -2354,17 +2447,80 @@ async function saveBooking(payId,dateLabel,fee,tot){
 // Sends booking-confirmation emails using EmailJS (runs entirely in the browser)
 async function sendBookingEmail(payload){
   console.log('📧 sendBookingEmail called with payload:', payload);
+
+  // ── PATH A: Web3Forms (preferred — simplest, most reliable) ──
+  if(CFG.web3forms_access_key){
+    const sessionType=payload.session_type==='video'?'📹 Video Call':payload.session_type==='audio'?'📞 Audio Call':'💬 Chat Session';
+    const buildBody=(toName,roleHeader)=>`${roleHeader}
+
+Hi ${toName},
+
+${roleHeader.startsWith('🎉')?`You have a new session booked by ${payload.user_name}.`:`Your session with ${payload.consultant_name} is confirmed!`}
+
+📅 Date: ${payload.date_label}
+🕐 Time: ${payload.time_slot} IST
+⏱ Duration: ${payload.duration} minutes
+${sessionType}
+💰 Amount: ₹${(payload.total_amount||0).toLocaleString()}
+
+🔗 Join your session:
+${payload.meet_link}
+
+Booking ID: ${payload.booking_id}
+
+— The Guidcy Team
+guidcy.com`;
+    // Send to user
+    if(payload.user_email){
+      try{
+        const resp=await fetch('https://api.web3forms.com/submit',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify({
+            access_key:CFG.web3forms_access_key,
+            from_name:'Guidcy',
+            subject:`✅ Session confirmed with ${payload.consultant_name} — Guidcy`,
+            email:payload.user_email,
+            name:payload.user_name||'User',
+            message:buildBody(payload.user_name||'there','✅ Booking Confirmed')
+          })
+        });
+        const j=await resp.json();
+        if(j.success){console.log('✅ User email sent via Web3Forms');}
+        else{console.error('❌ Web3Forms user email failed:',j);toast('Email error: '+(j.message||'check console'),'red');}
+      }catch(e){console.error('❌ Web3Forms user fetch error:',e);toast('Email send error','red');}
+    }
+    // Send to consultant
+    if(payload.consultant_email){
+      try{
+        const resp=await fetch('https://api.web3forms.com/submit',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify({
+            access_key:CFG.web3forms_access_key,
+            from_name:'Guidcy',
+            subject:`🎉 New booking from ${payload.user_name} — Guidcy`,
+            email:payload.consultant_email,
+            name:payload.consultant_name||'Consultant',
+            message:buildBody(payload.consultant_name||'there','🎉 New Booking Received')
+          })
+        });
+        const j=await resp.json();
+        if(j.success){console.log('✅ Consultant email sent via Web3Forms');}
+        else{console.error('❌ Web3Forms consultant email failed:',j);}
+      }catch(e){console.error('❌ Web3Forms consultant fetch error:',e);}
+    }
+    return; // Web3Forms handled it — don't fall through
+  }
+
+  // ── PATH B: EmailJS fallback (only used if Web3Forms not configured) ──
   if(!CFG.emailjs_public_key||!CFG.emailjs_service_id){
-    console.error('❌ EmailJS NOT configured. CFG values:',{
-      public_key:CFG.emailjs_public_key,
-      service:CFG.emailjs_service_id,
-      template_user:CFG.emailjs_template_user,
-      template_cons:CFG.emailjs_template_consultant
-    });
+    console.error('❌ No email service configured. Add web3forms_access_key OR emailjs keys to CFG.');
+    toast('Email not configured — see console','red');
     return;
   }
   if(typeof emailjs==='undefined'){
-    console.error('❌ EmailJS SDK not loaded yet');
+    console.error('❌ EmailJS SDK not loaded');
     return;
   }
   const templateParams={
@@ -2457,7 +2613,8 @@ async function swUD(view,btn){
   if(view==='upcoming'){
     let bookings=[];
     if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).eq('status','upcoming').order('created_at',{ascending:false});bookings=data||[];}
-    const all=bookings.length?bookings:(lastBooking?[lastBooking]:[]);
+    // Only show DB results — never fall back to in-memory lastBooking (it may be cancelled/stale)
+    const all=bookings;
     m.innerHTML=`<div class="dash-title">Upcoming sessions</div>
     ${all.length?all.map(bk=>`<div class="bk-item">
       <div class="bk-av" style="background:var(--blue-l);color:var(--blue)">${mkInitials(bk.consultant_name||'C')}</div>
@@ -2467,7 +2624,7 @@ async function swUD(view,btn){
         ${bk.meet_link?`<div class="bk-meta" style="margin-top:3px"><a href="${bk.meet_link}" target="_blank" style="color:#1a73e8;font-size:12px">📹 ${bk.meet_link}</a></div>`:''}
       </div>
       <div class="bk-actions">
-        ${bk.meet_link?`<button class="bk-btn blue" onclick="window.open('${bk.meet_link}','_blank')">Join Meet</button>`:''}
+        ${bk.meet_link?`<button class="bk-btn blue" onclick="joinMeeting('${bk.meet_link}')">Join Meet</button>`:''}
         <a href="${makeGoogleCalendarLink(bk)}" target="_blank" class="bk-btn" style="text-decoration:none;display:flex;align-items:center;gap:4px">📅 Calendar</a>
         <button class="bk-btn danger" onclick="cancelBooking('${bk.id||''}','user')">Cancel</button>
       </div>
@@ -2609,23 +2766,28 @@ async function swCD(view,btn){
     ${todaySessions.length?todaySessions.map(s=>`<div class="bk-item">
       <div class="bk-av" style="background:var(--surface2);font-size:18px">👤</div>
       <div class="bk-info"><div class="bk-name">${s.user_name||'Client'}</div><div class="bk-meta">${s.date_label} · ${s.time_slot} IST · ${s.duration} min</div></div>
-      <div class="bk-actions"><button class="bk-btn blue" onclick="window.open('${s.meet_link}','_blank')">📹 Join Meet</button><a href="${makeGoogleCalendarLink({consultant_name:s.user_name||'Client',meet_link:s.meet_link,booking_id:s.id,date_label:s.date_label,time_slot:s.time_slot})}" target="_blank" class="bk-btn" style="text-decoration:none">📅 Calendar</a></div>
+      <div class="bk-actions"><button class="bk-btn blue" onclick="joinMeeting('${s.meet_link}')">📹 Join Meet</button><a href="${makeGoogleCalendarLink({consultant_name:s.user_name||'Client',meet_link:s.meet_link,booking_id:s.id,date_label:s.date_label,time_slot:s.time_slot})}" target="_blank" class="bk-btn" style="text-decoration:none">📅 Calendar</a></div>
     </div>`).join(''):`<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No upcoming sessions yet</div>`}`;
 
   }else if(view==='requests'){
     let requests=[];
     if(sb&&consRecord){
       // Show all upcoming + pending bookings for this consultant
-      const{data,error}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).in('status',['upcoming','pending']).order('created_at',{ascending:false});
+      const{data,error}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).in('status',['upcoming','pending','cancelled']).order('created_at',{ascending:false});
       if(error)console.warn('Bookings load error',error);
       requests=data||[];
     }
     m.innerHTML=`<div class="dash-title">Booking requests</div>
-    ${requests.length?requests.map((r,i)=>`<div class="bk-item" id="req-${i}">
+    ${requests.length?requests.map((r,i)=>{
+      const isCancelled=r.status==='cancelled';
+      const cancelLabel=r.cancelled_by==='user'?'Cancelled by client':r.cancelled_by==='consultant'?'Cancelled by you':'Cancelled';
+      const statusCls=isCancelled?'sp-cancelled':r.status==='upcoming'?'sp-upcoming':'sp-pending';
+      const statusTxt=isCancelled?cancelLabel:r.status==='upcoming'?'Confirmed':'Pending';
+      return `<div class="bk-item" id="req-${i}" style="${isCancelled?'opacity:.7':''}">
       <div class="bk-av" style="background:var(--surface2);font-size:18px">👤</div>
-      <div class="bk-info"><div class="bk-name">${r.user_name||'Client'}<span class="status-pill ${r.status==='upcoming'?'sp-upcoming':'sp-pending'}" id="req-s-${i}">${r.status==='upcoming'?'Confirmed':'Pending'}</span></div><div class="bk-meta">${r.date_label} · ${r.time_slot} · ${r.duration} min ${r.session_type==='video'?'📹':r.session_type==='audio'?'📞':'💬'}</div>${r.meet_link?`<div class="bk-meta" style="margin-top:3px"><a href="${r.meet_link}" target="_blank" style="color:#1a73e8;font-size:12px">📹 ${r.meet_link}</a></div>`:''}</div>
-      <div class="bk-actions">${r.status==='upcoming'&&r.meet_link?`<button class="bk-btn blue" onclick="window.open('${r.meet_link}','_blank')">Join Meet</button>`:''}${r.status==='pending'?`<button class="bk-btn green" onclick="acceptBookingReq('${r.id}',${i})">✓ Accept</button><button class="bk-btn danger" onclick="declineBookingReq('${r.id}',${i})">✕ Decline</button>`:`<button class="bk-btn danger" onclick="cancelBooking('${r.id}','consultant')">Cancel Session</button>`}</div>
-    </div>`).join(''):`<div style="text-align:center;padding:40px;color:var(--muted)">No bookings yet. New bookings will appear here automatically.</div>`}`;
+      <div class="bk-info"><div class="bk-name">${r.user_name||'Client'}<span class="status-pill ${statusCls}" id="req-s-${i}">${statusTxt}</span></div><div class="bk-meta">${r.date_label} · ${r.time_slot} · ${r.duration} min ${r.session_type==='video'?'📹':r.session_type==='audio'?'📞':'💬'}</div>${r.meet_link&&!isCancelled?`<div class="bk-meta" style="margin-top:3px"><a onclick="joinMeeting('${r.meet_link}')" style="color:#1a73e8;font-size:12px;cursor:pointer">📹 ${r.meet_link}</a></div>`:''}</div>
+      <div class="bk-actions">${isCancelled?'':r.status==='upcoming'&&r.meet_link?`<button class="bk-btn blue" onclick="joinMeeting('${r.meet_link}')">Join Meet</button><button class="bk-btn danger" onclick="cancelBooking('${r.id}','consultant')">Cancel Session</button>`:r.status==='pending'?`<button class="bk-btn green" onclick="acceptBookingReq('${r.id}',${i})">✓ Accept</button><button class="bk-btn danger" onclick="declineBookingReq('${r.id}',${i})">✕ Decline</button>`:''}</div>
+    </div>`}).join(''):`<div style="text-align:center;padding:40px;color:var(--muted)">No bookings yet. New bookings will appear here automatically.</div>`}`;
 
   }else if(view==='schedule'){
     // Build availability for next 30 days from a per-date map saved in DB
@@ -2806,21 +2968,45 @@ function toggleDay(el){
 }
 // Opens the logged-in consultant's own public profile page
 async function cancelBooking(bookingId, role){
-  if(!bookingId){toast('Cannot cancel — booking not saved yet','red');return;}
+  console.log('🛑 cancelBooking called with', {bookingId, role});
+  if(!bookingId||bookingId==='undefined'||bookingId===''){
+    toast('Cannot cancel — booking ID missing. Try refreshing the page.','red');
+    console.error('Missing or empty bookingId:', bookingId);
+    return;
+  }
   const who=role==='user'?'You':'The consultant';
   if(!confirm(`${who} will cancel this booking. This cannot be undone. Continue?`))return;
   if(!sb){toast('Not connected','red');return;}
-  const{error}=await sb.from('bookings').update({
-    status:'cancelled',
-    cancelled_by:role,
-    cancelled_at:new Date().toISOString()
-  }).eq('id',bookingId);
-  if(error){toast('Cancel failed: '+error.message,'red');return;}
-  toast('Session cancelled. Moved to history.','green');
-  setTimeout(()=>{
-    if(role==='user')swUD('upcoming',null);
-    else swCD('requests',null);
-  },800);
+  try{
+    const{data,error}=await sb.from('bookings').update({
+      status:'cancelled',
+      cancelled_by:role,
+      cancelled_at:new Date().toISOString()
+    }).eq('id',bookingId).select();
+    if(error){
+      console.error('❌ Cancel SQL error:', error);
+      toast('Cancel failed: '+error.message,'red');
+      return;
+    }
+    if(!data||data.length===0){
+      console.error('❌ Cancel returned 0 rows — RLS may be blocking the update');
+      toast('Cancel blocked by permissions. Check RLS policies.','red');
+      return;
+    }
+    console.log('✅ Booking cancelled in DB:', data[0]);
+    // Clear in-memory cache so cancelled booking doesn't leak back into upcoming view
+    if(lastBooking?.id===bookingId)lastBooking=null;
+    toast('Session cancelled. Moved to history.','green');
+    // Force refresh the relevant view immediately
+    if(role==='user'){
+      await swUD('upcoming',null);
+    } else {
+      await swCD('requests',null);
+    }
+  }catch(e){
+    console.error('❌ Cancel exception:', e);
+    toast('Cancel error: '+(e.message||'unknown'),'red');
+  }
 }
 
 async function viewMyPublicProfile(){
