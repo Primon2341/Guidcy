@@ -2554,17 +2554,36 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
   console.log('Saving booking payload:', bookingPayload);
   console.log('Final payload going to DB:', JSON.stringify(bookingPayload,null,2));
 
+  // Verify Supabase auth/client state immediately before saving
+  try{
+    console.log('Supabase client:', sb);
+    const {data:authData,error:authErr}=await sb.auth.getUser();
+    console.log('Supabase auth user:',{authData,authErr});
+    if(authErr){
+      console.warn('⚠️ Supabase auth warning before insert:',authErr);
+    }
+    if(!authData?.user?.id){
+      console.error('❌ No authenticated Supabase user found before insert.');
+      toast('Login session expired. Please login again before booking.','red');
+      return;
+    }
+  }catch(authCheckErr){
+    console.error('❌ Supabase auth check failed before insert:',authCheckErr);
+    toast('Could not verify login session before booking.','red');
+    return;
+  }
+
   let savedRow=null;
 
   try{
     const insertPromise=sb
       .from('bookings')
-      .insert([bookingPayload])
+      .insert(bookingPayload)
       .select('*')
       .single();
 
     const timeoutPromise=new Promise((_,reject)=>
-      setTimeout(()=>reject(new Error('Supabase insert timeout after 10 seconds')),10000)
+      setTimeout(()=>reject(new Error('Supabase insert timeout after 30 seconds')),30000)
     );
 
     const {data,error}=await Promise.race([insertPromise,timeoutPromise]);
