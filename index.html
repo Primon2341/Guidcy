@@ -2510,9 +2510,18 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
       if(error){
         console.error('Booking insert error:',error);
         toast('Could not save booking: '+error.message,'red');
+        return; // stop here; otherwise dashboard cannot load this booking from DB
       } else {
         savedRow=data;
+        // Keep the saved DB row and force meet_link in memory for instant dashboard display
+        lastBooking={...lastBooking,...data,meet_link:data?.meet_link||meetLink};
         if(data?.id) lastBooking.id=data.id;
+        // Safety patch: if Supabase trigger/policy returns row without meet_link, update it once
+        if(data?.id && meetLink && !data?.meet_link){
+          const{error:patchErr}=await sb.from('bookings').update({meet_link:meetLink}).eq('id',data.id);
+          if(patchErr)console.warn('meet_link DB patch failed:',patchErr);
+          else console.log('✅ meet_link saved/verified in bookings row:',data.id);
+        }
       }
     }catch(e){
       console.error('Booking insert exception:',e);
@@ -2720,12 +2729,15 @@ async function swUD(view,btn){
   if(view==='upcoming'){
     let bookings=[];
     if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).eq('status','upcoming').order('created_at',{ascending:false});bookings=data||[];}
-    // If lastBooking has a meet_link but the DB row doesn't yet, patch it in memory for display
+    // If lastBooking has a meet_link but the DB row doesn't yet, patch DB first, then patch memory
     if(lastBooking?.meet_link && lastBooking?.id){
-      bookings=bookings.map(bk=>bk.id===lastBooking.id&&!bk.meet_link?{...bk,meet_link:lastBooking.meet_link}:bk);
-      // Also patch in DB if missing
       const row=bookings.find(bk=>bk.id===lastBooking.id&&!bk.meet_link);
-      if(row&&sb) sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id).then(()=>console.log('✅ meet_link patched in DB')).catch(()=>{});
+      if(row&&sb){
+        sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id)
+          .then(({error})=>error?console.warn('meet_link patch error:',error):console.log('✅ meet_link patched in DB'))
+          .catch(e=>console.warn('meet_link patch exception:',e));
+      }
+      bookings=bookings.map(bk=>bk.id===lastBooking.id&&!bk.meet_link?{...bk,meet_link:lastBooking.meet_link}:bk);
     }
     const all=bookings;
     m.innerHTML=`<div class="dash-title">Upcoming sessions</div>
@@ -2891,6 +2903,12 @@ async function swCD(view,btn){
       requests=data||[];
       // Patch meet_link from lastBooking if DB row missing it
       if(lastBooking?.meet_link&&lastBooking?.id){
+        const row=requests.find(r=>r.id===lastBooking.id&&!r.meet_link);
+        if(row&&sb){
+          sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id)
+            .then(({error})=>error?console.warn('consultant meet_link patch error:',error):console.log('✅ consultant meet_link patched in DB'))
+            .catch(e=>console.warn('consultant meet_link patch exception:',e));
+        }
         requests=requests.map(r=>r.id===lastBooking.id&&!r.meet_link?{...r,meet_link:lastBooking.meet_link}:r);
       }
     }
