@@ -2720,7 +2720,13 @@ async function swUD(view,btn){
   if(view==='upcoming'){
     let bookings=[];
     if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).eq('status','upcoming').order('created_at',{ascending:false});bookings=data||[];}
-    // Only show DB results — never fall back to in-memory lastBooking (it may be cancelled/stale)
+    // If lastBooking has a meet_link but the DB row doesn't yet, patch it in memory for display
+    if(lastBooking?.meet_link && lastBooking?.id){
+      bookings=bookings.map(bk=>bk.id===lastBooking.id&&!bk.meet_link?{...bk,meet_link:lastBooking.meet_link}:bk);
+      // Also patch in DB if missing
+      const row=bookings.find(bk=>bk.id===lastBooking.id&&!bk.meet_link);
+      if(row&&sb) sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id).then(()=>console.log('✅ meet_link patched in DB')).catch(()=>{});
+    }
     const all=bookings;
     m.innerHTML=`<div class="dash-title">Upcoming sessions</div>
     ${all.length?all.map(bk=>`<div class="bk-item">
@@ -2883,6 +2889,10 @@ async function swCD(view,btn){
       const{data,error}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).in('status',['upcoming','pending','cancelled']).order('created_at',{ascending:false});
       if(error)console.warn('Bookings load error',error);
       requests=data||[];
+      // Patch meet_link from lastBooking if DB row missing it
+      if(lastBooking?.meet_link&&lastBooking?.id){
+        requests=requests.map(r=>r.id===lastBooking.id&&!r.meet_link?{...r,meet_link:lastBooking.meet_link}:r);
+      }
     }
     m.innerHTML=`<div class="dash-title">Booking requests</div>
     ${requests.length?requests.map((r,i)=>{
