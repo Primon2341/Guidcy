@@ -2524,16 +2524,18 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
   console.log('Saving booking payload:', bookingPayload);
 
   const { data, error } = await sb
-    .from('bookings')
-    .insert(bookingPayload)
-    .select('*')
-    .single();
+  .from('bookings')
+  .insert(bookingPayload)
+  .select('*')
+  .single();
 
-  if(error){
-    console.error('Booking insert error:', error);
-    toast('Could not save booking: ' + error.message, 'red');
-    return;
-  }
+console.log('Supabase insert result:', { data, error });
+
+if(error){
+  console.error('Booking insert error FULL:', error);
+  toast('Booking not saved: ' + error.message, 'red');
+  return;
+}
 
   console.log('Booking inserted:', data);
 
