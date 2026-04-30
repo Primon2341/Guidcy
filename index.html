@@ -3676,6 +3676,352 @@ window.addEventListener('popstate', function(e){
 // Set initial history state
 history.replaceState({page:'home'}, '', '#home');
 
+
+/* ═══════════════════════════════════════════
+   GUIDCY PATCH — reminders, dashboard notifications, filters
+   Added by ChatGPT
+═══════════════════════════════════════════ */
+
+function guidcySafeId(v){return String(v||'').replace(/[^a-zA-Z0-9_-]/g,'_');}
+
+function guidcyGetBookingDateTime(bk){
+  try{
+    const now=new Date();
+    const monthMap={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
+    const dateLabel=String(bk?.date_label||'').trim();
+    const timeSlot=String(bk?.time_slot||'').trim()||'11:59 PM';
+    let yearMatch=dateLabel.match(/\b(20\d{2})\b/);
+    let year=yearMatch?Number(yearMatch[1]):now.getFullYear();
+    let clean=dateLabel.replace(/,?\s*20\d{2}/,'').trim();
+    let m=clean.match(/([A-Za-z]+)\s+(\d{1,2})/)||clean.match(/(\d{1,2})\s+([A-Za-z]+)/);
+    let month,day;
+    if(m){
+      if(isNaN(Number(m[1]))){month=monthMap[m[1].toLowerCase()];day=Number(m[2]);}
+      else{day=Number(m[1]);month=monthMap[m[2].toLowerCase()];}
+    }
+    if(month===undefined||!day){
+      const d=new Date(`${dateLabel} ${timeSlot}`);
+      if(!isNaN(d.getTime()))return d;
+      return null;
+    }
+    const t=timeSlot.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+    let hr=t?Number(t[1]):0, min=t&&t[2]?Number(t[2]):0, ap=t&&t[3]?t[3].toUpperCase():'';
+    if(ap==='PM'&&hr<12)hr+=12;
+    if(ap==='AM'&&hr===12)hr=0;
+    let dt=new Date(year,month,day,hr,min,0,0);
+    if(!yearMatch && dt.getTime()<now.getTime()-86400000){dt=new Date(year+1,month,day,hr,min,0,0);}
+    return isNaN(dt.getTime())?null:dt;
+  }catch(e){console.warn('Booking date parse failed:',e);return null;}
+}
+
+async function guidcyFetchConsultantContact(consId){
+  const out={email:null,profileId:null};
+  try{
+    if(!consId)return out;
+    const cRes=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId)+'&select=id,profile_id,email,name',{method:'GET',timeoutMs:15000});
+    const cRow=Array.isArray(cRes.data)?cRes.data[0]:cRes.data;
+    out.profileId=cRow?.profile_id||null;
+    out.email=cRow?.email||null;
+    if(!out.email && out.profileId){
+      const pRes=await supabaseRest('profiles?id=eq.'+encodeURIComponent(out.profileId)+'&select=email',{method:'GET',timeoutMs:15000});
+      const pRow=Array.isArray(pRes.data)?pRes.data[0]:pRes.data;
+      out.email=pRow?.email||null;
+    }
+  }catch(e){console.warn('Could not fetch consultant contact:',e);}
+  return out;
+}
+
+function guidcyReminderKey(bk,minutes,recipient){
+  return `guidcy_reminder_${guidcySafeId(bk?.id||bk?.payment_id||bk?.booking_id)}_${minutes}_${recipient}`;
+}
+function guidcyCompletionKey(bk,recipient){
+  return `guidcy_complete_${guidcySafeId(bk?.id||bk?.payment_id||bk?.booking_id)}_${recipient}`;
+}
+
+async function guidcySendBookingEmailTo(toEmail,toName,bk,role,mode='confirmation'){
+  if(!toEmail||typeof emailjs==='undefined')return {skipped:true};
+  const mins=mode==='reminder30'?30:mode==='reminder15'?15:null;
+  const isReminder=mode.startsWith('reminder');
+  const consultantName=bk.consultant_name||curCons?.name||'Consultant';
+  const userName=bk.user_name||currentProfile?.full_name||'User';
+  const subject=isReminder
+    ? `Guidcy Reminder: Your session starts in ${mins} minutes`
+    : 'Guidcy Booking Confirmation - Session Scheduled';
+  const emailTitle=isReminder
+    ? `Reminder: Your Guidcy session starts in ${mins} minutes`
+    : (role==='consultant'?'New Guidcy Session Booked':'Guidcy Booking Confirmed');
+  const emailIntro=isReminder
+    ? `This is a reminder that your consultation session is scheduled to start in ${mins} minutes. Please join using the Google Meet link below.`
+    : (role==='consultant'?`${userName} has booked a consultation session with you.`:`Your consultation session with ${consultantName} has been successfully booked.`);
+  const templateId=role==='consultant'?CFG.emailjs_template_consultant:CFG.emailjs_template_user;
+  const params={
+    from_name:CFG.guidcy_sender_name||'Guidcy',
+    from_email:CFG.guidcy_sender_email||'guidcytechnologies@gmail.com',
+    reply_to:CFG.guidcy_sender_email||'guidcytechnologies@gmail.com',
+    to_email:toEmail,
+    to_name:toName||'Guidcy User',
+    subject,
+    email_title:emailTitle,
+    email_intro:emailIntro,
+    reminder_label:isReminder?`${mins}-minute reminder`:'Booking confirmation',
+    user_name:userName,
+    user_email:bk.user_email||currentUser?.email||'',
+    consultant_name:consultantName,
+    consultant_email:role==='consultant'?toEmail:(bk.consultant_email||''),
+    date_label:bk.date_label||'',
+    time_slot:bk.time_slot||'',
+    duration:bk.duration||60,
+    session_type:String(bk.session_type||'video').toUpperCase(),
+    amount:bk.amount||bk.fee||0,
+    platform_fee:bk.platform_fee||Math.round((bk.amount||bk.fee||0)*0.05),
+    total_amount:bk.total_amount||0,
+    meet_link:bk.meet_link||'',
+    payment_id:bk.payment_id||'',
+    booking_id:bk.id||bk.booking_id||''
+  };
+  console.log(`📧 Sending ${mode} ${role} email:`,params);
+  return emailjs.send(CFG.emailjs_service_id,templateId,params);
+}
+
+async function guidcySendReminderForBooking(bk,minutes,consultantEmail,consultantProfileId){
+  const userEmail=(bk.user_email||currentUser?.email||'').trim();
+  const userName=bk.user_name||currentProfile?.full_name||'User';
+  const consultantName=bk.consultant_name||curCons?.name||'Consultant';
+  const mode=minutes===30?'reminder30':'reminder15';
+  const bookingId=bk.id||null;
+  try{
+    if(userEmail && !localStorage.getItem(guidcyReminderKey(bk,minutes,'user_email'))){
+      await guidcySendBookingEmailTo(userEmail,userName,bk,'user',mode);
+      localStorage.setItem(guidcyReminderKey(bk,minutes,'user_email'),'1');
+    }
+    if(consultantEmail && !localStorage.getItem(guidcyReminderKey(bk,minutes,'consultant_email'))){
+      await guidcySendBookingEmailTo(consultantEmail,consultantName,bk,'consultant',mode);
+      localStorage.setItem(guidcyReminderKey(bk,minutes,'consultant_email'),'1');
+    }
+    if(bk.user_id && !localStorage.getItem(guidcyReminderKey(bk,minutes,'user_notif'))){
+      await insertNotificationDirect(bk.user_id,`⏰ Reminder: Your session with ${consultantName} starts in ${minutes} minutes.`, 'reminder', bookingId);
+      localStorage.setItem(guidcyReminderKey(bk,minutes,'user_notif'),'1');
+    }
+    if(consultantProfileId && !localStorage.getItem(guidcyReminderKey(bk,minutes,'consultant_notif'))){
+      await insertNotificationDirect(consultantProfileId,`⏰ Reminder: Your session with ${userName} starts in ${minutes} minutes.`, 'reminder', bookingId);
+      localStorage.setItem(guidcyReminderKey(bk,minutes,'consultant_notif'),'1');
+    }
+  }catch(e){console.warn(`Reminder ${minutes} min failed:`,e);}
+}
+
+async function guidcyScheduleReminderTimersForBooking(bk,consultantEmail=null,consultantProfileId=null){
+  const dt=guidcyGetBookingDateTime(bk);
+  if(!dt)return;
+  if((!consultantEmail||!consultantProfileId)&&bk.consultant_id){
+    const contact=await guidcyFetchConsultantContact(bk.consultant_id);
+    consultantEmail=consultantEmail||contact.email;
+    consultantProfileId=consultantProfileId||contact.profileId;
+  }
+  [30,15].forEach(minutes=>{
+    const fireAt=dt.getTime()-minutes*60000;
+    const delay=fireAt-Date.now();
+    if(delay>0 && delay<2147483647){
+      const key=guidcyReminderKey(bk,minutes,'timer');
+      if(!localStorage.getItem(key)){
+        localStorage.setItem(key,'scheduled');
+        setTimeout(()=>guidcySendReminderForBooking(bk,minutes,consultantEmail,consultantProfileId),delay);
+        console.log(`✅ Scheduled ${minutes}-minute reminder in ${Math.round(delay/1000)} sec for booking`,bk.id||bk.payment_id);
+      }
+    }else if(delay<=0 && delay>-10*60000){
+      guidcySendReminderForBooking(bk,minutes,consultantEmail,consultantProfileId);
+    }
+  });
+}
+
+async function guidcyCheckCompletedAndAskReview(bk){
+  try{
+    if(!bk||bk.status!=='upcoming')return;
+    const dt=guidcyGetBookingDateTime(bk);if(!dt)return;
+    const end=new Date(dt.getTime()+(Number(bk.duration)||60)*60000);
+    if(Date.now()<=end.getTime())return;
+    await supabaseRest('bookings?id=eq.'+encodeURIComponent(bk.id)+'&select=*',{method:'PATCH',body:{status:'completed'},prefer:'return=representation',timeoutMs:15000});
+    if(bk.user_id && !localStorage.getItem(guidcyCompletionKey(bk,'user'))){
+      await insertNotificationDirect(bk.user_id,`✅ Your session with ${bk.consultant_name||'consultant'} is completed. Please leave a review for the consultant.`, 'review', bk.id);
+      localStorage.setItem(guidcyCompletionKey(bk,'user'),'1');
+    }
+    const contact=await guidcyFetchConsultantContact(bk.consultant_id);
+    if(contact.profileId && !localStorage.getItem(guidcyCompletionKey(bk,'consultant'))){
+      await insertNotificationDirect(contact.profileId,`✅ Session with ${bk.user_name||'client'} is completed.`, 'session', bk.id);
+      localStorage.setItem(guidcyCompletionKey(bk,'consultant'),'1');
+    }
+  }catch(e){console.warn('Completion/review notification failed:',e);}
+}
+
+async function guidcyScanUpcomingBookingsAndSchedule(){
+  if(!currentUser?.id)return;
+  try{
+    const uRes=await supabaseRest('bookings?user_id=eq.'+encodeURIComponent(currentUser.id)+'&status=eq.upcoming&select=*',{method:'GET',timeoutMs:20000});
+    const userBookings=Array.isArray(uRes.data)?uRes.data:[];
+    for(const bk of userBookings){
+      await guidcyScheduleReminderTimersForBooking(bk);
+      await guidcyCheckCompletedAndAskReview(bk);
+    }
+    const cRes=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=id,profile_id,email',{method:'GET',timeoutMs:15000});
+    const cRow=Array.isArray(cRes.data)?cRes.data[0]:cRes.data;
+    if(cRow?.id){
+      const bRes=await supabaseRest('bookings?consultant_id=eq.'+encodeURIComponent(cRow.id)+'&status=eq.upcoming&select=*',{method:'GET',timeoutMs:20000});
+      const consBookings=Array.isArray(bRes.data)?bRes.data:[];
+      for(const bk of consBookings){
+        await guidcyScheduleReminderTimersForBooking(bk,cRow.email,cRow.profile_id);
+        await guidcyCheckCompletedAndAskReview(bk);
+      }
+    }
+  }catch(e){console.warn('Reminder scan failed:',e);}
+}
+
+async function saveBooking(payId,dateLabel,fee,tot,meetLink){
+  meetLink=(meetLink||'').trim();
+  if(!meetLink){toast('Meet link was not generated, so booking was not saved.','red');return null;}
+  if(!currentUser?.id){toast('Please login again. Booking was not saved.','red');return null;}
+
+  const consId=(typeof curCons?.dbId==='string'&&curCons.dbId)?curCons.dbId:(typeof curCons?.id==='string'?curCons.id:null);
+  const bookingPayload={
+    user_id:currentUser.id,
+    consultant_id:consId,
+    consultant_name:curCons?.name||'Consultant',
+    user_name:currentProfile?.full_name||'Guest',
+    user_email:currentUser.email||null,
+    date_label:dateLabel,
+    time_slot:selSlot,
+    duration:selDur,
+    session_type:selSType,
+    amount:fee,
+    platform_fee:Math.round(fee*.05),
+    total_amount:tot,
+    status:'upcoming',
+    payment_id:payId,
+    meet_link:meetLink
+  };
+  console.log('Saving booking payload:',bookingPayload);
+  let savedRow=null;
+  try{
+    const insertResult=await supabaseRest('bookings?select=*',{method:'POST',body:bookingPayload,prefer:'return=representation',timeoutMs:30000});
+    console.log('Supabase REST insert result:',insertResult);
+    if(!insertResult.ok){toast('Booking not saved: '+(insertResult.data?.message||insertResult.raw||insertResult.statusText),'red');return null;}
+    savedRow=Array.isArray(insertResult.data)?insertResult.data[0]:insertResult.data;
+    if(!savedRow?.id){toast('Booking saved but ID was not returned.','red');return null;}
+    lastBooking={...bookingPayload,...savedRow,meet_link:savedRow.meet_link||meetLink};
+
+    await supabaseRest('bookings?id=eq.'+encodeURIComponent(savedRow.id)+'&select=id,meet_link',{method:'PATCH',body:{meet_link:meetLink},prefer:'return=representation',timeoutMs:30000});
+
+    const contact=await guidcyFetchConsultantContact(consId);
+    const userMsg=`✅ Order confirmed: Your ${selSType} session with ${bookingPayload.consultant_name} is scheduled for ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+    const consMsg=`📅 New order confirmed: ${bookingPayload.user_name} booked a ${selSType} session for ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+    await insertNotificationDirect(currentUser.id,userMsg,'booking',savedRow.id);
+    if(contact.profileId)await insertNotificationDirect(contact.profileId,consMsg,'booking',savedRow.id);
+
+    await guidcySendBookingEmailTo(bookingPayload.user_email,bookingPayload.user_name,lastBooking,'user','confirmation');
+    if(contact.email)await guidcySendBookingEmailTo(contact.email,bookingPayload.consultant_name,{...lastBooking,consultant_email:contact.email},'consultant','confirmation');
+
+    await guidcyScheduleReminderTimersForBooking(lastBooking,contact.email,contact.profileId);
+    updateConfirmPage();
+    showBookingConfirmationPopup(lastBooking);
+    toast('Booking confirmed. Emails and reminders are scheduled.','green');
+    setTimeout(()=>{try{swUD('upcoming',null);}catch(_){ }},700);
+    return lastBooking;
+  }catch(e){
+    console.error('Booking save/email/reminder failed:',e);
+    toast('Booking failed: '+(e.message||e),'red');
+    return null;
+  }
+}
+
+const __guidcyOriginalSwCD=window.swCD;
+window.swCD=async function(view,btn){
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  if(view!=='notifications')return __guidcyOriginalSwCD(view,btn);
+  const m=document.getElementById('cdash-main');if(!m)return;
+  const name=currentProfile?.full_name||'Consultant';
+  const avEl=document.getElementById('cdash-av'),nmEl=document.getElementById('cdash-name');
+  if(avEl)avEl.textContent=currentProfile?.avatar_initials||mkInitials(name);if(nmEl)nmEl.textContent=name;
+  let list=[];
+  try{
+    const res=await supabaseRest('notifications?user_id=eq.'+encodeURIComponent(currentUser.id)+'&order=created_at.desc&limit=30&select=*',{method:'GET',timeoutMs:15000});
+    list=Array.isArray(res.data)?res.data:[];
+  }catch(e){console.warn(e);}
+  m.innerHTML=`<div class="dash-title">Notifications</div>${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div></div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:600;margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">Booking confirmations, reminders, and completion updates will appear here.</p></div>'}`;
+  if(list.some(n=>!n.is_read))supabaseRest('notifications?user_id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:{is_read:true},timeoutMs:15000}).catch(()=>{});
+};
+
+function guidcyInstallConsultantNotificationButton(){
+  const side=document.querySelector('#page-cons-dash .side-nav');if(!side||document.getElementById('cons-notification-btn'))return;
+  const divider=side.querySelector('.side-divider');
+  const btn=document.createElement('button');
+  btn.className='side-btn';btn.id='cons-notification-btn';btn.onclick=function(){swCD('notifications',this)};
+  btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications`;
+  if(divider)side.insertBefore(btn,divider);else side.appendChild(btn);
+}
+
+async function applyFilters(){
+  const panel=document.querySelector('#page-browse .filter-panel');
+  const cats=[],stypes=[],langs=[],exp=[];
+  if(panel){
+    panel.querySelectorAll('.filter-section').forEach(sec=>{
+      const title=(sec.querySelector('.filter-title')?.textContent||'').toLowerCase();
+      sec.querySelectorAll('input[type=checkbox]:checked').forEach(cb=>{
+        if(title.includes('categor'))cats.push(cb.value);
+        else if(title.includes('session'))stypes.push(cb.value);
+        else if(title.includes('language'))langs.push(cb.value);
+        else if(title.includes('experience'))exp.push(cb.value);
+      });
+    });
+  }
+  const ratingChecked=panel?.querySelector('input[name="rating-f"]:checked');
+  const priceRange=document.getElementById('price-range');
+  const q=(document.getElementById('browse-search')?.value||document.getElementById('srch')?.value||browseFilters.search||'').trim();
+  browseFilters={categories:cats,sessionTypes:stypes,languages:langs,experience:exp,minRating:ratingChecked?Number(ratingChecked.value)||0:0,minPrice:0,maxPrice:priceRange?Number(priceRange.value)||99999:99999,search:q};
+  const g=document.getElementById('browse-grid');if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Filtering experts...</div>';
+  let list=await fetchConsultants(browseFilters);
+  if(exp.length){
+    list=list.filter(c=>{
+      const txt=String(c.experience||c.exp||'').toLowerCase();
+      const num=parseFloat(txt.match(/\d+/)?.[0]||'0');
+      return exp.some(e=>e==='10+'?num>=10:e==='5+'?num>=5:true);
+    });
+  }
+  renderGrid(list,'browse-grid');
+  const active=document.getElementById('active-filters');
+  if(active){
+    const pills=[...cats,...stypes,...langs,...exp, browseFilters.minRating?`${browseFilters.minRating}+ rating`:null, q?`Search: ${q}`:null].filter(Boolean);
+    active.innerHTML=pills.map(p=>`<span class="filter-pill">${p}</span>`).join('');
+  }
+}
+
+function clearFilters(){
+  document.querySelectorAll('#page-browse .filter-check input[type=checkbox]').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('#page-browse input[name="rating-f"]').forEach(r=>r.checked=(r.value==='0'));
+  const pr=document.getElementById('price-range');if(pr){pr.value=pr.max||8000;const pv=document.getElementById('price-val');if(pv)pv.textContent='₹'+pr.value;}
+  const bs=document.getElementById('browse-search');if(bs)bs.value='';
+  browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:''};
+  applyFilters();
+}
+
+function doHeroSearch(){
+  const q=(document.getElementById('srch')?.value||'').trim();
+  const cat=document.getElementById('cat-select')?.value||'';
+  if(cat){filterAndBrowse(cat);return;}
+  browseFilters={...(browseFilters||{}),search:q};
+  go('browse');
+  setTimeout(applyFilters,150);
+}
+
+const __guidcyOriginalGo=window.go;
+window.go=function(page){
+  const result=__guidcyOriginalGo(page);
+  setTimeout(()=>{guidcyInstallConsultantNotificationButton();guidcyScanUpcomingBookingsAndSchedule();},500);
+  return result;
+};
+
+window.addEventListener('load',()=>{
+  setTimeout(()=>{guidcyInstallConsultantNotificationButton();guidcyScanUpcomingBookingsAndSchedule();},1800);
+  setInterval(guidcyScanUpcomingBookingsAndSchedule,60000);
+});
+
 </script>
 </body>
 </html>
