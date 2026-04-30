@@ -1613,6 +1613,147 @@ function toast(msg,type=''){
   setTimeout(()=>t.className='toast-bar on',10);
   setTimeout(()=>t.className='toast-bar',3400);
 }
+
+function showBookingConfirmationPopup(bk){
+  const old=document.getElementById('booking-confirm-popup');
+  if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='booking-confirm-popup';
+  div.className='modal-overlay on';
+  div.innerHTML=`
+    <div class="modal-card" style="max-width:520px;text-align:center">
+      <button class="modal-close" onclick="closeBookingConfirmationPopup()">×</button>
+      <div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:34px">✓</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">Session confirmed</div>
+      <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">Your call has been scheduled successfully. The same booking is now available in both user and consultant dashboards.</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">
+        <div class="detail-row"><span style="color:var(--muted)">Consultant</span><span style="font-weight:600">${bk.consultant_name||'Consultant'}</span></div>
+        <div class="detail-row"><span style="color:var(--muted)">Date</span><span>${bk.date_label||''}</span></div>
+        <div class="detail-row"><span style="color:var(--muted)">Time</span><span>${bk.time_slot||''} IST</span></div>
+        <div class="detail-row"><span style="color:var(--muted)">Meet link</span><a href="${bk.meet_link||'#'}" target="_blank" style="color:#1a73e8;word-break:break-all;text-align:right;max-width:260px">${bk.meet_link||'Not available'}</a></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-blue" onclick="closeBookingConfirmationPopup();go('user-dash')">Open dashboard</button>
+        <a class="btn" href="${bk.meet_link||'#'}" target="_blank" style="text-decoration:none">Join Meet</a>
+        <button class="btn" onclick="closeBookingConfirmationPopup();go('confirm')">View confirmation</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+function closeBookingConfirmationPopup(){const el=document.getElementById('booking-confirm-popup');if(el)el.remove();}
+function getSupabaseAccessTokenSync(){
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(!key)continue;
+      if(key.startsWith('sb-') && key.endsWith('-auth-token')){
+        const raw=localStorage.getItem(key);
+        if(!raw)continue;
+        const parsed=JSON.parse(raw);
+        const token=parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
+        if(token)return token;
+      }
+    }
+  }catch(e){console.warn('Could not read Supabase auth token from localStorage:',e);}
+  return null;
+}
+async function supabaseRest(path,{method='GET',body=null,prefer=null,timeoutMs=30000}={}){
+  const accessToken=getSupabaseAccessTokenSync();
+  const headers={apikey:CFG.supabase_key,Authorization:'Bearer '+(accessToken||CFG.supabase_key),'Content-Type':'application/json'};
+  if(prefer)headers.Prefer=prefer;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const res=await fetch(CFG.supabase_url+'/rest/v1/'+path,{method,headers,body:body?JSON.stringify(body):null,signal:controller.signal});
+    const txt=await res.text();let json=null;
+    try{json=txt?JSON.parse(txt):null;}catch(_){json=txt;}
+    return {ok:res.ok,status:res.status,statusText:res.statusText,data:json,raw:txt};
+  }finally{clearTimeout(timer);}
+}
+async function insertNotificationDirect(userId,text,type='booking',bookingId=null){
+  if(!userId||!text)return null;
+  try{
+    const payload={user_id:userId,text,type,is_read:false};
+    if(bookingId)payload.booking_id=bookingId;
+    const res=await supabaseRest('notifications?select=*',{method:'POST',body:payload,prefer:'return=representation',timeoutMs:15000});
+    if(!res.ok)console.warn('Notification insert failed:',res);
+    return res;
+  }catch(e){console.warn('Notification insert exception:',e);return null;}
+}
+async function sendBookingEmails(bk,consEmail){
+  const userEmail=bk.user_email||currentUser?.email;
+  const userName=bk.user_name||currentProfile?.full_name||'User';
+  const consultantName=bk.consultant_name||curCons?.name||'Consultant';
+  const params={
+    user_name:userName,
+    to_name:userName,
+    consultant_name:consultantName,
+    booking_date:bk.date_label||'',
+    booking_time:bk.time_slot||'',
+    duration:bk.duration||60,
+    session_type:bk.session_type||'video',
+    amount:bk.total_amount||bk.amount||'',
+    meet_link:bk.meet_link||'',
+    payment_id:bk.payment_id||''
+  };
+  try{
+    if(typeof emailjs!=='undefined' && CFG.emailjs_public_key && CFG.emailjs_service_id){
+      if(userEmail && CFG.emailjs_template_user){await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_user,{...params,to_email:userEmail,to_name:userName});}
+      if(consEmail && CFG.emailjs_template_consultant){await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_consultant,{...params,to_email:consEmail,to_name:consultantName,user_name:userName});}
+      console.log('✅ EmailJS confirmation emails attempted');
+      return;
+    }
+  }catch(e){console.warn('EmailJS failed, trying Web3Forms:',e);}
+  try{
+    if(CFG.web3forms_access_key){
+      const recipients=[userEmail,consEmail].filter(Boolean);
+      for(const to of recipients){
+        await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          access_key:CFG.web3forms_access_key,
+          subject:'Guidcy session confirmation',
+          from_name:'Guidcy',
+          email:to,
+          message:`Your Guidcy session is confirmed. Consultant: ${consultantName}. Date: ${bk.date_label}. Time: ${bk.time_slot} IST. Duration: ${bk.duration} min. Meet link: ${bk.meet_link}`
+        })});
+      }
+      console.log('✅ Web3Forms confirmation emails attempted');
+    }
+  }catch(e){console.warn('Web3Forms email failed:',e);}
+}
+function parseBookingDateTime(bk){
+  try{
+    const now=new Date();
+    const dateLabel=(bk.date_label||'').replace(/,\s*\d{4}/,'').trim();
+    const year=(bk.date_label||'').match(/\b(20\d{2})\b/)?.[1]||now.getFullYear();
+    const dt=new Date(`${dateLabel} ${year} ${bk.time_slot||'11:59 PM'}`);
+    if(isNaN(dt.getTime()))return null;
+    return dt;
+  }catch(_){return null;}
+}
+function isBookingCompletedByTime(bk){
+  const st=parseBookingDateTime(bk);if(!st)return false;
+  const end=new Date(st.getTime()+((Number(bk.duration)||60)*60000));
+  return Date.now()>end.getTime();
+}
+async function markCompletedAndNotify(bookings,role='user'){
+  const out=[];
+  for(const bk of bookings||[]){
+    if(bk.status==='upcoming' && isBookingCompletedByTime(bk)){
+      try{
+        const res=await supabaseRest('bookings?id=eq.'+encodeURIComponent(bk.id)+'&select=*',{method:'PATCH',body:{status:'completed'},prefer:'return=representation',timeoutMs:15000});
+        const row=Array.isArray(res.data)?res.data[0]:res.data;
+        const finalRow=row||{...bk,status:'completed'};
+        out.push(finalRow);
+        if(role==='user'){
+          await insertNotificationDirect(bk.user_id,`✅ Your session with ${bk.consultant_name||'consultant'} is completed. Please leave your review.`, 'review', bk.id);
+        }else{
+          await insertNotificationDirect(bk.consultant_profile_id||bk.profile_id,`✅ Session with ${bk.user_name||'client'} is completed.`, 'session', bk.id);
+        }
+      }catch(e){console.warn('completion update failed',e);out.push(bk);}
+    }else out.push(bk);
+  }
+  return out;
+}
 function go(page){
   closeMobileMenu();
   // Push browser history so Back button works
@@ -2482,9 +2623,11 @@ async function doPay(){
       return;
     }
     if(btn){btn.disabled=false;btn.textContent='Confirm & Pay securely';}
-    await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate]?.full||'',fee,tot,meetLink);
-    toast('Booking confirmed! Google Meet link created 🎉','green');
-    setTimeout(()=>go('confirm'),700);
+    const saved=await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate]?.full||'',fee,tot,meetLink);
+    if(saved){
+      toast('Booking confirmed! Google Meet link created 🎉','green');
+      showBookingConfirmationPopup(lastBooking);
+    }
     return;
   }
 }
@@ -2555,55 +2698,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
   console.log('Saving booking payload:',bookingPayload);
   console.log('Final payload going to DB:',JSON.stringify(bookingPayload,null,2));
 
-  function getSupabaseAccessTokenSync(){
-    try{
-      for(let i=0;i<localStorage.length;i++){
-        const key=localStorage.key(i);
-        if(!key)continue;
-        if(key.startsWith('sb-') && key.endsWith('-auth-token')){
-          const raw=localStorage.getItem(key);
-          if(!raw)continue;
-          const parsed=JSON.parse(raw);
-          const token=parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
-          if(token)return token;
-        }
-      }
-    }catch(e){
-      console.warn('Could not read Supabase auth token from localStorage:',e);
-    }
-    return null;
-  }
-
-  async function supabaseRest(path,{method='GET',body=null,prefer=null,timeoutMs=30000}={}){
-    const accessToken=getSupabaseAccessTokenSync();
-    const headers={
-      apikey:CFG.supabase_key,
-      Authorization:'Bearer '+(accessToken||CFG.supabase_key),
-      'Content-Type':'application/json'
-    };
-    if(prefer)headers.Prefer=prefer;
-
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),timeoutMs);
-
-    try{
-      const res=await fetch(CFG.supabase_url+'/rest/v1/'+path,{
-        method,
-        headers,
-        body:body?JSON.stringify(body):null,
-        signal:controller.signal
-      });
-
-      const txt=await res.text();
-      let json=null;
-      try{json=txt?JSON.parse(txt):null;}catch(_){json=txt;}
-
-      return {ok:res.ok,status:res.status,statusText:res.statusText,data:json,raw:txt};
-    }finally{
-      clearTimeout(timer);
-    }
-  }
-
   let savedRow=null;
 
   try{
@@ -2621,7 +2715,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     if(!insertResult.ok){
       console.error('❌ Booking REST insert failed:',insertResult);
       toast('Booking not saved: '+(insertResult.data?.message||insertResult.raw||insertResult.statusText),'red');
-      return;
+      return null;
     }
 
     savedRow=Array.isArray(insertResult.data)?insertResult.data[0]:insertResult.data;
@@ -2629,7 +2723,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     if(!savedRow?.id){
       console.error('❌ Booking inserted but no row/id returned:',insertResult.data);
       toast('Booking save returned no ID. Check Supabase return/RLS select policy.','red');
-      return;
+      return null;
     }
 
     lastBooking={...lastBooking,...savedRow,meet_link:savedRow?.meet_link||meetLink};
@@ -2672,73 +2766,46 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
   }catch(e){
     console.error('❌ Supabase REST insert crashed or timed out:',e);
     toast('Booking save failed: '+(e.name==='AbortError'?'Supabase request timed out':(e.message||'unknown error')),'red');
-    return;
+    return null;
   }
 
-  // Non-blocking notifications. These are intentionally best-effort only.
+  // Instant dashboard notifications + email confirmations
   let consEmail=null,consProfileId=null;
-  if(consId && sb){
-    try{
-      const{data:cdata,error:cErr}=await sb.from('consultants').select('profile_id').eq('id',consId).single();
-      if(cErr)console.warn('Could not fetch consultant profile_id',cErr);
-      if(cdata?.profile_id){
-        consProfileId=cdata.profile_id;
-        const{data:pdata,error:pErr}=await sb.from('profiles').select('email').eq('id',consProfileId).single();
-        if(pErr)console.warn('Could not fetch consultant email',pErr);
-        if(pdata?.email)consEmail=pdata.email;
-      }
-    }catch(e){console.warn('Could not fetch consultant email',e);}
-  }
-
-  const userMsg=`✅ Booking confirmed with ${curCons?.name||'consultant'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
-  const consMsg=`📅 New booking from ${currentProfile?.full_name||'a user'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
-
-  if(sb){
-    try{
-      const{error:uNotifErr}=await sb.from('notifications').insert({user_id:currentUser.id,text:userMsg,type:'booking'});
-      if(uNotifErr)console.warn('user notif error',uNotifErr);
-    }catch(e){console.warn('user notif exception',e);}
-
-    if(consProfileId){
-      try{
-        const{error:cNotifErr}=await sb.from('notifications').insert({user_id:consProfileId,text:consMsg,type:'booking'});
-        if(cNotifErr)console.warn('consultant notif error',cNotifErr);
-      }catch(e){console.warn('consultant notif exception',e);}
-    }
-  }
-
   try{
-    if(typeof emailjs!=='undefined' && CFG.emailjs_public_key && CFG.emailjs_service_id && CFG.emailjs_template_id_booking){
-      await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_id_booking,{
-        to_email:currentUser.email,
-        to_name:currentProfile?.full_name||'User',
-        consultant_name:curCons?.name||'Consultant',
-        booking_date:dateLabel,
-        booking_time:selSlot,
-        duration:selDur,
-        session_type:selSType,
-        amount:tot,
-        meet_link:meetLink
-      });
-      if(consEmail){
-        await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_id_booking,{
-          to_email:consEmail,
-          to_name:curCons?.name||'Consultant',
-          consultant_name:curCons?.name||'Consultant',
-          booking_date:dateLabel,
-          booking_time:selSlot,
-          duration:selDur,
-          session_type:selSType,
-          amount:tot,
-          meet_link:meetLink
-        });
+    if(consId){
+      const cRes=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId)+'&select=profile_id',{method:'GET',timeoutMs:15000});
+      const cRow=Array.isArray(cRes.data)?cRes.data[0]:cRes.data;
+      consProfileId=cRow?.profile_id||null;
+      if(consProfileId){
+        const pRes=await supabaseRest('profiles?id=eq.'+encodeURIComponent(consProfileId)+'&select=email',{method:'GET',timeoutMs:15000});
+        const pRow=Array.isArray(pRes.data)?pRes.data[0]:pRes.data;
+        consEmail=pRow?.email||null;
       }
     }
-  }catch(e){
-    console.warn('Email notification failed:',e);
-  }
+  }catch(e){console.warn('Could not fetch consultant email/profile for notification:',e);}
+
+  const userMsg=`✅ Your call with ${curCons?.name||'consultant'} has been scheduled for ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+  const consMsg=`📅 New call scheduled with ${currentProfile?.full_name||'a user'} for ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
+  await insertNotificationDirect(currentUser.id,userMsg,'booking',savedRow?.id||null);
+  if(consProfileId)await insertNotificationDirect(consProfileId,consMsg,'booking',savedRow?.id||null);
+
+  await sendBookingEmails({
+    ...lastBooking,
+    user_name:bookingPayload.user_name,
+    user_email:bookingPayload.user_email,
+    consultant_name:bookingPayload.consultant_name,
+    date_label:dateLabel,
+    time_slot:selSlot,
+    duration:selDur,
+    session_type:selSType,
+    total_amount:tot,
+    payment_id:payId,
+    meet_link:meetLink
+  },consEmail);
 
   updateConfirmPage();
+  return lastBooking;
+
 }
 
 function updateConfirmPage(){
@@ -2778,6 +2845,11 @@ async function swUD(view,btn){
   if(view==='upcoming'){
     let bookings=[];
     if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).eq('status','upcoming').order('created_at',{ascending:false});bookings=data||[];}
+    if(lastBooking?.id && lastBooking?.user_id===currentUser?.id && lastBooking.status==='upcoming' && !bookings.some(b=>b.id===lastBooking.id)){
+      bookings=[lastBooking,...bookings];
+    }
+    bookings=await markCompletedAndNotify(bookings,'user');
+    bookings=bookings.filter(b=>b.status==='upcoming');
     // If lastBooking has a meet_link but the DB row doesn't yet, patch DB first, then patch memory
     if(lastBooking?.meet_link && lastBooking?.id){
       const row=bookings.find(bk=>bk.id===lastBooking.id&&!bk.meet_link);
@@ -2822,7 +2894,8 @@ async function swUD(view,btn){
     if(sb&&currentUser){const{data}=await sb.from('notifications').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false}).limit(20);notifs=data||[];}
     const list=notifs;
     m.innerHTML=`<div class="dash-title">Notifications</div>
-    ${list.length?list.map(n=>`<div class="notif-item"><div class="notif-dot ${n.is_read?'read':''}"></div><div><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div></div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:600;margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">You will be notified here when sessions are booked or updated.</p></div>'}`;
+    ${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div>${n.type==='review'?`<button class="bk-btn blue" style="margin-top:8px" onclick="swUD('history',null)">Leave review</button>`:''}</div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:600;margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">You will be notified here when sessions are booked or updated.</p></div>'}`;
+    if(list.some(n=>!n.is_read)){supabaseRest('notifications?user_id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:{is_read:true},timeoutMs:15000}).then(()=>{const b=document.getElementById('user-notif-badge');if(b){b.textContent='0';b.style.display='none';}}).catch(()=>{});}
 
   }else if(view==='payments'){
     let bookings=[];
@@ -2925,6 +2998,9 @@ async function swCD(view,btn){
     // Load real bookings
     let todaySessions=[];
     if(sb&&consRecord){const{data}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).eq('status','upcoming').order('created_at',{ascending:false}).limit(5);todaySessions=data||[];}
+    if(lastBooking?.id && consRecord?.id && lastBooking.consultant_id===consRecord.id && lastBooking.status==='upcoming' && !todaySessions.some(b=>b.id===lastBooking.id))todaySessions=[lastBooking,...todaySessions];
+    todaySessions=await markCompletedAndNotify(todaySessions,'consultant');
+    todaySessions=todaySessions.filter(b=>b.status==='upcoming');
     m.innerHTML=`<div class="dash-title">Overview</div>
     <div class="stats-grid">
       <div class="stat-box blue"><div class="stat-val">₹${consRecord?((consRecord.total_earnings||0)/100).toLocaleString():'—'}</div><div class="stat-lbl">Total earned</div></div>
@@ -2950,6 +3026,8 @@ async function swCD(view,btn){
       const{data,error}=await sb.from('bookings').select('*').eq('consultant_id',consRecord.id).in('status',['upcoming','pending','cancelled']).order('created_at',{ascending:false});
       if(error)console.warn('Bookings load error',error);
       requests=data||[];
+      if(lastBooking?.id && lastBooking.consultant_id===consRecord.id && !requests.some(r=>r.id===lastBooking.id))requests=[lastBooking,...requests];
+      requests=await markCompletedAndNotify(requests,'consultant');
       // Patch meet_link from lastBooking if DB row missing it
       if(lastBooking?.meet_link&&lastBooking?.id){
         const row=requests.find(r=>r.id===lastBooking.id&&!r.meet_link);
