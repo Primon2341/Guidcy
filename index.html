@@ -1463,11 +1463,13 @@ const CFG = {
   supabase_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4',
   razorpay_key: 'rzp_test_Shko313dMXo3WQ',
   admin_email: 'tripathiprakhar41@gmail.com',
+  guidcy_sender_email: 'guidcytechnologies@gmail.com',
+  guidcy_sender_name: 'Guidcy Technologies',
   // ── EmailJS (legacy — still tries first if configured) ──
-  emailjs_public_key: '-ipWArwb4uP2VAxLN',
-  emailjs_service_id: 'service_evgg31g',
-  emailjs_template_user: 'template_dwk2n3g',
-  emailjs_template_consultant: 'template_vrhh6qk',
+  emailjs_public_key: 'ZEnl7BvcO-q5J3Uwq',
+  emailjs_service_id: 'service_cfp3lfd',
+  emailjs_template_user: 'template_o3488o5',
+  emailjs_template_consultant: 'template_nnfyd7h',
   // ── Web3Forms (recommended — fallback if EmailJS fails. Free, no signup hassle) ──
   // Get your access key in 30 seconds at https://web3forms.com — just enter your email, no signup
   web3forms_access_key: '1ba497bc-b13f-4a6c-9108-596cc5c66357',
@@ -1681,44 +1683,119 @@ async function insertNotificationDirect(userId,text,type='booking',bookingId=nul
   }catch(e){console.warn('Notification insert exception:',e);return null;}
 }
 async function sendBookingEmails(bk,consEmail){
-  const userEmail=bk.user_email||currentUser?.email;
+  const userEmail=(bk.user_email||currentUser?.email||'').trim();
   const userName=bk.user_name||currentProfile?.full_name||'User';
   const consultantName=bk.consultant_name||curCons?.name||'Consultant';
-  const params={
-    user_name:userName,
-    to_name:userName,
-    consultant_name:consultantName,
-    booking_date:bk.date_label||'',
-    booking_time:bk.time_slot||'',
-    duration:bk.duration||60,
-    session_type:bk.session_type||'video',
-    amount:bk.total_amount||bk.amount||'',
-    meet_link:bk.meet_link||'',
-    payment_id:bk.payment_id||''
-  };
+  const consultantEmail=(consEmail||curCons?.email||'').trim();
+
+  const bookingDate=bk.date_label||'';
+  const bookingTime=bk.time_slot||'';
+  const duration=bk.duration||60;
+  const sessionType=(bk.session_type||'video').toUpperCase();
+  const amount=bk.amount||0;
+  const platformFee=bk.platform_fee||0;
+  const totalAmount=bk.total_amount||amount;
+  const meetLink=bk.meet_link||'';
+  const paymentId=bk.payment_id||'';
+  const bookingId=bk.id||'';
+
+  const subject='Guidcy Booking Confirmation - Session Scheduled';
+
+  const detailRows=`
+    <tr><td style="padding:8px 0;color:#64748B">Consultant</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${consultantName}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Client/User</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${userName}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Date</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${bookingDate}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Time</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${bookingTime} IST</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Duration</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${duration} minutes</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Session Type</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${sessionType}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Session Amount</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">₹${amount}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Platform Fee</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">₹${platformFee}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Total Paid</td><td style="padding:8px 0;text-align:right;font-weight:700;color:#166534">₹${totalAmount}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Payment ID</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${paymentId}</td></tr>
+  `;
+
+  const baseHtml=(headline,subline)=>`
+    <div style="margin:0;padding:0;background:#F8FBFF;font-family:Arial,Helvetica,sans-serif;color:#0F172A">
+      <div style="max-width:620px;margin:0 auto;padding:24px">
+        <div style="background:#ffffff;border:1px solid #D8E8F5;border-radius:16px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#1E72BE,#3DB84A);padding:24px;color:#ffffff">
+            <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">Guidcy</div>
+            <div style="font-size:13px;opacity:0.9;margin-top:4px">Expert Guidance on Demand</div>
+          </div>
+          <div style="padding:26px">
+            <h2 style="margin:0 0 8px;font-size:24px;color:#0F172A">${headline}</h2>
+            <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#64748B">${subline}</p>
+            <div style="background:#F0F6FF;border:1px solid #D8E8F5;border-radius:12px;padding:16px;margin-bottom:18px">
+              <table style="width:100%;border-collapse:collapse;font-size:14px">${detailRows}</table>
+            </div>
+            ${meetLink?`<div style="text-align:center;margin:22px 0"><a href="${meetLink}" target="_blank" style="display:inline-block;background:#1E72BE;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px">Join Google Meet</a></div><p style="font-size:12px;line-height:1.5;color:#64748B;word-break:break-all;margin:0 0 18px"><b>Meet Link:</b> <a href="${meetLink}" style="color:#1a73e8">${meetLink}</a></p>`:''}
+            <p style="font-size:13px;line-height:1.6;color:#64748B;margin:16px 0 0">Please join the session on time. Keep this email for your records.</p>
+          </div>
+          <div style="border-top:1px solid #D8E8F5;padding:16px 26px;background:#F8FBFF;font-size:12px;color:#64748B">
+            Sent by Guidcy Technologies from ${CFG.guidcy_sender_email}.<br/>Booking ID: ${bookingId || 'N/A'}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const userHtml=baseHtml('Your Guidcy session is confirmed',`Hi ${userName}, your consultation session with ${consultantName} has been scheduled successfully.`);
+  const consultantHtml=baseHtml('A new Guidcy session has been booked',`Hi ${consultantName}, ${userName} has booked a consultation session with you.`);
+
+  const plainMessage=`Guidcy Booking Confirmation\n\nConsultant: ${consultantName}\nClient/User: ${userName}\nDate: ${bookingDate}\nTime: ${bookingTime} IST\nDuration: ${duration} minutes\nSession Type: ${sessionType}\nSession Amount: ₹${amount}\nPlatform Fee: ₹${platformFee}\nTotal Paid: ₹${totalAmount}\nPayment ID: ${paymentId}\nGoogle Meet: ${meetLink}\n\nSent by Guidcy Technologies (${CFG.guidcy_sender_email})`;
+
+  async function sendEmailJS(toEmail,toName,htmlMessage,role){
+    if(!toEmail)return {skipped:true,reason:'missing recipient'};
+    if(typeof emailjs==='undefined')throw new Error('EmailJS SDK not loaded');
+    if(!CFG.emailjs_public_key||!CFG.emailjs_service_id)throw new Error('EmailJS public key/service ID missing');
+
+    const templateId=(role==='consultant' && CFG.emailjs_template_consultant) ? CFG.emailjs_template_consultant : CFG.emailjs_template_user;
+    if(!templateId)throw new Error('EmailJS template ID missing');
+
+    const params={
+      from_name:CFG.guidcy_sender_name,
+      from_email:CFG.guidcy_sender_email,
+      reply_to:CFG.guidcy_sender_email,
+      to_email:toEmail,
+      to_name:toName,
+      subject,
+      message:plainMessage,
+      html_message:htmlMessage,
+      user_name:userName,
+      user_email:userEmail,
+      consultant_name:consultantName,
+      consultant_email:consultantEmail,
+      date_label:bookingDate,
+      time_slot:bookingTime,
+      booking_date:bookingDate,
+      booking_time:bookingTime,
+      duration,
+      session_type:sessionType,
+      amount,
+      platform_fee:platformFee,
+      total_amount:totalAmount,
+      meet_link:meetLink,
+      payment_id:paymentId,
+      booking_id:bookingId
+    };
+
+    console.log(`📧 Sending ${role} email via EmailJS to:`,toEmail);
+    const result=await emailjs.send(CFG.emailjs_service_id,templateId,params);
+    console.log(`✅ ${role} email sent result:`,result);
+    return result;
+  }
+
+  const results=[];
   try{
-    if(typeof emailjs!=='undefined' && CFG.emailjs_public_key && CFG.emailjs_service_id){
-      if(userEmail && CFG.emailjs_template_user){await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_user,{...params,to_email:userEmail,to_name:userName});}
-      if(consEmail && CFG.emailjs_template_consultant){await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_consultant,{...params,to_email:consEmail,to_name:consultantName,user_name:userName});}
-      console.log('✅ EmailJS confirmation emails attempted');
-      return;
-    }
-  }catch(e){console.warn('EmailJS failed, trying Web3Forms:',e);}
-  try{
-    if(CFG.web3forms_access_key){
-      const recipients=[userEmail,consEmail].filter(Boolean);
-      for(const to of recipients){
-        await fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-          access_key:CFG.web3forms_access_key,
-          subject:'Guidcy session confirmation',
-          from_name:'Guidcy',
-          email:to,
-          message:`Your Guidcy session is confirmed. Consultant: ${consultantName}. Date: ${bk.date_label}. Time: ${bk.time_slot} IST. Duration: ${bk.duration} min. Meet link: ${bk.meet_link}`
-        })});
-      }
-      console.log('✅ Web3Forms confirmation emails attempted');
-    }
-  }catch(e){console.warn('Web3Forms email failed:',e);}
+    if(userEmail)results.push(await sendEmailJS(userEmail,userName,userHtml,'user'));
+    if(consultantEmail)results.push(await sendEmailJS(consultantEmail,consultantName,consultantHtml,'consultant'));
+    if(!userEmail && !consultantEmail)console.warn('No email recipients found for booking confirmation');
+    toast('Confirmation email sent from Guidcy','green');
+    return results;
+  }catch(e){
+    console.error('❌ Guidcy booking email failed:',e);
+    toast('Booking saved, but email sending failed. Check EmailJS setup.','red');
+    return null;
+  }
 }
 function parseBookingDateTime(bk){
   try{
@@ -2764,8 +2841,8 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     }
 
   }catch(e){
-    console.error('❌ Supabase REST insert crashed or timed out:',e);
-    toast('Booking save failed: '+(e.name==='AbortError'?'Supabase request timed out':(e.message||'unknown error')),'red');
+    console.error('❌ Guidcy booking email failed:',e);
+    toast('Booking saved, but email sending failed. Check EmailJS setup.','red');
     return null;
   }
 
