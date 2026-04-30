@@ -80,11 +80,17 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 .hero-title{font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:600;line-height:1.12;letter-spacing:-1px;margin-bottom:20px;color:#fff}
 .hero-accent-blue{color:#60A5FA}.hero-accent-green{color:#4ADE80;font-style:italic}
 .hero-sub{font-size:16px;color:rgba(255,255,255,0.8);max-width:520px;margin-bottom:32px;line-height:1.7}
-.hero-search{display:flex;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);max-width:660px}
+.hero-search{display:flex;background:#fff;border-radius:12px;overflow:visible;box-shadow:0 8px 32px rgba(0,0,0,0.3);max-width:660px;position:relative}
 .hero-search-cat{display:flex;align-items:center;gap:6px;padding:0 16px;border-right:1px solid #E5E7EB;white-space:nowrap;min-width:160px;flex-shrink:0}
 .hero-search input{flex:1;border:none;padding:14px 16px;font-size:14px;outline:none;color:#111;background:transparent;min-width:0}
 .hero-search input::placeholder{color:#9CA3AF}
 .hero-search .btn{border-radius:0 10px 10px 0 !important;margin:0 !important;padding:14px 28px !important;font-size:14px !important;font-weight:600 !important;flex-shrink:0}
+.hero-search-input-wrap{position:relative;flex:1;display:flex;min-width:0}
+.hero-search-suggestions{position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid #D8E8F5;border-radius:14px;box-shadow:0 14px 34px rgba(0,0,0,.22);z-index:350;overflow:hidden;display:none;max-height:320px;overflow-y:auto;color:var(--ink)}
+.hero-search-suggestions.on{display:block}
+.hero-search-suggestions .search-suggest-item{border-bottom:1px solid var(--border)}
+.hero-search-suggestions .search-suggest-item:last-child{border-bottom:none}
+
 .hero-trust-row{display:flex;gap:24px;flex-wrap:wrap;margin-top:24px}
 .hero-trust-item{display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.75)}
 /* ══ HOME CATEGORIES ══ */
@@ -158,6 +164,8 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
   .hero-sub{font-size:14px}
   .hero-search{flex-direction:column;padding:12px;gap:10px}
   .hero-search input{width:100%}
+  .hero-search-input-wrap{width:100%;flex:unset}
+  .hero-search-suggestions{top:calc(100% + 6px)}
   .hero-cats{justify-content:center}
   .hero-stats{grid-template-columns:1fr 1fr;gap:12px}
   .hero-right{display:none}
@@ -756,11 +764,11 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
         <div class="hero-search">
           <div class="hero-search-cat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>
-            <select id="cat-select" style="border:none;background:transparent;font-size:13px;color:#374151;font-family:inherit;outline:none;cursor:pointer;padding:0 4px;min-width:110px">
+            <select id="cat-select" onchange="renderHeroSuggestions()" style="border:none;background:transparent;font-size:13px;color:#374151;font-family:inherit;outline:none;cursor:pointer;padding:0 4px;min-width:110px">
               <option value="">All Categories</option><option value="Business">Business</option><option value="Technology">Technology</option><option value="Finance">Finance</option><option value="Legal">Legal</option><option value="Career">Career</option><option value="Wellness">Wellness</option><option value="Marketing">Marketing</option>
             </select>
           </div>
-          <input id="srch" placeholder="Search for consultants, skills, or topics..." onkeydown="if(event.key==='Enter')doHeroSearch()"/>
+          <div class="hero-search-input-wrap"><input id="srch" autocomplete="off" placeholder="Search for consultants, skills, or topics..." oninput="heroSearchInput()" onfocus="renderHeroSuggestions()" onkeydown="if(event.key==='Enter'){event.preventDefault();hideHeroSuggestions();doHeroSearch()}"/><div id="hero-search-suggestions" class="hero-search-suggestions"></div></div>
           <button class="btn btn-blue" onclick="doHeroSearch()">Search</button>
         </div>
         <div class="hero-trust-row">
@@ -4090,8 +4098,49 @@ function browseSort(value){ browseFilters.sort=value||''; applyFilters(); }
 function clearFilters(){ document.querySelectorAll('#page-browse .filter-check input[type=checkbox]').forEach(cb=>cb.checked=false); document.querySelectorAll('#page-browse input[name="rating-f"]').forEach(r=>r.checked=(r.value==='0')); const pr=document.getElementById('price-range'); if(pr){pr.value=pr.max||8000;const pv=document.getElementById('price-val');if(pv)pv.textContent='₹'+pr.value;} const bs=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(bs)bs.value=''; const ss=document.getElementById('sort-select');if(ss)ss.value=''; browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:'',sort:''}; hideBrowseSuggestions(); applyFilters(); }
 async function initBrowse(){ const catList=document.getElementById('filter-cat-list'); if(catList && !catList.innerHTML.trim()){ catList.innerHTML=CATEGORIES_FULL.map(c=>{ const v=c.name.split(' ')[0]; return `<label class="filter-check"><input type="checkbox" value="${v}" onchange="applyFilters()"/> ${c.icon} ${c.name}</label>`; }).join(''); } const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(input && browseFilters.search)input.value=browseFilters.search; await applyFilters(); }
 async function filterAndBrowse(category){ browseFilters={categories:[category],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:'',sort:''}; go('browse'); setTimeout(()=>{ document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{ cb.checked=(String(cb.value).toLowerCase()===String(category).toLowerCase()); }); const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(input)input.value=''; applyFilters(); },180); }
-function doHeroSearch(){ const q=(document.getElementById('srch')?.value||'').trim(); const cat=document.getElementById('cat-select')?.value||''; if(cat){filterAndBrowse(cat);return;} browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''}; go('browse'); setTimeout(()=>{const input=document.getElementById('browse-search')||document.getElementById('browse-srch');if(input)input.value=q;applyFilters();},180); }
-document.addEventListener('click',e=>{ const wrap=e.target.closest?.('.search-suggest-wrap'); if(!wrap)hideBrowseSuggestions(); });
+let guidcyHeroSearchTimer=null;
+function hideHeroSuggestions(){ const box=document.getElementById('hero-search-suggestions'); if(box)box.classList.remove('on'); }
+function renderHeroSuggestions(){
+  const input=document.getElementById('srch');
+  const box=document.getElementById('hero-search-suggestions');
+  if(!input||!box)return;
+  const q=(input.value||'').trim().toLowerCase();
+  const cat=(document.getElementById('cat-select')?.value||'').trim().toLowerCase();
+  const source=[...(consultants||[]),...(dbConsultants||[])];
+  const seen=new Set();
+  let matches=source.filter(c=>{
+    const id=String(c.dbId||c.id||c.name||'');
+    if(seen.has(id))return false; seen.add(id);
+    const text=[c.name,c.role,c.specialty,c.category,c.bio,(c.skills||[]).join(' '),(c.languages||[]).join(' ')].join(' ').toLowerCase();
+    const catOk=!cat || String(c.category||'').toLowerCase().includes(cat) || text.includes(cat);
+    const qOk=!q || text.includes(q);
+    return catOk && qOk;
+  }).slice(0,7);
+  if(!q && !cat){
+    matches=source.filter((c,i)=>i<6);
+  }
+  if(!matches.length){
+    const label=input.value||document.getElementById('cat-select')?.value||'experts';
+    box.innerHTML=`<div class="search-suggest-item" onmousedown="event.preventDefault();hideHeroSuggestions();doHeroSearch();"><div class="search-suggest-avatar">🔍</div><div><div class="search-suggest-name">Search for “${guidcyEscHtml(label)}”</div><div class="search-suggest-role">Open Browse page and search all available consultants.</div></div></div>`;
+    box.classList.add('on');
+    return;
+  }
+  box.innerHTML=matches.map(c=>{
+    const id=String(c.dbId||c.id||'');
+    const local=typeof c.id==='number'?c.id:'null';
+    const name=String(c.name||'Consultant').replace(/'/g,"\'");
+    return `<div class="search-suggest-item" onmousedown="event.preventDefault();selectHeroSuggestion('${id}',${local},'${name}')">
+      <div class="search-suggest-avatar" style="background:${c.bg||'#EBF4FF'};color:${c.color||'#1E72BE'}">${c.initials||mkInitials(c.name)}</div>
+      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+      <div class="search-suggest-hint">Open</div>
+    </div>`;
+  }).join('');
+  box.classList.add('on');
+}
+function selectHeroSuggestion(id,localId,name){ const input=document.getElementById('srch'); if(input)input.value=name||''; hideHeroSuggestions(); openProfile(id,localId); }
+function heroSearchInput(){ clearTimeout(guidcyHeroSearchTimer); renderHeroSuggestions(); guidcyHeroSearchTimer=setTimeout(()=>{},120); }
+function doHeroSearch(){ const q=(document.getElementById('srch')?.value||'').trim(); const cat=document.getElementById('cat-select')?.value||''; hideHeroSuggestions(); if(cat && !q){filterAndBrowse(cat);return;} browseFilters={categories:cat?[cat]:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''}; go('browse'); setTimeout(()=>{const input=document.getElementById('browse-search')||document.getElementById('browse-srch');if(input)input.value=q; document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{ cb.checked=cat && String(cb.value).toLowerCase()===String(cat).toLowerCase(); }); applyFilters();},180); }
+document.addEventListener('click',e=>{ const browseWrap=e.target.closest?.('.search-suggest-wrap'); const heroWrap=e.target.closest?.('.hero-search'); if(!browseWrap)hideBrowseSuggestions(); if(!heroWrap)hideHeroSuggestions(); });
 </script>
 </body>
 </html>
