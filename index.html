@@ -1156,7 +1156,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payments
         </button>
         <button class="side-btn" onclick="swUD('notifications',this)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications <span class="status-pill sp-upcoming" style="margin-left:auto;font-size:9px;padding:1px 5px">3</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications <span class="status-pill sp-upcoming" id="user-notif-badge" style="margin-left:auto;font-size:9px;padding:1px 5px;display:none">0</span>
         </button>
         <button class="side-btn" onclick="swUD('reviews',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>My reviews
@@ -1854,16 +1854,42 @@ async function fetchConsultants(filters={}){
   if(sb){
     try{
       let q=sb.from('consultants').select('*').eq('is_active',true);
-      if(filters.language)q=q.ilike('languages',`%${filters.language}%`);
-      if(filters.category)q=q.or(`specialty.ilike.%${filters.category}%,category.ilike.%${filters.category}%`);
       if(filters.minRating)q=q.gte('rating',filters.minRating);
       if(filters.minPrice)q=q.gte('rate',filters.minPrice);
       if(filters.maxPrice)q=q.lte('rate',filters.maxPrice);
       if(filters.sort==='price_asc')q=q.order('rate',{ascending:true});
       else if(filters.sort==='price_desc')q=q.order('rate',{ascending:false});
       else q=q.order('rating',{ascending:false});
-      const{data,error}=await q;
-      if(!error&&data&&data.length>0){
+      let{data,error}=await q;
+      data=data||[];
+      // Apply array filters in JS so they work whether DB stores as text or array
+      if(filters.categories&&filters.categories.length){
+        data=data.filter(c=>{
+          const cat=(c.category||c.specialty||'').toLowerCase();
+          return filters.categories.some(f=>cat.includes(f.toLowerCase()));
+        });
+      }
+      if(filters.sessionTypes&&filters.sessionTypes.length){
+        data=data.filter(c=>{
+          const st=Array.isArray(c.session_types)?c.session_types:(c.session_types?[c.session_types]:['video']);
+          return filters.sessionTypes.some(f=>st.includes(f));
+        });
+      }
+      if(filters.languages&&filters.languages.length){
+        data=data.filter(c=>{
+          const lng=Array.isArray(c.languages)?c.languages.join(',').toLowerCase():(c.languages||'').toString().toLowerCase();
+          return filters.languages.some(f=>lng.includes(f.toLowerCase()));
+        });
+      }
+      if(filters.search){
+        const s=filters.search.toLowerCase();
+        data=data.filter(c=>(c.name||'').toLowerCase().includes(s)||(c.specialty||'').toLowerCase().includes(s)||(c.category||'').toLowerCase().includes(s)||(Array.isArray(c.tags)?c.tags.join(' '):'').toLowerCase().includes(s));
+      }
+      // Handle legacy single string filters too
+      if(filters.category&&!filters.categories){
+        data=data.filter(c=>((c.category||c.specialty||'').toLowerCase().includes(filters.category.toLowerCase())));
+      }
+      if(!error&&data.length>0){
         return data.map(c=>({
           id:c.id,dbId:c.id,
           name:c.name,initials:c.avatar_initials||mkInitials(c.name),
@@ -1881,7 +1907,10 @@ async function fetchConsultants(filters={}){
       }
     }catch(e){console.warn('Fetch consultants error',e);}
   }
-  // No Supabase data — fall back to demo profiles
+  // Browse page must always show real DB only — return empty so empty state shows
+  // Home page (cons-grid) renders SEED via renderGrid fallback
+  return [];
+  // (legacy seed filtering kept below in case home logic ever needs it)
   let seed=[...SEED_CONSULTANTS];
   if(filters.category)seed=seed.filter(c=>c.role.toLowerCase().includes(filters.category.toLowerCase())||c.tags.some(t=>t.toLowerCase().includes(filters.category.toLowerCase())));
   if(filters.minPrice)seed=seed.filter(c=>c.price>=filters.minPrice);
@@ -1944,13 +1973,13 @@ async function renderRealReviews(){
 function renderGrid(list,containerId){
   const g=document.getElementById(containerId);if(!g)return;
   if(!list.length){
-    // Show seed consultants only on home page as design placeholders
-    // Browse page shows honest empty state
-    if(containerId==='cons-grid'){list=SEED_CONSULTANTS;}
-    else{
-      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">Try adjusting your filters or check back soon as more experts join Guidcy.</p></div>';
-      return;
+    if(containerId==='cons-grid'){
+      // Home featured: show "Be among the first" CTA — no fake seed data
+      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
+    } else {
+      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters. Try adjusting them or check back soon as more experts join.</p></div>';
     }
+    return;
   }
   g.innerHTML=list.map(c=>`
     <div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">
@@ -1977,26 +2006,55 @@ async function filterCat(cat){
   renderGrid(list,'cons-grid');
   if(!document.getElementById('page-home').classList.contains('on'))go('home');
 }
-async function filterAndBrowse(search){
-  browseFilters={...browseFilters,search};
-  const list=await fetchConsultants(browseFilters);
-  renderGrid(list,'browse-grid');
+async function filterAndBrowse(category){
+  // Filter by category specifically (not search) so it actually filters by category column
+  browseFilters={categories:[category],sessionTypes:[],languages:[],minRating:0,minPrice:0,maxPrice:99999,search:''};
   go('browse');
+  // Tick the matching checkbox in the filter panel
+  setTimeout(()=>{
+    const cbs=document.querySelectorAll('#page-browse .filter-section input[type=checkbox]');
+    cbs.forEach(cb=>{
+      cb.checked=(cb.value.toLowerCase()===category.toLowerCase());
+    });
+    applyFilters();
+  },150);
 }
 async function initBrowse(){
   const list=await fetchConsultants(browseFilters);
   renderGrid(list,'browse-grid');
 }
 async function applyFilters(){
-  const cat=document.getElementById('f-cat')?.value||'';
-  const sort=document.getElementById('f-sort')?.value||'';
-  const minPrice=parseInt(document.getElementById('f-price-min')?.value)||0;
-  const maxPrice=parseInt(document.getElementById('f-price-max')?.value)||99999;
-  const minRating=parseFloat(document.getElementById('f-rating')?.value)||0;
-  const lang=document.getElementById('f-lang')?.value||'';
-  browseFilters={category:cat,sort,minPrice:minPrice||0,maxPrice:maxPrice||99999,minRating,language:lang,search:browseFilters.search||''};
+  // Read all checkboxes inside .filter-panel (Categories, Session types, Languages)
+  const filterPanel=document.querySelector('#page-browse .filter-panel');
+  if(!filterPanel){renderGrid(await fetchConsultants(browseFilters),'browse-grid');return;}
+  const sections=filterPanel.querySelectorAll('.filter-section');
+  // Map sections: 0=Category, 1=Session type, 2=Price, 3=Rating, 4=Language
+  const cats=[];const stypes=[];const langs=[];
+  sections.forEach((sec,i)=>{
+    const checked=sec.querySelectorAll('input[type=checkbox]:checked');
+    checked.forEach(cb=>{
+      const v=cb.value;
+      const title=sec.querySelector('.filter-title')?.textContent?.toLowerCase()||'';
+      if(title.includes('categor')) cats.push(v);
+      else if(title.includes('session')) stypes.push(v);
+      else if(title.includes('languag')) langs.push(v);
+    });
+  });
+  const ratingChecked=filterPanel.querySelector('input[name="rating-f"]:checked');
+  const minRating=ratingChecked?parseFloat(ratingChecked.value)||0:0;
+  const priceRange=filterPanel.querySelector('#price-range');
+  const maxPrice=priceRange?parseInt(priceRange.value):99999;
+  browseFilters={
+    categories:cats,
+    sessionTypes:stypes,
+    languages:langs,
+    minRating,
+    minPrice:0,
+    maxPrice,
+    search:browseFilters.search||''
+  };
   const g=document.getElementById('browse-grid');
-  if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px">⏳</div>Loading...</div>';
+  if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">⏳</div>Filtering experts...</div>';
   const list=await fetchConsultants(browseFilters);
   renderGrid(list,'browse-grid');
 }
@@ -2295,40 +2353,70 @@ async function saveBooking(payId,dateLabel,fee,tot){
 
 // Sends booking-confirmation emails using EmailJS (runs entirely in the browser)
 async function sendBookingEmail(payload){
+  console.log('📧 sendBookingEmail called with payload:', payload);
   if(!CFG.emailjs_public_key||!CFG.emailjs_service_id){
-    console.warn('EmailJS not configured — add keys to CFG to enable emails');
+    console.error('❌ EmailJS NOT configured. CFG values:',{
+      public_key:CFG.emailjs_public_key,
+      service:CFG.emailjs_service_id,
+      template_user:CFG.emailjs_template_user,
+      template_cons:CFG.emailjs_template_consultant
+    });
     return;
   }
-  try{
-    // Init EmailJS (safe to call multiple times)
-    const templateParams = {
-      to_user_email:      payload.user_email        || '',
-      to_cons_email:      payload.consultant_email  || '',
-      to_user_name:       payload.user_name         || 'Guest',
-      consultant_name:    payload.consultant_name   || '',
-      date_label:         payload.date_label        || '',
-      time_slot:          payload.time_slot         || '',
-      duration:           payload.duration          || 60,
-      session_type:       payload.session_type==='video'?'📹 Video':payload.session_type==='audio'?'📞 Audio':'💬 Chat',
-      meet_link:          payload.meet_link         || '',
-      total_amount:       '₹'+(payload.total_amount||0).toLocaleString(),
-      booking_id:         payload.booking_id        || '',
-    };
+  if(typeof emailjs==='undefined'){
+    console.error('❌ EmailJS SDK not loaded yet');
+    return;
+  }
+  const templateParams={
+    to_email:           payload.user_email        || '',
+    to_user_email:      payload.user_email        || '',
+    to_cons_email:      payload.consultant_email  || '',
+    to_user_name:       payload.user_name         || 'Guest',
+    user_name:          payload.user_name         || 'Guest',
+    consultant_name:    payload.consultant_name   || '',
+    date_label:         payload.date_label        || '',
+    time_slot:          payload.time_slot         || '',
+    duration:           payload.duration          || 60,
+    session_type:       payload.session_type==='video'?'📹 Video':payload.session_type==='audio'?'📞 Audio':'💬 Chat',
+    meet_link:          payload.meet_link         || '',
+    total_amount:       '₹'+(payload.total_amount||0).toLocaleString(),
+    booking_id:         payload.booking_id        || '',
+    // Default order template variables (in case templates use them)
+    email:              payload.user_email        || '',
+    name:               payload.consultant_name   || '',
+    order_id:           payload.booking_id        || '',
+    units:              '1 session',
+    price:              '₹'+(payload.total_amount||0).toLocaleString(),
+    'cost.shipping':    '₹0',
+    'cost.tax':         '₹0',
+    'cost.total':       '₹'+(payload.total_amount||0).toLocaleString(),
+  };
 
-    // Email to user
-    if(payload.user_email && CFG.emailjs_template_user){
-      await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user,
-        {...templateParams, to_email: payload.user_email});
-      console.log('✅ Confirmation email sent to user:', payload.user_email);
+  // Send email to user
+  if(payload.user_email && CFG.emailjs_template_user){
+    try{
+      const r=await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user,
+        {...templateParams, to_email: payload.user_email, email: payload.user_email});
+      console.log('✅ User email sent:', payload.user_email, 'response:', r);
+    }catch(e){
+      console.error('❌ User email failed:', e);
+      toast('Email error: '+(e?.text||e?.message||'check console'),'red');
     }
-    // Email to consultant
-    if(payload.consultant_email && CFG.emailjs_template_consultant){
-      await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_consultant,
-        {...templateParams, to_email: payload.consultant_email});
-      console.log('✅ Notification email sent to consultant:', payload.consultant_email);
+  } else {
+    console.warn('⚠️ Skipping user email — missing user_email or template_user');
+  }
+
+  // Send email to consultant
+  if(payload.consultant_email && CFG.emailjs_template_consultant){
+    try{
+      const r=await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_consultant,
+        {...templateParams, to_email: payload.consultant_email, email: payload.consultant_email});
+      console.log('✅ Consultant email sent:', payload.consultant_email, 'response:', r);
+    }catch(e){
+      console.error('❌ Consultant email failed:', e);
     }
-  }catch(e){
-    console.warn('EmailJS send error:', e);
+  } else {
+    console.warn('⚠️ Skipping consultant email — missing consultant_email or template_consultant');
   }
 }
 
@@ -2355,6 +2443,12 @@ function updateConfirmPage(){
 async function swUD(view,btn){
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;
+  // Update notification badge with real unread count
+  if(sb&&currentUser){
+    sb.from('notifications').select('id').eq('user_id',currentUser.id).eq('is_read',false)
+      .then(({data:nf})=>{const cnt=(nf||[]).length;const b=document.getElementById('user-notif-badge');if(b){b.textContent=cnt;b.style.display=cnt>0?'inline-flex':'none';}})
+      .catch(()=>{});
+  }
   const name=currentProfile?.full_name||'Guest';
   const initials=currentProfile?.avatar_initials||mkInitials(name);
   const av=document.getElementById('udash-av'),nm=document.getElementById('udash-name');
@@ -2381,13 +2475,16 @@ async function swUD(view,btn){
 
   }else if(view==='history'){
     let bookings=[];
-    if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).in('status',['completed','upcoming']).order('created_at',{ascending:false});bookings=data||[];}
+    if(sb&&currentUser){const{data}=await sb.from('bookings').select('*').eq('user_id',currentUser.id).in('status',['completed','cancelled']).order('created_at',{ascending:false});bookings=data||[];}
     m.innerHTML=`<div class="dash-title">Session history</div>
-    ${bookings.length?bookings.map(bk=>`<div class="bk-item">
+    ${bookings.length?bookings.map(bk=>{
+      const isCancelled=bk.status==='cancelled';
+      const cancelledByLabel=bk.cancelled_by==='user'?'Cancelled by you':bk.cancelled_by==='consultant'?'Cancelled by consultant':'Cancelled';
+      return `<div class="bk-item">
       <div class="bk-av" style="background:var(--surface2)">${mkInitials(bk.consultant_name||'C')}</div>
-      <div class="bk-info"><div class="bk-name">${bk.consultant_name}<span class="status-pill sp-done">Completed</span></div><div class="bk-meta">${bk.date_label} · ${bk.duration} min · ₹${bk.total_amount?.toLocaleString()}</div></div>
-      <div class="bk-actions"><button class="bk-btn blue" onclick="openReviewPageForBooking('${bk.id}','${bk.consultant_name}','${bk.consultant_id||''}')">⭐ Review</button></div>
-    </div>`).join(''):`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div>No completed sessions yet</div></div>`}`;
+      <div class="bk-info"><div class="bk-name">${bk.consultant_name}<span class="status-pill ${isCancelled?'sp-cancelled':'sp-done'}">${isCancelled?cancelledByLabel:'Completed'}</span></div><div class="bk-meta">${bk.date_label} · ${bk.duration} min · ₹${bk.total_amount?.toLocaleString()}</div></div>
+      <div class="bk-actions">${isCancelled?'':`<button class="bk-btn blue" onclick="openReviewPageForBooking('${bk.id}','${bk.consultant_name}','${bk.consultant_id||''}')">⭐ Review</button>`}</div>
+    </div>`}).join(''):`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div>No past sessions yet</div></div>`}`;
 
   }else if(view==='notifications'){
     let notifs=[];
@@ -2710,12 +2807,16 @@ function toggleDay(el){
 // Opens the logged-in consultant's own public profile page
 async function cancelBooking(bookingId, role){
   if(!bookingId){toast('Cannot cancel — booking not saved yet','red');return;}
-  const who=role==='user'?'You':'The session';
+  const who=role==='user'?'You':'The consultant';
   if(!confirm(`${who} will cancel this booking. This cannot be undone. Continue?`))return;
   if(!sb){toast('Not connected','red');return;}
-  const{error}=await sb.from('bookings').update({status:'cancelled'}).eq('id',bookingId);
+  const{error}=await sb.from('bookings').update({
+    status:'cancelled',
+    cancelled_by:role,
+    cancelled_at:new Date().toISOString()
+  }).eq('id',bookingId);
   if(error){toast('Cancel failed: '+error.message,'red');return;}
-  toast('Session cancelled','green');
+  toast('Session cancelled. Moved to history.','green');
   setTimeout(()=>{
     if(role==='user')swUD('upcoming',null);
     else swCD('requests',null);
@@ -3006,9 +3107,28 @@ async function submitReview(){
 /* ═══════════════════════════════════════════
    CATEGORIES + FAQ
 ═══════════════════════════════════════════ */
-function initCategories(){
+async function initCategories(){
   const el=document.getElementById('cats-full-grid');if(!el)return;
-  el.innerHTML=CATEGORIES_FULL.map(cat=>`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${cat.name}</div><div style="font-size:12px;color:var(--muted)">${cat.count.toLocaleString()} experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')">Browse all →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${s}')" style="cursor:pointer">${s}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`).join('');
+  // Show skeleton first
+  el.innerHTML=CATEGORIES_FULL.map(()=>`<div style="height:80px;background:var(--surface2);border-radius:12px;margin-bottom:14px;animation:pulse2 1.2s infinite"></div>`).join('');
+  // Fetch real counts per category from DB
+  const counts={};
+  if(sb){
+    try{
+      const{data}=await sb.from('consultants').select('category,specialty').eq('is_active',true);
+      (data||[]).forEach(c=>{
+        const k=(c.category||c.specialty||'').toLowerCase();
+        CATEGORIES_FULL.forEach(cat=>{
+          const matchKey=cat.name.split(' ')[0].toLowerCase();
+          if(k.includes(matchKey)) counts[cat.name]=(counts[cat.name]||0)+1;
+        });
+      });
+    }catch(e){console.warn('Cat count fetch failed',e);}
+  }
+  el.innerHTML=CATEGORIES_FULL.map(cat=>{
+    const realCount=counts[cat.name]||0;
+    return `<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${cat.name}</div><div style="font-size:12px;color:var(--muted)">${realCount===0?'Be the first to register':realCount===1?'1 expert':realCount+' experts'}</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')">Browse all →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')" style="cursor:pointer">${s}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
+  }).join('');
 }
 function initFAQ(){
   const render=(items,id)=>{const el=document.getElementById(id);if(!el)return;el.innerHTML=items.map(item=>`<div class="faq-item"><div class="faq-q" onclick="toggleFAQ(this)"><span>${item.q}</span><span class="faq-arrow">▾</span></div><div class="faq-a">${item.a}</div></div>`).join('');};
