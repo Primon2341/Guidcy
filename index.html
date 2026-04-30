@@ -2490,73 +2490,80 @@ async function doPay(){
 }
 
 async function saveBooking(payId,dateLabel,fee,tot,meetLink){
-  if(!meetLink)meetLink=genMeetLink(); // fallback only
-  const bookId='GDY-'+Math.floor(Math.random()*90000+10000);
-  const consId=(typeof curCons.dbId==='string'&&curCons.dbId)?curCons.dbId:(typeof curCons.id==='string'?curCons.id:null);
-  lastBooking={booking_id:bookId,consultant_name:curCons.name,consultant_id:consId,
-    date_label:dateLabel,time_slot:selSlot,duration:selDur,session_type:selSType,
-    fee,total_amount:tot,payment_id:payId,meet_link:meetLink,status:'upcoming'};
-  let savedRow=null;
-  if(sb&&currentUser){
-    try{
-      const{data,error}=await sb.from('bookings').insert({
-        user_id:currentUser.id,consultant_id:consId,
-        consultant_name:curCons.name,user_name:currentProfile?.full_name||'Guest',
-        user_email:currentUser.email||null,
-        date_label:dateLabel,time_slot:selSlot,duration:selDur,session_type:selSType,
-        amount:fee,platform_fee:Math.round(fee*.05),total_amount:tot,
-        status:'upcoming',payment_id:payId,meet_link:meetLink
-      }).select().single();
-      if(error){
-        console.error('Booking insert error:',error);
-        toast('Could not save booking: '+error.message,'red');
-        return; // stop here; otherwise dashboard cannot load this booking from DB
-      } else {
-        savedRow=data;
-        // Keep the saved DB row and force meet_link in memory for instant dashboard display
-        lastBooking={...lastBooking,...data,meet_link:data?.meet_link||meetLink};
-        if(data?.id) lastBooking.id=data.id;
-        // Safety patch: if Supabase trigger/policy returns row without meet_link, update it once
-        if(data?.id && meetLink && !data?.meet_link){
-          const{error:patchErr}=await sb.from('bookings').update({meet_link:meetLink}).eq('id',data.id);
-          if(patchErr)console.warn('meet_link DB patch failed:',patchErr);
-          else console.log('✅ meet_link saved/verified in bookings row:',data.id);
-        }
-      }
-    }catch(e){
-      console.error('Booking insert exception:',e);
-      toast('Save error: '+(e.message||'unknown'),'red');
-    }
-    // Get consultant's email so we can notify them
-    let consEmail=null,consProfileId=null;
-    if(consId){
-      try{
-        const{data:cdata}=await sb.from('consultants').select('profile_id').eq('id',consId).single();
-        if(cdata?.profile_id){
-          consProfileId=cdata.profile_id;
-          const{data:pdata}=await sb.from('profiles').select('email').eq('id',consProfileId).single();
-          if(pdata?.email)consEmail=pdata.email;
-        }
-      }catch(e){console.warn('Could not fetch consultant email',e);}
-    }
-    // In-app notifications for both parties
-    const userMsg=`✅ Booking confirmed with ${curCons.name} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
-    const consMsg=`📅 New booking from ${currentProfile?.full_name||'a user'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
-    await sb.from('notifications').insert({user_id:currentUser.id,text:userMsg,type:'booking'}).catch(e=>console.warn('user notif',e));
-    if(consProfileId){
-      await sb.from('notifications').insert({user_id:consProfileId,text:consMsg,type:'booking'}).catch(e=>console.warn('cons notif',e));
-    }
-    // Send confirmation emails (to both user and consultant) via Supabase Edge Function
-    sendBookingEmail({
-      booking_id:savedRow?.id||bookId,
-      user_email:currentUser.email,
-      user_name:currentProfile?.full_name||'Guest',
-      consultant_email:consEmail,
-      consultant_name:curCons.name,
-      date_label:dateLabel,time_slot:selSlot,duration:selDur,
-      session_type:selSType,meet_link:meetLink,total_amount:tot
-    }).catch(e=>console.warn('email send failed',e));
+  meetLink = (meetLink || '').trim();
+
+  if(!meetLink){
+    console.error('saveBooking called without meetLink');
+    toast('Meet link was not generated, so booking was not saved.','red');
+    return;
   }
+
+  const consId =
+    (typeof curCons.dbId === 'string' && curCons.dbId)
+      ? curCons.dbId
+      : (typeof curCons.id === 'string' ? curCons.id : null);
+
+  const bookingPayload = {
+    user_id: currentUser.id,
+    consultant_id: consId,
+    consultant_name: curCons.name,
+    user_name: currentProfile?.full_name || 'Guest',
+    user_email: currentUser.email || null,
+    date_label: dateLabel,
+    time_slot: selSlot,
+    duration: selDur,
+    session_type: selSType,
+    amount: fee,
+    platform_fee: Math.round(fee * 0.05),
+    total_amount: tot,
+    status: 'upcoming',
+    payment_id: payId,
+    meet_link: meetLink
+  };
+
+  console.log('Saving booking payload:', bookingPayload);
+
+  const { data, error } = await sb
+    .from('bookings')
+    .insert(bookingPayload)
+    .select('*')
+    .single();
+
+  if(error){
+    console.error('Booking insert error:', error);
+    toast('Could not save booking: ' + error.message, 'red');
+    return;
+  }
+
+  console.log('Booking inserted:', data);
+
+  const { data: updData, error: updErr } = await sb
+    .from('bookings')
+    .update({ meet_link: meetLink })
+    .eq('id', data.id)
+    .select('id, meet_link')
+    .single();
+
+  if(updErr){
+    console.error('Meet link update failed:', updErr);
+    toast('Booking saved, but Meet link update failed: ' + updErr.message, 'red');
+  } else {
+    console.log('Meet link force updated:', updData);
+  }
+
+  const { data: verifyData, error: verifyErr } = await sb
+    .from('bookings')
+    .select('id, meet_link')
+    .eq('id', data.id)
+    .single();
+
+  console.log('Final DB verification:', verifyData || verifyErr);
+
+  lastBooking = {
+    ...data,
+    meet_link: meetLink
+  };
+
   updateConfirmPage();
 }
 
