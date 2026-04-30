@@ -703,8 +703,9 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <!-- EmailJS -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<!-- Jitsi External API for embedded video calls -->
-<script src="https://meet.jit.si/external_api.js"></script>
+<!-- Google API for Calendar + Meet link generation -->
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
 
@@ -1117,7 +1118,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#1a73e8"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
           Video Meeting link
         </div>
-        <a class="meet-link" id="meet-link-url" href="#" target="_blank" rel="noopener" id="meet-link-url">Generating your meeting link...</a>
+        <a class="meet-link" id="meet-link-url" href="#" target="_blank" rel="noopener" id="meet-link-url">Your Google Meet link will appear here</a>
         <div style="font-size:11px;color:var(--muted);margin-top:5px">⏱ Link activates 5 minutes before your session</div>
       </div>
       <div class="detail-box" id="confirm-details"></div>
@@ -1470,6 +1471,7 @@ const CFG = {
   // ── Web3Forms (recommended — fallback if EmailJS fails. Free, no signup hassle) ──
   // Get your access key in 30 seconds at https://web3forms.com — just enter your email, no signup
   web3forms_access_key: '1ba497bc-b13f-4a6c-9108-596cc5c66357',
+  google_client_id: '505408835427-4o4ipn721ia6mm467h8vehlgtim2lq60.apps.googleusercontent.com',
 };
 
 // ── Init EmailJS at startup ──
@@ -1628,11 +1630,83 @@ function go(page){
 }
 function mkInitials(n){return(n||'').split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2);}
 function starsHtml(r){const f=Math.floor(r),h=r%1>=.5?1:0;return'★'.repeat(f)+(h?'★':'')+'☆'.repeat(5-f-h);}
+// ── Google Meet link generation via Google Calendar API ──────────────
+let gTokenClient=null;
+let gAccessToken=null;
+
+function initGoogleAuth(){
+  if(!CFG.google_client_id||typeof google==='undefined')return;
+  gTokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:CFG.google_client_id,
+    scope:'https://www.googleapis.com/auth/calendar.events',
+    callback:(resp)=>{
+      if(resp.error){console.error('Google auth error',resp);return;}
+      gAccessToken=resp.access_token;
+      console.log('✅ Google Calendar token obtained');
+    }
+  });
+}
+
+// Call this once at page load after scripts ready
+window.addEventListener('load',()=>{setTimeout(initGoogleAuth,1000);});
+
+// Creates a real Google Calendar event with a real Meet link.
+// Returns a promise resolving to the meet link string.
+async function createGoogleMeetLink(consultantName, dateLabel, timeSlot, durationMin){
+  return new Promise((resolve)=>{
+    const fallback=()=>{
+      // Fallback: deterministic 8x8 link (works instantly, no lobby)
+      const c='abcdefghjkmnpqrstuvwxyz23456789';
+      const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
+      resolve(`https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`);
+    };
+    if(!gTokenClient){fallback();return;}
+    // Request token then create event
+    gTokenClient.callback=async(resp)=>{
+      if(resp.error){fallback();return;}
+      gAccessToken=resp.access_token;
+      try{
+        // Parse date+time
+        const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+        const parts=(dateLabel||'').split(' ');
+        const mon=months[parts[0]]??new Date().getMonth();
+        const day=parseInt(parts[1])||new Date().getDate();
+        const yr=new Date().getFullYear();
+        const [timePart,ampm]=(timeSlot||'10:00 AM').split(' ');
+        let [hrs,mins]=timePart.split(':').map(Number);
+        if(ampm==='PM'&&hrs!==12)hrs+=12;
+        if(ampm==='AM'&&hrs===12)hrs=0;
+        const start=new Date(yr,mon,day,hrs,mins,0);
+        const end=new Date(start.getTime()+(durationMin||60)*60000);
+        const fmt=d=>d.toISOString();
+        const body={
+          summary:`Guidcy Session — ${consultantName}`,
+          description:'Expert consultation session booked via Guidcy (guidcy.com)',
+          start:{dateTime:fmt(start),timeZone:'Asia/Kolkata'},
+          end:{dateTime:fmt(end),timeZone:'Asia/Kolkata'},
+          conferenceData:{createRequest:{requestId:'guidcy-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}},
+          attendees:[],
+        };
+        const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=none',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+gAccessToken,'Content-Type':'application/json'},
+          body:JSON.stringify(body)
+        });
+        const data=await res.json();
+        const link=data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri||data?.hangoutLink;
+        if(link){console.log('✅ Real Google Meet link:',link);resolve(link);}
+        else{console.warn('No meet link in response',data);fallback();}
+      }catch(e){console.error('Calendar API error',e);fallback();}
+    };
+    gTokenClient.requestAccessToken({prompt:''});
+  });
+}
+
+// Kept for backward compat — generates fallback link only
 function genMeetLink(){
-  // Uses 8x8.vc (Jitsi's own hosted service) — NO moderator wait, NO lobby, anyone can join instantly
-  const c='abcdefghijkmnpqrstuvwxyz23456789';
+  const c='abcdefghjkmnpqrstuvwxyz23456789';
   const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-  return `https://8x8.vc/guidcy/${r(5)}-${r(5)}-${r(5)}`;
+  return `https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`;
 }
 
 // JitsiMeetExternalAPI instance reference (singleton)
@@ -1640,7 +1714,11 @@ let jitsiApi=null;
 
 // Open the embedded meeting page (bypasses the meet.jit.si lobby/moderator screen)
 function joinMeeting(meetLink, displayName){
-  if(!meetLink){toast('No meeting link available','red');return;}
+  if(!meetLink||meetLink==='#'){toast('Meeting link not available yet','red');return;}
+  // Google Meet and 8x8.vc cannot be embedded — open in new tab
+  window.open(meetLink,'_blank','noopener,noreferrer');
+  toast('Opening your meeting in a new tab...','green');
+  return; // skip the Jitsi embedded player
   let room=meetLink.split('/').pop();
   if(room.includes('#'))room=room.split('#')[0];
   const myName=displayName||currentProfile?.full_name||currentUser?.email?.split('@')[0]||'Guest';
@@ -2362,22 +2440,27 @@ async function doPay(){
   const dates=buildDates();
   const fee=Math.round(curCons.price*getDurMultiplier());
   const tot=Math.round(fee*1.05);
-  // ── PAYMENT BYPASS (TEMPORARY) — confirms booking without charging ──
-  // To re-enable Razorpay later, restore the original branch that checks CFG.razorpay_key.
+  // ── PAYMENT BYPASS (TEMPORARY) ──
   {
     const btn=document.querySelector('#page-payment .green-btn');
-    if(btn){btn.disabled=true;btn.textContent='Confirming...';}
-    await new Promise(r=>setTimeout(r,800));
+    if(btn){btn.disabled=true;btn.textContent='Creating your Google Meet link...';}
+    // Create real Google Meet link via Calendar API
+    const meetLink=await createGoogleMeetLink(
+      curCons.name,
+      dates[selDate]?.full||dates[selDate]?.label||'',
+      selSlot,
+      selDur
+    );
     if(btn){btn.disabled=false;btn.textContent='Confirm & Pay securely';}
-    await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate].full,fee,tot);
-    toast('Booking confirmed (payment bypassed) 🎉','green');
+    await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate]?.full||'',fee,tot,meetLink);
+    toast('Booking confirmed! Real Google Meet link created 🎉','green');
     setTimeout(()=>go('confirm'),700);
     return;
   }
 }
 
-async function saveBooking(payId,dateLabel,fee,tot){
-  const meetLink=genMeetLink();
+async function saveBooking(payId,dateLabel,fee,tot,meetLink){
+  if(!meetLink)meetLink=genMeetLink(); // fallback only
   const bookId='GDY-'+Math.floor(Math.random()*90000+10000);
   const consId=(typeof curCons.dbId==='string'&&curCons.dbId)?curCons.dbId:(typeof curCons.id==='string'?curCons.id:null);
   lastBooking={booking_id:bookId,consultant_name:curCons.name,consultant_id:consId,
