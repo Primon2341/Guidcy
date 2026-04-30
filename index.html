@@ -1639,92 +1639,98 @@ function initGoogleAuth(){
   gTokenClient=google.accounts.oauth2.initTokenClient({
     client_id:CFG.google_client_id,
     scope:'https://www.googleapis.com/auth/calendar.events',
-    callback:(resp)=>{
-      if(resp.error){console.error('Google auth error',resp);return;}
-      gAccessToken=resp.access_token;
-      console.log('✅ Google Calendar token obtained');
-    }
+    callback:()=>{}
   });
+  console.log('✅ Google Auth initialized');
 }
+window.addEventListener('load',()=>{setTimeout(initGoogleAuth,800);});
 
-// Call this once at page load after scripts ready
-window.addEventListener('load',()=>{setTimeout(initGoogleAuth,1000);});
-
-// Creates a real Google Calendar event with a real Meet link.
-// Returns a promise resolving to the meet link string.
+// ONLY creates Google Meet links — no fallback to any other service
 async function createGoogleMeetLink(consultantName, dateLabel, timeSlot, durationMin){
-  // If we already have a valid token, use it directly
-  if(gAccessToken){
-    return await _callCalendarAPI(consultantName, dateLabel, timeSlot, durationMin);
-  }
-  // Try to init token client if not done yet
-  if(!gTokenClient && CFG.google_client_id && typeof google!=='undefined'){
-    initGoogleAuth();
-  }
+  // Ensure auth is ready
   if(!gTokenClient){
-    console.warn('Google auth not ready — using fallback link');
-    return _fallbackLink();
+    initGoogleAuth();
+    if(!gTokenClient){
+      toast('Google sign-in not ready. Please refresh the page and try again.','red');
+      throw new Error('Google auth not initialized');
+    }
   }
-  // Request token via popup
-  return new Promise((resolve)=>{
-    gTokenClient.callback=async(resp)=>{
-      if(resp.error){console.warn('Google token error',resp);resolve(_fallbackLink());return;}
-      gAccessToken=resp.access_token;
-      resolve(await _callCalendarAPI(consultantName,dateLabel,timeSlot,durationMin));
+
+  // Get or refresh access token
+  await new Promise((resolve, reject)=>{
+    gTokenClient.callback=(resp)=>{
+      if(resp.error){
+        console.error('Google token error:', resp);
+        reject(new Error('Google sign-in failed: '+resp.error));
+      } else {
+        gAccessToken=resp.access_token;
+        resolve();
+      }
     };
-    try{gTokenClient.requestAccessToken({prompt:''});}
-    catch(e){console.warn('Token request failed',e);resolve(_fallbackLink());}
+    // If we have a token already, try using it silently first
+    gTokenClient.requestAccessToken({prompt: gAccessToken ? 'none' : ''});
   });
-}
 
-function _fallbackLink(){
-  const c='abcdefghjkmnpqrstuvwxyz23456789';
-  const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-  return `https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`;
-}
+  // Parse date and time
+  const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  const parts=(dateLabel||'').trim().split(' ');
+  const mon=months[parts[0]]??new Date().getMonth();
+  const day=parseInt(parts[1])||new Date().getDate();
+  const yr=new Date().getFullYear();
+  const [timePart,ampm]=((timeSlot||'10:00 AM')+' ').split(' ');
+  let [hrs,mins]=(timePart||'10:00').split(':').map(Number);
+  if(ampm==='PM'&&hrs!==12)hrs+=12;
+  if(ampm==='AM'&&hrs===12)hrs=0;
+  const start=new Date(yr,mon,day,hrs,mins||0,0);
+  const end=new Date(start.getTime()+(durationMin||60)*60000);
 
-async function _callCalendarAPI(consultantName, dateLabel, timeSlot, durationMin){
-  try{
-    const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-    const parts=(dateLabel||'').split(' ');
-    const mon=months[parts[0]]??new Date().getMonth();
-    const day=parseInt(parts[1])||new Date().getDate();
-    const yr=new Date().getFullYear();
-    const [timePart,ampm]=(timeSlot||'10:00 AM').split(' ');
-    let [hrs,mins]=(timePart||'10:00').split(':').map(Number);
-    if(ampm==='PM'&&hrs!==12)hrs+=12;
-    if(ampm==='AM'&&hrs===12)hrs=0;
-    const start=new Date(yr,mon,day,hrs,mins||0,0);
-    const end=new Date(start.getTime()+(durationMin||60)*60000);
-    const body={
-      summary:`Guidcy Session — ${consultantName}`,
-      description:'Expert consultation session booked via Guidcy (guidcy.com)',
-      start:{dateTime:start.toISOString(),timeZone:'Asia/Kolkata'},
-      end:{dateTime:end.toISOString(),timeZone:'Asia/Kolkata'},
-      conferenceData:{createRequest:{requestId:'guidcy-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}},
-    };
-    const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=none',{
+  // Create Google Calendar event with Meet
+  const resp=await fetch(
+    'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=none',
+    {
       method:'POST',
       headers:{'Authorization':'Bearer '+gAccessToken,'Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    });
-    if(res.status===401){gAccessToken=null;return _fallbackLink();} // token expired
-    const data=await res.json();
-    const link=data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri||data?.hangoutLink;
-    if(link){console.log('✅ Real Google Meet link created:',link);return link;}
-    console.warn('Calendar API returned no link',data);
-    return _fallbackLink();
-  }catch(e){
-    console.error('Calendar API error',e);
-    return _fallbackLink();
+      body:JSON.stringify({
+        summary:'Guidcy Session — '+consultantName,
+        description:'Expert consultation booked via Guidcy (guidcy.com)',
+        start:{dateTime:start.toISOString(),timeZone:'Asia/Kolkata'},
+        end:{dateTime:end.toISOString(),timeZone:'Asia/Kolkata'},
+        conferenceData:{
+          createRequest:{
+            requestId:'guidcy-'+Date.now(),
+            conferenceSolutionKey:{type:'hangoutsMeet'}
+          }
+        }
+      })
+    }
+  );
+
+  if(resp.status===401){
+    // Token expired — clear and retry once
+    gAccessToken=null;
+    toast('Google session expired — please try again','red');
+    throw new Error('Google token expired');
   }
+
+  const data=await resp.json();
+  const link=
+    data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri ||
+    data?.hangoutLink;
+
+  if(!link){
+    console.error('Google Calendar API response had no Meet link:', data);
+    toast('Could not generate Google Meet link. Check Google Cloud Console → Calendar API is enabled.','red');
+    throw new Error('No meet link in Calendar API response');
+  }
+
+  console.log('✅ Google Meet link created:', link);
+  return link;
 }
 
-// Kept for backward compat — generates fallback link only
+// genMeetLink is no longer used — all links go through createGoogleMeetLink()
 function genMeetLink(){
-  const c='abcdefghjkmnpqrstuvwxyz23456789';
-  const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-  return `https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`;
+  console.error('genMeetLink() called — should not happen. Use createGoogleMeetLink()');
+  return null;
 }
 
 // JitsiMeetExternalAPI instance reference (singleton)
@@ -2461,17 +2467,23 @@ async function doPay(){
   // ── PAYMENT BYPASS (TEMPORARY) ──
   {
     const btn=document.querySelector('#page-payment .green-btn');
-    if(btn){btn.disabled=true;btn.textContent='Creating your Google Meet link...';}
-    // Create real Google Meet link via Calendar API
-    const meetLink=await createGoogleMeetLink(
-      curCons.name,
-      dates[selDate]?.full||dates[selDate]?.label||'',
-      selSlot,
-      selDur
-    );
+    if(btn){btn.disabled=true;btn.textContent='Creating Google Meet link...';}
+    let meetLink;
+    try{
+      meetLink=await createGoogleMeetLink(
+        curCons.name,
+        dates[selDate]?.full||dates[selDate]?.label||'',
+        selSlot,
+        selDur
+      );
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent='Confirm & Pay securely';}
+      // Error already shown via toast inside createGoogleMeetLink
+      return;
+    }
     if(btn){btn.disabled=false;btn.textContent='Confirm & Pay securely';}
     await saveBooking('FREE-'+Math.floor(Math.random()*900000+100000),dates[selDate]?.full||'',fee,tot,meetLink);
-    toast('Booking confirmed! Real Google Meet link created 🎉','green');
+    toast('Booking confirmed! Google Meet link created 🎉','green');
     setTimeout(()=>go('confirm'),700);
     return;
   }
