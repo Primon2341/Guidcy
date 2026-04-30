@@ -4142,5 +4142,146 @@ function heroSearchInput(){ clearTimeout(guidcyHeroSearchTimer); renderHeroSugge
 function doHeroSearch(){ const q=(document.getElementById('srch')?.value||'').trim(); const cat=document.getElementById('cat-select')?.value||''; hideHeroSuggestions(); if(cat && !q){filterAndBrowse(cat);return;} browseFilters={categories:cat?[cat]:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''}; go('browse'); setTimeout(()=>{const input=document.getElementById('browse-search')||document.getElementById('browse-srch');if(input)input.value=q; document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{ cb.checked=cat && String(cb.value).toLowerCase()===String(cat).toLowerCase(); }); applyFilters();},180); }
 document.addEventListener('click',e=>{ const browseWrap=e.target.closest?.('.search-suggest-wrap'); const heroWrap=e.target.closest?.('.hero-search'); if(!browseWrap)hideBrowseSuggestions(); if(!heroWrap)hideHeroSuggestions(); });
 </script>
+
+
+<style id="guidcy-homepage-search-final-css">
+/* FINAL HOMEPAGE SEARCH RECOMMENDATION FIX */
+.hero-search{overflow:visible!important;position:relative!important;z-index:50!important}
+.hero-search-input-wrap{position:relative!important;flex:1!important;display:flex!important;min-width:0!important}
+#hero-search-suggestions.hero-search-suggestions{position:absolute!important;left:0!important;right:0!important;top:calc(100% + 10px)!important;background:#fff!important;border:1px solid #D8E8F5!important;border-radius:14px!important;box-shadow:0 18px 44px rgba(0,0,0,.24)!important;z-index:9999!important;display:none!important;max-height:340px!important;overflow-y:auto!important;color:#0C1825!important}
+#hero-search-suggestions.hero-search-suggestions.on{display:block!important}
+#hero-search-suggestions .search-suggest-item{display:flex!important;align-items:center!important;gap:12px!important;padding:12px 14px!important;cursor:pointer!important;border-bottom:1px solid #D8E8F5!important;background:#fff!important;transition:background .15s!important;text-align:left!important}
+#hero-search-suggestions .search-suggest-item:hover{background:#EBF4FF!important}
+#hero-search-suggestions .search-suggest-avatar{width:36px!important;height:36px!important;border-radius:50%!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:13px!important;font-weight:700!important;flex-shrink:0!important}
+#hero-search-suggestions .search-suggest-name{font-size:13px!important;font-weight:700!important;color:#0C1825!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#hero-search-suggestions .search-suggest-role{font-size:12px!important;color:#7089A0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin-top:2px!important}
+#hero-search-suggestions .search-suggest-hint{font-size:11px!important;color:#1E72BE!important;font-weight:600!important;margin-left:auto!important;white-space:nowrap!important}
+#hero-search-suggestions mark{background:#D0E8FF!important;color:#155A99!important;border-radius:3px!important;padding:0 2px!important}
+</style>
+
+<script id="guidcy-homepage-search-final-js">
+/* ═══════════════════════════════════════════
+   FINAL HOMEPAGE SEARCH FUNCTIONALITY
+   1. Live recommendation dropdown
+   2. Search + category interaction
+   3. Enter key support
+   4. Transfers homepage search into Browse filters
+   5. Sort dropdown preserved on Browse
+   6. Clear filters resets search
+════════════════════════════════════════════ */
+(function(){
+  function esc(t){return String(t||'').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+  function txt(v){ if(v===null||v===undefined)return ''; if(Array.isArray(v))return v.join(' '); return String(v); }
+  function initials(name){ try{return (window.mkInitials?window.mkInitials(name):String(name||'G').split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase());}catch(e){return 'G';} }
+  function consultantText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types].map(txt).join(' ').toLowerCase();}
+  async function getCandidates(){
+    try{ if(typeof window.fetchConsultants==='function'){ const list=await window.fetchConsultants({maxPrice:99999}); if(Array.isArray(list)&&list.length)return list; } }catch(e){console.warn('Homepage search fetch failed',e);}
+    return Array.isArray(window.SEED_CONSULTANTS)?window.SEED_CONSULTANTS:[];
+  }
+  function highlight(text,q){ const s=esc(text); if(!q)return s; try{return s.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>');}catch(e){return s;} }
+  window.hideHeroSuggestions=function(){ const box=document.getElementById('hero-search-suggestions'); if(box){box.classList.remove('on'); box.innerHTML='';} };
+  window.renderHeroSuggestions=async function(){
+    const input=document.getElementById('srch');
+    const box=document.getElementById('hero-search-suggestions');
+    if(!input||!box)return;
+    const q=(input.value||'').trim().toLowerCase();
+    const cat=(document.getElementById('cat-select')?.value||'').trim().toLowerCase();
+    const list=await getCandidates();
+    let filtered=list.filter(c=>{
+      const ccat=String(c.category||c.specialty||c.role||'').toLowerCase();
+      const categoryOk=!cat || ccat.includes(cat) || consultantText(c).includes(cat);
+      const searchOk=!q || consultantText(c).includes(q);
+      return categoryOk && searchOk;
+    });
+    if(!q && !cat){ box.classList.remove('on'); box.innerHTML=''; return; }
+    filtered=filtered.slice(0,7);
+    const catLabel=document.getElementById('cat-select')?.selectedOptions?.[0]?.textContent||'';
+    const quickRows=[];
+    if(q){
+      quickRows.push(`<div class="search-suggest-item" onmousedown="event.preventDefault();window.doHeroSearch();">
+        <div class="search-suggest-avatar" style="background:#EBF4FF;color:#1E72BE">🔍</div>
+        <div style="min-width:0;flex:1"><div class="search-suggest-name">Search for “${esc(input.value)}”</div><div class="search-suggest-role">Open matching consultants in Browse${cat?` · ${esc(catLabel)}`:''}</div></div>
+        <div class="search-suggest-hint">Search</div>
+      </div>`);
+    }
+    if(cat && !q){
+      quickRows.push(`<div class="search-suggest-item" onmousedown="event.preventDefault();window.doHeroSearch();">
+        <div class="search-suggest-avatar" style="background:#EDFAF1;color:#2E9438">📂</div>
+        <div style="min-width:0;flex:1"><div class="search-suggest-name">Browse ${esc(catLabel)}</div><div class="search-suggest-role">Show all consultants in this category</div></div>
+        <div class="search-suggest-hint">Browse</div>
+      </div>`);
+    }
+    if(!filtered.length){
+      box.innerHTML=quickRows.join('') + `<div class="search-suggest-item" onmousedown="event.preventDefault();window.doHeroSearch();">
+        <div class="search-suggest-avatar" style="background:#F7F0E6;color:#8B6E3F">✨</div>
+        <div style="min-width:0;flex:1"><div class="search-suggest-name">No exact recommendation found</div><div class="search-suggest-role">Click to search all consultants with current text and category</div></div>
+        <div class="search-suggest-hint">Try</div>
+      </div>`;
+      box.classList.add('on'); return;
+    }
+    const consultantRows=filtered.map(c=>{
+      const id=String(c.dbId||c.id||'').replace(/'/g,"\\'");
+      const local=(typeof c.id==='number')?c.id:'null';
+      const name=String(c.name||'Consultant').replace(/'/g,"\\'");
+      return `<div class="search-suggest-item" onmousedown="event.preventDefault();window.selectHeroSuggestion('${id}',${local},'${name}')">
+        <div class="search-suggest-avatar" style="background:${c.bg||'#EBF4FF'};color:${c.color||'#1E72BE'}">${esc(c.initials||initials(c.name))}</div>
+        <div style="min-width:0;flex:1"><div class="search-suggest-name">${highlight(c.name||'Consultant',q)}</div><div class="search-suggest-role">${highlight(c.role||c.specialty||c.category||'Consultant',q)}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+        <div class="search-suggest-hint">Open</div>
+      </div>`;
+    }).join('');
+    box.innerHTML=quickRows.join('')+consultantRows;
+    box.classList.add('on');
+  };
+  window.selectHeroSuggestion=function(id,localId,name){
+    const input=document.getElementById('srch'); if(input)input.value=name||'';
+    window.hideHeroSuggestions();
+    if(typeof window.openProfile==='function')window.openProfile(id,localId);
+  };
+  window.heroSearchInput=function(){
+    clearTimeout(window.guidcyHeroSearchTimer);
+    window.renderHeroSuggestions();
+    window.guidcyHeroSearchTimer=setTimeout(function(){},120);
+  };
+  window.doHeroSearch=function(){
+    const q=(document.getElementById('srch')?.value||'').trim();
+    const cat=(document.getElementById('cat-select')?.value||'').trim();
+    window.hideHeroSuggestions();
+    window.browseFilters={categories:cat?[cat]:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''};
+    if(typeof window.go==='function')window.go('browse');
+    setTimeout(function(){
+      const input=document.getElementById('browse-search')||document.getElementById('browse-srch');
+      if(input)input.value=q;
+      const sort=document.getElementById('sort-select'); if(sort)sort.value='';
+      document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(function(cb){
+        cb.checked=!!cat && String(cb.value).toLowerCase()===String(cat).toLowerCase();
+      });
+      if(typeof window.applyFilters==='function')window.applyFilters();
+    },220);
+  };
+  const oldClear=window.clearFilters;
+  window.clearFilters=function(){
+    if(typeof oldClear==='function')oldClear();
+    const h=document.getElementById('srch'); if(h)h.value='';
+    const c=document.getElementById('cat-select'); if(c)c.value='';
+    window.hideHeroSuggestions();
+  };
+  document.addEventListener('DOMContentLoaded',function(){
+    const input=document.getElementById('srch');
+    if(input){
+      input.setAttribute('autocomplete','off');
+      input.oninput=window.heroSearchInput;
+      input.onfocus=window.renderHeroSuggestions;
+      input.onkeydown=function(e){ if(e.key==='Enter'){e.preventDefault();window.doHeroSearch();} };
+    }
+    const cat=document.getElementById('cat-select');
+    if(cat){cat.onchange=window.renderHeroSuggestions;}
+  });
+  document.addEventListener('click',function(e){
+    const heroWrap=e.target.closest?.('.hero-search');
+    if(!heroWrap)window.hideHeroSuggestions();
+  });
+})();
+</script>
+
 </body>
 </html>
