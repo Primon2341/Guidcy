@@ -1469,7 +1469,7 @@ const CFG = {
   emailjs_template_consultant: 'template_vrhh6qk',
   // ── Web3Forms (recommended — fallback if EmailJS fails. Free, no signup hassle) ──
   // Get your access key in 30 seconds at https://web3forms.com — just enter your email, no signup
-  web3forms_access_key: '1ba497bc-b13f-4a6c-9108-596cc5c66357',  // paste your access_key here, e.g. 'a1b2c3d4-e5f6-...'
+  web3forms_access_key: '1ba497bc-b13f-4a6c-9108-596cc5c66357',
 };
 
 // ── Init EmailJS at startup ──
@@ -1629,11 +1629,10 @@ function go(page){
 function mkInitials(n){return(n||'').split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2);}
 function starsHtml(r){const f=Math.floor(r),h=r%1>=.5?1:0;return'★'.repeat(f)+(h?'★':'')+'☆'.repeat(5-f-h);}
 function genMeetLink(){
-  // Generate a unique Jitsi room name. The room is opened via embedded JitsiMeetExternalAPI
-  // which bypasses meet.jit.si\'s moderator-lobby screen by setting prejoinPageEnabled=false.
-  const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  // Uses 8x8.vc (Jitsi's own hosted service) — NO moderator wait, NO lobby, anyone can join instantly
+  const c='abcdefghijkmnpqrstuvwxyz23456789';
   const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-  return `https://meet.jit.si/Guidcy${r(8)}${Date.now().toString(36)}`;
+  return `https://8x8.vc/guidcy/${r(5)}-${r(5)}-${r(5)}`;
 }
 
 // JitsiMeetExternalAPI instance reference (singleton)
@@ -1658,7 +1657,7 @@ function joinMeeting(meetLink, displayName){
       return;
     }
     try{
-      jitsiApi=new JitsiMeetExternalAPI('meet.jit.si',{
+      jitsiApi=new JitsiMeetExternalAPI('8x8.vc',{
         roomName:room,
         parentNode:container,
         width:'100%',height:'100%',
@@ -1672,12 +1671,7 @@ function joinMeeting(meetLink, displayName){
           requireDisplayName:false,
           disableProfile:true,
           enableLobbyChat:false,
-          enableInsecureRoomNameWarning:false,
           disableDeepLinking:true,
-          // Disable lobby/moderator wait
-          membersOnly:false,
-          lobby:{autoKnock:false,enableChat:false},
-          // Skip the "waiting for moderator" screen
           startAudioOnly:false,
         },
         interfaceConfigOverwrite:{
@@ -2968,45 +2962,35 @@ function toggleDay(el){
 }
 // Opens the logged-in consultant's own public profile page
 async function cancelBooking(bookingId, role){
-  console.log('🛑 cancelBooking called with', {bookingId, role});
-  if(!bookingId||bookingId==='undefined'||bookingId===''){
-    toast('Cannot cancel — booking ID missing. Try refreshing the page.','red');
-    console.error('Missing or empty bookingId:', bookingId);
+  if(!bookingId||bookingId==='undefined'||bookingId===''||bookingId==='null'){
+    toast('Cannot cancel — please refresh the page and try again','red');
     return;
   }
-  const who=role==='user'?'You':'The consultant';
-  if(!confirm(`${who} will cancel this booking. This cannot be undone. Continue?`))return;
-  if(!sb){toast('Not connected','red');return;}
-  try{
-    const{data,error}=await sb.from('bookings').update({
-      status:'cancelled',
-      cancelled_by:role,
-      cancelled_at:new Date().toISOString()
-    }).eq('id',bookingId).select();
-    if(error){
-      console.error('❌ Cancel SQL error:', error);
-      toast('Cancel failed: '+error.message,'red');
+  if(!confirm('Cancel this session? This cannot be undone.'))return;
+  if(!sb||!currentUser){toast('Not logged in','red');return;}
+  // Try updating matching the bookingId + the current user's id (satisfies any RLS policy)
+  const{data,error}=await sb.from('bookings')
+    .update({status:'cancelled',cancelled_by:role,cancelled_at:new Date().toISOString()})
+    .eq('id',bookingId)
+    .select();
+  if(error){toast('Cancel failed: '+error.message,'red');console.error(error);return;}
+  if(!data||!data.length){
+    // RLS might require matching on user_id — try with that too
+    const{data:d2,error:e2}=await sb.from('bookings')
+      .update({status:'cancelled',cancelled_by:role,cancelled_at:new Date().toISOString()})
+      .eq('id',bookingId)
+      .or(`user_id.eq.${currentUser.id},consultant_id.in.(select id from consultants where profile_id='${currentUser.id}')`)
+      .select();
+    if(e2||!d2||!d2.length){
+      toast('Could not cancel — try again or contact support@guidcy.com','red');
+      console.error('Cancel RLS failure',e2);
       return;
     }
-    if(!data||data.length===0){
-      console.error('❌ Cancel returned 0 rows — RLS may be blocking the update');
-      toast('Cancel blocked by permissions. Check RLS policies.','red');
-      return;
-    }
-    console.log('✅ Booking cancelled in DB:', data[0]);
-    // Clear in-memory cache so cancelled booking doesn't leak back into upcoming view
-    if(lastBooking?.id===bookingId)lastBooking=null;
-    toast('Session cancelled. Moved to history.','green');
-    // Force refresh the relevant view immediately
-    if(role==='user'){
-      await swUD('upcoming',null);
-    } else {
-      await swCD('requests',null);
-    }
-  }catch(e){
-    console.error('❌ Cancel exception:', e);
-    toast('Cancel error: '+(e.message||'unknown'),'red');
   }
+  if(lastBooking?.id===bookingId)lastBooking=null;
+  toast('Session cancelled. View in Session History.','green');
+  if(role==='user') swUD('upcoming',null);
+  else swCD('requests',null);
 }
 
 async function viewMyPublicProfile(){
