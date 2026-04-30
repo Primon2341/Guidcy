@@ -376,6 +376,17 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 .sort-select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;background:var(--surface);color:var(--ink2);outline:none;cursor:pointer}
 .sort-select:focus{border-color:var(--blue)}
 .active-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.search-suggest-wrap{position:relative;flex:1;display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--rx);padding:8px 16px}
+.search-suggest-box{position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 30px rgba(30,114,190,.16);z-index:260;overflow:hidden;display:none;max-height:320px;overflow-y:auto}
+.search-suggest-box.on{display:block}
+.search-suggest-item{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s}
+.search-suggest-item:last-child{border-bottom:none}
+.search-suggest-item:hover{background:var(--blue-l)}
+.search-suggest-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--border)}
+.search-suggest-name{font-size:13px;font-weight:700;color:var(--ink)}
+.search-suggest-role{font-size:11px;color:var(--muted);line-height:1.35}
+.search-suggest-hint{font-size:11px;color:var(--blue);font-weight:600;margin-left:auto;white-space:nowrap}
+
 .filter-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;background:var(--blue-l);border:1px solid var(--blue-m);font-size:12px;color:var(--blue-d)}
 .filter-pill button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0}
 .browse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
@@ -870,11 +881,12 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 <!-- ════ BROWSE ════ -->
 <div id="page-browse" class="page">
   <div style="padding:16px 32px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
-    <div style="flex:1;display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--rx);padding:8px 16px;">
+    <div class="search-suggest-wrap">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted)"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input id="browse-srch" style="flex:1;border:none;background:transparent;font-size:13px;outline:none;" placeholder="Search consultants..." onkeyup="browseSearch()"/>
+      <input id="browse-search" autocomplete="off" style="flex:1;border:none;background:transparent;font-size:13px;outline:none;" placeholder="Search consultants, categories, skills..." oninput="browseSearch()" onfocus="renderBrowseSuggestions()" onkeydown="if(event.key==='Enter'){event.preventDefault();hideBrowseSuggestions();applyFilters()}"/>
+      <div id="browse-search-suggestions" class="search-suggest-box"></div>
     </div>
-    <select class="sort-select" onchange="browseSort(this.value)">
+    <select id="sort-select" class="sort-select" onchange="browseSort(this.value)">
       <option value="">Sort: Relevance</option>
       <option value="rating">Highest rated</option>
       <option value="price_asc">Price: Low to high</option>
@@ -4022,6 +4034,64 @@ window.addEventListener('load',()=>{
   setInterval(guidcyScanUpcomingBookingsAndSchedule,60000);
 });
 
+
+
+/* ═══════════════════════════════════════════
+   GUIDCY SEARCH + FILTER FIX — FINAL OVERRIDE
+═══════════════════════════════════════════ */
+let guidcyBrowseSuggestCache=[];
+function guidcyText(v){ if(v===null||v===undefined)return ''; if(Array.isArray(v))return v.join(' '); return String(v); }
+function guidcyConsultantSearchText(c){ return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types].map(guidcyText).join(' ').toLowerCase(); }
+async function guidcyGetAllConsultantsForSearch(){ try{ let list=await fetchConsultants({maxPrice:99999}); if(Array.isArray(list)&&list.length)return list; }catch(e){console.warn('Search candidate fetch failed',e);} return Array.isArray(SEED_CONSULTANTS)?SEED_CONSULTANTS:[]; }
+function hideBrowseSuggestions(){ const box=document.getElementById('browse-search-suggestions'); if(box)box.classList.remove('on'); }
+function guidcyEscHtml(t){return String(t||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+async function renderBrowseSuggestions(){
+  const input=document.getElementById('browse-search')||document.getElementById('browse-srch');
+  const box=document.getElementById('browse-search-suggestions');
+  if(!input||!box)return;
+  const q=(input.value||'').trim().toLowerCase();
+  if(!q){box.classList.remove('on');box.innerHTML='';return;}
+  if(!guidcyBrowseSuggestCache.length)guidcyBrowseSuggestCache=await guidcyGetAllConsultantsForSearch();
+  const list=guidcyBrowseSuggestCache.filter(c=>guidcyConsultantSearchText(c).includes(q)).slice(0,7);
+  if(!list.length){
+    box.innerHTML=`<div class="search-suggest-item" onmousedown="event.preventDefault();clearFilters();const i=document.getElementById('browse-search');if(i)i.value='${guidcyEscHtml(q)}';browseFilters.search='${guidcyEscHtml(q)}';applyFilters();hideBrowseSuggestions();"><div class="search-suggest-avatar">🔍</div><div><div class="search-suggest-name">Search all for “${guidcyEscHtml(q)}”</div><div class="search-suggest-role">No exact recommendation found. Click to clear filters and search all consultants.</div></div></div>`;
+    box.classList.add('on'); return;
+  }
+  box.innerHTML=list.map(c=>{
+    const id=String(c.dbId||c.id||'').replace(/'/g,"\\'");
+    const local=(typeof c.id==='number')?c.id:-1;
+    const name=String(c.name||'Consultant').replace(/'/g,"\\'");
+    return `<div class="search-suggest-item" onmousedown="event.preventDefault();selectBrowseSuggestion('${id}',${local},'${name}')">
+      <div class="search-suggest-avatar" style="background:${c.bg||'#EBF4FF'};color:${c.color||'#1E72BE'}">${c.initials||mkInitials(c.name)}</div>
+      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+      <div class="search-suggest-hint">Open</div>
+    </div>`;
+  }).join('');
+  box.classList.add('on');
+}
+function selectBrowseSuggestion(id,localId,name){ const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(input)input.value=name||''; hideBrowseSuggestions(); openProfile(id,localId); }
+function guidcyReadBrowseFilters(){
+  const panel=document.querySelector('#page-browse .filter-panel'); const cats=[],stypes=[],langs=[],exp=[];
+  if(panel){ panel.querySelectorAll('.filter-section').forEach(sec=>{ const title=(sec.querySelector('.filter-title')?.textContent||'').toLowerCase(); sec.querySelectorAll('input[type=checkbox]:checked').forEach(cb=>{ if(title.includes('categor'))cats.push(cb.value); else if(title.includes('session'))stypes.push(cb.value); else if(title.includes('language'))langs.push(cb.value); else if(title.includes('experience'))exp.push(cb.value); }); }); }
+  const ratingChecked=panel?.querySelector('input[name="rating-f"]:checked'); const priceRange=document.getElementById('price-range'); const sortValue=document.getElementById('sort-select')?.value||''; const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); const q=(input?.value||browseFilters.search||'').trim();
+  return {categories:cats,sessionTypes:stypes,languages:langs,experience:exp,minRating:ratingChecked?Number(ratingChecked.value)||0:0,minPrice:0,maxPrice:priceRange?Number(priceRange.value)||99999:99999,search:q,sort:sortValue};
+}
+async function applyFilters(){
+  browseFilters=guidcyReadBrowseFilters(); const g=document.getElementById('browse-grid'); if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">⏳</div>Searching experts...</div>';
+  let list=[]; try{list=await fetchConsultants(browseFilters);}catch(e){console.error('Filter failed',e);list=[];}
+  if(browseFilters.experience?.length){ list=list.filter(c=>{ const txt=String(c.experience||c.exp||'').toLowerCase(); const num=parseFloat(txt.match(/\d+/)?.[0]||'0'); return browseFilters.experience.some(e=>e==='10+'?num>=10:e==='5+'?num>=5:true); }); }
+  if(browseFilters.sort==='rating')list.sort((a,b)=>(b.rating||0)-(a.rating||0)); if(browseFilters.sort==='reviews')list.sort((a,b)=>(b.reviews||0)-(a.reviews||0)); if(browseFilters.sort==='price_asc')list.sort((a,b)=>(a.price||0)-(b.price||0)); if(browseFilters.sort==='price_desc')list.sort((a,b)=>(b.price||0)-(a.price||0));
+  renderGrid(list,'browse-grid'); const count=document.getElementById('browse-count'); if(count)count.textContent=`Showing ${list.length} expert${list.length===1?'':'s'}`;
+  const active=document.getElementById('active-filters'); if(active){ const pills=[...browseFilters.categories,...browseFilters.sessionTypes,...browseFilters.languages,...browseFilters.experience,browseFilters.minRating?`${browseFilters.minRating}+ rating`:null,browseFilters.search?`Search: ${guidcyEscHtml(browseFilters.search)}`:null].filter(Boolean); active.innerHTML=pills.map(p=>`<span class="filter-pill">${p}<button onclick="clearFilters()">×</button></span>`).join(''); }
+}
+let guidcyBrowseSearchTimer=null;
+function browseSearch(){ clearTimeout(guidcyBrowseSearchTimer); renderBrowseSuggestions(); guidcyBrowseSearchTimer=setTimeout(()=>applyFilters(),220); }
+function browseSort(value){ browseFilters.sort=value||''; applyFilters(); }
+function clearFilters(){ document.querySelectorAll('#page-browse .filter-check input[type=checkbox]').forEach(cb=>cb.checked=false); document.querySelectorAll('#page-browse input[name="rating-f"]').forEach(r=>r.checked=(r.value==='0')); const pr=document.getElementById('price-range'); if(pr){pr.value=pr.max||8000;const pv=document.getElementById('price-val');if(pv)pv.textContent='₹'+pr.value;} const bs=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(bs)bs.value=''; const ss=document.getElementById('sort-select');if(ss)ss.value=''; browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:'',sort:''}; hideBrowseSuggestions(); applyFilters(); }
+async function initBrowse(){ const catList=document.getElementById('filter-cat-list'); if(catList && !catList.innerHTML.trim()){ catList.innerHTML=CATEGORIES_FULL.map(c=>{ const v=c.name.split(' ')[0]; return `<label class="filter-check"><input type="checkbox" value="${v}" onchange="applyFilters()"/> ${c.icon} ${c.name}</label>`; }).join(''); } const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(input && browseFilters.search)input.value=browseFilters.search; await applyFilters(); }
+async function filterAndBrowse(category){ browseFilters={categories:[category],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:'',sort:''}; go('browse'); setTimeout(()=>{ document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{ cb.checked=(String(cb.value).toLowerCase()===String(category).toLowerCase()); }); const input=document.getElementById('browse-search')||document.getElementById('browse-srch'); if(input)input.value=''; applyFilters(); },180); }
+function doHeroSearch(){ const q=(document.getElementById('srch')?.value||'').trim(); const cat=document.getElementById('cat-select')?.value||''; if(cat){filterAndBrowse(cat);return;} browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''}; go('browse'); setTimeout(()=>{const input=document.getElementById('browse-search')||document.getElementById('browse-srch');if(input)input.value=q;applyFilters();},180); }
+document.addEventListener('click',e=>{ const wrap=e.target.closest?.('.search-suggest-wrap'); if(!wrap)hideBrowseSuggestions(); });
 </script>
 </body>
 </html>
