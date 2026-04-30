@@ -1653,53 +1653,71 @@ window.addEventListener('load',()=>{setTimeout(initGoogleAuth,1000);});
 // Creates a real Google Calendar event with a real Meet link.
 // Returns a promise resolving to the meet link string.
 async function createGoogleMeetLink(consultantName, dateLabel, timeSlot, durationMin){
+  // If we already have a valid token, use it directly
+  if(gAccessToken){
+    return await _callCalendarAPI(consultantName, dateLabel, timeSlot, durationMin);
+  }
+  // Try to init token client if not done yet
+  if(!gTokenClient && CFG.google_client_id && typeof google!=='undefined'){
+    initGoogleAuth();
+  }
+  if(!gTokenClient){
+    console.warn('Google auth not ready — using fallback link');
+    return _fallbackLink();
+  }
+  // Request token via popup
   return new Promise((resolve)=>{
-    const fallback=()=>{
-      // Fallback: deterministic 8x8 link (works instantly, no lobby)
-      const c='abcdefghjkmnpqrstuvwxyz23456789';
-      const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
-      resolve(`https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`);
-    };
-    if(!gTokenClient){fallback();return;}
-    // Request token then create event
     gTokenClient.callback=async(resp)=>{
-      if(resp.error){fallback();return;}
+      if(resp.error){console.warn('Google token error',resp);resolve(_fallbackLink());return;}
       gAccessToken=resp.access_token;
-      try{
-        // Parse date+time
-        const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-        const parts=(dateLabel||'').split(' ');
-        const mon=months[parts[0]]??new Date().getMonth();
-        const day=parseInt(parts[1])||new Date().getDate();
-        const yr=new Date().getFullYear();
-        const [timePart,ampm]=(timeSlot||'10:00 AM').split(' ');
-        let [hrs,mins]=timePart.split(':').map(Number);
-        if(ampm==='PM'&&hrs!==12)hrs+=12;
-        if(ampm==='AM'&&hrs===12)hrs=0;
-        const start=new Date(yr,mon,day,hrs,mins,0);
-        const end=new Date(start.getTime()+(durationMin||60)*60000);
-        const fmt=d=>d.toISOString();
-        const body={
-          summary:`Guidcy Session — ${consultantName}`,
-          description:'Expert consultation session booked via Guidcy (guidcy.com)',
-          start:{dateTime:fmt(start),timeZone:'Asia/Kolkata'},
-          end:{dateTime:fmt(end),timeZone:'Asia/Kolkata'},
-          conferenceData:{createRequest:{requestId:'guidcy-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}},
-          attendees:[],
-        };
-        const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=none',{
-          method:'POST',
-          headers:{'Authorization':'Bearer '+gAccessToken,'Content-Type':'application/json'},
-          body:JSON.stringify(body)
-        });
-        const data=await res.json();
-        const link=data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri||data?.hangoutLink;
-        if(link){console.log('✅ Real Google Meet link:',link);resolve(link);}
-        else{console.warn('No meet link in response',data);fallback();}
-      }catch(e){console.error('Calendar API error',e);fallback();}
+      resolve(await _callCalendarAPI(consultantName,dateLabel,timeSlot,durationMin));
     };
-    gTokenClient.requestAccessToken({prompt:''});
+    try{gTokenClient.requestAccessToken({prompt:''});}
+    catch(e){console.warn('Token request failed',e);resolve(_fallbackLink());}
   });
+}
+
+function _fallbackLink(){
+  const c='abcdefghjkmnpqrstuvwxyz23456789';
+  const r=n=>[...Array(n)].map(()=>c[Math.random()*c.length|0]).join('');
+  return `https://8x8.vc/guidcy/${r(4)}-${r(4)}-${r(4)}`;
+}
+
+async function _callCalendarAPI(consultantName, dateLabel, timeSlot, durationMin){
+  try{
+    const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const parts=(dateLabel||'').split(' ');
+    const mon=months[parts[0]]??new Date().getMonth();
+    const day=parseInt(parts[1])||new Date().getDate();
+    const yr=new Date().getFullYear();
+    const [timePart,ampm]=(timeSlot||'10:00 AM').split(' ');
+    let [hrs,mins]=(timePart||'10:00').split(':').map(Number);
+    if(ampm==='PM'&&hrs!==12)hrs+=12;
+    if(ampm==='AM'&&hrs===12)hrs=0;
+    const start=new Date(yr,mon,day,hrs,mins||0,0);
+    const end=new Date(start.getTime()+(durationMin||60)*60000);
+    const body={
+      summary:`Guidcy Session — ${consultantName}`,
+      description:'Expert consultation session booked via Guidcy (guidcy.com)',
+      start:{dateTime:start.toISOString(),timeZone:'Asia/Kolkata'},
+      end:{dateTime:end.toISOString(),timeZone:'Asia/Kolkata'},
+      conferenceData:{createRequest:{requestId:'guidcy-'+Date.now(),conferenceSolutionKey:{type:'hangoutsMeet'}}},
+    };
+    const res=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=none',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+gAccessToken,'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if(res.status===401){gAccessToken=null;return _fallbackLink();} // token expired
+    const data=await res.json();
+    const link=data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri||data?.hangoutLink;
+    if(link){console.log('✅ Real Google Meet link created:',link);return link;}
+    console.warn('Calendar API returned no link',data);
+    return _fallbackLink();
+  }catch(e){
+    console.error('Calendar API error',e);
+    return _fallbackLink();
+  }
 }
 
 // Kept for backward compat — generates fallback link only
@@ -2698,7 +2716,7 @@ async function swUD(view,btn){
       <div class="bk-info">
         <div class="bk-name">${bk.consultant_name}<span class="status-pill sp-upcoming">Confirmed</span></div>
         <div class="bk-meta">${bk.date_label||''} · ${bk.time_slot||''} IST · ${bk.duration||60} min ${bk.session_type==='video'?'📹':bk.session_type==='audio'?'📞':'💬'}</div>
-        ${bk.meet_link?`<div class="bk-meta" style="margin-top:3px"><a href="${bk.meet_link}" target="_blank" style="color:#1a73e8;font-size:12px">📹 ${bk.meet_link}</a></div>`:''}
+        <div class="bk-meta" style="margin-top:3px">${bk.meet_link?`<a href="${bk.meet_link}" target="_blank" style="color:#1a73e8;font-size:12px;word-break:break-all">📹 ${bk.meet_link}</a>`:'<span style="color:var(--muted);font-size:12px">Meeting link not set — click Join Meet to generate</span>'}</div>
       </div>
       <div class="bk-actions">
         ${bk.meet_link?`<button class="bk-btn blue" onclick="joinMeeting('${bk.meet_link}')">Join Meet</button>`:''}
