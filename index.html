@@ -2490,7 +2490,9 @@ async function doPay(){
 }
 
 async function saveBooking(payId,dateLabel,fee,tot,meetLink){
-  // Strong Meet-link + Supabase save version with detailed debugging
+  // Direct REST save version.
+  // Reason: supabase-js insert/auth call was hanging in browser, while manual SQL insert works.
+  // This bypasses the hanging supabase-js request and writes directly to Supabase REST API.
   meetLink=(meetLink||'').trim();
 
   if(!meetLink){
@@ -2499,9 +2501,9 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     return;
   }
 
-  if(!sb){
-    console.error('❌ Supabase client is not initialized');
-    toast('Supabase is not connected. Booking was not saved.','red');
+  if(!CFG?.supabase_url || !CFG?.supabase_key){
+    console.error('❌ Supabase URL/key missing in CFG');
+    toast('Supabase config missing. Booking was not saved.','red');
     return;
   }
 
@@ -2534,7 +2536,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     meet_link:meetLink
   };
 
-  // Temporary in-memory object for confirmation page fallback
   lastBooking={
     booking_id:bookId,
     consultant_name:bookingPayload.consultant_name,
@@ -2551,106 +2552,132 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     status:'upcoming'
   };
 
-  console.log('Saving booking payload:', bookingPayload);
-  console.log('Final payload going to DB:', JSON.stringify(bookingPayload,null,2));
+  console.log('Saving booking payload:',bookingPayload);
+  console.log('Final payload going to DB:',JSON.stringify(bookingPayload,null,2));
 
-  // Verify Supabase auth/client state immediately before saving
-  try{
-    console.log('Supabase client:', sb);
-    const {data:authData,error:authErr}=await sb.auth.getUser();
-    console.log('Supabase auth user:',{authData,authErr});
-    if(authErr){
-      console.warn('⚠️ Supabase auth warning before insert:',authErr);
+  function getSupabaseAccessTokenSync(){
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(!key)continue;
+        if(key.startsWith('sb-') && key.endsWith('-auth-token')){
+          const raw=localStorage.getItem(key);
+          if(!raw)continue;
+          const parsed=JSON.parse(raw);
+          const token=parsed?.access_token || parsed?.currentSession?.access_token || parsed?.session?.access_token;
+          if(token)return token;
+        }
+      }
+    }catch(e){
+      console.warn('Could not read Supabase auth token from localStorage:',e);
     }
-    if(!authData?.user?.id){
-      console.error('❌ No authenticated Supabase user found before insert.');
-      toast('Login session expired. Please login again before booking.','red');
-      return;
+    return null;
+  }
+
+  async function supabaseRest(path,{method='GET',body=null,prefer=null,timeoutMs=30000}={}){
+    const accessToken=getSupabaseAccessTokenSync();
+    const headers={
+      apikey:CFG.supabase_key,
+      Authorization:'Bearer '+(accessToken||CFG.supabase_key),
+      'Content-Type':'application/json'
+    };
+    if(prefer)headers.Prefer=prefer;
+
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+
+    try{
+      const res=await fetch(CFG.supabase_url+'/rest/v1/'+path,{
+        method,
+        headers,
+        body:body?JSON.stringify(body):null,
+        signal:controller.signal
+      });
+
+      const txt=await res.text();
+      let json=null;
+      try{json=txt?JSON.parse(txt):null;}catch(_){json=txt;}
+
+      return {ok:res.ok,status:res.status,statusText:res.statusText,data:json,raw:txt};
+    }finally{
+      clearTimeout(timer);
     }
-  }catch(authCheckErr){
-    console.error('❌ Supabase auth check failed before insert:',authCheckErr);
-    toast('Could not verify login session before booking.','red');
-    return;
   }
 
   let savedRow=null;
 
   try{
-    const insertPromise=sb
-      .from('bookings')
-      .insert(bookingPayload)
-      .select('*')
-      .single();
+    console.log('Supabase REST auth token present:',!!getSupabaseAccessTokenSync());
 
-    const timeoutPromise=new Promise((_,reject)=>
-      setTimeout(()=>reject(new Error('Supabase insert timeout after 30 seconds')),30000)
-    );
+    const insertResult=await supabaseRest('bookings?select=*',{
+      method:'POST',
+      body:bookingPayload,
+      prefer:'return=representation',
+      timeoutMs:30000
+    });
 
-    const {data,error}=await Promise.race([insertPromise,timeoutPromise]);
+    console.log('Supabase REST insert result:',insertResult);
 
-    console.log('Supabase insert result:',{data,error});
-
-    if(error){
-      console.error('Booking insert error FULL:',error);
-      toast('Booking not saved: '+(error.message||JSON.stringify(error)),'red');
+    if(!insertResult.ok){
+      console.error('❌ Booking REST insert failed:',insertResult);
+      toast('Booking not saved: '+(insertResult.data?.message||insertResult.raw||insertResult.statusText),'red');
       return;
     }
 
-    if(!data?.id){
-      console.error('❌ Booking inserted but no row/id returned:',data);
-      toast('Booking save returned no ID. Check Supabase select/RLS policy.','red');
+    savedRow=Array.isArray(insertResult.data)?insertResult.data[0]:insertResult.data;
+
+    if(!savedRow?.id){
+      console.error('❌ Booking inserted but no row/id returned:',insertResult.data);
+      toast('Booking save returned no ID. Check Supabase return/RLS select policy.','red');
       return;
     }
 
-    savedRow=data;
-    lastBooking={...lastBooking,...data,meet_link:data?.meet_link||meetLink};
+    lastBooking={...lastBooking,...savedRow,meet_link:savedRow?.meet_link||meetLink};
+    console.log('✅ Booking successfully inserted via REST:',savedRow);
 
-    console.log('✅ Booking successfully inserted:',savedRow);
+    const updResult=await supabaseRest('bookings?id=eq.'+encodeURIComponent(savedRow.id)+'&select=id,meet_link',{
+      method:'PATCH',
+      body:{meet_link:meetLink},
+      prefer:'return=representation',
+      timeoutMs:30000
+    });
 
-    // Force update meet_link once more. This handles cases where insert succeeds but meet_link is null.
-    const {data:updData,error:updErr}=await sb
-      .from('bookings')
-      .update({meet_link:meetLink})
-      .eq('id',savedRow.id)
-      .select('id, meet_link')
-      .single();
+    console.log('Supabase REST meet_link force update result:',updResult);
 
-    console.log('Meet link force update result:',{updData,updErr});
-
-    if(updErr){
-      console.error('❌ Meet link update failed:',updErr);
-      toast('Booking saved, but Meet link update failed: '+(updErr.message||JSON.stringify(updErr)),'red');
+    if(!updResult.ok){
+      console.warn('⚠️ Meet link update failed, but insert may already contain link:',updResult);
     }else{
-      lastBooking.meet_link=updData?.meet_link||meetLink;
+      const updRow=Array.isArray(updResult.data)?updResult.data[0]:updResult.data;
+      lastBooking.meet_link=updRow?.meet_link||meetLink;
     }
 
-    // Final verification directly from DB
-    const {data:verifyData,error:verifyErr}=await sb
-      .from('bookings')
-      .select('id, meet_link, user_id, consultant_id, date_label, time_slot, status')
-      .eq('id',savedRow.id)
-      .single();
+    const verifyResult=await supabaseRest('bookings?id=eq.'+encodeURIComponent(savedRow.id)+'&select=id,meet_link,user_id,consultant_id,date_label,time_slot,status',{
+      method:'GET',
+      timeoutMs:30000
+    });
 
-    console.log('Final DB verification:',{verifyData,verifyErr});
+    console.log('Final Supabase REST DB verification:',verifyResult);
 
-    if(verifyErr){
-      console.warn('⚠️ Could not verify saved booking:',verifyErr);
-    }else if(!verifyData?.meet_link){
-      console.error('❌ Booking exists but meet_link is still empty. Possible DB trigger, RLS update policy, or wrong column issue.',verifyData);
-      toast('Booking saved but Meet link is empty in DB. Check trigger/RLS update policy.','red');
+    const verifyRow=Array.isArray(verifyResult.data)?verifyResult.data[0]:verifyResult.data;
+
+    if(!verifyResult.ok){
+      console.warn('⚠️ Could not verify saved booking:',verifyResult);
+    }else if(!verifyRow?.meet_link){
+      console.error('❌ Booking exists but meet_link is empty in DB:',verifyRow);
+      toast('Booking saved but Meet link is empty in DB.','red');
     }else{
-      console.log('✅ Meet link is saved in Supabase:',verifyData.meet_link);
+      console.log('✅ Meet link is saved in Supabase:',verifyRow.meet_link);
     }
 
   }catch(e){
-    console.error('Supabase insert crashed or timed out:',e);
-    toast('Booking save failed: '+(e.message||'unknown error'),'red');
+    console.error('❌ Supabase REST insert crashed or timed out:',e);
+    toast('Booking save failed: '+(e.name==='AbortError'?'Supabase request timed out':(e.message||'unknown error')),'red');
     return;
   }
 
-  // Get consultant's email so we can notify them
+  // Non-blocking notifications. These are intentionally best-effort only.
   let consEmail=null,consProfileId=null;
-  if(consId){
+  if(consId && sb){
     try{
       const{data:cdata,error:cErr}=await sb.from('consultants').select('profile_id').eq('id',consId).single();
       if(cErr)console.warn('Could not fetch consultant profile_id',cErr);
@@ -2663,170 +2690,55 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     }catch(e){console.warn('Could not fetch consultant email',e);}
   }
 
-  // In-app notifications for both parties. These should not block booking save.
   const userMsg=`✅ Booking confirmed with ${curCons?.name||'consultant'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
   const consMsg=`📅 New booking from ${currentProfile?.full_name||'a user'} on ${dateLabel} at ${selSlot} IST. Meet: ${meetLink}`;
 
-  try{
-    const{error:uNotifErr}=await sb.from('notifications').insert({user_id:currentUser.id,text:userMsg,type:'booking'});
-    if(uNotifErr)console.warn('user notif error',uNotifErr);
-  }catch(e){console.warn('user notif exception',e);}
-
-  if(consProfileId){
+  if(sb){
     try{
-      const{error:cNotifErr}=await sb.from('notifications').insert({user_id:consProfileId,text:consMsg,type:'booking'});
-      if(cNotifErr)console.warn('consultant notif error',cNotifErr);
-    }catch(e){console.warn('consultant notif exception',e);}
+      const{error:uNotifErr}=await sb.from('notifications').insert({user_id:currentUser.id,text:userMsg,type:'booking'});
+      if(uNotifErr)console.warn('user notif error',uNotifErr);
+    }catch(e){console.warn('user notif exception',e);}
+
+    if(consProfileId){
+      try{
+        const{error:cNotifErr}=await sb.from('notifications').insert({user_id:consProfileId,text:consMsg,type:'booking'});
+        if(cNotifErr)console.warn('consultant notif error',cNotifErr);
+      }catch(e){console.warn('consultant notif exception',e);}
+    }
   }
 
-  // Send confirmation emails; do not block booking confirmation if email fails.
-  sendBookingEmail({
-    booking_id:savedRow?.id||bookId,
-    user_email:currentUser.email,
-    user_name:currentProfile?.full_name||'Guest',
-    consultant_email:consEmail,
-    consultant_name:curCons?.name||'Consultant',
-    date_label:dateLabel,
-    time_slot:selSlot,
-    duration:selDur,
-    session_type:selSType,
-    meet_link:meetLink,
-    total_amount:tot
-  }).catch(e=>console.warn('email send failed',e));
+  try{
+    if(typeof emailjs!=='undefined' && CFG.emailjs_public_key && CFG.emailjs_service_id && CFG.emailjs_template_id_booking){
+      await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_id_booking,{
+        to_email:currentUser.email,
+        to_name:currentProfile?.full_name||'User',
+        consultant_name:curCons?.name||'Consultant',
+        booking_date:dateLabel,
+        booking_time:selSlot,
+        duration:selDur,
+        session_type:selSType,
+        amount:tot,
+        meet_link:meetLink
+      });
+      if(consEmail){
+        await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_id_booking,{
+          to_email:consEmail,
+          to_name:curCons?.name||'Consultant',
+          consultant_name:curCons?.name||'Consultant',
+          booking_date:dateLabel,
+          booking_time:selSlot,
+          duration:selDur,
+          session_type:selSType,
+          amount:tot,
+          meet_link:meetLink
+        });
+      }
+    }
+  }catch(e){
+    console.warn('Email notification failed:',e);
+  }
 
   updateConfirmPage();
-}
-
-// Sends booking-confirmation emails using EmailJS (runs entirely in the browser)
-async function sendBookingEmail(payload){
-  console.log('📧 sendBookingEmail called with payload:', payload);
-
-  // ── PATH A: Web3Forms (preferred — simplest, most reliable) ──
-  if(CFG.web3forms_access_key){
-    const sessionType=payload.session_type==='video'?'📹 Video Call':payload.session_type==='audio'?'📞 Audio Call':'💬 Chat Session';
-    const buildBody=(toName,roleHeader)=>`${roleHeader}
-
-Hi ${toName},
-
-${roleHeader.startsWith('🎉')?`You have a new session booked by ${payload.user_name}.`:`Your session with ${payload.consultant_name} is confirmed!`}
-
-📅 Date: ${payload.date_label}
-🕐 Time: ${payload.time_slot} IST
-⏱ Duration: ${payload.duration} minutes
-${sessionType}
-💰 Amount: ₹${(payload.total_amount||0).toLocaleString()}
-
-🔗 Join your session:
-${payload.meet_link}
-
-Booking ID: ${payload.booking_id}
-
-— The Guidcy Team
-guidcy.com`;
-    // Send to user
-    if(payload.user_email){
-      try{
-        const resp=await fetch('https://api.web3forms.com/submit',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Accept':'application/json'},
-          body:JSON.stringify({
-            access_key:CFG.web3forms_access_key,
-            from_name:'Guidcy',
-            subject:`✅ Session confirmed with ${payload.consultant_name} — Guidcy`,
-            email:payload.user_email,
-            name:payload.user_name||'User',
-            message:buildBody(payload.user_name||'there','✅ Booking Confirmed')
-          })
-        });
-        const j=await resp.json();
-        if(j.success){console.log('✅ User email sent via Web3Forms');}
-        else{console.error('❌ Web3Forms user email failed:',j);toast('Email error: '+(j.message||'check console'),'red');}
-      }catch(e){console.error('❌ Web3Forms user fetch error:',e);toast('Email send error','red');}
-    }
-    // Send to consultant
-    if(payload.consultant_email){
-      try{
-        const resp=await fetch('https://api.web3forms.com/submit',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Accept':'application/json'},
-          body:JSON.stringify({
-            access_key:CFG.web3forms_access_key,
-            from_name:'Guidcy',
-            subject:`🎉 New booking from ${payload.user_name} — Guidcy`,
-            email:payload.consultant_email,
-            name:payload.consultant_name||'Consultant',
-            message:buildBody(payload.consultant_name||'there','🎉 New Booking Received')
-          })
-        });
-        const j=await resp.json();
-        if(j.success){console.log('✅ Consultant email sent via Web3Forms');}
-        else{console.error('❌ Web3Forms consultant email failed:',j);}
-      }catch(e){console.error('❌ Web3Forms consultant fetch error:',e);}
-    }
-    return; // Web3Forms handled it — don't fall through
-  }
-
-  // ── PATH B: EmailJS fallback (only used if Web3Forms not configured) ──
-  if(!CFG.emailjs_public_key||!CFG.emailjs_service_id){
-    console.error('❌ No email service configured. Add web3forms_access_key OR emailjs keys to CFG.');
-    toast('Email not configured — see console','red');
-    return;
-  }
-  if(typeof emailjs==='undefined'){
-    console.error('❌ EmailJS SDK not loaded');
-    return;
-  }
-  const templateParams={
-    to_email:           payload.user_email        || '',
-    to_user_email:      payload.user_email        || '',
-    to_cons_email:      payload.consultant_email  || '',
-    to_user_name:       payload.user_name         || 'Guest',
-    user_name:          payload.user_name         || 'Guest',
-    consultant_name:    payload.consultant_name   || '',
-    date_label:         payload.date_label        || '',
-    time_slot:          payload.time_slot         || '',
-    duration:           payload.duration          || 60,
-    session_type:       payload.session_type==='video'?'📹 Video':payload.session_type==='audio'?'📞 Audio':'💬 Chat',
-    meet_link:          payload.meet_link         || '',
-    total_amount:       '₹'+(payload.total_amount||0).toLocaleString(),
-    booking_id:         payload.booking_id        || '',
-    // Default order template variables (in case templates use them)
-    email:              payload.user_email        || '',
-    name:               payload.consultant_name   || '',
-    order_id:           payload.booking_id        || '',
-    units:              '1 session',
-    price:              '₹'+(payload.total_amount||0).toLocaleString(),
-    'cost.shipping':    '₹0',
-    'cost.tax':         '₹0',
-    'cost.total':       '₹'+(payload.total_amount||0).toLocaleString(),
-  };
-
-  // Send email to user
-  if(payload.user_email && CFG.emailjs_template_user){
-    try{
-      const r=await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user,
-        {...templateParams, to_email: payload.user_email, email: payload.user_email});
-      console.log('✅ User email sent:', payload.user_email, 'response:', r);
-    }catch(e){
-      console.error('❌ User email failed:', e);
-      toast('Email error: '+(e?.text||e?.message||'check console'),'red');
-    }
-  } else {
-    console.warn('⚠️ Skipping user email — missing user_email or template_user');
-  }
-
-  // Send email to consultant
-  if(payload.consultant_email && CFG.emailjs_template_consultant){
-    try{
-      const r=await emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_consultant,
-        {...templateParams, to_email: payload.consultant_email, email: payload.consultant_email});
-      console.log('✅ Consultant email sent:', payload.consultant_email, 'response:', r);
-    }catch(e){
-      console.error('❌ Consultant email failed:', e);
-    }
-  } else {
-    console.warn('⚠️ Skipping consultant email — missing consultant_email or template_consultant');
-  }
 }
 
 function updateConfirmPage(){
