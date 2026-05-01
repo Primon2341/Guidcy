@@ -4571,5 +4571,154 @@ cancelBooking=async function(bookingId,role){
 
 </script>
 
+
+<script id="guidcy-profile-links-hotfix">
+/* GUIDCY HOTFIX — restores navigation and fixes consultant profile/payout saving */
+(function(){
+  function q(id){ return document.getElementById(id); }
+  function val(id){ const el=q(id); return el ? String(el.value||'').trim() : ''; }
+  function num(id, fallback){ const n=parseFloat(val(id)); return Number.isFinite(n) ? n : fallback; }
+  function escAttr(v){ return String(v??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+  async function restPatch(table, id, body){
+    if(typeof supabaseRest==='function'){
+      const r=await supabaseRest(`${table}?id=eq.${encodeURIComponent(id)}`, {method:'PATCH', body, prefer:'return=representation', timeoutMs:25000});
+      if(!r.ok) throw new Error(r.data?.message || r.raw || 'Supabase update failed');
+      return Array.isArray(r.data)?r.data[0]:r.data;
+    }
+    if(window.sb){
+      const {data,error}=await sb.from(table).update(body).eq('id',id).select('*').single();
+      if(error) throw error; return data;
+    }
+    throw new Error('Supabase client not ready');
+  }
+  async function restGet(table, query){
+    if(typeof supabaseRest==='function'){
+      const r=await supabaseRest(`${table}?${query}`, {method:'GET', timeoutMs:25000});
+      if(!r.ok) throw new Error(r.data?.message || r.raw || 'Supabase fetch failed');
+      return Array.isArray(r.data)?r.data[0]:r.data;
+    }
+    throw new Error('Supabase REST not ready');
+  }
+  async function getOwnConsultant(){
+    if(!window.currentUser?.id) return null;
+    try{ return await restGet('consultants', `profile_id=eq.${encodeURIComponent(currentUser.id)}&select=*`); }
+    catch(e){
+      try{ if(window.sb){ const {data}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).single(); return data; } }catch(_){}
+      return null;
+    }
+  }
+
+  window.saveConsProfile = async function(consId){
+    if(!window.currentUser?.id){ toast('Please log in again','red'); return; }
+    const name=val('cd-name') || currentProfile?.full_name || 'Consultant';
+    const specialty=val('cd-title') || 'Consultant';
+    const rate=num('cd-rate', 2000);
+    const bio=val('cd-bio');
+    let resolvedId=consId;
+    if(!resolvedId){ const own=await getOwnConsultant(); resolvedId=own?.id; }
+    if(!resolvedId){ toast('Consultant profile not found','red'); return; }
+    const updates={
+      name,
+      specialty,
+      category:specialty,
+      bio,
+      rate,
+      price:rate,
+      video_price:rate,
+      updated_at:new Date().toISOString()
+    };
+    try{
+      const row=await restPatch('consultants', resolvedId, updates);
+      if(window.curCons && (String(curCons.id)===String(resolvedId)||String(curCons.dbId)===String(resolvedId))){
+        window.curCons={...curCons,...row,price:rate,video_price:rate,rate};
+      }
+      try{
+        if(window.sb){ await sb.from('profiles').update({full_name:name,avatar_initials:mkInitials(name)}).eq('id',currentUser.id); }
+        if(window.currentProfile){ currentProfile.full_name=name; currentProfile.avatar_initials=mkInitials(name); }
+      }catch(_){ }
+      if(typeof updateNav==='function') updateNav();
+      toast('Profile updated successfully ✓','green');
+    }catch(e){ console.error('Profile update failed:',e); toast('Profile update failed: '+(e.message||e),'red'); }
+  };
+
+  window.saveConsultantPayoutDetails = async function(consId, silent=false){
+    if(!window.currentUser?.id){ if(!silent)toast('Please log in again','red'); return; }
+    let resolvedId=consId;
+    if(!resolvedId){ const own=await getOwnConsultant(); resolvedId=own?.id; }
+    if(!resolvedId){ if(!silent)toast('Consultant profile not found','red'); return; }
+    const updates={
+      bank_name:val('cd-bank-name') || val('cd-bank'),
+      account_number:val('cd-account-number') || val('cd-acct'),
+      ifsc_code:val('cd-ifsc-code') || val('cd-ifsc'),
+      bank_ifsc:val('cd-ifsc-code') || val('cd-ifsc'),
+      upi_id:val('cd-upi-id') || val('cd-upi'),
+      pan_number:val('cd-pan-number') || val('cd-pan'),
+      updated_at:new Date().toISOString()
+    };
+    try{ await restPatch('consultants', resolvedId, updates); if(!silent)toast('Payout details saved ✓','green'); }
+    catch(e){ console.error('Payout save failed:',e); if(!silent)toast('Payout details failed: '+(e.message||e),'red'); }
+  };
+  window.savePayoutDetails=function(consId){ return window.saveConsultantPayoutDetails(consId,false); };
+
+  let payoutTimer=null;
+  window.queueConsultantPayoutSave=function(consId){ clearTimeout(payoutTimer); payoutTimer=setTimeout(()=>window.saveConsultantPayoutDetails(consId,true),800); };
+
+  if(typeof window.swCD==='function'){
+    const originalSwCD=window.swCD;
+    window.swCD=async function(view,btn){
+      if(view!=='settings') return originalSwCD(view,btn);
+      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{closeDashMenu('cons');}catch(_){ } }
+      const m=q('cdash-main'); if(!m) return;
+      m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
+      const c=await getOwnConsultant() || {};
+      const consId=c.id||'';
+      const name=currentProfile?.full_name || c.name || 'Consultant';
+      const rate=c.video_price ?? c.price ?? c.rate ?? 2000;
+      m.innerHTML=`
+        <div class="dash-title">Profile & settings</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+            <div class="field"><label>Full name</label><input id="cd-name" value="${escAttr(c.name||name)}"/></div>
+            <div class="field"><label>Professional title</label><input id="cd-title" value="${escAttr(c.specialty||c.category||'Consultant')}"/></div>
+            <div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="1" value="${escAttr(rate)}"/></div>
+            <div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:120px">${escAttr(c.bio||'')}</textarea></div>
+            <button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
+            <div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div>
+            <div class="field"><label>Bank name</label><input id="cd-bank-name" value="${escAttr(c.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+            <div class="field"><label>Account number</label><input id="cd-account-number" value="${escAttr(c.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+            <div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${escAttr(c.ifsc_code||c.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+            <div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${escAttr(c.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+            <div class="field"><label>PAN number</label><input id="cd-pan-number" value="${escAttr(c.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+            <button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button>
+          </div>
+        </div>`;
+    };
+  }
+
+  try{
+    if(typeof go==='function') window.go=go;
+    if(typeof closeMobileMenu==='function') window.closeMobileMenu=closeMobileMenu;
+    if(typeof toggleMobileMenu==='function') window.toggleMobileMenu=toggleMobileMenu;
+  }catch(_){ }
+  document.addEventListener('DOMContentLoaded',function(){
+    const pairs=[['Log in','login'],['Get started','signup'],['Explore','home'],['Browse','browse'],['Categories','categories'],['Become a Consultant','become'],['About','about'],['My bookings','user-dash'],['Book session','browse']];
+    document.querySelectorAll('button').forEach(btn=>{
+      const text=(btn.textContent||'').trim();
+      const found=pairs.find(p=>p[0]===text);
+      if(found && !btn.dataset.guidcyFallback){
+        btn.dataset.guidcyFallback='1';
+        btn.addEventListener('click',function(){
+          setTimeout(()=>{ try{ const target=document.getElementById('page-'+found[1]); if(target && !target.classList.contains('on')) window.go(found[1]); }catch(e){ console.error('Navigation fallback failed',e); } },0);
+        });
+      }
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
