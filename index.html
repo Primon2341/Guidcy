@@ -4720,5 +4720,264 @@ cancelBooking=async function(bookingId,role){
 })();
 </script>
 
+
+
+<script id="guidcy-final-price-sync-login-fix">
+/* FINAL FIX — consultant price consistency + profile save login issue
+   1) Featured/Browse/Profile/Payment all use video_price first, then price, then rate.
+   2) Save profile uses the real global currentUser variable, not window.currentUser.
+   3) If currentUser is temporarily unavailable, it recovers from Supabase auth session.
+*/
+(function(){
+  function el(id){ return document.getElementById(id); }
+  function v(id){ return (el(id)?.value || '').toString().trim(); }
+  function moneyVal(x, fallback=2000){
+    const n = Number(x);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  }
+  function safe(v){
+    return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  }
+  function getGlobalUser(){
+    try { if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) return currentUser; } catch(_) {}
+    try { if (window.currentUser && window.currentUser.id) return window.currentUser; } catch(_) {}
+    return null;
+  }
+  async function ensureCurrentUser(){
+    let u = getGlobalUser();
+    if (u?.id) return u;
+    try{
+      if (typeof sb !== 'undefined' && sb?.auth?.getUser){
+        const r = await sb.auth.getUser();
+        if (r?.data?.user){
+          try { currentUser = r.data.user; } catch(_) { window.currentUser = r.data.user; }
+          return r.data.user;
+        }
+      }
+    }catch(e){ console.warn('Could not recover auth user:', e); }
+    return null;
+  }
+  function mapConsultantRow(c){
+    const base = moneyVal(c.video_price ?? c.price ?? c.rate, 2000);
+    const audio = moneyVal(c.audio_price, Math.round(base * 0.75));
+    const chat = moneyVal(c.chat_price, Math.round(base * 0.5));
+    return {
+      ...c,
+      id: c.id,
+      dbId: c.id,
+      name: c.name || 'Consultant',
+      initials: c.avatar_initials || (typeof mkInitials === 'function' ? mkInitials(c.name || 'Consultant') : 'C'),
+      role: c.specialty || c.category || 'Consultant',
+      bg: c.avatar_bg || '#EBF4FF',
+      color: c.avatar_color || '#1E72BE',
+      rating: parseFloat(c.rating) || 0,
+      reviews: c.review_count || 0,
+      price: base,
+      video_price: base,
+      audio_price: audio,
+      chat_price: chat,
+      exp: c.experience || '',
+      badge: c.badge || 'new',
+      tags: Array.isArray(c.tags) ? c.tags : [],
+      certs: Array.isArray(c.certs) ? c.certs : [],
+      bio: c.bio || '',
+      avail: c.available_days || [],
+      slots: c.slots || ['10:00 AM','2:00 PM','4:00 PM'],
+      sessionTypes: c.session_types || ['video'],
+      category: c.category || c.specialty || '',
+      reviewList: []
+    };
+  }
+  async function restGetConsultants(){
+    if (typeof supabaseRest === 'function'){
+      const r = await supabaseRest('consultants?is_active=eq.true&select=*', {method:'GET', timeoutMs:25000});
+      if(!r.ok) throw new Error(r.data?.message || r.raw || 'Consultants fetch failed');
+      return Array.isArray(r.data) ? r.data : [];
+    }
+    if (typeof sb !== 'undefined' && sb){
+      const {data,error} = await sb.from('consultants').select('*').eq('is_active', true);
+      if(error) throw error;
+      return data || [];
+    }
+    return [];
+  }
+  window.fetchConsultants = async function(filters={}){
+    try{
+      let data = (await restGetConsultants()).map(mapConsultantRow);
+      if(filters.categories && filters.categories.length){
+        data = data.filter(c => filters.categories.some(f => (c.category || c.role || '').toLowerCase().includes(String(f).toLowerCase())));
+      }
+      if(filters.category && !filters.categories){
+        const f=String(filters.category).toLowerCase();
+        data=data.filter(c => (c.category||c.role||'').toLowerCase().includes(f) || (c.tags||[]).join(' ').toLowerCase().includes(f));
+      }
+      if(filters.sessionTypes && filters.sessionTypes.length){
+        data=data.filter(c => filters.sessionTypes.some(f => (c.sessionTypes||['video']).includes(f)));
+      }
+      if(filters.languages && filters.languages.length){
+        data=data.filter(c => {
+          const lng = Array.isArray(c.languages) ? c.languages.join(',').toLowerCase() : String(c.languages||'').toLowerCase();
+          return filters.languages.some(f => lng.includes(String(f).toLowerCase()));
+        });
+      }
+      if(filters.search){
+        const s=String(filters.search).toLowerCase();
+        data=data.filter(c => (c.name||'').toLowerCase().includes(s) || (c.role||'').toLowerCase().includes(s) || (c.category||'').toLowerCase().includes(s) || (c.bio||'').toLowerCase().includes(s) || (c.tags||[]).join(' ').toLowerCase().includes(s));
+      }
+      if(filters.minRating) data=data.filter(c => Number(c.rating||0) >= Number(filters.minRating));
+      if(filters.minPrice) data=data.filter(c => Number(c.price||0) >= Number(filters.minPrice));
+      if(filters.maxPrice) data=data.filter(c => Number(c.price||0) <= Number(filters.maxPrice));
+      if(filters.sort==='price_asc') data.sort((a,b)=>(a.price||0)-(b.price||0));
+      else if(filters.sort==='price_desc') data.sort((a,b)=>(b.price||0)-(a.price||0));
+      else data.sort((a,b)=>(b.rating||0)-(a.rating||0));
+      return data;
+    }catch(e){
+      console.error('Final fetchConsultants failed:', e);
+      return [];
+    }
+  };
+  async function getOwnConsultant(){
+    const u = await ensureCurrentUser();
+    if(!u?.id) return null;
+    try{
+      if(typeof supabaseRest === 'function'){
+        const r = await supabaseRest('consultants?profile_id=eq.' + encodeURIComponent(u.id) + '&select=*', {method:'GET', timeoutMs:25000});
+        if(r.ok && Array.isArray(r.data) && r.data[0]) return r.data[0];
+      }
+      if(typeof sb !== 'undefined' && sb){
+        const {data,error}=await sb.from('consultants').select('*').eq('profile_id', u.id).maybeSingle();
+        if(!error && data) return data;
+      }
+    }catch(e){ console.warn('getOwnConsultant failed:', e); }
+    return null;
+  }
+  async function patchConsultant(id, updates){
+    if(typeof supabaseRest === 'function'){
+      const r = await supabaseRest('consultants?id=eq.' + encodeURIComponent(id), {method:'PATCH', body:updates, prefer:'return=representation', timeoutMs:25000});
+      if(!r.ok) throw new Error(r.data?.message || r.raw || 'Consultant update failed');
+      return Array.isArray(r.data) ? r.data[0] : r.data;
+    }
+    if(typeof sb !== 'undefined' && sb){
+      const {data,error}=await sb.from('consultants').update(updates).eq('id', id).select('*').single();
+      if(error) throw error;
+      return data;
+    }
+    throw new Error('Supabase is not ready');
+  }
+  window.saveConsProfile = async function(consId){
+    const u = await ensureCurrentUser();
+    if(!u?.id){
+      toast('Session expired. Please login again.', 'red');
+      return;
+    }
+    let own = null;
+    let resolvedId = consId;
+    if(!resolvedId){
+      own = await getOwnConsultant();
+      resolvedId = own?.id;
+    }
+    if(!resolvedId){
+      toast('Consultant profile not found. Please refresh and try again.', 'red');
+      return;
+    }
+    const name = v('cd-name') || (typeof currentProfile !== 'undefined' ? currentProfile?.full_name : '') || 'Consultant';
+    const specialty = v('cd-title') || 'Consultant';
+    const rate = moneyVal(v('cd-rate'), 2000);
+    const bio = v('cd-bio');
+    const updates = {
+      name,
+      specialty,
+      category: specialty,
+      bio,
+      rate: rate,
+      price: rate,
+      video_price: rate,
+      updated_at: new Date().toISOString()
+    };
+    try{
+      const row = await patchConsultant(resolvedId, updates);
+      try{
+        if(typeof currentProfile !== 'undefined' && currentProfile){
+          currentProfile.full_name = name;
+          currentProfile.avatar_initials = typeof mkInitials === 'function' ? mkInitials(name) : currentProfile.avatar_initials;
+        }
+        if(typeof sb !== 'undefined' && sb){
+          await sb.from('profiles').update({full_name:name, avatar_initials: typeof mkInitials === 'function' ? mkInitials(name) : undefined}).eq('id', u.id);
+        }
+      }catch(_){ }
+      try{
+        if(typeof curCons !== 'undefined' && curCons && (String(curCons.id)===String(resolvedId) || String(curCons.dbId)===String(resolvedId))){
+          curCons = {...curCons, ...mapConsultantRow({...row, ...updates})};
+        }
+      }catch(_){ }
+      if(typeof updateNav === 'function') updateNav();
+      toast('Profile updated successfully ✓', 'green');
+      try{
+        if(typeof renderHome === 'function') await renderHome();
+        if(el('browse-grid') && typeof applyFilters === 'function') await applyFilters();
+      }catch(_){ }
+    }catch(e){
+      console.error('Profile save failed:', e);
+      toast('Profile update failed: ' + (e.message || e), 'red');
+    }
+  };
+  window.saveConsultantPayoutDetails = async function(consId, silent=false){
+    const u = await ensureCurrentUser();
+    if(!u?.id){ if(!silent) toast('Session expired. Please login again.', 'red'); return; }
+    let resolvedId = consId;
+    if(!resolvedId){ const own = await getOwnConsultant(); resolvedId = own?.id; }
+    if(!resolvedId){ if(!silent) toast('Consultant profile not found. Please refresh and try again.', 'red'); return; }
+    const updates = {
+      bank_name: v('cd-bank-name'),
+      account_number: v('cd-account-number'),
+      ifsc_code: v('cd-ifsc-code'),
+      bank_ifsc: v('cd-ifsc-code'),
+      upi_id: v('cd-upi-id'),
+      pan_number: v('cd-pan-number'),
+      updated_at: new Date().toISOString()
+    };
+    try{ await patchConsultant(resolvedId, updates); if(!silent) toast('Payout details saved ✓','green'); }
+    catch(e){ console.error('Payout save failed:', e); if(!silent) toast('Payout details failed: '+(e.message||e),'red'); }
+  };
+  let payoutTimer=null;
+  window.queueConsultantPayoutSave=function(consId){ clearTimeout(payoutTimer); payoutTimer=setTimeout(()=>window.saveConsultantPayoutDetails(consId,true),800); };
+  if(typeof swCD === 'function'){
+    const oldSwCD = swCD;
+    swCD = async function(view, btn){
+      if(view !== 'settings') return oldSwCD(view, btn);
+      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{closeDashMenu('cons');}catch(_){ } }
+      const m=el('cdash-main'); if(!m) return;
+      m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
+      const c = await getOwnConsultant() || {};
+      const consId = c.id || '';
+      const cp = (typeof currentProfile !== 'undefined') ? currentProfile : null;
+      const name = cp?.full_name || c.name || 'Consultant';
+      const rate = moneyVal(c.video_price ?? c.price ?? c.rate, 2000);
+      m.innerHTML = `<div class="dash-title">Profile & settings</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+          <div class="field"><label>Full name</label><input id="cd-name" value="${safe(c.name || name)}"/></div>
+          <div class="field"><label>Professional title</label><input id="cd-title" value="${safe(c.specialty || c.category || 'Consultant')}"/></div>
+          <div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="1" value="${safe(rate)}"/></div>
+          <div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:120px">${safe(c.bio || '')}</textarea></div>
+          <button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
+          <div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div>
+          <div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safe(c.bank_name || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+          <div class="field"><label>Account number</label><input id="cd-account-number" value="${safe(c.account_number || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+          <div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safe(c.ifsc_code || c.bank_ifsc || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+          <div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safe(c.upi_id || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+          <div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safe(c.pan_number || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
+          <button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button>
+        </div>
+      </div>`;
+    };
+  }
+})();
+</script>
+
 </body>
 </html>
