@@ -4141,6 +4141,95 @@ function selectHeroSuggestion(id,localId,name){ const input=document.getElementB
 function heroSearchInput(){ clearTimeout(guidcyHeroSearchTimer); renderHeroSuggestions(); guidcyHeroSearchTimer=setTimeout(()=>{},120); }
 function doHeroSearch(){ const q=(document.getElementById('srch')?.value||'').trim(); const cat=document.getElementById('cat-select')?.value||''; hideHeroSuggestions(); if(cat && !q){filterAndBrowse(cat);return;} browseFilters={categories:cat?[cat]:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:q,sort:''}; go('browse'); setTimeout(()=>{const input=document.getElementById('browse-search')||document.getElementById('browse-srch');if(input)input.value=q; document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{ cb.checked=cat && String(cb.value).toLowerCase()===String(cat).toLowerCase(); }); applyFilters();},180); }
 document.addEventListener('click',e=>{ const browseWrap=e.target.closest?.('.search-suggest-wrap'); const heroWrap=e.target.closest?.('.hero-search'); if(!browseWrap)hideBrowseSuggestions(); if(!heroWrap)hideHeroSuggestions(); });
+
+/* ═══════════════════════════════════════════════════════════════
+   GUIDCY PATCH — LATEST PRICING + PAYOUT/REFUND DETAILS
+═══════════════════════════════════════════════════════════════ */
+async function fetchLatestConsultantForBooking(consultantId){
+  if(!consultantId || !CFG?.supabase_url || !CFG?.supabase_key) return null;
+  try{
+    const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consultantId)+'&select=*',{method:'GET',timeoutMs:20000});
+    if(!res.ok){console.warn('Latest consultant fetch failed:',res);return null;}
+    const row=Array.isArray(res.data)?res.data[0]:res.data;
+    if(!row) return null;
+    return {...curCons,...row,id:row.id,dbId:row.id,name:row.name||curCons?.name||'Consultant',role:row.specialty||row.category||curCons?.role||'Consultant',price:row.video_price||row.rate||curCons?.price||2000,video_price:row.video_price||row.rate||curCons?.video_price||curCons?.price||2000,audio_price:row.audio_price||curCons?.audio_price||Math.round((row.video_price||row.rate||curCons?.price||2000)*0.75),chat_price:row.chat_price||curCons?.chat_price||Math.round((row.video_price||row.rate||curCons?.price||2000)*0.5),sessionTypes:row.session_types||curCons?.sessionTypes||['video'],availabilityMap:row.availability_map||curCons?.availabilityMap||{},avail:row.available_days||curCons?.avail||[],slots:row.slots||curCons?.slots||['10:00 AM','2:00 PM','4:00 PM']};
+  }catch(e){console.warn('Latest consultant fetch exception:',e);return null;}
+}
+async function refreshCurrentConsultantBeforePayment(){
+  const id=curCons?.dbId||curCons?.id;
+  if(!id) return curCons;
+  const latest=await fetchLatestConsultantForBooking(id);
+  if(latest){curCons=latest;console.log('✅ Latest consultant pricing loaded before payment:',{consultant_id:curCons.id,video_price:curCons.video_price,audio_price:curCons.audio_price,chat_price:curCons.chat_price,rate:curCons.rate});}
+  return curCons;
+}
+function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
+function renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel){
+  const pfee=Math.round(fee*.05);
+  const payAmt=document.getElementById('pay-amt');
+  const payDesc=document.getElementById('pay-desc');
+  const paySummary=document.getElementById('pay-summary-box');
+  if(payAmt)payAmt.textContent='₹'+totalAmount.toLocaleString();
+  if(payDesc)payDesc.textContent=`${selDur}-min ${selSType} session with ${curCons.name}`;
+  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>₹${fee.toLocaleString()}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>₹${pfee.toLocaleString()}</span></div><div class="pay-sum-row final"><span>Total due</span><span>₹${totalAmount.toLocaleString()}</span></div>`;}
+}
+startBooking=async function(){
+  if(!selSlot){toast('Please select a time slot','red');return;}
+  if(!currentUser&&!loggedIn&&sb){toast('Please log in to book');setTimeout(()=>go('login'),800);return;}
+  const btn=document.querySelector('.book-footer .green-btn');const old=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Loading latest price...';}
+  await refreshCurrentConsultantBeforePayment();
+  if(btn){btn.disabled=false;btn.textContent=old||'Book this session';}
+  const dates=buildDates();const fee=getBookingFeeFromLatest();const pfee=Math.round(fee*.05),tot=fee+pfee;const dateLabel=dates[selDate]?.full||dates[selDate]?.label||'';
+  renderPaymentSummaryWithLatest(fee,tot,dateLabel);go('payment');
+};
+doPay=async function(){
+  const dates=buildDates();const btn=document.querySelector('#page-payment .green-btn');
+  if(!curCons){toast('Please select a consultant first.','red');return;}if(!selSlot){toast('Please select a time slot first.','red');return;}if(!currentUser?.id){toast('Please login before booking.','red');return;}if(typeof Razorpay==='undefined'){toast('Razorpay SDK not loaded. Please refresh and try again.','red');console.error('Razorpay SDK missing');return;}if(!CFG?.razorpay_key||!CFG.razorpay_key.startsWith('rzp_')){toast('Razorpay key is missing.','red');console.error('Invalid Razorpay key:',CFG?.razorpay_key);return;}
+  const oldText=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='Checking latest price...';}
+  await refreshCurrentConsultantBeforePayment();
+  const fee=getBookingFeeFromLatest();const platformFee=Math.round(fee*0.05);const totalAmount=fee+platformFee;const dateLabel=dates[selDate]?.full||dates[selDate]?.label||'';renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel);const bookingSummary=`${curCons.name} • ${dateLabel} • ${selSlot} • ${selDur} min • ${selSType}`;
+  if(btn){btn.disabled=true;btn.textContent='Opening Razorpay...';}
+  const options={key:CFG.razorpay_key,amount:totalAmount*100,currency:'INR',name:'Guidcy',description:bookingSummary,image:'',notes:{platform:'Guidcy',consultant_id:curCons.id||curCons.dbId||'',consultant_name:curCons.name||'',user_name:currentProfile?.full_name||'',user_email:currentUser?.email||'',date_label:dateLabel,time_slot:selSlot,duration:String(selDur),session_type:selSType,latest_fee:String(fee),platform_fee:String(platformFee),total_amount:String(totalAmount)},prefill:{name:currentProfile?.full_name||'',email:currentUser?.email||'',contact:currentProfile?.phone||''},theme:{color:'#1E72BE'},modal:{ondismiss:function(){if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Payment was cancelled. Booking was not created.','red');}},handler:async function(response){console.log('✅ Razorpay payment success:',response);if(btn){btn.disabled=true;btn.textContent='Payment received. Creating Meet link...';}let meetLink='';try{meetLink=await createGoogleMeetLink(curCons.name,dateLabel,selSlot,selDur);}catch(e){console.error('❌ Payment done, but Google Meet creation failed:',e);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Payment received, but Meet link creation failed. Please contact Guidcy support.','red');return;}if(btn){btn.textContent='Saving booking and sending emails...';}const paymentId=response?.razorpay_payment_id||('RZP-'+Date.now());const saved=await saveBooking(paymentId,dateLabel,fee,totalAmount,meetLink);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}if(saved){toast('Payment successful. Booking confirmed and emails sent 🎉','green');try{updateConfirmPage();}catch(_){}try{showBookingConfirmationPopup(lastBooking);}catch(_){}try{go('confirm');}catch(_){}}else{toast('Payment successful, but booking save failed. Please contact Guidcy support.','red');}}};
+  try{const rzp=new Razorpay(options);rzp.on('payment.failed',function(response){console.error('❌ Razorpay payment failed:',response);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}const msg=response?.error?.description||response?.error?.reason||'Payment failed. Please try again.';toast(msg,'red');});rzp.open();}catch(e){console.error('❌ Razorpay checkout error:',e);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Unable to open Razorpay checkout: '+(e.message||e),'red');}
+};
+function profileValue(key,fallback=''){return currentProfile&&currentProfile[key]!=null?currentProfile[key]:fallback;}
+function safeAttr(v){return String(v||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+async function saveUserRefundDetails(silent=false){
+  if(!currentUser?.id){if(!silent)toast('Please log in','red');return;}
+  const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
+  try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
+}
+let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+const _guidcyOriginalSwUD=swUD;
+swUD=async function(view,btn){
+  if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
+  const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
+  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
+};
+async function saveConsultantPayoutDetails(consId,silent=false){
+  if(!consId){if(!silent)toast('Consultant profile not found','red');return;}
+  const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
+  try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
+}
+let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+const _guidcyOriginalSwCD=swCD;
+swCD=async function(view,btn){
+  if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
+  try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
+  const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';
+  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="${safeAttr(c?.video_price||c?.rate||2000)}"/></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
+};
+savePayoutDetails=function(consId){return saveConsultantPayoutDetails(consId,false);};
+cancelBooking=async function(bookingId,role){
+  if(!bookingId||bookingId==='undefined'||bookingId===''||bookingId==='null'){toast('Cannot cancel — please refresh the page and try again','red');return;}
+  if(!confirm('Cancel this session? Refund will be marked as pending.'))return;if(!currentUser){toast('Not logged in','red');return;}
+  const updates={status:'cancelled',cancelled_by:role,cancelled_at:new Date().toISOString(),payment_status:'refund_pending'};
+  try{const res=await supabaseRest('bookings?id=eq.'+encodeURIComponent(bookingId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Cancel update failed');if(lastBooking?.id===bookingId)lastBooking=null;toast('Session cancelled. Refund marked as pending.','green');const row=Array.isArray(res.data)?res.data[0]:res.data;try{if(row?.user_id)await insertNotificationDirect(row.user_id,'Your session was cancelled. Refund is marked as pending.','refund',bookingId);if(row?.consultant_id){const cRes=await supabaseRest('consultants?id=eq.'+encodeURIComponent(row.consultant_id)+'&select=profile_id',{method:'GET',timeoutMs:15000});const cRow=Array.isArray(cRes.data)?cRes.data[0]:cRes.data;if(cRow?.profile_id)await insertNotificationDirect(cRow.profile_id,'A session was cancelled. Refund is marked as pending for the client.','refund',bookingId);}}catch(_){}if(role==='user')swUD('upcoming',null);else swCD('requests',null);}catch(e){console.error('Cancel error:',e);toast('Cancel failed: '+(e.message||e),'red');}
+};
+
 </script>
 
 
@@ -4391,6 +4480,95 @@ async function doPay(){
     toast('Unable to open Razorpay checkout: '+(e.message||e),'red');
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   GUIDCY PATCH — LATEST PRICING + PAYOUT/REFUND DETAILS
+═══════════════════════════════════════════════════════════════ */
+async function fetchLatestConsultantForBooking(consultantId){
+  if(!consultantId || !CFG?.supabase_url || !CFG?.supabase_key) return null;
+  try{
+    const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consultantId)+'&select=*',{method:'GET',timeoutMs:20000});
+    if(!res.ok){console.warn('Latest consultant fetch failed:',res);return null;}
+    const row=Array.isArray(res.data)?res.data[0]:res.data;
+    if(!row) return null;
+    return {...curCons,...row,id:row.id,dbId:row.id,name:row.name||curCons?.name||'Consultant',role:row.specialty||row.category||curCons?.role||'Consultant',price:row.video_price||row.rate||curCons?.price||2000,video_price:row.video_price||row.rate||curCons?.video_price||curCons?.price||2000,audio_price:row.audio_price||curCons?.audio_price||Math.round((row.video_price||row.rate||curCons?.price||2000)*0.75),chat_price:row.chat_price||curCons?.chat_price||Math.round((row.video_price||row.rate||curCons?.price||2000)*0.5),sessionTypes:row.session_types||curCons?.sessionTypes||['video'],availabilityMap:row.availability_map||curCons?.availabilityMap||{},avail:row.available_days||curCons?.avail||[],slots:row.slots||curCons?.slots||['10:00 AM','2:00 PM','4:00 PM']};
+  }catch(e){console.warn('Latest consultant fetch exception:',e);return null;}
+}
+async function refreshCurrentConsultantBeforePayment(){
+  const id=curCons?.dbId||curCons?.id;
+  if(!id) return curCons;
+  const latest=await fetchLatestConsultantForBooking(id);
+  if(latest){curCons=latest;console.log('✅ Latest consultant pricing loaded before payment:',{consultant_id:curCons.id,video_price:curCons.video_price,audio_price:curCons.audio_price,chat_price:curCons.chat_price,rate:curCons.rate});}
+  return curCons;
+}
+function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
+function renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel){
+  const pfee=Math.round(fee*.05);
+  const payAmt=document.getElementById('pay-amt');
+  const payDesc=document.getElementById('pay-desc');
+  const paySummary=document.getElementById('pay-summary-box');
+  if(payAmt)payAmt.textContent='₹'+totalAmount.toLocaleString();
+  if(payDesc)payDesc.textContent=`${selDur}-min ${selSType} session with ${curCons.name}`;
+  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>₹${fee.toLocaleString()}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>₹${pfee.toLocaleString()}</span></div><div class="pay-sum-row final"><span>Total due</span><span>₹${totalAmount.toLocaleString()}</span></div>`;}
+}
+startBooking=async function(){
+  if(!selSlot){toast('Please select a time slot','red');return;}
+  if(!currentUser&&!loggedIn&&sb){toast('Please log in to book');setTimeout(()=>go('login'),800);return;}
+  const btn=document.querySelector('.book-footer .green-btn');const old=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Loading latest price...';}
+  await refreshCurrentConsultantBeforePayment();
+  if(btn){btn.disabled=false;btn.textContent=old||'Book this session';}
+  const dates=buildDates();const fee=getBookingFeeFromLatest();const pfee=Math.round(fee*.05),tot=fee+pfee;const dateLabel=dates[selDate]?.full||dates[selDate]?.label||'';
+  renderPaymentSummaryWithLatest(fee,tot,dateLabel);go('payment');
+};
+doPay=async function(){
+  const dates=buildDates();const btn=document.querySelector('#page-payment .green-btn');
+  if(!curCons){toast('Please select a consultant first.','red');return;}if(!selSlot){toast('Please select a time slot first.','red');return;}if(!currentUser?.id){toast('Please login before booking.','red');return;}if(typeof Razorpay==='undefined'){toast('Razorpay SDK not loaded. Please refresh and try again.','red');console.error('Razorpay SDK missing');return;}if(!CFG?.razorpay_key||!CFG.razorpay_key.startsWith('rzp_')){toast('Razorpay key is missing.','red');console.error('Invalid Razorpay key:',CFG?.razorpay_key);return;}
+  const oldText=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='Checking latest price...';}
+  await refreshCurrentConsultantBeforePayment();
+  const fee=getBookingFeeFromLatest();const platformFee=Math.round(fee*0.05);const totalAmount=fee+platformFee;const dateLabel=dates[selDate]?.full||dates[selDate]?.label||'';renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel);const bookingSummary=`${curCons.name} • ${dateLabel} • ${selSlot} • ${selDur} min • ${selSType}`;
+  if(btn){btn.disabled=true;btn.textContent='Opening Razorpay...';}
+  const options={key:CFG.razorpay_key,amount:totalAmount*100,currency:'INR',name:'Guidcy',description:bookingSummary,image:'',notes:{platform:'Guidcy',consultant_id:curCons.id||curCons.dbId||'',consultant_name:curCons.name||'',user_name:currentProfile?.full_name||'',user_email:currentUser?.email||'',date_label:dateLabel,time_slot:selSlot,duration:String(selDur),session_type:selSType,latest_fee:String(fee),platform_fee:String(platformFee),total_amount:String(totalAmount)},prefill:{name:currentProfile?.full_name||'',email:currentUser?.email||'',contact:currentProfile?.phone||''},theme:{color:'#1E72BE'},modal:{ondismiss:function(){if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Payment was cancelled. Booking was not created.','red');}},handler:async function(response){console.log('✅ Razorpay payment success:',response);if(btn){btn.disabled=true;btn.textContent='Payment received. Creating Meet link...';}let meetLink='';try{meetLink=await createGoogleMeetLink(curCons.name,dateLabel,selSlot,selDur);}catch(e){console.error('❌ Payment done, but Google Meet creation failed:',e);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Payment received, but Meet link creation failed. Please contact Guidcy support.','red');return;}if(btn){btn.textContent='Saving booking and sending emails...';}const paymentId=response?.razorpay_payment_id||('RZP-'+Date.now());const saved=await saveBooking(paymentId,dateLabel,fee,totalAmount,meetLink);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}if(saved){toast('Payment successful. Booking confirmed and emails sent 🎉','green');try{updateConfirmPage();}catch(_){}try{showBookingConfirmationPopup(lastBooking);}catch(_){}try{go('confirm');}catch(_){}}else{toast('Payment successful, but booking save failed. Please contact Guidcy support.','red');}}};
+  try{const rzp=new Razorpay(options);rzp.on('payment.failed',function(response){console.error('❌ Razorpay payment failed:',response);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}const msg=response?.error?.description||response?.error?.reason||'Payment failed. Please try again.';toast(msg,'red');});rzp.open();}catch(e){console.error('❌ Razorpay checkout error:',e);if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}toast('Unable to open Razorpay checkout: '+(e.message||e),'red');}
+};
+function profileValue(key,fallback=''){return currentProfile&&currentProfile[key]!=null?currentProfile[key]:fallback;}
+function safeAttr(v){return String(v||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+async function saveUserRefundDetails(silent=false){
+  if(!currentUser?.id){if(!silent)toast('Please log in','red');return;}
+  const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
+  try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
+}
+let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+const _guidcyOriginalSwUD=swUD;
+swUD=async function(view,btn){
+  if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
+  const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
+  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
+};
+async function saveConsultantPayoutDetails(consId,silent=false){
+  if(!consId){if(!silent)toast('Consultant profile not found','red');return;}
+  const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
+  try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
+}
+let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+const _guidcyOriginalSwCD=swCD;
+swCD=async function(view,btn){
+  if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
+  try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
+  const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';
+  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="${safeAttr(c?.video_price||c?.rate||2000)}"/></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
+};
+savePayoutDetails=function(consId){return saveConsultantPayoutDetails(consId,false);};
+cancelBooking=async function(bookingId,role){
+  if(!bookingId||bookingId==='undefined'||bookingId===''||bookingId==='null'){toast('Cannot cancel — please refresh the page and try again','red');return;}
+  if(!confirm('Cancel this session? Refund will be marked as pending.'))return;if(!currentUser){toast('Not logged in','red');return;}
+  const updates={status:'cancelled',cancelled_by:role,cancelled_at:new Date().toISOString(),payment_status:'refund_pending'};
+  try{const res=await supabaseRest('bookings?id=eq.'+encodeURIComponent(bookingId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Cancel update failed');if(lastBooking?.id===bookingId)lastBooking=null;toast('Session cancelled. Refund marked as pending.','green');const row=Array.isArray(res.data)?res.data[0]:res.data;try{if(row?.user_id)await insertNotificationDirect(row.user_id,'Your session was cancelled. Refund is marked as pending.','refund',bookingId);if(row?.consultant_id){const cRes=await supabaseRest('consultants?id=eq.'+encodeURIComponent(row.consultant_id)+'&select=profile_id',{method:'GET',timeoutMs:15000});const cRow=Array.isArray(cRes.data)?cRes.data[0]:cRes.data;if(cRow?.profile_id)await insertNotificationDirect(cRow.profile_id,'A session was cancelled. Refund is marked as pending for the client.','refund',bookingId);}}catch(_){}if(role==='user')swUD('upcoming',null);else swCD('requests',null);}catch(e){console.error('Cancel error:',e);toast('Cancel failed: '+(e.message||e),'red');}
+};
+
 </script>
 
 </body>
