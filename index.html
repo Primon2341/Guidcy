@@ -3026,17 +3026,12 @@ async function swUD(view,btn){
 }
 
 async function saveUserProfile(){
-  if(!currentUser){toast('Not logged in','red');return;}
-  const name=document.getElementById('us-name')?.value?.trim()||'';
-  const phone=document.getElementById('us-phone')?.value?.trim()||'';
-  const payload={full_name:name,phone,avatar_initials:mkInitials(name)};
-  try{
-    const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'PATCH',body:payload,prefer:'return=representation',timeoutMs:30000});
-    if(!res.ok){console.error('Profile save failed:',res);toast('Save failed: '+(res.data?.message||res.raw||res.statusText),'red');return;}
-    const row=Array.isArray(res.data)?res.data[0]:res.data;
-    currentProfile={...(currentProfile||{}),...(row||payload)};
-    updateNav();toast('Profile saved ✓','green');
-  }catch(e){console.error('Profile save exception:',e);toast('Profile save failed: '+e.message,'red');}
+  if(!sb||!currentUser){toast('Saved ✓','green');return;}
+  const name=document.getElementById('us-name')?.value||'';
+  const phone=document.getElementById('us-phone')?.value||'';
+  await sb.from('profiles').update({full_name:name,phone,avatar_initials:mkInitials(name)}).eq('id',currentUser.id);
+  if(currentProfile){currentProfile.full_name=name;currentProfile.phone=phone;currentProfile.avatar_initials=mkInitials(name);}
+  updateNav();toast('Profile saved ✓','green');
 }
 
 /* ═══════════════════════════════════════════
@@ -3265,27 +3260,23 @@ async function swCD(view,btn){
   }else{
     // Settings
     const c=consRecord;
-    const cid=c?.id||'';
-    const currentRate=c?.video_price||c?.rate||c?.price||2000;
     m.innerHTML=`<div class="dash-title">Profile & settings</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
-        <div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}" onblur="saveConsProfile('${cid}',true)"/></div>
-        <div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}" onblur="saveConsProfile('${cid}',true)"/></div>
-        <div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="${safeAttr(currentRate)}" onblur="saveConsProfile('${cid}',true)"/></div>
-        <div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:120px" onblur="saveConsProfile('${cid}',true)">${safeAttr(c?.bio||'')}</textarea></div>
-        <button class="primary-btn" onclick="saveConsProfile('${cid}',false)">Save profile</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:620px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+        <div class="field"><label>Full name</label><input id="cd-name" value="${c?.name||name}"/></div>
+        <div class="field"><label>Professional title</label><input id="cd-title" value="${c?.specialty||'Consultant'}"/></div>
+        <div class="field"><label>Rate per hour (₹)</label><input type="number" id="cd-rate" value="${c?.rate||2000}"/></div>
+        <div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${c?.bio||''}</textarea></div>
+        <button class="primary-btn" onclick="saveConsProfile('${c?.id||''}')">Save profile</button>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
-        <div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">These details are editable and saved immediately. Guidcy will use them for consultant payouts.</div>
-        <div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${cid}')" onblur="saveConsultantPayoutDetails('${cid}',true)"/></div>
-        <div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${cid}')" onblur="saveConsultantPayoutDetails('${cid}',true)"/></div>
-        <div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${cid}')" onblur="saveConsultantPayoutDetails('${cid}',true)"/></div>
-        <div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${cid}')" onblur="saveConsultantPayoutDetails('${cid}',true)"/></div>
-        <div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${cid}')" onblur="saveConsultantPayoutDetails('${cid}',true)"/></div>
-        <button class="green-btn" onclick="saveConsultantPayoutDetails('${cid}',false)">Save payout details</button>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Payout details</div>
+        <div class="field"><label>Bank IFSC code</label><input id="cd-ifsc" value="${c?.bank_ifsc||''}"/></div>
+        <div class="field"><label>Account number</label><input id="cd-acct" type="password" placeholder="••••5678"/></div>
+        <div class="field"><label>UPI ID</label><input id="cd-upi" value="${c?.upi_id||''}"/></div>
+        <div class="field"><label>PAN number</label><input id="cd-pan" value="${c?.pan_number||''}"/></div>
+        <button class="green-btn" onclick="savePayoutDetails('${c?.id||''}')">Save payout info</button>
       </div>
     </div>`;
   }
@@ -3302,64 +3293,33 @@ async function declineBookingReq(bookingId,idx){
   const item=document.getElementById('req-'+idx);if(item)item.style.opacity='.4';
   toast('Booking declined. Refund initiated.');
 }
-async function resolveCurrentConsultantId(consId){
-  if(consId && consId!=='undefined' && consId!=='null')return consId;
-  if(!currentUser?.id)return '';
-  try{
-    const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=id&limit=1',{method:'GET',timeoutMs:30000});
-    const row=Array.isArray(res.data)?res.data[0]:res.data;
-    return row?.id||'';
-  }catch(e){console.warn('Could not resolve consultant id:',e);return '';}
+async function saveConsProfile(consId){
+  if(!sb||!currentUser){toast('Not logged in','red');return;}
+  const name=document.getElementById('cd-name')?.value||'';
+  const specialty=document.getElementById('cd-title')?.value||'';
+  const rate=parseInt(document.getElementById('cd-rate')?.value)||2000;
+  const bio=document.getElementById('cd-bio')?.value||'';
+  const updates={name,specialty,rate,bio};
+  // If no consId passed, look up by profile_id
+  let resolvedId=consId;
+  if(!resolvedId){
+    const{data}=await sb.from('consultants').select('id').eq('profile_id',currentUser.id).single().catch(()=>({}));
+    resolvedId=data?.id;
+  }
+  if(resolvedId){
+    const{error}=await sb.from('consultants').update(updates).eq('id',resolvedId);
+    if(error){toast('Save failed: '+error.message,'red');return;}
+  }
+  await sb.from('profiles').update({full_name:name,avatar_initials:mkInitials(name)}).eq('id',currentUser.id).catch(()=>{});
+  if(currentProfile){currentProfile.full_name=name;currentProfile.avatar_initials=mkInitials(name);}
+  updateNav();
+  toast('Profile saved ✓','green');
 }
-async function saveConsProfile(consId,silent=false){
-  if(!currentUser){toast('Not logged in','red');return;}
-  const resolvedId=await resolveCurrentConsultantId(consId);
-  if(!resolvedId){toast('Consultant profile not found. Please refresh and try again.','red');return;}
-  const name=document.getElementById('cd-name')?.value?.trim()||'';
-  const specialty=document.getElementById('cd-title')?.value?.trim()||'';
-  const rate=parseInt(document.getElementById('cd-rate')?.value,10)||0;
-  const bio=document.getElementById('cd-bio')?.value?.trim()||'';
-  const updates={
-    name,
-    specialty,
-    bio,
-    rate,
-    video_price:rate,
-    price:rate,
-    avatar_initials:mkInitials(name)
-  };
-  try{
-    const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(resolvedId)+'&select=*',{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:30000});
-    if(!res.ok){console.error('Consultant profile save failed:',res);toast('Save failed: '+(res.data?.message||res.raw||res.statusText),'red');return;}
-    await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'PATCH',body:{full_name:name,avatar_initials:mkInitials(name)},prefer:'return=representation',timeoutMs:30000}).catch(()=>{});
-    if(currentProfile){currentProfile.full_name=name;currentProfile.avatar_initials=mkInitials(name);}else{currentProfile={full_name:name,avatar_initials:mkInitials(name)};}
-    // refresh local consultant cache used by profile/payment screens
-    if(window.curCons && (curCons.id===resolvedId || curCons.dbId===resolvedId)){
-      curCons={...curCons,...updates,dbId:resolvedId,id:curCons.id};
-    }
-    updateNav();
-    if(!silent)toast('Profile saved ✓','green');
-  }catch(e){console.error('Consultant profile save exception:',e);toast('Profile save failed: '+e.message,'red');}
+async function savePayoutDetails(consId){
+  if(!sb||!consId){toast('Payout info saved ✓','green');return;}
+  await sb.from('consultants').update({bank_ifsc:document.getElementById('cd-ifsc')?.value||'',upi_id:document.getElementById('cd-upi')?.value||'',pan_number:document.getElementById('cd-pan')?.value||''}).eq('id',consId).catch(()=>{});
+  toast('Payout details saved ✓','green');
 }
-async function saveConsultantPayoutDetails(consId,silent=false){
-  const resolvedId=await resolveCurrentConsultantId(consId);
-  if(!resolvedId){if(!silent)toast('Consultant profile not found','red');return;}
-  const payload={
-    bank_name:document.getElementById('cd-bank-name')?.value?.trim()||document.getElementById('cd-bank')?.value?.trim()||'',
-    account_number:document.getElementById('cd-account-number')?.value?.trim()||document.getElementById('cd-acct')?.value?.trim()||'',
-    ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||document.getElementById('cd-ifsc')?.value?.trim()||'',
-    upi_id:document.getElementById('cd-upi-id')?.value?.trim()||document.getElementById('cd-upi')?.value?.trim()||'',
-    pan_number:document.getElementById('cd-pan-number')?.value?.trim()||document.getElementById('cd-pan')?.value?.trim()||''
-  };
-  try{
-    const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(resolvedId)+'&select=id,bank_name,account_number,ifsc_code,upi_id,pan_number',{method:'PATCH',body:payload,prefer:'return=representation',timeoutMs:30000});
-    if(!res.ok){console.error('Payout details save failed:',res);if(!silent)toast('Payout save failed: '+(res.data?.message||res.raw||res.statusText),'red');return;}
-    if(!silent)toast('Payout details saved ✓','green');
-  }catch(e){console.error('Payout save exception:',e);if(!silent)toast('Payout save failed: '+e.message,'red');}
-}
-var _payoutSaveTimer=null;
-function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
-async function savePayoutDetails(consId){return saveConsultantPayoutDetails(consId,false);}
 function toggleDay(el){
   const on=el.dataset.on==='true';el.dataset.on=(!on).toString();
   el.style.background=!on?'var(--green)':'var(--border)';el.children[0].style.left=!on?'18px':'4px';
@@ -4239,8 +4199,8 @@ async function saveUserRefundDetails(silent=false){
   const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
   try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
 }
-var _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
-var _guidcyOriginalSwUD=swUD;
+let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+const _guidcyOriginalSwUD=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
@@ -4252,8 +4212,8 @@ async function saveConsultantPayoutDetails(consId,silent=false){
   const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
   try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
 }
-var _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
-var _guidcyOriginalSwCD=swCD;
+let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+const _guidcyOriginalSwCD=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
@@ -4578,8 +4538,8 @@ async function saveUserRefundDetails(silent=false){
   const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
   try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
 }
-var _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
-var _guidcyOriginalSwUD=swUD;
+let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+const _guidcyOriginalSwUD=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
@@ -4591,8 +4551,8 @@ async function saveConsultantPayoutDetails(consId,silent=false){
   const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
   try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
 }
-var _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
-var _guidcyOriginalSwCD=swCD;
+let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+const _guidcyOriginalSwCD=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
