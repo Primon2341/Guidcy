@@ -3357,7 +3357,7 @@ async function saveConsultantPayoutDetails(consId,silent=false){
     if(!silent)toast('Payout details saved ✓','green');
   }catch(e){console.error('Payout save exception:',e);if(!silent)toast('Payout save failed: '+e.message,'red');}
 }
-let _payoutSaveTimer=null;
+var _payoutSaveTimer=null;
 function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
 async function savePayoutDetails(consId){return saveConsultantPayoutDetails(consId,false);}
 function toggleDay(el){
@@ -4239,8 +4239,8 @@ async function saveUserRefundDetails(silent=false){
   const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
   try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
 }
-let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
-const _guidcyOriginalSwUD=swUD;
+var _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+var _guidcyOriginalSwUD=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
@@ -4252,8 +4252,8 @@ async function saveConsultantPayoutDetails(consId,silent=false){
   const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
   try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
 }
-let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
-const _guidcyOriginalSwCD=swCD;
+var _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+var _guidcyOriginalSwCD=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
@@ -4578,8 +4578,8 @@ async function saveUserRefundDetails(silent=false){
   const updates={refund_bank_name:document.getElementById('us-refund-bank')?.value?.trim()||'',refund_account_number:document.getElementById('us-refund-acct')?.value?.trim()||'',refund_ifsc_code:document.getElementById('us-refund-ifsc')?.value?.trim()||'',refund_upi_id:document.getElementById('us-refund-upi')?.value?.trim()||''};
   try{const res=await supabaseRest('profiles?id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');currentProfile={...(currentProfile||{}),...updates};if(!silent)toast('Refund details saved ✓','green');}catch(e){console.error('Refund details save error:',e);if(!silent)toast('Could not save refund details: '+(e.message||e),'red');}
 }
-let _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
-const _guidcyOriginalSwUD=swUD;
+var _refundSaveTimer=null;function queueUserRefundSave(){clearTimeout(_refundSaveTimer);_refundSaveTimer=setTimeout(()=>saveUserRefundDetails(true),700);}
+var _guidcyOriginalSwUD=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUD(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
@@ -4591,8 +4591,8 @@ async function saveConsultantPayoutDetails(consId,silent=false){
   const updates={bank_name:document.getElementById('cd-bank-name')?.value?.trim()||'',account_number:document.getElementById('cd-account-number')?.value?.trim()||'',ifsc_code:document.getElementById('cd-ifsc-code')?.value?.trim()||'',upi_id:document.getElementById('cd-upi-id')?.value?.trim()||'',pan_number:document.getElementById('cd-pan-number')?.value?.trim()||''};
   try{const res=await supabaseRest('consultants?id=eq.'+encodeURIComponent(consId),{method:'PATCH',body:updates,prefer:'return=representation',timeoutMs:20000});if(!res.ok)throw new Error(res.data?.message||res.raw||'Supabase update failed');if(!silent)toast('Payout details saved ✓','green');}catch(e){console.error('Payout details save error:',e);if(!silent)toast('Could not save payout details: '+(e.message||e),'red');}
 }
-let _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
-const _guidcyOriginalSwCD=swCD;
+var _payoutSaveTimer=null;function queueConsultantPayoutSave(consId){clearTimeout(_payoutSaveTimer);_payoutSaveTimer=setTimeout(()=>saveConsultantPayoutDetails(consId,true),700);}
+var _guidcyOriginalSwCD=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCD(view,btn);
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
