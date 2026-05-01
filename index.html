@@ -1481,7 +1481,7 @@ mark{background:var(--blue-l);color:var(--blue-d);border-radius:2px;padding:0 2p
 const CFG = {
   supabase_url: 'https://lsthngfxehayeqyctkla.supabase.co',
   supabase_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4',
-  razorpay_key: 'rzp_test_Shko313dMXo3WQ',
+  razorpay_key: 'rzp_live_e5WFljVBynhn2r',
   admin_email: 'tripathiprakhar41@gmail.com',
   guidcy_sender_email: 'guidcytechnologies@gmail.com',
   guidcy_sender_name: 'Guidcy Technologies',
@@ -4281,6 +4281,116 @@ document.addEventListener('click',e=>{ const browseWrap=e.target.closest?.('.sea
     if(!heroWrap)window.hideHeroSuggestions();
   });
 })();
+
+
+/* ═══════════════════════════════════════════════════════════════
+   GUIDCY PAYMENT PATCH — LIVE RAZORPAY ENABLED
+   Flow: Razorpay success → Google Meet generation → Supabase booking save →
+   Email confirmations + dashboard notifications + reminders.
+═══════════════════════════════════════════════════════════════ */
+async function doPay(){
+  const dates=buildDates();
+  const btn=document.querySelector('#page-payment .green-btn');
+
+  if(!curCons){toast('Please select a consultant first.','red');return;}
+  if(!selSlot){toast('Please select a time slot first.','red');return;}
+  if(!currentUser?.id){toast('Please login before booking.','red');return;}
+  if(typeof Razorpay==='undefined'){
+    toast('Razorpay SDK not loaded. Please refresh and try again.','red');
+    console.error('Razorpay SDK missing');
+    return;
+  }
+  if(!CFG?.razorpay_key || !CFG.razorpay_key.startsWith('rzp_')){
+    toast('Razorpay key is missing.','red');
+    console.error('Invalid Razorpay key:',CFG?.razorpay_key);
+    return;
+  }
+
+  const fee=Math.round(getSTypePrice(curCons)*getDurMultiplier());
+  const platformFee=Math.round(fee*0.05);
+  const totalAmount=fee+platformFee;
+  const dateLabel=dates[selDate]?.full||dates[selDate]?.label||'';
+  const bookingSummary=`${curCons.name} • ${dateLabel} • ${selSlot} • ${selDur} min • ${selSType}`;
+
+  const oldText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Opening Razorpay...';}
+
+  const options={
+    key:CFG.razorpay_key,
+    amount:totalAmount*100,
+    currency:'INR',
+    name:'Guidcy',
+    description:bookingSummary,
+    image:'',
+    notes:{
+      platform:'Guidcy',
+      consultant_name:curCons.name||'',
+      user_name:currentProfile?.full_name||'',
+      user_email:currentUser?.email||'',
+      date_label:dateLabel,
+      time_slot:selSlot,
+      duration:String(selDur),
+      session_type:selSType
+    },
+    prefill:{
+      name:currentProfile?.full_name||'',
+      email:currentUser?.email||'',
+      contact:currentProfile?.phone||''
+    },
+    theme:{color:'#1E72BE'},
+    modal:{
+      ondismiss:function(){
+        if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}
+        toast('Payment was cancelled. Booking was not created.','red');
+      }
+    },
+    handler:async function(response){
+      console.log('✅ Razorpay payment success:',response);
+      if(btn){btn.disabled=true;btn.textContent='Payment received. Creating Meet link...';}
+
+      let meetLink='';
+      try{
+        meetLink=await createGoogleMeetLink(curCons.name,dateLabel,selSlot,selDur);
+      }catch(e){
+        console.error('❌ Payment done, but Google Meet creation failed:',e);
+        if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}
+        toast('Payment received, but Meet link creation failed. Please contact Guidcy support.','red');
+        return;
+      }
+
+      if(btn){btn.textContent='Saving booking and sending emails...';}
+
+      const paymentId=response?.razorpay_payment_id || ('RZP-'+Date.now());
+      const saved=await saveBooking(paymentId,dateLabel,fee,totalAmount,meetLink);
+
+      if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}
+
+      if(saved){
+        toast('Payment successful. Booking confirmed and emails sent 🎉','green');
+        try{updateConfirmPage();}catch(_){ }
+        try{showBookingConfirmationPopup(lastBooking);}catch(_){ }
+        try{go('confirm');}catch(_){ }
+      }else{
+        toast('Payment successful, but booking save failed. Please contact Guidcy support.','red');
+      }
+    }
+  };
+
+  try{
+    const rzp=new Razorpay(options);
+    rzp.on('payment.failed',function(response){
+      console.error('❌ Razorpay payment failed:',response);
+      if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}
+      const msg=response?.error?.description||response?.error?.reason||'Payment failed. Please try again.';
+      toast(msg,'red');
+    });
+    rzp.open();
+  }catch(e){
+    console.error('❌ Razorpay checkout error:',e);
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Confirm & Pay securely';}
+    toast('Unable to open Razorpay checkout: '+(e.message||e),'red');
+  }
+}
 </script>
 
 </body>
