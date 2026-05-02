@@ -5,6 +5,10 @@
       "destination": "/browse.html"
     },
     {
+      "source": "/jobs",
+      "destination": "/jobs.html"
+    },
+    {
       "source": "/login",
       "destination": "/login.html"
     },

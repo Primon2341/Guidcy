@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/sitemap/0.9">
   <url><loc>https://www.guidcy.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://www.guidcy.com/browse</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://www.guidcy.com/jobs</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
   <url><loc>https://www.guidcy.com/login</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://www.guidcy.com/signup</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://www.guidcy.com/categories</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
