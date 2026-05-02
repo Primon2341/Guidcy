@@ -165,8 +165,28 @@
           throw new Error('Jobs API did not return JSON. This usually means /api/jobs is not deployed correctly on Vercel, or RAPIDAPI_KEY is missing. Response: ' + raw.slice(0, 120));
         }
         if(!res.ok) throw new Error(data.error || data.message || 'Unable to fetch jobs right now.');
-        document.getElementById('statusText').textContent = `Showing ${data.jobs.length} job opening${data.jobs.length === 1 ? '' : 's'} for “${q}” in ${location}`;
-        renderJobs(data.jobs || []);
+       const jobs = Array.isArray(data.jobs)
+  ? data.jobs
+  : Array.isArray(data.data)
+    ? data.data.map(job => ({
+        title: job.job_title || 'No title',
+        company: job.employer_name || 'Unknown company',
+        location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(', ') || 'Location not available',
+        employmentType: job.job_employment_type || '',
+        postedAt: job.job_posted_at_datetime_utc || job.job_posted_at_timestamp || '',
+        salary: job.job_min_salary && job.job_max_salary
+          ? `${job.job_min_salary} - ${job.job_max_salary}`
+          : '',
+        description: job.job_description || '',
+        applyLink: job.job_apply_link || job.job_google_link || '',
+        source: job.job_publisher || 'Original Website'
+      }))
+    : [];
+
+document.getElementById('statusText').textContent =
+  `Showing ${jobs.length} job opening${jobs.length === 1 ? '' : 's'} for “${q}” in ${location}`;
+
+renderJobs(jobs);
       }catch(err){
         showError(err.message || 'Unable to fetch jobs right now.');
         document.getElementById('statusText').textContent = 'Search failed.';
