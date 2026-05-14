@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
 <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96">
-<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#ffffff">
 <meta property="og:site_name" content="Guidcy">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://www.guidcy.com/logo.png">
@@ -9454,7 +9456,7 @@ body.gmob-open{overflow:hidden}
   function setAssets(){
     document.querySelectorAll('.logo-svg-wrap img').forEach(function(img){img.src='/logo.png';img.alt='Guidcy';});
     var head=document.head||document.getElementsByTagName('head')[0];
-    [['icon','/favicon-48x48.png','48x48'],['icon','/favicon-96x96.png','96x96'],['apple-touch-icon','/apple-touch-icon.png','180x180']].forEach(function(x){var l=document.createElement('link');l.rel=x[0];l.href=x[1];if(x[2])l.sizes=x[2];head.appendChild(l);});
+    [['icon','/favicon.ico','any'],['icon','/favicon-48x48.png','48x48'],['icon','/favicon-96x96.png','96x96'],['apple-touch-icon','/apple-touch-icon.png','180x180']].forEach(function(x){var l=document.createElement('link');l.rel=x[0];l.href=x[1];if(x[2] && x[2] !== 'any')l.sizes=x[2];head.appendChild(l);});
   }
   setAssets();window.addEventListener('load',setAssets);
 })();
