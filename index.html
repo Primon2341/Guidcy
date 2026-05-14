@@ -11191,8 +11191,10 @@ body.gmob-open{overflow:hidden}
   'use strict';
   function el(id){return document.getElementById(id)}
   function val(id){var x=el(id);return x?String(x.value||'').trim():''}
+  function valAny(ids){for(var i=0;i<ids.length;i++){var v=val(ids[i]); if(v)return v;} return '';}
+  function setValAny(ids,v){ids.forEach(function(k){setVal(k,v)});}
   function setVal(id,v){var x=el(id);if(x)x.value=v||''}
-  function out(id,html,ok){var x=el(id);if(!x)return; x.style.display='block'; x.classList.add('on'); x.innerHTML=html; x.style.borderColor=ok?'#B7F0BE':'#FCA5A5'; x.style.background=ok?'#EDFAF1':'#FEF2F2';}
+  function out(id,html,ok){var x=el(id); if(!x && id==='ghelp-submit-out')x=el('ghelp-ticket-out'); if(!x)return; x.style.display='block'; x.classList.add('on'); x.innerHTML=html; x.style.borderColor=ok?'#B7F0BE':'#FCA5A5'; x.style.background=ok?'#EDFAF1':'#FEF2F2';}
   function toast2(m,t){try{if(typeof window.toast==='function')window.toast(m,t||'green');else if(typeof window.showToast==='function')window.showToast(m,t||'green');}catch(e){}}
   function sbc(){try{return window.sb || (typeof sb!=='undefined'?sb:null)}catch(e){return null}}
   function now(){return new Date().toISOString()}
@@ -11232,7 +11234,7 @@ body.gmob-open{overflow:hidden}
   }
 
   window.ghelpSubmitTicket=async function(){
-    var name=val('ghelp-name'), email=val('ghelp-email'), topic=val('ghelp-topic')||'General support', priority=val('ghelp-priority')||'Normal', message=val('ghelp-message');
+    var name=val('ghelp-name'), email=val('ghelp-email'), topic=val('ghelp-topic')||'General support', priority=val('ghelp-priority')||'Normal', message=valAny(['ghelp-msg','ghelp-message']);
     if(!name||!email||!message){out('ghelp-submit-out','Please fill your name, email, and message.',false);toast2('Please fill required fields','red');return;}
     if(!emailOK(email)){out('ghelp-submit-out','Please enter a valid email address.',false);toast2('Invalid email address','red');return;}
     var ticket_code=code('HLP');
@@ -11241,7 +11243,7 @@ body.gmob-open{overflow:hidden}
     var saved=await insertRow('support_tickets',row);
     var finalRow=saved||row;
     var arr=localGet('guidcy_help_tickets'); arr.unshift(Object.assign({id:finalRow.id||ticket_code,date:new Date().toLocaleString('en-IN')},finalRow)); localSet('guidcy_help_tickets',arr);
-    ['ghelp-name','ghelp-email','ghelp-message'].forEach(function(id){setVal(id,'')});
+    ['ghelp-name','ghelp-email','ghelp-msg','ghelp-message'].forEach(function(id){setVal(id,'')});
     out('ghelp-submit-out','<b>Support ticket raised successfully.</b><br>Your Ticket ID is <b>'+esc(ticket_code)+'</b>.<br>'+(saved?'Saved to Supabase and visible in Admin Dashboard.':'Saved locally because Supabase did not accept the request. Check table/RLS settings.'),!!saved);
     toast2('Support ticket raised','green');
   };
@@ -11283,6 +11285,17 @@ body.gmob-open{overflow:hidden}
   window.guidcyCheckTicket=window.ghelpTrackTicket;
   window.guidcySubmitDispute=window.gdispSubmit;
   window.guidcyCheckDispute=window.gdispTrack;
+
+  // Mobile browsers can trigger older inline handlers if the DOM keeps duplicate page blocks.
+  // This capture listener forces the latest Help/Dispute handlers only for these two page buttons.
+  document.addEventListener('click',function(ev){
+    var btn=ev.target&&ev.target.closest?ev.target.closest('button'):null;
+    if(!btn)return;
+    var label=String(btn.textContent||'').toLowerCase();
+    var on=String(btn.getAttribute('onclick')||'');
+    if(on.indexOf('ghelpSubmitTicket')>-1 || label.indexOf('submit support ticket')>-1){ev.preventDefault();ev.stopPropagation();window.ghelpSubmitTicket();}
+    if(on.indexOf('gdispSubmit')>-1 || label.indexOf('submit dispute')>-1){ev.preventDefault();ev.stopPropagation();window.gdispSubmit();}
+  },true);
 
   function closePublicMobileMenu(){
     try{document.body.classList.remove('menu-open','gmob-open')}catch(e){}
