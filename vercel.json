@@ -1,27 +1,69 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "routes": [
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "source": "/favicon.ico",
+      "destination": "/favicon.ico"
     },
     {
-      "src": "/(favicon\\.png|logo\\.png|robots\\.txt|sitemap\\.xml)",
-      "dest": "/$1"
+      "source": "/favicon.png",
+      "destination": "/favicon.png"
     },
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/favicon-48x48.png",
+      "destination": "/favicon-48x48.png"
+    },
+    {
+      "source": "/favicon-96x96.png",
+      "destination": "/favicon-96x96.png"
+    },
+    {
+      "source": "/apple-touch-icon.png",
+      "destination": "/apple-touch-icon.png"
+    },
+    {
+      "source": "/site.webmanifest",
+      "destination": "/site.webmanifest"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/favicon.ico",
       "headers": [
         {
-          "key": "X-Robots-Tag",
-          "value": "index, follow"
+          "key": "Content-Type",
+          "value": "image/x-icon"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/(favicon.*\\.png|apple-touch-icon\\.png)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/png"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/site.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
         }
       ]
     }
