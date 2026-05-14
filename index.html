@@ -11155,3 +11155,148 @@ body.gmob-open{overflow:hidden}
   setTimeout(addAdminButtons,900);
 })();
 </script>
+<!-- GUIDCY HELP + DISPUTE MOBILE FUNCTIONALITY FIX ONLY -->
+<style id="guidcy-help-dispute-mobile-only-css">
+@media (max-width: 900px){
+  #page-help,#page-dispute{width:100%!important;max-width:100%!important;overflow-x:hidden!important;background:var(--bg)!important;}
+  #page-help .ghelp-page-wrap,#page-dispute .ghelp-page-wrap{width:100%!important;max-width:100%!important;margin:0!important;padding:18px 14px 28px!important;overflow-x:hidden!important;}
+  #page-help .ghelp-hero,#page-dispute .ghelp-hero{padding:26px 16px!important;border-radius:18px!important;text-align:left!important;}
+  #page-help .ghelp-hero h1,#page-dispute .ghelp-hero h1{font-size:34px!important;line-height:1.08!important;letter-spacing:-.6px!important;word-break:normal!important;}
+  #page-help .ghelp-hero p,#page-dispute .ghelp-hero p{font-size:14px!important;line-height:1.65!important;max-width:100%!important;}
+  #page-help .ghelp-search-wrap{width:100%!important;max-width:100%!important;}
+  #page-help .ghelp-search-wrap input{width:100%!important;min-width:0!important;font-size:16px!important;}
+  #page-help .ghelp-grid,#page-dispute .ghelp-grid{display:grid!important;grid-template-columns:1fr!important;gap:14px!important;width:100%!important;}
+  #page-help .ghelp-card,#page-dispute .ghelp-card,#page-dispute .ghelp-escalation{width:100%!important;max-width:100%!important;padding:18px 14px!important;border-radius:16px!important;overflow:hidden!important;}
+  #page-help .ghelp-row,#page-dispute .ghelp-row{display:grid!important;grid-template-columns:1fr!important;gap:12px!important;width:100%!important;}
+  #page-help .ghelp-field,#page-dispute .ghelp-field{width:100%!important;min-width:0!important;}
+  #page-help .ghelp-field input,#page-help .ghelp-field select,#page-help .ghelp-field textarea,
+  #page-dispute .ghelp-field input,#page-dispute .ghelp-field select,#page-dispute .ghelp-field textarea{width:100%!important;max-width:100%!important;min-width:0!important;font-size:16px!important;line-height:1.45!important;}
+  #page-help .ghelp-submit-row,#page-help .ghelp-track-row,#page-dispute .ghelp-track-row{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;width:100%!important;}
+  #page-help .ghelp-submit-row .btn,#page-help .ghelp-track-row .btn,#page-dispute .ghelp-track-row .btn,
+  #page-dispute button[onclick="gdispSubmit()"]{width:100%!important;min-height:46px!important;padding:12px 14px!important;}
+  #page-help .ghelp-status,#page-dispute .ghelp-status{width:100%!important;max-width:100%!important;overflow-wrap:anywhere!important;word-break:break-word!important;}
+  #page-dispute .gdisp-step{display:flex!important;align-items:flex-start!important;gap:10px!important;}
+  #page-dispute .gdisp-step-num{flex:0 0 auto!important;}
+  #page-dispute .gdisp-list{padding-left:18px!important;}
+  #page-help .ghelp-bottom-link,#page-dispute .ghelp-bottom-link{padding:16px 12px!important;text-align:center!important;}
+}
+@media (max-width: 420px){
+  #page-help .ghelp-page-wrap,#page-dispute .ghelp-page-wrap{padding-left:10px!important;padding-right:10px!important;}
+  #page-help .ghelp-hero h1,#page-dispute .ghelp-hero h1{font-size:30px!important;}
+  #page-help .ghelp-card-title,#page-dispute .ghelp-card-title{font-size:17px!important;}
+}
+</style>
+<script id="guidcy-help-dispute-mobile-supabase-fix">
+(function(){
+  'use strict';
+  function el(id){return document.getElementById(id)}
+  function val(id){var x=el(id);return x?String(x.value||'').trim():''}
+  function setVal(id,v){var x=el(id);if(x)x.value=v||''}
+  function out(id,html,ok){var x=el(id);if(!x)return; x.style.display='block'; x.classList.add('on'); x.innerHTML=html; x.style.borderColor=ok?'#B7F0BE':'#FCA5A5'; x.style.background=ok?'#EDFAF1':'#FEF2F2';}
+  function toast2(m,t){try{if(typeof window.toast==='function')window.toast(m,t||'green');else if(typeof window.showToast==='function')window.showToast(m,t||'green');}catch(e){}}
+  function sbc(){try{return window.sb || (typeof sb!=='undefined'?sb:null)}catch(e){return null}}
+  function now(){return new Date().toISOString()}
+  function code(prefix){return prefix+'-'+Math.floor(100000+Math.random()*900000)}
+  function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
+  function localSet(k,a){try{localStorage.setItem(k,JSON.stringify(a||[]))}catch(e){}}
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function emailOK(e){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e||''))}
+  async function currentUserId(){try{var c=sbc(); if(!c)return null; var r=await c.auth.getUser(); return r&&r.data&&r.data.user?r.data.user.id:null}catch(e){return null}}
+  async function insertRow(table,row){
+    var c=sbc();
+    if(!c)return null;
+    try{var r=await c.from(table).insert(row).select('*').single(); if(!r.error)return r.data||row; console.warn(table+' insert failed:',r.error.message)}catch(e){console.warn(table+' insert exception:',e.message)}
+    return null;
+  }
+  async function findRows(table,codeCol,key){
+    var c=sbc(); if(!c)return [];
+    var clean=String(key||'').trim().replace(/[%*,]/g,'');
+    if(!clean)return [];
+    var rows=[];
+    try{var exact=await c.from(table).select('*').eq(codeCol,clean).order('created_at',{ascending:false}).limit(10); if(!exact.error&&exact.data&&exact.data.length)rows=rows.concat(exact.data)}catch(e){}
+    try{var byEmail=await c.from(table).select('*').ilike('email',clean).order('created_at',{ascending:false}).limit(10); if(!byEmail.error&&byEmail.data&&byEmail.data.length)rows=rows.concat(byEmail.data)}catch(e){}
+    try{var like=await c.from(table).select('*').ilike(codeCol,'%'+clean+'%').order('created_at',{ascending:false}).limit(10); if(!like.error&&like.data&&like.data.length)rows=rows.concat(like.data)}catch(e){}
+    var seen={}; return rows.filter(function(r){var k=r.id||r[codeCol]; if(seen[k])return false; seen[k]=1; return true;});
+  }
+  function ticketCard(r){
+    return '<div style="border:1px solid var(--border);border-radius:12px;padding:14px;background:#fff;margin-top:12px">'
+      +'<div style="font-weight:700;color:var(--blue);margin-bottom:6px">Ticket ID: '+esc(r.ticket_code||r.id)+'</div>'
+      +'<div style="font-size:13px;color:var(--ink2);line-height:1.7"><b>Status:</b> '+esc(r.status||'Open')+'<br><b>Topic:</b> '+esc(r.topic||'General')+'<br><b>Priority:</b> '+esc(r.priority||'Normal')+'<br><b>Submitted:</b> '+esc((r.created_at||r.date||'').toString().slice(0,19).replace('T',' '))+'</div>'
+      +(r.admin_comment?'<div style="margin-top:10px;padding:10px;border-radius:10px;background:var(--blue-l);font-size:13px;color:var(--ink2)"><b>Admin comment:</b><br>'+esc(r.admin_comment)+'</div>':'')+'</div>';
+  }
+  function disputeCard(r){
+    return '<div style="border:1px solid var(--border);border-radius:12px;padding:14px;background:#fff;margin-top:12px">'
+      +'<div style="font-weight:700;color:var(--blue);margin-bottom:6px">Dispute ID: '+esc(r.dispute_code||r.id)+'</div>'
+      +'<div style="font-size:13px;color:var(--ink2);line-height:1.7"><b>Status:</b> '+esc(r.status||'Under Review')+'<br><b>Issue:</b> '+esc(r.issue_type||'Dispute')+'<br><b>Preferred resolution:</b> '+esc(r.preferred_resolution||'Fair resolution')+'<br><b>Submitted:</b> '+esc((r.created_at||r.date||'').toString().slice(0,19).replace('T',' '))+'</div>'
+      +(r.admin_comment?'<div style="margin-top:10px;padding:10px;border-radius:10px;background:var(--blue-l);font-size:13px;color:var(--ink2)"><b>Admin comment:</b><br>'+esc(r.admin_comment)+'</div>':'')+'</div>';
+  }
+
+  window.ghelpSubmitTicket=async function(){
+    var name=val('ghelp-name'), email=val('ghelp-email'), topic=val('ghelp-topic')||'General support', priority=val('ghelp-priority')||'Normal', message=val('ghelp-message');
+    if(!name||!email||!message){out('ghelp-submit-out','Please fill your name, email, and message.',false);toast2('Please fill required fields','red');return;}
+    if(!emailOK(email)){out('ghelp-submit-out','Please enter a valid email address.',false);toast2('Invalid email address','red');return;}
+    var ticket_code=code('HLP');
+    var uid=await currentUserId();
+    var row={ticket_code:ticket_code,created_by:uid,name:name,email:email,topic:topic,priority:priority,message:message,status:'Open',admin_comment:null,created_at:now(),updated_at:now()};
+    var saved=await insertRow('support_tickets',row);
+    var finalRow=saved||row;
+    var arr=localGet('guidcy_help_tickets'); arr.unshift(Object.assign({id:finalRow.id||ticket_code,date:new Date().toLocaleString('en-IN')},finalRow)); localSet('guidcy_help_tickets',arr);
+    ['ghelp-name','ghelp-email','ghelp-message'].forEach(function(id){setVal(id,'')});
+    out('ghelp-submit-out','<b>Support ticket raised successfully.</b><br>Your Ticket ID is <b>'+esc(ticket_code)+'</b>.<br>'+(saved?'Saved to Supabase and visible in Admin Dashboard.':'Saved locally because Supabase did not accept the request. Check table/RLS settings.'),!!saved);
+    toast2('Support ticket raised','green');
+  };
+
+  window.ghelpTrackTicket=async function(){
+    var key=val('ghelp-track-id').toLowerCase();
+    if(!key){out('ghelp-track-out','Enter your Ticket ID or registered email.',false);return;}
+    var rows=await findRows('support_tickets','ticket_code',key);
+    if(!rows.length){rows=localGet('guidcy_help_tickets').filter(function(x){return String(x.ticket_code||x.id||'').toLowerCase().includes(key)||String(x.email||'').toLowerCase()===key;});}
+    if(!rows.length){out('ghelp-track-out','No ticket found for this Ticket ID/email.',false);return;}
+    out('ghelp-track-out',rows.map(ticketCard).join(''),true);
+  };
+
+  window.gdispSubmit=async function(){
+    var name=val('gdisp-name'), email=val('gdisp-email'), booking=val('gdisp-booking'), consultant=val('gdisp-consultant'), issue=val('gdisp-type'), resolution=val('gdisp-resolution'), details=val('gdisp-details');
+    if(!name||!email||!details){out('gdisp-submit-out','Please fill your name, email, and dispute details.',false);toast2('Please fill required fields','red');return;}
+    if(!emailOK(email)){out('gdisp-submit-out','Please enter a valid email address.',false);toast2('Invalid email address','red');return;}
+    var dispute_code=code('DSP');
+    var uid=await currentUserId();
+    var row={dispute_code:dispute_code,created_by:uid,name:name,email:email,booking_reference:booking,consultant_name:consultant,issue_type:issue,preferred_resolution:resolution,details:details,status:'Under Review',admin_comment:null,created_at:now(),updated_at:now()};
+    var saved=await insertRow('disputes',row);
+    var finalRow=saved||row;
+    var arr=localGet('guidcy_disputes'); arr.unshift(Object.assign({id:finalRow.id||dispute_code,date:new Date().toLocaleString('en-IN')},finalRow)); localSet('guidcy_disputes',arr);
+    ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(function(id){setVal(id,'')});
+    out('gdisp-submit-out','<b>Dispute submitted successfully.</b><br>Your Dispute ID is <b>'+esc(dispute_code)+'</b>.<br>'+(saved?'Saved to Supabase and visible in Admin Dashboard.':'Saved locally because Supabase did not accept the request. Check table/RLS settings.'),!!saved);
+    toast2('Dispute submitted','green');
+  };
+
+  window.gdispTrack=async function(){
+    var key=val('gdisp-track-id').toLowerCase();
+    if(!key){out('gdisp-track-out','Enter your Dispute ID or registered email.',false);return;}
+    var rows=await findRows('disputes','dispute_code',key);
+    if(!rows.length){rows=localGet('guidcy_disputes').filter(function(x){return String(x.dispute_code||x.id||'').toLowerCase().includes(key)||String(x.email||'').toLowerCase()===key;});}
+    if(!rows.length){out('gdisp-track-out','No dispute found for this Dispute ID/email.',false);return;}
+    out('gdisp-track-out',rows.map(disputeCard).join(''),true);
+  };
+
+  window.guidcySubmitHelpTicket=window.ghelpSubmitTicket;
+  window.guidcyCheckTicket=window.ghelpTrackTicket;
+  window.guidcySubmitDispute=window.gdispSubmit;
+  window.guidcyCheckDispute=window.gdispTrack;
+
+  function closePublicMobileMenu(){
+    try{document.body.classList.remove('menu-open','gmob-open')}catch(e){}
+    ['gmob-overlay','guidcy-mob-overlay'].forEach(function(i){var x=el(i); if(x){x.classList.remove('on','open'); x.style.display='none';}});
+    ['gmob-drawer','guidcy-mob-drawer'].forEach(function(i){var x=el(i); if(x){x.classList.remove('on','open');}});
+    var b=el('mobile-burger'); if(b)b.classList.remove('on');
+  }
+  var oldGo=window.go;
+  window.go=function(page){
+    var r=oldGo?oldGo.apply(this,arguments):undefined;
+    if(page==='help'||page==='dispute')setTimeout(closePublicMobileMenu,30);
+    return r;
+  };
+})();
+</script>
+<!-- /GUIDCY HELP + DISPUTE MOBILE FUNCTIONALITY FIX ONLY -->
+
