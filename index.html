@@ -2128,7 +2128,12 @@ function getPageFromPath(){
     '/disclaimer':'disclaimer','/disclaimer.html':'disclaimer',
     '/dashboard':'user-dash','/dashboard.html':'user-dash',
     '/consultant-dashboard':'cons-dash','/consultant-dashboard.html':'cons-dash',
-    '/admin':'admin-dash','/admin.html':'admin-dash'
+    '/admin':'admin-dash','/admin.html':'admin-dash',
+    '/help-center':'help','/help-center.html':'help','/help':'help',
+    '/dispute-resolution':'dispute','/dispute-resolution.html':'dispute','/dispute':'dispute',
+    '/webinars':'webinar','/webinars.html':'webinar',
+    '/jobs':'jobs','/jobs.html':'jobs',
+    '/smart-finder':'smart-finder','/smart-finder.html':'smart-finder'
   };
   if(map[p]) return map[p];
   const h=(window.location.hash||'').replace('#','');
@@ -2138,7 +2143,9 @@ const PAGE_URLS={
   home:'/', browse:'/browse', login:'/login', signup:'/signup', categories:'/categories', blog:'/blog',
   become:'/become-a-consultant', about:'/about', contact:'/contact', faq:'/faq',
   terms:'/terms', privacy:'/privacy', refund:'/refund', disclaimer:'/disclaimer',
-  'user-dash':'/dashboard', 'cons-dash':'/consultant-dashboard', 'admin-dash':'/admin'
+  'user-dash':'/dashboard', 'cons-dash':'/consultant-dashboard', 'admin-dash':'/admin',
+  help:'/help-center', dispute:'/dispute-resolution',
+  webinar:'/webinars', jobs:'/jobs', 'smart-finder':'/smart-finder'
 };
 function renderPage(page){
   closeMobileMenu();
@@ -5679,7 +5686,7 @@ cancelBooking=async function(bookingId,role){
   window.CATEGORIES_FULL=MAIN_CATEGORIES;
   function gid(id){return document.getElementById(id)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash'};return map[p]||'home'}
+  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash','/help-center':'help','/help':'help','/dispute-resolution':'dispute','/dispute':'dispute','/webinars':'webinar','/smart-finder':'smart-finder'};return map[p]||'home'}
   window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {home:'/',browse:'/browse',jobs:'/jobs',login:'/login',signup:'/signup',categories:'/categories',become:'/become',blog:'/blog',about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer','user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin'});
   function ensureJobs(){if(gid('page-jobs'))return;const div=document.createElement('div');div.id='page-jobs';div.className='page';div.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Jobs</h1><p style="color:var(--muted);margin-bottom:26px">Find consultation, freelance, and expert opportunities on Guidcy.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('become');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Browse consultants</button></div><div class="benefit-grid"><div class="benefit-card"><span class="benefit-icon">🧑‍💼</span><div class="benefit-title">Consulting opportunities</div><div class="benefit-desc">Create your profile and start receiving session requests.</div></div><div class="benefit-card"><span class="benefit-icon">📈</span><div class="benefit-title">Grow your income</div><div class="benefit-desc">Set your own rates and availability.</div></div><div class="benefit-card"><span class="benefit-icon">✅</span><div class="benefit-title">Verified platform</div><div class="benefit-desc">Build credibility with ratings and reviews.</div></div></div></div>`;document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function ensureBlog(){if(gid('page-blog'))return;const div=document.createElement('div');div.id='page-blog';div.className='page';document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
@@ -9491,19 +9498,47 @@ body.gmob-open{overflow:hidden}
   const showToast=(m,t)=>{try{toast(m,t||'green')}catch(e){alert(m)}};
   function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
   function localSet(k,v){try{localStorage.setItem(k,JSON.stringify(v||[]))}catch(e){}}
+  // BUG FIX: safeInsert/safeSelect/safeUpdate/safeDelete now use supabaseRest (direct REST API) first.
+  // The supabase-js client (window.sb) is known to hang on mobile browsers — all booking writes
+  // already use supabaseRest for this reason. Help tickets and disputes now do the same.
   async function safeInsert(table,row){
-    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' insert failed, using local fallback:',error?.message);}
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok){const d=Array.isArray(r.data)?r.data[0]:r.data;if(d)return d;}
+        if(r&&!r.ok)console.warn(table+' REST insert failed (status '+r.status+'):',r.raw);
+      }catch(e){console.warn(table+' REST insert exception:',e);}
+    }
+    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' sb insert failed:',error?.message);}
     return null;
   }
   async function safeSelect(table,cols='*'){
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select='+encodeURIComponent(cols)+'&order=created_at.desc',{method:'GET',timeoutMs:25000});
+        if(r&&r.ok&&Array.isArray(r.data))return r.data;
+      }catch(e){console.warn(table+' REST select exception:',e);}
+    }
     if(window.sb){const {data,error}=await sb.from(table).select(cols).order('created_at',{ascending:false}); if(!error) return data||[]; console.warn(table+' fetch failed:',error?.message);}
     return null;
   }
   async function safeUpdate(table,rowId,patch){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'PATCH',body:{...patch,updated_at:nowISO()},prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST update exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).update({...patch,updated_at:nowISO()}).eq('id',rowId); if(!error)return true; console.warn(table+' update failed:',error?.message);}
     return false;
   }
   async function safeDelete(table,rowId){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'DELETE',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST delete exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).delete().eq('id',rowId); if(!error)return true; console.warn(table+' delete failed:',error?.message);}
     return false;
   }
@@ -10172,7 +10207,7 @@ body.gmob-open{overflow:hidden}
     if(!isOpen){el.classList.add('open');a.classList.add('open');arrow?.classList.add('open');}
   };
 
-  window.ghelpSubmitTicket=function(){
+  window.ghelpSubmitTicket=async function(){
     const name=id('ghelp-name')?.value?.trim()||'';
     const email=id('ghelp-email')?.value?.trim()||'';
     const topic=id('ghelp-topic')?.value||'';
@@ -10180,16 +10215,22 @@ body.gmob-open{overflow:hidden}
     const msg=id('ghelp-msg')?.value?.trim()||'';
     if(!email||!msg){try{toast('Please enter your email and describe your issue','red')}catch(e){}return}
     const tid='HLP-'+Date.now().toString().slice(-6);
-    const ticket={id:tid,name,email,topic,priority,msg,status:'Open',date:new Date().toLocaleString('en-IN')};
-    const arr=getTickets();arr.unshift(ticket);saveTickets(arr);
+    const row={ticket_code:tid,name,email,topic,priority,message:msg,status:'Open',admin_comment:'',created_by:window.currentUser?.id||null};
+    let savedToCloud=false;
+    if(typeof window.supabaseRest==='function'){
+      try{const r=await window.supabaseRest('support_tickets?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});if(r&&r.ok)savedToCloud=true;else console.warn('help ticket REST insert failed:',r?.status,r?.raw);}catch(e){console.warn('help ticket REST exception:',e);}
+    }
+    if(!savedToCloud&&window.sb){
+      try{const {error}=await sb.from('support_tickets').insert(row);if(!error)savedToCloud=true;else console.warn('help ticket sb insert failed:',error?.message);}catch(e){}
+    }
+    if(!savedToCloud){const arr=getTickets();arr.unshift({id:tid,...row,date:new Date().toLocaleString('en-IN')});saveTickets(arr);}
     const out=id('ghelp-ticket-out');
     if(out){
       out.innerHTML='<strong>✓ Ticket submitted successfully</strong><br><br>'
         +'<strong>Ticket ID:</strong> '+esc(tid)+'<br>'
         +'<strong>Topic:</strong> '+esc(topic)+'<br>'
         +'<strong>Priority:</strong> '+esc(priority)+'<br>'
-        +'<strong>Status:</strong> Open<br>'
-        +'<strong>Submitted:</strong> '+esc(ticket.date)+'<br><br>'
+        +'<strong>Status:</strong> Open<br><br>'
         +'Save your Ticket ID to track status. We\'ll respond within 4 hours.';
       out.classList.add('on');
     }
@@ -10222,7 +10263,7 @@ body.gmob-open{overflow:hidden}
   };
 
   // ── Dispute Resolution JS ──
-  window.gdispSubmit=function(){
+  window.gdispSubmit=async function(){
     const name=id('gdisp-name')?.value?.trim()||'';
     const email=id('gdisp-email')?.value?.trim()||'';
     const booking=id('gdisp-booking')?.value?.trim()||'';
@@ -10232,16 +10273,22 @@ body.gmob-open{overflow:hidden}
     const details=id('gdisp-details')?.value?.trim()||'';
     if(!email||!details){try{toast('Please enter your email and describe the dispute','red')}catch(e){}return}
     const did='DSP-'+Date.now().toString().slice(-6);
-    const dispute={id:did,name,email,booking,consultant,type,resolution,details,status:'Under Review',date:new Date().toLocaleString('en-IN')};
-    const arr=getDisputes();arr.unshift(dispute);saveDisputes(arr);
+    const row={dispute_code:did,name,email,booking_reference:booking,consultant_name:consultant,issue_type:type,preferred_resolution:resolution,details,status:'Under Review',admin_comment:'',created_by:window.currentUser?.id||null};
+    let savedToCloud=false;
+    if(typeof window.supabaseRest==='function'){
+      try{const r=await window.supabaseRest('disputes?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});if(r&&r.ok)savedToCloud=true;else console.warn('dispute REST insert failed:',r?.status,r?.raw);}catch(e){console.warn('dispute REST exception:',e);}
+    }
+    if(!savedToCloud&&window.sb){
+      try{const {error}=await sb.from('disputes').insert(row);if(!error)savedToCloud=true;else console.warn('dispute sb insert failed:',error?.message);}catch(e){}
+    }
+    if(!savedToCloud){const arr=getDisputes();arr.unshift({id:did,...row,date:new Date().toLocaleString('en-IN')});saveDisputes(arr);}
     const out=id('gdisp-submit-out');
     if(out){
       out.innerHTML='<strong>✓ Dispute submitted successfully</strong><br><br>'
         +'<strong>Dispute ID:</strong> '+esc(did)+'<br>'
         +'<strong>Issue:</strong> '+esc(type)+'<br>'
         +'<strong>Preferred resolution:</strong> '+esc(resolution)+'<br>'
-        +'<strong>Status:</strong> Under Review<br>'
-        +'<strong>Submitted:</strong> '+esc(dispute.date)+'<br><br>'
+        +'<strong>Status:</strong> Under Review<br><br>'
         +'Save your Dispute ID to track your case. Our trust &amp; safety team will review within 3 business days.<br>'
         +'For escalation: <strong>escalate@guidcy.com</strong>';
       out.classList.add('on');
@@ -10969,19 +11016,47 @@ body.gmob-open{overflow:hidden}
   const showToast=(m,t)=>{try{toast(m,t||'green')}catch(e){alert(m)}};
   function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
   function localSet(k,v){try{localStorage.setItem(k,JSON.stringify(v||[]))}catch(e){}}
+  // BUG FIX: safeInsert/safeSelect/safeUpdate/safeDelete now use supabaseRest (direct REST API) first.
+  // The supabase-js client (window.sb) is known to hang on mobile browsers — all booking writes
+  // already use supabaseRest for this reason. Help tickets and disputes now do the same.
   async function safeInsert(table,row){
-    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' insert failed, using local fallback:',error?.message);}
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok){const d=Array.isArray(r.data)?r.data[0]:r.data;if(d)return d;}
+        if(r&&!r.ok)console.warn(table+' REST insert failed (status '+r.status+'):',r.raw);
+      }catch(e){console.warn(table+' REST insert exception:',e);}
+    }
+    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' sb insert failed:',error?.message);}
     return null;
   }
   async function safeSelect(table,cols='*'){
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select='+encodeURIComponent(cols)+'&order=created_at.desc',{method:'GET',timeoutMs:25000});
+        if(r&&r.ok&&Array.isArray(r.data))return r.data;
+      }catch(e){console.warn(table+' REST select exception:',e);}
+    }
     if(window.sb){const {data,error}=await sb.from(table).select(cols).order('created_at',{ascending:false}); if(!error) return data||[]; console.warn(table+' fetch failed:',error?.message);}
     return null;
   }
   async function safeUpdate(table,rowId,patch){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'PATCH',body:{...patch,updated_at:nowISO()},prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST update exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).update({...patch,updated_at:nowISO()}).eq('id',rowId); if(!error)return true; console.warn(table+' update failed:',error?.message);}
     return false;
   }
   async function safeDelete(table,rowId){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'DELETE',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST delete exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).delete().eq('id',rowId); if(!error)return true; console.warn(table+' delete failed:',error?.message);}
     return false;
   }
@@ -11133,290 +11208,3 @@ body.gmob-open{overflow:hidden}
   setTimeout(addAdminButtons,900);
 })();
 </script>
-<!-- === GUIDCY MOBILE SUPABASE SAVE FIX: Help/Dispute must save to Supabase, not local-only === -->
-<script>
-(function(){
-  const $id = (x) => document.getElementById(x);
-  const _esc = (s) => String(s == null ? '' : s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  const _toast = (m,t) => { try { toast(m,t || 'green'); } catch(e) { alert(m); } };
-  const _now = () => new Date().toISOString();
-  const _code = (prefix) => prefix + '-' + Date.now().toString().slice(-6) + Math.floor(Math.random()*90+10);
-
-  function _cfg(){
-    return window.CFG || (typeof CFG !== 'undefined' ? CFG : null);
-  }
-
-  function _ensureSupabaseClient(){
-    const cfg = _cfg();
-    if(window.sb) return window.sb;
-    try{
-      if(window.supabase && cfg && cfg.supabase_url && cfg.supabase_key){
-        window.sb = window.supabase.createClient(cfg.supabase_url, cfg.supabase_key, {
-          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-        });
-        return window.sb;
-      }
-    }catch(e){ console.warn('Guidcy Supabase client create failed:', e); }
-    return null;
-  }
-
-  async function _sessionToken(){
-    try{
-      const client = _ensureSupabaseClient();
-      if(client && client.auth && client.auth.getSession){
-        const { data } = await client.auth.getSession();
-        if(data && data.session && data.session.access_token) return data.session.access_token;
-      }
-    }catch(e){}
-    return (_cfg() && _cfg().supabase_key) || '';
-  }
-
-  async function _rest(table, method, body, query){
-    const cfg = _cfg();
-    if(!cfg || !cfg.supabase_url || !cfg.supabase_key){
-      throw new Error('Supabase URL/key missing in CFG.');
-    }
-    const token = await _sessionToken();
-    const url = cfg.supabase_url.replace(/\/$/,'') + '/rest/v1/' + table + (query || '');
-    const headers = {
-      'apikey': cfg.supabase_key,
-      'Authorization': 'Bearer ' + (token || cfg.supabase_key),
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    };
-    const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-    const txt = await res.text();
-    let data = null;
-    try { data = txt ? JSON.parse(txt) : null; } catch(e) { data = txt; }
-    if(!res.ok){
-      const msg = (data && (data.message || data.error || data.details)) || txt || ('HTTP ' + res.status);
-      throw new Error(msg);
-    }
-    return Array.isArray(data) ? data : (data ? [data] : []);
-  }
-
-  async function _insertSupabase(table, row){
-    const client = _ensureSupabaseClient();
-    let lastError = null;
-
-    if(client){
-      try{
-        const { data, error } = await client.from(table).insert(row).select().single();
-        if(error) throw error;
-        return data;
-      }catch(e){ lastError = e; console.warn('Supabase-js insert failed, retrying REST:', e && e.message ? e.message : e); }
-    }
-
-    try{
-      const rows = await _rest(table, 'POST', row, '');
-      return rows && rows[0] ? rows[0] : row;
-    }catch(e){
-      lastError = e;
-      console.error('Supabase REST insert failed:', e && e.message ? e.message : e);
-    }
-    throw lastError || new Error('Unable to save to Supabase.');
-  }
-
-  async function _selectSupabase(table, query){
-    const client = _ensureSupabaseClient();
-    if(client){
-      try{
-        let q = client.from(table).select('*').order('created_at', { ascending:false });
-        if(query && query.or) q = q.or(query.or);
-        if(query && query.limit) q = q.limit(query.limit);
-        const { data, error } = await q;
-        if(error) throw error;
-        return data || [];
-      }catch(e){ console.warn('Supabase-js select failed, retrying REST:', e && e.message ? e.message : e); }
-    }
-    let restQuery = '?select=*&order=created_at.desc';
-    if(query && query.or) restQuery += '&or=(' + encodeURIComponent(query.or).replace(/%2C/g, ',') + ')';
-    if(query && query.limit) restQuery += '&limit=' + encodeURIComponent(query.limit);
-    return await _rest(table, 'GET', null, restQuery);
-  }
-
-  async function _updateSupabase(table, id, patch){
-    const body = Object.assign({}, patch, { updated_at: _now() });
-    const client = _ensureSupabaseClient();
-    if(client){
-      try{
-        const { error } = await client.from(table).update(body).eq('id', id);
-        if(error) throw error;
-        return true;
-      }catch(e){ console.warn('Supabase-js update failed, retrying REST:', e && e.message ? e.message : e); }
-    }
-    await _rest(table, 'PATCH', body, '?id=eq.' + encodeURIComponent(id));
-    return true;
-  }
-
-  async function _deleteSupabase(table, id){
-    const client = _ensureSupabaseClient();
-    if(client){
-      try{
-        const { error } = await client.from(table).delete().eq('id', id);
-        if(error) throw error;
-        return true;
-      }catch(e){ console.warn('Supabase-js delete failed, retrying REST:', e && e.message ? e.message : e); }
-    }
-    await _rest(table, 'DELETE', null, '?id=eq.' + encodeURIComponent(id));
-    return true;
-  }
-
-  function _setBusy(btn, busy, text){
-    if(!btn) return;
-    if(busy){ btn.dataset.oldText = btn.textContent; btn.disabled = true; btn.textContent = text || 'Saving...'; }
-    else { btn.disabled = false; if(btn.dataset.oldText) btn.textContent = btn.dataset.oldText; }
-  }
-
-  window.ghelpSubmitTicket = async function(){
-    const btn = event && event.currentTarget ? event.currentTarget : null;
-    const name = $id('ghelp-name')?.value?.trim() || '';
-    const email = $id('ghelp-email')?.value?.trim() || '';
-    const topic = $id('ghelp-topic')?.value || 'General';
-    const priority = $id('ghelp-priority')?.value || 'Normal';
-    const msg = $id('ghelp-msg')?.value?.trim() || '';
-    if(!email || !/^\S+@\S+\.\S+$/.test(email)){ _toast('Please enter a valid email address','red'); return; }
-    if(!msg){ _toast('Please describe your issue','red'); return; }
-
-    const ticket_code = _code('HLP');
-    const row = { ticket_code, name, email, topic, priority, message: msg, status:'Open', admin_comment:'', created_by: window.currentUser?.id || null };
-    _setBusy(btn, true, 'Saving...');
-    try{
-      const saved = await _insertSupabase('support_tickets', row);
-      const finalCode = saved.ticket_code || ticket_code;
-      const out = $id('ghelp-ticket-out');
-      if(out){
-        out.innerHTML = '<strong>✓ Ticket submitted successfully</strong><br><br><strong>Ticket ID:</strong> '+_esc(finalCode)+'<br><strong>Topic:</strong> '+_esc(topic)+'<br><strong>Priority:</strong> '+_esc(priority)+'<br><strong>Status:</strong> Open<br><br>This ticket is saved in Supabase and visible in Admin Dashboard.';
-        out.classList.add('on');
-      }
-      ['ghelp-name','ghelp-email','ghelp-msg'].forEach(k=>{ const el=$id(k); if(el) el.value=''; });
-      _toast('Support ticket saved to Supabase','green');
-    }catch(e){
-      const out = $id('ghelp-ticket-out');
-      if(out){ out.innerHTML = '<strong>Ticket not saved</strong><br><br>Could not connect to Supabase from this device. Please check internet connection and Supabase RLS policy, then submit again.<br><br><small>'+_esc(e && e.message ? e.message : e)+'</small>'; out.classList.add('on'); }
-      _toast('Ticket was not saved to Supabase. Please try again.','red');
-    }finally{ _setBusy(btn, false); }
-  };
-
-  window.ghelpTrackTicket = async function(){
-    const key = ($id('ghelp-track-id')?.value || '').trim();
-    if(!key){ _toast('Enter your Ticket ID or registered email','red'); return; }
-    let t = null;
-    try{
-      const safeKey = key.replace(/[,()]/g,'');
-      const rows = await _selectSupabase('support_tickets', { or: 'ticket_code.ilike.'+safeKey+',email.ilike.'+safeKey, limit: 1 });
-      t = rows && rows[0] ? rows[0] : null;
-    }catch(e){ console.warn('Ticket track failed:', e && e.message ? e.message : e); }
-    const out = $id('ghelp-track-out');
-    if(out){
-      out.innerHTML = t ? '<strong>Ticket found</strong><br><br><strong>ID:</strong> '+_esc(t.ticket_code||t.id)+'<br><strong>Topic:</strong> '+_esc(t.topic)+'<br><strong>Status:</strong> '+_esc(t.status)+'<br><strong>Priority:</strong> '+_esc(t.priority||'Normal')+(t.admin_comment?'<br><strong>Admin comment:</strong> '+_esc(t.admin_comment):'') : 'No ticket found in Supabase matching that ID or email.';
-      out.classList.add('on');
-    }
-  };
-
-  window.gdispSubmit = async function(){
-    const btn = event && event.currentTarget ? event.currentTarget : null;
-    const name = $id('gdisp-name')?.value?.trim() || '';
-    const email = $id('gdisp-email')?.value?.trim() || '';
-    const booking = $id('gdisp-booking')?.value?.trim() || '';
-    const consultant = $id('gdisp-consultant')?.value?.trim() || '';
-    const type = $id('gdisp-type')?.value || 'Other';
-    const resolution = $id('gdisp-resolution')?.value || 'Review request';
-    const details = $id('gdisp-details')?.value?.trim() || '';
-    if(!email || !/^\S+@\S+\.\S+$/.test(email)){ _toast('Please enter a valid email address','red'); return; }
-    if(!details){ _toast('Please describe the dispute','red'); return; }
-
-    const dispute_code = _code('DSP');
-    const row = { dispute_code, name, email, booking_reference: booking, consultant_name: consultant, issue_type: type, preferred_resolution: resolution, details, status:'Under Review', admin_comment:'', created_by: window.currentUser?.id || null };
-    _setBusy(btn, true, 'Saving...');
-    try{
-      const saved = await _insertSupabase('disputes', row);
-      const finalCode = saved.dispute_code || dispute_code;
-      const out = $id('gdisp-submit-out');
-      if(out){
-        out.innerHTML = '<strong>✓ Dispute submitted successfully</strong><br><br><strong>Dispute ID:</strong> '+_esc(finalCode)+'<br><strong>Issue:</strong> '+_esc(type)+'<br><strong>Preferred resolution:</strong> '+_esc(resolution)+'<br><strong>Status:</strong> Under Review<br><br>This dispute is saved in Supabase and visible in Admin Dashboard.';
-        out.classList.add('on');
-      }
-      ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(k=>{ const el=$id(k); if(el) el.value=''; });
-      _toast('Dispute saved to Supabase','green');
-    }catch(e){
-      const out = $id('gdisp-submit-out');
-      if(out){ out.innerHTML = '<strong>Dispute not saved</strong><br><br>Could not connect to Supabase from this device. Please check internet connection and Supabase RLS policy, then submit again.<br><br><small>'+_esc(e && e.message ? e.message : e)+'</small>'; out.classList.add('on'); }
-      _toast('Dispute was not saved to Supabase. Please try again.','red');
-    }finally{ _setBusy(btn, false); }
-  };
-
-  window.gdispTrack = async function(){
-    const key = ($id('gdisp-track-id')?.value || '').trim();
-    if(!key){ _toast('Enter your Dispute ID or registered email','red'); return; }
-    let d = null;
-    try{
-      const safeKey = key.replace(/[,()]/g,'');
-      const rows = await _selectSupabase('disputes', { or: 'dispute_code.ilike.'+safeKey+',email.ilike.'+safeKey, limit: 1 });
-      d = rows && rows[0] ? rows[0] : null;
-    }catch(e){ console.warn('Dispute track failed:', e && e.message ? e.message : e); }
-    const out = $id('gdisp-track-out');
-    if(out){
-      out.innerHTML = d ? '<strong>Dispute found</strong><br><br><strong>ID:</strong> '+_esc(d.dispute_code||d.id)+'<br><strong>Issue type:</strong> '+_esc(d.issue_type)+'<br><strong>Preferred resolution:</strong> '+_esc(d.preferred_resolution)+'<br><strong>Status:</strong> '+_esc(d.status)+(d.admin_comment?'<br><strong>Admin comment:</strong> '+_esc(d.admin_comment):'') : 'No dispute found in Supabase matching that ID or email.';
-      out.classList.add('on');
-    }
-  };
-
-  window.guidcySubmitHelpTicket = window.ghelpSubmitTicket;
-  window.guidcyCheckTicket = window.ghelpTrackTicket;
-  window.guidcySubmitDispute = window.gdispSubmit;
-  window.guidcyCheckDispute = window.gdispTrack;
-
-  const prevSwADMobileFix = window.swAD;
-  window.swAD = function(view, btn){
-    if(view === 'support' || view === 'disputes'){
-      if(btn){ try{ document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); closeDashMenu('admin'); }catch(e){} }
-      const main = $id('adash-main'); if(!main) return;
-      const table = view === 'support' ? 'support_tickets' : 'disputes';
-      const title = view === 'support' ? 'Support Tickets' : 'Dispute Resolution Cases';
-      main.innerHTML = '<div class="dash-title">'+title+'</div><div style="color:var(--muted);padding:16px">Loading Supabase data...</div>';
-      _selectSupabase(table).then(rows => {
-        const active = rows.filter(x => !['Resolved','Closed','Rejected','Deleted'].includes(String(x.status||''))).length;
-        main.innerHTML = '<div class="dash-title">'+title+'</div>'+
-          '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"><div class="gadmin-mini-stat"><strong>'+rows.length+'</strong><span>Total</span></div><div class="gadmin-mini-stat"><strong>'+active+'</strong><span>Active</span></div></div>'+
-          '<div class="gadmin-case-toolbar"><button class="btn" onclick="swAD(\''+view+'\',null)">Refresh</button></div>'+
-          (rows.length ? rows.map(r => _caseHtml(table, r, view === 'support' ? 'ticket' : 'dispute')).join('') : '<div class="gadmin-case-card" style="text-align:center;color:var(--muted);padding:28px">No records found in Supabase</div>');
-      }).catch(e => {
-        main.innerHTML = '<div class="dash-title">'+title+'</div><div class="gadmin-case-card" style="color:#B91C1C">Could not load Supabase data.<br><small>'+_esc(e && e.message ? e.message : e)+'</small></div>';
-      });
-      return;
-    }
-    return prevSwADMobileFix ? prevSwADMobileFix(view, btn) : undefined;
-  };
-
-  function _caseHtml(table, r, type){
-    const uid = _esc(r.id || r.ticket_code || r.dispute_code);
-    const code = type === 'ticket' ? (r.ticket_code || r.id) : (r.dispute_code || r.id);
-    const title = type === 'ticket' ? (r.topic || 'Support ticket') : (r.issue_type || 'Dispute case');
-    const body = type === 'ticket' ? (r.message || r.msg || '') : (r.details || '');
-    const extra = type === 'ticket' ? 'Priority: '+_esc(r.priority || 'Normal') : 'Booking: '+_esc(r.booking_reference || '—')+' · Consultant: '+_esc(r.consultant_name || '—')+' · Expected: '+_esc(r.preferred_resolution || '—');
-    const statuses = type === 'ticket' ? ['Open','In Progress','Waiting for User','Resolved','Closed'] : ['Under Review','Need More Info','Refund Review','Resolved','Rejected','Closed'];
-    return '<div class="gadmin-case-card" id="case-'+uid+'"><div class="gadmin-case-head"><div><div class="gadmin-case-code">'+_esc(code)+'</div><div class="gadmin-case-title">'+_esc(title)+'</div><div class="gadmin-case-meta">'+_esc(r.name||'Anonymous')+' · '+_esc(r.email||'—')+'<br>'+extra+'<br>Created: '+_esc(r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '—')+'</div></div><div><span class="status-pill sp-pending">'+_esc(r.status||'Open')+'</span></div></div><div class="gadmin-case-body">'+_esc(body)+'</div>'+(r.admin_comment?'<div class="ghelp-note" style="margin:10px 0"><strong>Admin comment:</strong> '+_esc(r.admin_comment)+'</div>':'')+'<div class="gadmin-case-controls"><select id="st-'+uid+'">'+statuses.map(s=>'<option value="'+_esc(s)+'" '+(String(r.status||'')===s?'selected':'')+'>'+_esc(s)+'</option>').join('')+'</select><textarea id="cm-'+uid+'" placeholder="Admin comment / update">'+_esc(r.admin_comment||'')+'</textarea><button class="btn btn-blue" onclick="gadminUpdateCase(\''+table+'\',\''+uid+'\',\''+type+'\')">Update</button><button class="btn" onclick="gadminResolveCase(\''+table+'\',\''+uid+'\',\''+type+'\')">Resolve</button><button class="btn" style="color:#B91C1C;border-color:#FCA5A5;background:#FEF2F2" onclick="gadminDeleteCase(\''+table+'\',\''+uid+'\',\''+type+'\')">Delete</button></div></div>';
-  }
-
-  window.gadminUpdateCase = async function(table, rowId, type){
-    const st = $id('st-'+CSS.escape(rowId))?.value || '';
-    const cm = $id('cm-'+CSS.escape(rowId))?.value || '';
-    try{ await _updateSupabase(table, rowId, { status: st, admin_comment: cm }); _toast('Case updated in Supabase','green'); window.swAD(type === 'ticket' ? 'support' : 'disputes', null); }
-    catch(e){ _toast('Could not update Supabase','red'); }
-  };
-  window.gadminResolveCase = async function(table, rowId, type){
-    const cm = $id('cm-'+CSS.escape(rowId))?.value || 'Resolved by admin';
-    try{ await _updateSupabase(table, rowId, { status:'Resolved', admin_comment: cm, resolved_at: _now() }); _toast('Marked resolved in Supabase','green'); window.swAD(type === 'ticket' ? 'support' : 'disputes', null); }
-    catch(e){ _toast('Could not resolve in Supabase','red'); }
-  };
-  window.gadminDeleteCase = async function(table, rowId, type){
-    if(!confirm('Delete this case permanently from Supabase?')) return;
-    try{ await _deleteSupabase(table, rowId); _toast('Deleted from Supabase','green'); window.swAD(type === 'ticket' ? 'support' : 'disputes', null); }
-    catch(e){ _toast('Could not delete from Supabase','red'); }
-  };
-
-  setTimeout(_ensureSupabaseClient, 250);
-})();
-</script>
-
