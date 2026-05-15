@@ -9491,19 +9491,47 @@ body.gmob-open{overflow:hidden}
   const showToast=(m,t)=>{try{toast(m,t||'green')}catch(e){alert(m)}};
   function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
   function localSet(k,v){try{localStorage.setItem(k,JSON.stringify(v||[]))}catch(e){}}
+  // BUG FIX: safeInsert/safeSelect/safeUpdate/safeDelete now use supabaseRest (direct REST API) first.
+  // The supabase-js client (window.sb) is known to hang on mobile browsers — all booking writes
+  // already use supabaseRest for this reason. Help tickets and disputes now do the same.
   async function safeInsert(table,row){
-    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' insert failed, using local fallback:',error?.message);}
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok){const d=Array.isArray(r.data)?r.data[0]:r.data;if(d)return d;}
+        if(r&&!r.ok)console.warn(table+' REST insert failed (status '+r.status+'):',r.raw);
+      }catch(e){console.warn(table+' REST insert exception:',e);}
+    }
+    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' sb insert failed:',error?.message);}
     return null;
   }
   async function safeSelect(table,cols='*'){
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select='+encodeURIComponent(cols)+'&order=created_at.desc',{method:'GET',timeoutMs:25000});
+        if(r&&r.ok&&Array.isArray(r.data))return r.data;
+      }catch(e){console.warn(table+' REST select exception:',e);}
+    }
     if(window.sb){const {data,error}=await sb.from(table).select(cols).order('created_at',{ascending:false}); if(!error) return data||[]; console.warn(table+' fetch failed:',error?.message);}
     return null;
   }
   async function safeUpdate(table,rowId,patch){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'PATCH',body:{...patch,updated_at:nowISO()},prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST update exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).update({...patch,updated_at:nowISO()}).eq('id',rowId); if(!error)return true; console.warn(table+' update failed:',error?.message);}
     return false;
   }
   async function safeDelete(table,rowId){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'DELETE',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST delete exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).delete().eq('id',rowId); if(!error)return true; console.warn(table+' delete failed:',error?.message);}
     return false;
   }
@@ -10969,19 +10997,47 @@ body.gmob-open{overflow:hidden}
   const showToast=(m,t)=>{try{toast(m,t||'green')}catch(e){alert(m)}};
   function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
   function localSet(k,v){try{localStorage.setItem(k,JSON.stringify(v||[]))}catch(e){}}
+  // BUG FIX: safeInsert/safeSelect/safeUpdate/safeDelete now use supabaseRest (direct REST API) first.
+  // The supabase-js client (window.sb) is known to hang on mobile browsers — all booking writes
+  // already use supabaseRest for this reason. Help tickets and disputes now do the same.
   async function safeInsert(table,row){
-    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' insert failed, using local fallback:',error?.message);}
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok){const d=Array.isArray(r.data)?r.data[0]:r.data;if(d)return d;}
+        if(r&&!r.ok)console.warn(table+' REST insert failed (status '+r.status+'):',r.raw);
+      }catch(e){console.warn(table+' REST insert exception:',e);}
+    }
+    if(window.sb){const {data,error}=await sb.from(table).insert(row).select().single(); if(!error) return data; console.warn(table+' sb insert failed:',error?.message);}
     return null;
   }
   async function safeSelect(table,cols='*'){
+    if(typeof window.supabaseRest==='function'){
+      try{
+        const r=await window.supabaseRest(table+'?select='+encodeURIComponent(cols)+'&order=created_at.desc',{method:'GET',timeoutMs:25000});
+        if(r&&r.ok&&Array.isArray(r.data))return r.data;
+      }catch(e){console.warn(table+' REST select exception:',e);}
+    }
     if(window.sb){const {data,error}=await sb.from(table).select(cols).order('created_at',{ascending:false}); if(!error) return data||[]; console.warn(table+' fetch failed:',error?.message);}
     return null;
   }
   async function safeUpdate(table,rowId,patch){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'PATCH',body:{...patch,updated_at:nowISO()},prefer:'return=representation',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST update exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).update({...patch,updated_at:nowISO()}).eq('id',rowId); if(!error)return true; console.warn(table+' update failed:',error?.message);}
     return false;
   }
   async function safeDelete(table,rowId){
+    if(typeof window.supabaseRest==='function'&&rowId){
+      try{
+        const r=await window.supabaseRest(table+'?id=eq.'+encodeURIComponent(rowId),{method:'DELETE',timeoutMs:25000});
+        if(r&&r.ok)return true;
+      }catch(e){console.warn(table+' REST delete exception:',e);}
+    }
     if(window.sb&&rowId){const {error}=await sb.from(table).delete().eq('id',rowId); if(!error)return true; console.warn(table+' delete failed:',error?.message);}
     return false;
   }
