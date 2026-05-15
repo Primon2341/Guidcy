@@ -7166,7 +7166,33 @@ body.gmob-open{overflow:hidden}
 
 <div class="wbn-wrap">
 
-  <div id="wbn-publish-topbar" style="display:none;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-blue" onclick="wbnShowPublisher()" style="padding:11px 24px">+ Publish a webinar</button></div>
+  <div id="wbn-publish-topbar" style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-blue" onclick="wbnShowPublisher()" style="padding:11px 24px">+ Publish a webinar</button></div>
+
+  <!-- Login-required modal for webinar publishing -->
+  <div id="wbn-login-required-modal" style="display:none;position:fixed;inset:0;background:rgba(10,20,40,.55);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#fff;border-radius:24px;max-width:440px;width:92%;box-shadow:0 32px 80px rgba(0,0,0,.22);overflow:hidden;animation:wbnModalIn .25s cubic-bezier(.34,1.56,.64,1)">
+      <div style="background:linear-gradient(135deg,#0D1B2A 0%,#1E3A5F 55%,#1E72BE 100%);padding:32px 32px 24px;position:relative;text-align:center">
+        <button onclick="document.getElementById('wbn-login-required-modal').style.display='none'" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.12);border:none;color:#fff;font-size:18px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+        <div style="font-size:44px;margin-bottom:12px">🔐</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:500;color:#fff;line-height:1.2;margin-bottom:8px">Registration Required</div>
+        <div style="font-size:13px;color:#94A3B8">Only registered members can publish webinars on Guidcy</div>
+      </div>
+      <div style="padding:28px 32px 32px;text-align:center">
+        <div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:14px;padding:16px 20px;margin-bottom:22px;text-align:left">
+          <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px">Why sign up?</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            ✅ &nbsp;Publish &amp; manage your own webinars<br>
+            ✅ &nbsp;Only you and admin can edit or delete your webinars<br>
+            ✅ &nbsp;Reach thousands of learners on Guidcy<br>
+            ✅ &nbsp;Free to get started — no upfront cost
+          </div>
+        </div>
+        <button onclick="document.getElementById('wbn-login-required-modal').style.display='none';window.go&&go('signup')" style="width:100%;padding:13px 28px;background:var(--blue);color:#fff;border:none;border-radius:100px;font-size:15px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;margin-bottom:10px;transition:background .15s" onmouseover="this.style.background='#155A99'" onmouseout="this.style.background='var(--blue)'">Get Started — It's Free →</button>
+        <button onclick="document.getElementById('wbn-login-required-modal').style.display='none';window.go&&go('login')" style="width:100%;padding:11px 28px;background:transparent;color:var(--ink2);border:1.5px solid var(--border);border-radius:100px;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">Already have an account? Sign in</button>
+      </div>
+    </div>
+  </div>
+  <style>@keyframes wbnModalIn{from{opacity:0;transform:scale(.88) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}</style>
 
   <!-- Hero -->
   <div class="wbn-hero">
@@ -10618,16 +10644,25 @@ body.gmob-open{overflow:hidden}
     var publisher=isWebinarPublisher(),admin=isAdmin();
     var ap=byId('wbn-admin-panel'),rp=byId('wbn-registrations-panel'),tb=byId('wbn-publish-topbar'),cb=byId('wbn-clear-btn'),bd=byId('wbn-publisher-badge');
     if(ap)ap.style.display='none';
-    if(tb)tb.style.display=publisher?'flex':'none';
+    // Always show the publish topbar so everyone can see the button
+    if(tb)tb.style.display='flex';
     if(cb)cb.style.display=admin?'inline-flex':'none';
     if(bd)bd.textContent=admin?'Admin / Consultant publishing':'Consultant publishing';
     if(rp){rp.style.display=admin?'block':'none';if(admin)window.wbnRenderRegs&&window.wbnRenderRegs();}
   };
 
+
   window.wbnShowPublisher=function(){
-    if(!isWebinarPublisher()){showToast('Please log in as a registered consultant to publish a webinar.','red');return;}
+    var loggedInNow=!!(window.loggedIn||window.currentUser||(window.currentProfile&&window.currentProfile.role));
+    if(!loggedInNow||!isWebinarPublisher()){
+      var modal=document.getElementById('wbn-login-required-modal');
+      if(modal){modal.style.display='flex';return;}
+    }
     var ap=byId('wbn-admin-panel'); if(ap){ap.style.display='block'; ap.scrollIntoView({behavior:'smooth',block:'start'});}
   };
+
+
+
 
   window.wbnTogglePriceBox=function(){
     var t=tv('wbn-pub-price-type')||'free'; var box=byId('wbn-pub-price-box'); if(box)box.style.display=(t==='paid')?'block':'none';
