@@ -7300,38 +7300,30 @@ body.gmob-open{overflow:hidden}
   </div>
 </div>
 
-<!-- ── Login-Required Modal (Publish Webinar) ── -->
+<!-- ── Webinar: Login-Required Popup Modal ── -->
 <div class="wbn-modal-overlay" id="wbn-login-required-modal" onclick="if(event.target===this)wbnCloseLoginModal()">
-  <div class="wbn-modal" style="max-width:440px">
-    <div class="wbn-modal-header" style="padding:32px 28px 22px;text-align:center">
+  <div class="wbn-modal" style="max-width:440px;text-align:center">
+    <div class="wbn-modal-header" style="padding:30px 28px 22px;background:linear-gradient(135deg,#0D1B2A,#1E3A5F)">
       <button class="wbn-modal-close" onclick="wbnCloseLoginModal()">✕</button>
-      <div style="font-size:44px;margin-bottom:12px">🔒</div>
-      <div class="wbn-modal-title" style="font-size:22px;line-height:1.3">Only registered users<br>can publish a webinar</div>
-      <div class="wbn-modal-subtitle" style="margin-top:8px;font-size:13px;line-height:1.65">
-        Create a free consultant account to publish, edit, and manage your own webinars. Admins can manage all webinars.
-      </div>
+      <div style="font-size:42px;margin-bottom:10px">🔒</div>
+      <div class="wbn-modal-title" style="font-size:22px">Registration Required</div>
+      <div class="wbn-modal-subtitle" style="margin-top:6px;line-height:1.65">Only registered consultants and admins can publish webinars on Guidcy.</div>
     </div>
-    <div class="wbn-modal-body" style="padding:8px 28px 28px;text-align:center">
-      <p style="font-size:13px;color:var(--ink2);line-height:1.75;margin-bottom:22px;background:var(--blue-l);border:1px solid var(--blue-m);border-radius:10px;padding:12px 14px">
-        Once you publish a webinar, <strong>only you or an admin</strong> will be able to edit or delete it.
+    <div class="wbn-modal-body" style="padding:24px 28px 28px">
+      <p style="font-size:14px;color:var(--ink2);line-height:1.8;margin-bottom:22px">
+        Create a free account as a <strong>consultant</strong> to publish webinars and manage them. Only you (or an admin) will be able to edit or delete webinars you publish.
       </p>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button
-          class="btn btn-blue"
-          onclick="wbnCloseLoginModal();go('signup');setTimeout(function(){try{swType('consultant')}catch(e){}},60)"
-          style="width:100%;padding:13px;font-size:14px;font-weight:600;border-radius:12px;letter-spacing:.01em">
+        <button class="btn btn-blue" style="padding:13px;font-size:14px;font-weight:600;border-radius:12px;width:100%"
+          onclick="wbnCloseLoginModal();go('signup');setTimeout(function(){try{swType('consultant')}catch(e){}},60)">
           Get started — it's free →
         </button>
-        <button
-          class="btn"
-          onclick="wbnCloseLoginModal();go('login')"
-          style="width:100%;padding:12px;font-size:13px;border-radius:12px">
+        <button class="btn" style="padding:12px;font-size:13px;border-radius:12px;width:100%"
+          onclick="wbnCloseLoginModal();go('login')">
           Already have an account? Sign in
         </button>
       </div>
-      <p style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6">
-        Signing up as a consultant gives you access to webinar publishing, session bookings, and your own professional profile.
-      </p>
+      <p style="font-size:11px;color:var(--muted);margin-top:14px">You can edit &amp; delete your own webinars after publishing. Admins can manage all webinars.</p>
     </div>
   </div>
 </div>
@@ -10654,7 +10646,7 @@ body.gmob-open{overflow:hidden}
     var publisher=isWebinarPublisher(),admin=isAdmin();
     var ap=byId('wbn-admin-panel'),rp=byId('wbn-registrations-panel'),tb=byId('wbn-publish-topbar'),cb=byId('wbn-clear-btn'),bd=byId('wbn-publisher-badge');
     if(ap)ap.style.display='none';
-    if(tb)tb.style.display='flex'; /* always visible — auth check happens on click */
+    if(tb)tb.style.display='flex'; /* always visible to everyone — login check is done at click time */
     if(cb)cb.style.display=admin?'inline-flex':'none';
     if(bd)bd.textContent=admin?'Admin / Consultant publishing':'Consultant publishing';
     if(rp){rp.style.display=admin?'block':'none';if(admin)window.wbnRenderRegs&&window.wbnRenderRegs();}
@@ -10662,12 +10654,14 @@ body.gmob-open{overflow:hidden}
 
   window.wbnShowPublisher=function(){
     if(!isWebinarPublisher()){
-      /* Open the login-required popup instead of a toast */
+      /* Guest / non-registered user — show login-required popup */
       var m=document.getElementById('wbn-login-required-modal');
       if(m) m.classList.add('on');
       return;
     }
-    var ap=byId('wbn-admin-panel'); if(ap){ap.style.display='block'; ap.scrollIntoView({behavior:'smooth',block:'start'});}
+    /* Logged-in consultant or admin — open the publish panel directly */
+    var ap=byId('wbn-admin-panel');
+    if(ap){ap.style.display='block'; ap.scrollIntoView({behavior:'smooth',block:'start'});}
   };
 
   window.wbnCloseLoginModal=function(){
