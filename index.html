@@ -2126,8 +2126,6 @@ function getPageFromPath(){
     '/privacy':'privacy','/privacy.html':'privacy',
     '/refund':'refund','/refund.html':'refund',
     '/disclaimer':'disclaimer','/disclaimer.html':'disclaimer',
-    '/help-center':'help','/help-centre':'help','/help':'help','/help.html':'help',
-    '/dispute-resolution':'dispute','/dispute':'dispute','/dispute.html':'dispute',
     '/dashboard':'user-dash','/dashboard.html':'user-dash',
     '/consultant-dashboard':'cons-dash','/consultant-dashboard.html':'cons-dash',
     '/admin':'admin-dash','/admin.html':'admin-dash'
@@ -2140,7 +2138,6 @@ const PAGE_URLS={
   home:'/', browse:'/browse', login:'/login', signup:'/signup', categories:'/categories', blog:'/blog',
   become:'/become-a-consultant', about:'/about', contact:'/contact', faq:'/faq',
   terms:'/terms', privacy:'/privacy', refund:'/refund', disclaimer:'/disclaimer',
-  help:'/help-center', dispute:'/dispute-resolution',
   'user-dash':'/dashboard', 'cons-dash':'/consultant-dashboard', 'admin-dash':'/admin'
 };
 function renderPage(page){
@@ -2149,8 +2146,6 @@ function renderPage(page){
   const el=document.getElementById('page-'+page); if(!el)return;
   el.classList.add('on'); window.scrollTo(0,0);
   ({home:initHome,browse:initBrowse,categories:initCategories,blog:renderGuidcyBlog,faq:initFAQ,
-    help:()=>{ try{ if(typeof renderInfoPages==='function') renderInfoPages('help'); } catch(e){} },
-    dispute:()=>{ try{ if(typeof renderInfoPages==='function') renderInfoPages('dispute'); } catch(e){} },
     'user-dash':()=>swUD('upcoming',null),
     'cons-dash':()=>swCD('overview',null),
     'admin-dash':()=>swAD('overview',null)
@@ -5684,8 +5679,8 @@ cancelBooking=async function(bookingId,role){
   window.CATEGORIES_FULL=MAIN_CATEGORIES;
   function gid(id){return document.getElementById(id)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/help-center':'help','/help-centre':'help','/help':'help','/dispute-resolution':'dispute','/dispute':'dispute','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash'};return map[p]||'home'}
-  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {home:'/',browse:'/browse',jobs:'/jobs',login:'/login',signup:'/signup',categories:'/categories',become:'/become',blog:'/blog',about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',help:'/help-center',dispute:'/dispute-resolution','user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin'});
+  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash'};return map[p]||'home'}
+  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {home:'/',browse:'/browse',jobs:'/jobs',login:'/login',signup:'/signup',categories:'/categories',become:'/become',blog:'/blog',about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer','user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin'});
   function ensureJobs(){if(gid('page-jobs'))return;const div=document.createElement('div');div.id='page-jobs';div.className='page';div.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Jobs</h1><p style="color:var(--muted);margin-bottom:26px">Find consultation, freelance, and expert opportunities on Guidcy.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('become');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Browse consultants</button></div><div class="benefit-grid"><div class="benefit-card"><span class="benefit-icon">🧑‍💼</span><div class="benefit-title">Consulting opportunities</div><div class="benefit-desc">Create your profile and start receiving session requests.</div></div><div class="benefit-card"><span class="benefit-icon">📈</span><div class="benefit-title">Grow your income</div><div class="benefit-desc">Set your own rates and availability.</div></div><div class="benefit-card"><span class="benefit-icon">✅</span><div class="benefit-title">Verified platform</div><div class="benefit-desc">Build credibility with ratings and reviews.</div></div></div></div>`;document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function ensureBlog(){if(gid('page-blog'))return;const div=document.createElement('div');div.id='page-blog';div.className='page';document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function renderBlog(){ensureBlog();const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');const role=(window.currentProfile&&currentProfile.role)||window.loggedIn||'';gid('page-blog').innerHTML=`<div style="max-width:1000px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Blog</h1><p style="color:var(--muted);margin-bottom:26px">Admin can publish blogs. Users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div>${posts.length?posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:16px"><h2 style="font-size:24px;margin-bottom:6px">${esc(p.title)}</h2><div style="font-size:12px;color:var(--muted);margin-bottom:14px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b">${esc(p.body)}</p><div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px"><h4 style="color:var(--blue);margin-bottom:10px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:13px">No comments yet.</p>'}<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:42px;border:1px solid var(--border);border-radius:12px;padding:0 12px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})">Comment</button></div></div></article>`).join(''):'<div style="background:#fff;border:1px dashed var(--border);border-radius:18px;padding:30px;color:var(--muted);text-align:center">No blog posts yet.</div>'}</div></div>`}
@@ -5697,7 +5692,7 @@ cancelBooking=async function(bookingId,role){
   const oldSwCD=window.swCD; if(oldSwCD) window.swCD=async function(v,b){const r=await oldSwCD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldUpdateNav=window.updateNav; window.updateNav=function(){try{oldUpdateNav&&oldUpdateNav()}catch(e){}setTimeout(refreshDashPhoto,30)};
   window.initCategories=async function(){const grid=gid('cats-full-grid');if(!grid)return;grid.innerHTML=MAIN_CATEGORIES.map(cat=>`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${esc(cat.name)}</div><div style="font-size:12px;color:var(--muted)">${cat.count.toLocaleString()} experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${esc(cat.name)}')">Browse all →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${esc(cat.name)}')" style="cursor:pointer">${esc(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`).join('')};
-  function renderClean(page){ensureJobs();ensureBlog();document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});const el=gid('page-'+page)||gid('page-home');el.classList.add('on');el.classList.add('active');window.scrollTo(0,0);if(page==='categories')window.initCategories();if(page==='blog')renderBlog();if(page==='jobs'){};if(page==='help'||page==='dispute'){try{if(typeof renderInfoPages==='function')renderInfoPages(page)}catch(e){}};try{({home:initHome,browse:initBrowse,faq:initFAQ,'user-dash':()=>swUD('upcoming',null),'cons-dash':()=>swCD('overview',null),'admin-dash':()=>swAD('overview',null)})[page]?.()}catch(e){console.warn(e)}try{closeMobileMenu()}catch(e){}setTimeout(refreshDashPhoto,80)}
+  function renderClean(page){ensureJobs();ensureBlog();document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});const el=gid('page-'+page)||gid('page-home');el.classList.add('on');window.scrollTo(0,0);if(page==='categories')window.initCategories();if(page==='blog')renderBlog();if(page==='jobs'){};try{({home:initHome,browse:initBrowse,faq:initFAQ,'user-dash':()=>swUD('upcoming',null),'cons-dash':()=>swCD('overview',null),'admin-dash':()=>swAD('overview',null)})[page]?.()}catch(e){console.warn(e)}try{closeMobileMenu()}catch(e){}setTimeout(refreshDashPhoto,80)}
   window.renderPage=renderClean;
   window.go=function(page){const url=(window.PAGE_URLS&&PAGE_URLS[page])||('/'+page);const cur=history.state&&history.state.page;if(cur!==page||location.pathname!==url)history.pushState({page},'',url);renderClean(page)};
   window.onpopstate=function(e){renderClean((e.state&&e.state.page)||pageForPath())};
@@ -9567,20 +9562,8 @@ body.gmob-open{overflow:hidden}
     if(!email||!details){showToast('Please enter your email and describe the dispute','red');return}
     const dispute_code=code('DSP');
     const row={dispute_code,name,email,booking_reference:booking,consultant_name:consultant,issue_type:type,preferred_resolution:resolution,details,status:'Under Review',admin_comment:'',created_by:window.currentUser?.id||null};
-    // Always persist to localStorage first as guaranteed backup
-    const arr=localGet('guidcy_disputes');arr.unshift({id:dispute_code,...row,date:new Date().toLocaleString('en-IN')});localSet('guidcy_disputes',arr);
-    // Try Supabase via sb client
-    let supabaseSaved=false;
-    try{const saved=await safeInsert('disputes',row);if(saved)supabaseSaved=true;}catch(e){console.warn('safeInsert failed:',e);}
-    // Fallback: try supabaseRest directly (works even when sb client is unavailable)
-    if(!supabaseSaved){
-      try{
-        const res=await supabaseRest('disputes?select=dispute_code',{method:'POST',body:row,prefer:'return=representation',timeoutMs:20000});
-        if(res&&res.ok)supabaseSaved=true;
-        else console.warn('supabaseRest disputes insert failed:',res?.raw||res?.status);
-      }catch(e){console.warn('supabaseRest dispute error:',e);}
-    }
-    console.log('Dispute',dispute_code,'supabaseSaved=',supabaseSaved);
+    const saved=await safeInsert('disputes',row);
+    if(!saved){const arr=localGet('guidcy_disputes');arr.unshift({id:dispute_code,...row,date:new Date().toLocaleString('en-IN')});localSet('guidcy_disputes',arr)}
     const out=id('gdisp-submit-out');
     if(out){out.innerHTML='<strong>✓ Dispute submitted successfully</strong><br><br><strong>Dispute ID:</strong> '+esc(dispute_code)+'<br><strong>Issue:</strong> '+esc(type)+'<br><strong>Preferred resolution:</strong> '+esc(resolution)+'<br><strong>Status:</strong> Under Review<br><br>Save this Dispute ID to track your case.';out.classList.add('on')}
     ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(k=>{const el=id(k);if(el)el.value=''});
@@ -9952,13 +9935,13 @@ body.gmob-open{overflow:hidden}
     if(page==='help'||page==='help-center'){
       document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});
       const el=document.getElementById('page-help'); if(el){el.classList.add('on');el.classList.add('active')}
-      try{history.pushState({page:'help'},'','/help-center')}catch(e){}
+      try{history.pushState(null,'','/help-center')}catch(e){}
       try{closeMobileMenu()}catch(e){}; try{closeMobDrawer()}catch(e){}; window.scrollTo(0,0); return;
     }
     if(page==='dispute'||page==='dispute-resolution'){
       document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});
       const el=document.getElementById('page-dispute'); if(el){el.classList.add('on');el.classList.add('active')}
-      try{history.pushState({page:'dispute'},'','/dispute-resolution')}catch(e){}
+      try{history.pushState(null,'','/dispute-resolution')}catch(e){}
       try{closeMobileMenu()}catch(e){}; try{closeMobDrawer()}catch(e){}; window.scrollTo(0,0); return;
     }
     return oldGo?oldGo(page):undefined;
@@ -10239,7 +10222,7 @@ body.gmob-open{overflow:hidden}
   };
 
   // ── Dispute Resolution JS ──
-  window.gdispSubmit=async function(){
+  window.gdispSubmit=function(){
     const name=id('gdisp-name')?.value?.trim()||'';
     const email=id('gdisp-email')?.value?.trim()||'';
     const booking=id('gdisp-booking')?.value?.trim()||'';
@@ -10250,19 +10233,7 @@ body.gmob-open{overflow:hidden}
     if(!email||!details){try{toast('Please enter your email and describe the dispute','red')}catch(e){}return}
     const did='DSP-'+Date.now().toString().slice(-6);
     const dispute={id:did,name,email,booking,consultant,type,resolution,details,status:'Under Review',date:new Date().toLocaleString('en-IN')};
-    // Save to localStorage as fallback
     const arr=getDisputes();arr.unshift(dispute);saveDisputes(arr);
-    // Also save to Supabase using the global supabaseRest function
-    const row={dispute_code:did,name,email,booking_reference:booking,consultant_name:consultant,issue_type:type,preferred_resolution:resolution,details,status:'Under Review',admin_comment:'',created_by:window.currentUser?.id||null};
-    try{
-      if(typeof supabaseRest==='function'){
-        const res=await supabaseRest('disputes?select=*',{method:'POST',body:row,prefer:'return=representation',timeoutMs:15000});
-        if(res&&res.ok) console.log('Dispute saved to Supabase:',did);
-        else console.warn('Supabase dispute insert failed, localStorage fallback used');
-      } else if(window.sb){
-        await sb.from('disputes').insert(row);
-      }
-    }catch(supaErr){console.warn('Supabase dispute save error (localStorage fallback used):',supaErr);}
     const out=id('gdisp-submit-out');
     if(out){
       out.innerHTML='<strong>✓ Dispute submitted successfully</strong><br><br>'
