@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#1E72BE">
 <meta name="twitter:card" content="summary_large_image">
 
-<title>Guidcy - Expert Guidance On Demand</title>
+<title>Guidcy - Connecting Guides</title>
 <meta name="description" content="Guidcy is an expert consultation marketplace where users can browse verified consultants, book sessions, pay online, and join through Google Meet."/>
 <meta name="robots" content="index, follow"/>
 <link rel="canonical" href="https://www.guidcy.com/"/>
@@ -9670,6 +9670,232 @@ body.gmob-open{overflow:hidden}
   setTimeout(addAdminButtons,900);
 })();
 </script>
+
+
+
+<!-- === GUIDCY FINAL REQUEST PATCH: search cleanup + full route restore + Supabase-only tickets + webinar role gate === -->
+<script id="guidcy-final-request-patch">
+(function(){
+  'use strict';
+
+  var ROUTES={
+    home:'/',browse:'/browse',jobs:'/jobs',login:'/login',signup:'/signup',categories:'/categories',
+    become:'/become',blog:'/blog',webinar:'/webinars','smart-finder':'/smart-finder',
+    about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',
+    help:'/help-center',dispute:'/dispute-resolution',profile:'/profile',pay:'/payment',confirm:'/confirmation',
+    'user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin'
+  };
+  var PATHS={
+    '':'home','/':'home','/home':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/get-started':'signup',
+    '/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/webinar':'webinar','/webinars':'webinar',
+    '/smart-finder':'smart-finder','/smartfinder':'smart-finder','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy',
+    '/refund':'refund','/disclaimer':'disclaimer','/help':'help','/help-center':'help','/help-centre':'help',
+    '/dispute':'dispute','/dispute-resolution':'dispute','/profile':'profile','/payment':'pay','/pay':'pay','/confirmation':'confirm','/confirm':'confirm',
+    '/dashboard':'user-dash','/user-dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash','/admin-dashboard':'admin-dash'
+  };
+  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{},ROUTES);
+
+  function byId(id){return document.getElementById(id)}
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function toastSafe(m,t){try{toast(m,t||'green')}catch(e){try{alert(m)}catch(_){}}}
+  function normalPage(p){
+    p=String(p||'home').replace(/^page-/,'').trim();
+    if(p==='help-center'||p==='help-centre')return 'help';
+    if(p==='dispute-resolution')return 'dispute';
+    if(p==='webinars')return 'webinar';
+    if(p==='get-started')return 'signup';
+    if(p==='dashboard'||p==='user-dashboard')return 'user-dash';
+    if(p==='consultant-dashboard')return 'cons-dash';
+    if(p==='admin-dashboard')return 'admin-dash';
+    if(p==='smartfinder')return 'smart-finder';
+    return p;
+  }
+  function currentVisiblePage(){var el=document.querySelector('.page.on,.page.active');return el&&el.id?normalPage(el.id.replace(/^page-/,'')):null}
+  function remember(page){page=normalPage(page);try{sessionStorage.setItem('guidcy_current_page',page)}catch(e){};try{localStorage.setItem('guidcy_last_page',page)}catch(e){} }
+  function setPath(page,mode){
+    page=normalPage(page); var url=ROUTES[page]; if(!url)return; remember(page);
+    try{ if(location.pathname!==url) history[mode==='replace'?'replaceState':'pushState']({page:page},'',url); else history.replaceState({page:page},'',url); }catch(e){}
+  }
+  function pathPage(){var p=(location.pathname||'/').replace(/\/$/,'')||'/';return PATHS[p]||''}
+
+  // 1) Stop login email from appearing in homepage search input.
+  function clearHeroEmailSearch(){
+    var input=byId('srch'); if(!input)return;
+    input.setAttribute('autocomplete','off'); input.setAttribute('autocapitalize','off'); input.setAttribute('spellcheck','false'); input.setAttribute('name','guidcy_home_search_'+Date.now());
+    var v=String(input.value||'').trim();
+    var userEmail=String((window.currentUser&&window.currentUser.email)||(window.currentProfile&&window.currentProfile.email)||'').trim().toLowerCase();
+    if(v && ((userEmail && v.toLowerCase()===userEmail) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))){ input.value=''; }
+  }
+  ['DOMContentLoaded','load','pageshow'].forEach(function(evt){window.addEventListener(evt,function(){setTimeout(clearHeroEmailSearch,120);setTimeout(clearHeroEmailSearch,800);});});
+  var prevUpdateNav=window.updateNav;
+  if(typeof prevUpdateNav==='function'&&!prevUpdateNav.guidcySearchCleaned){
+    window.updateNav=function(){var r=prevUpdateNav.apply(this,arguments);setTimeout(clearHeroEmailSearch,80);setTimeout(clearHeroEmailSearch,500);return r};
+    window.updateNav.guidcySearchCleaned=true;
+  }
+
+  // 2) Full-page route persistence for Jobs, Become, Webinars, Smart Finder and every SPA page.
+  var prevGo=window.go;
+  window.go=function(page){
+    page=normalPage(page);
+    var r;
+    try{ if(typeof prevGo==='function') r=prevGo.apply(this,[page]); }catch(e){console.warn('Previous go() failed:',e)}
+    try{
+      var el=byId('page-'+page);
+      if(el && !el.classList.contains('on')){
+        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active')});
+        el.classList.add('on','active');
+      }
+    }catch(e){}
+    if(page==='smart-finder' && typeof window.buildSmartFinderPage==='function'){
+      try{window.buildSmartFinderPage().then(function(){var sf=byId('page-smart-finder');if(sf){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active')});sf.classList.add('on','active');}})}catch(e){}
+    }
+    if(page==='webinar'){
+      try{setTimeout(function(){window.wbnLoad&&window.wbnLoad();window.wbnApplyAdminState&&window.wbnApplyAdminState();},160)}catch(e){}
+    }
+    setPath(page);
+    setTimeout(clearHeroEmailSearch,80);
+    return r;
+  };
+  window.go.guidcyFinalRoutePatch=true;
+
+  function restoreRoute(){
+    var target=pathPage();
+    if(!target){try{target=sessionStorage.getItem('guidcy_current_page')||localStorage.getItem('guidcy_last_page')||''}catch(e){}}
+    target=normalPage(target||'home');
+    if(!target)return;
+    try{ if(typeof prevGo==='function') prevGo(target); else window.go(target); }catch(e){try{window.go(target)}catch(_){}}
+    try{
+      if(target==='smart-finder' && typeof window.buildSmartFinderPage==='function') window.buildSmartFinderPage().then(function(){var sf=byId('page-smart-finder');if(sf){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active')});sf.classList.add('on','active');}});
+      if(target==='webinar'){setTimeout(function(){window.wbnLoad&&window.wbnLoad();window.wbnApplyAdminState&&window.wbnApplyAdminState();},220)}
+    }catch(e){}
+    setPath(target,'replace');
+    setTimeout(clearHeroEmailSearch,120);
+  }
+  window.addEventListener('beforeunload',function(){var p=currentVisiblePage();if(p)remember(p)});
+  window.addEventListener('popstate',restoreRoute);
+  ['DOMContentLoaded','load','pageshow'].forEach(function(evt){window.addEventListener(evt,function(){setTimeout(restoreRoute,80);setTimeout(restoreRoute,700);setTimeout(restoreRoute,1800);});});
+  setTimeout(restoreRoute,500);setTimeout(restoreRoute,1600);setTimeout(restoreRoute,2800);
+
+  // Convert hard navigation buttons to SPA navigation where possible.
+  function fixNavButtons(){
+    document.querySelectorAll('button[onclick*="/jobs"]').forEach(function(b){b.onclick=function(e){if(e)e.preventDefault();window.go('jobs');return false;}});
+    document.querySelectorAll('button[onclick*="smart-finder"], .gmob-item[onclick*="smart-finder"]').forEach(function(b){b.onclick=function(e){if(e)e.preventDefault();try{window.go('smart-finder')}catch(_){location.href='/smart-finder'};return false;}});
+  }
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(fixNavButtons,400);setTimeout(fixNavButtons,1600)});
+
+  // 3 & 5) Supabase-only Help/Dispute inserts, with authenticated token and mobile-safe timeout. No localStorage fallback.
+  function code(prefix){return prefix+'-'+Date.now().toString().slice(-6)}
+  function clean(row){var out={};Object.keys(row||{}).forEach(function(k){var v=row[k];if(v===undefined||v===null||v==='')return;if(k==='created_by'&&!v)return;out[k]=v});return out}
+  async function getAccessToken(client){
+    try{if(client&&client.auth&&client.auth.getSession){var r=await Promise.race([client.auth.getSession(),new Promise(function(_,rej){setTimeout(function(){rej(new Error('session timeout'))},3500)})]);if(r&&r.data&&r.data.session&&r.data.session.access_token)return r.data.session.access_token;}}catch(e){}
+    try{if(typeof getSupabaseAccessTokenSync==='function'){var t=getSupabaseAccessTokenSync();if(t)return t}}catch(e){}
+    return (window.CFG&&CFG.supabase_key)||'';
+  }
+  function getClient(){
+    if(window.sb)return window.sb;
+    try{if(window.supabase&&window.CFG&&CFG.supabase_url&&CFG.supabase_key){window.sb=window.supabase.createClient(CFG.supabase_url,CFG.supabase_key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});return window.sb;}}catch(e){console.warn('Supabase client init failed:',e)}
+    return null;
+  }
+  async function insertSupabaseOnly(table,row){
+    var payload=clean(row); var client=getClient(); var last=null;
+    if(client){
+      try{
+        var jsReq=client.from(table).insert(payload);
+        var jsRes=await Promise.race([jsReq,new Promise(function(_,rej){setTimeout(function(){rej(new Error('Supabase JS insert timeout'))},9000)})]);
+        if(!jsRes||!jsRes.error)return true;
+        last=jsRes.error; console.warn(table+' JS insert failed:',jsRes.error.message||jsRes.error);
+      }catch(e){last=e;console.warn(table+' JS insert exception:',e)}
+    }
+    try{
+      if(window.CFG&&CFG.supabase_url&&CFG.supabase_key){
+        var token=await getAccessToken(client);
+        var ctrl=new AbortController(); var tm=setTimeout(function(){ctrl.abort()},12000);
+        var res=await fetch(CFG.supabase_url.replace(/\/$/,'')+'/rest/v1/'+table,{method:'POST',headers:{apikey:CFG.supabase_key,Authorization:'Bearer '+(token||CFG.supabase_key),'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(payload),signal:ctrl.signal});
+        clearTimeout(tm);
+        if(res.ok)return true;
+        var txt=await res.text().catch(function(){return ''}); last=new Error('REST '+res.status+' '+txt); console.warn(table+' REST insert failed:',res.status,txt);
+      }
+    }catch(e){last=e;console.warn(table+' REST insert exception:',e)}
+    throw last||new Error('Supabase insert failed');
+  }
+  window.ghelpSubmitTicket=async function(){
+    var btn=document.querySelector('button[onclick="ghelpSubmitTicket()"]'); var old=btn?btn.textContent:'';
+    var name=(byId('ghelp-name')&&byId('ghelp-name').value.trim())||'';
+    var email=(byId('ghelp-email')&&byId('ghelp-email').value.trim())||'';
+    var topic=(byId('ghelp-topic')&&byId('ghelp-topic').value)||'General';
+    var priority=(byId('ghelp-priority')&&byId('ghelp-priority').value)||'Normal';
+    var msg=(byId('ghelp-msg')&&byId('ghelp-msg').value.trim())||'';
+    if(!email||!msg){toastSafe('Please enter your email and describe your issue','red');return;}
+    var ticket_code=code('HLP');
+    var row={ticket_code:ticket_code,name:name,email:email,topic:topic,priority:priority,message:msg,status:'Open',admin_comment:'',created_by:window.currentUser&&window.currentUser.id};
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Submitting...'}
+      await insertSupabaseOnly('support_tickets',row);
+      var out=byId('ghelp-ticket-out');
+      if(out){out.innerHTML='<strong>✓ Ticket has been raised successfully.</strong><br><br><strong>Ticket ID:</strong> '+esc(ticket_code)+'<br><strong>Topic:</strong> '+esc(topic)+'<br><strong>Priority:</strong> '+esc(priority)+'<br><strong>Status:</strong> Open<br><br>Save this Ticket ID to track your support request.';out.classList.add('on')}
+      ['ghelp-name','ghelp-email','ghelp-msg'].forEach(function(k){var el=byId(k);if(el)el.value=''})
+      toastSafe('Ticket has been raised successfully.','green');
+    }catch(e){console.error('Ticket not saved in Supabase:',e);toastSafe('Ticket could not be raised because Supabase save failed. Please check support_tickets table/RLS policy.','red')}
+    finally{if(btn){btn.disabled=false;btn.textContent=old||'Submit support ticket'}}
+  };
+  window.guidcySubmitHelpTicket=window.ghelpSubmitTicket;
+
+  window.gdispSubmit=async function(){
+    var btn=document.querySelector('button[onclick="gdispSubmit()"]'); var old=btn?btn.textContent:'';
+    var name=(byId('gdisp-name')&&byId('gdisp-name').value.trim())||'';
+    var email=(byId('gdisp-email')&&byId('gdisp-email').value.trim())||'';
+    var booking=(byId('gdisp-booking')&&byId('gdisp-booking').value.trim())||'';
+    var consultant=(byId('gdisp-consultant')&&byId('gdisp-consultant').value.trim())||'';
+    var type=(byId('gdisp-type')&&byId('gdisp-type').value)||'Other';
+    var resolution=(byId('gdisp-resolution')&&byId('gdisp-resolution').value)||'Review request';
+    var details=(byId('gdisp-details')&&byId('gdisp-details').value.trim())||'';
+    if(!email||!details){toastSafe('Please enter your email and describe the dispute','red');return;}
+    var dispute_code=code('DSP');
+    var row={dispute_code:dispute_code,name:name,email:email,booking_reference:booking,consultant_name:consultant,issue_type:type,preferred_resolution:resolution,details:details,status:'Under Review',admin_comment:'',created_by:window.currentUser&&window.currentUser.id};
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Submitting...'}
+      await insertSupabaseOnly('disputes',row);
+      var out=byId('gdisp-submit-out');
+      if(out){out.innerHTML='<strong>✓ Ticket has been raised successfully.</strong><br><br><strong>Dispute ID:</strong> '+esc(dispute_code)+'<br><strong>Issue:</strong> '+esc(type)+'<br><strong>Preferred resolution:</strong> '+esc(resolution)+'<br><strong>Status:</strong> Under Review<br><br>Save this Dispute ID to track your case.';out.classList.add('on')}
+      ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(function(k){var el=byId(k);if(el)el.value=''})
+      toastSafe('Ticket has been raised successfully.','green');
+    }catch(e){console.error('Dispute not saved in Supabase:',e);toastSafe('Ticket could not be raised because Supabase save failed. Please check disputes table/RLS policy.','red')}
+    finally{if(btn){btn.disabled=false;btn.textContent=old||'Submit dispute'}}
+  };
+  window.guidcySubmitDispute=window.gdispSubmit;
+
+  // 6) Webinar publishing gate: only logged-in consultant/admin can open/publish. User gets consultant registration message.
+  function role(){return String((window.currentProfile&&window.currentProfile.role)||window.loggedIn||'').toLowerCase()}
+  function logged(){return !!(window.currentUser||window.currentProfile||window.loggedIn)}
+  function isAdmin(){return role()==='admin'}
+  function isConsultant(){return role()==='consultant'}
+  function canPublish(){return logged()&&(isAdmin()||isConsultant())}
+  function applyWebinarGate(){
+    var tb=byId('wbn-publish-topbar'); if(tb)tb.style.display='flex';
+    var ap=byId('wbn-admin-panel'); if(ap&&!canPublish())ap.style.display='none';
+  }
+  var prevShowPublisher=window.wbnShowPublisher;
+  window.wbnShowPublisher=function(){
+    if(!logged()){toastSafe('Please login first to publish a webinar.','red');try{window.go('login')}catch(e){}return;}
+    if(!canPublish()){toastSafe('Please register as consultant to publish a webinar.','red');return;}
+    if(typeof prevShowPublisher==='function')return prevShowPublisher.apply(this,arguments);
+    var ap=byId('wbn-admin-panel'); if(ap){ap.style.display='block';ap.scrollIntoView({behavior:'smooth',block:'start'});} 
+  };
+  var prevPublish=window.wbnPublish;
+  window.wbnPublish=async function(){
+    if(!logged()){toastSafe('Please login first to publish a webinar.','red');try{window.go('login')}catch(e){}return;}
+    if(!canPublish()){toastSafe('Please register as consultant to publish a webinar.','red');return;}
+    return typeof prevPublish==='function'?prevPublish.apply(this,arguments):undefined;
+  };
+  var prevApply=window.wbnApplyAdminState;
+  window.wbnApplyAdminState=function(){var r;if(typeof prevApply==='function')r=prevApply.apply(this,arguments);applyWebinarGate();return r};
+  ['DOMContentLoaded','load','pageshow'].forEach(function(evt){window.addEventListener(evt,function(){setTimeout(applyWebinarGate,250);setTimeout(applyWebinarGate,1200);});});
+
+  // Title for Google/search result source markup.
+  try{document.title='Guidcy - Connecting Guides'}catch(e){}
+})();
+</script>
+<!-- === END GUIDCY FINAL REQUEST PATCH === -->
 
 </body>
 </html>
