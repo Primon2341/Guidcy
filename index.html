@@ -2117,11 +2117,25 @@ function getPageFromPath(){
   const p=(window.location.pathname||'/').replace(/\/$/,'') || '/';
   const map={
     '/':'home','/index.html':'home',
+
     '/browse':'browse','/browse.html':'browse',
+    '/jobs':'jobs','/jobs.html':'jobs',
+    '/categories':'categories','/categories.html':'categories',
+    '/blog':'blog','/blog.html':'blog',
+
+    '/become':'become','/become.html':'become',
+    '/become-a-consultant':'become','/become-a-consultant.html':'become',
+
+    '/webinar':'webinar','/webinar.html':'webinar',
+    '/webinars':'webinar','/webinars.html':'webinar',
+
+    '/smart-finder':'smart-finder','/smart-finder.html':'smart-finder',
+    '/smartfinder':'smart-finder','/smartfinder.html':'smart-finder',
+
     '/login':'login','/login.html':'login',
     '/signup':'signup','/signup.html':'signup',
-    '/categories':'categories','/categories.html':'categories','/blog':'blog','/blog.html':'blog',
-    '/become-a-consultant':'become','/become.html':'become',
+    '/get-started':'signup','/get-started.html':'signup',
+
     '/about':'about','/about.html':'about',
     '/contact':'contact','/contact.html':'contact',
     '/faq':'faq','/faq.html':'faq',
@@ -2129,26 +2143,78 @@ function getPageFromPath(){
     '/privacy':'privacy','/privacy.html':'privacy',
     '/refund':'refund','/refund.html':'refund',
     '/disclaimer':'disclaimer','/disclaimer.html':'disclaimer',
+
+    '/help':'help','/help.html':'help',
+    '/help-center':'help','/help-center.html':'help',
+    '/support':'help','/support.html':'help',
+
+    '/dispute':'dispute','/dispute.html':'dispute',
+    '/dispute-resolution':'dispute','/dispute-resolution.html':'dispute',
+
     '/dashboard':'user-dash','/dashboard.html':'user-dash',
+    '/user-dashboard':'user-dash','/user-dashboard.html':'user-dash',
+    '/user-dash':'user-dash','/user-dash.html':'user-dash',
+
     '/consultant-dashboard':'cons-dash','/consultant-dashboard.html':'cons-dash',
-    '/admin':'admin-dash','/admin.html':'admin-dash'
+    '/cons-dash':'cons-dash','/cons-dash.html':'cons-dash',
+
+    '/admin':'admin-dash','/admin.html':'admin-dash',
+    '/admin-dashboard':'admin-dash','/admin-dashboard.html':'admin-dash',
+    '/admin-dash':'admin-dash','/admin-dash.html':'admin-dash'
   };
   if(map[p]) return map[p];
   const h=(window.location.hash||'').replace('#','');
   return h || 'home';
 }
 const PAGE_URLS={
-  home:'/', browse:'/browse', login:'/login', signup:'/signup', categories:'/categories', blog:'/blog',
-  become:'/become-a-consultant', about:'/about', contact:'/contact', faq:'/faq',
-  terms:'/terms', privacy:'/privacy', refund:'/refund', disclaimer:'/disclaimer',
-  'user-dash':'/dashboard', 'cons-dash':'/consultant-dashboard', 'admin-dash':'/admin'
+  home:'/',
+  browse:'/browse',
+  jobs:'/jobs',
+  categories:'/categories',
+  blog:'/blog',
+  become:'/become',
+  webinar:'/webinar',
+  'smart-finder':'/smart-finder',
+
+  login:'/login',
+  signup:'/get-started',
+
+  about:'/about',
+  contact:'/contact',
+  faq:'/faq',
+  terms:'/terms',
+  privacy:'/privacy',
+  refund:'/refund',
+  disclaimer:'/disclaimer',
+
+  help:'/help-center',
+  dispute:'/dispute-resolution',
+
+  'user-dash':'/user-dashboard',
+  'cons-dash':'/consultant-dashboard',
+  'admin-dash':'/admin-dashboard'
 };
 function renderPage(page){
   closeMobileMenu();
+
+  /* Create dynamic pages before checking for page element */
+  try{
+    if(page==='jobs' && !document.getElementById('page-jobs') && typeof ensureJobs==='function') ensureJobs();
+    if(page==='smart-finder' && !document.getElementById('page-smart-finder') && typeof buildSmartFinderPage==='function') buildSmartFinderPage();
+  }catch(e){}
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   const el=document.getElementById('page-'+page); if(!el)return;
   el.classList.add('on'); window.scrollTo(0,0);
-  ({home:initHome,browse:initBrowse,categories:initCategories,blog:renderGuidcyBlog,faq:initFAQ,
+
+  ({
+    home:initHome,
+    browse:initBrowse,
+    categories:initCategories,
+    blog:renderGuidcyBlog,
+    faq:initFAQ,
+    jobs:()=>{try{ if(typeof renderJobsList==='function') renderJobsList(); }catch(e){}},
+    'smart-finder':()=>{try{ if(typeof buildSmartFinderPage==='function') buildSmartFinderPage(); }catch(e){}},
     'user-dash':()=>swUD('upcoming',null),
     'cons-dash':()=>swCD('overview',null),
     'admin-dash':()=>swAD('overview',null)
@@ -5683,7 +5749,14 @@ cancelBooking=async function(bookingId,role){
   function gid(id){return document.getElementById(id)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
   function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash'};return map[p]||'home'}
-  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {home:'/',browse:'/browse',jobs:'/jobs',login:'/login',signup:'/signup',categories:'/categories',become:'/become',blog:'/blog',about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer','user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin'});
+  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {
+  home:'/',browse:'/browse',jobs:'/jobs',categories:'/categories',blog:'/blog',
+  become:'/become',webinar:'/webinar','smart-finder':'/smart-finder',
+  login:'/login',signup:'/get-started',
+  about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',
+  help:'/help-center',dispute:'/dispute-resolution',
+  'user-dash':'/user-dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard'
+});
   function ensureJobs(){if(gid('page-jobs'))return;const div=document.createElement('div');div.id='page-jobs';div.className='page';div.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Jobs</h1><p style="color:var(--muted);margin-bottom:26px">Find consultation, freelance, and expert opportunities on Guidcy.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('become');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Browse consultants</button></div><div class="benefit-grid"><div class="benefit-card"><span class="benefit-icon">🧑‍💼</span><div class="benefit-title">Consulting opportunities</div><div class="benefit-desc">Create your profile and start receiving session requests.</div></div><div class="benefit-card"><span class="benefit-icon">📈</span><div class="benefit-title">Grow your income</div><div class="benefit-desc">Set your own rates and availability.</div></div><div class="benefit-card"><span class="benefit-icon">✅</span><div class="benefit-title">Verified platform</div><div class="benefit-desc">Build credibility with ratings and reviews.</div></div></div></div>`;document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function ensureBlog(){if(gid('page-blog'))return;const div=document.createElement('div');div.id='page-blog';div.className='page';document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function renderBlog(){ensureBlog();const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');const role=(window.currentProfile&&currentProfile.role)||window.loggedIn||'';gid('page-blog').innerHTML=`<div style="max-width:1000px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Blog</h1><p style="color:var(--muted);margin-bottom:26px">Admin can publish blogs. Users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div>${posts.length?posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:16px"><h2 style="font-size:24px;margin-bottom:6px">${esc(p.title)}</h2><div style="font-size:12px;color:var(--muted);margin-bottom:14px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b">${esc(p.body)}</p><div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px"><h4 style="color:var(--blue);margin-bottom:10px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:13px">No comments yet.</p>'}<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:42px;border:1px solid var(--border);border-radius:12px;padding:0 12px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})">Comment</button></div></div></article>`).join(''):'<div style="background:#fff;border:1px dashed var(--border);border-radius:18px;padding:30px;color:var(--muted);text-align:center">No blog posts yet.</div>'}</div></div>`}
@@ -10039,158 +10112,21 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
-<script id="guidcy-blog-style-route-fix">
+
+<script id="guidcy-core-route-sanity-check">
 (function(){
-  /*
-    Guidcy refresh fix using the same simple flow that works for Blog:
-    URL path -> matching page section -> keep that section visible after refresh.
-
-    Fixed navbar routes:
-    /browse
-    /jobs
-    /categories
-    /blog
-    /become
-    /webinar
-    /smart-finder
-  */
-
-  var routeMap = {
-    "": "home",
-    "home": "home",
-    "explore": "home",
-
-    "browse": "browse",
-    "jobs": "jobs",
-    "categories": "categories",
-    "blog": "blog",
-
-    "become": "become",
-    "become-a-consultant": "become",
-
-    "webinar": "webinar",
-    "webinars": "webinar",
-
-    "smart-finder": "smart-finder",
-    "smartfinder": "smart-finder",
-
-    "login": "login",
-    "signup": "signup",
-    "get-started": "signup",
-
-    "help": "help",
-    "help-center": "help",
-
-    "dispute": "dispute",
-    "dispute-resolution": "dispute"
-  };
-
-  var pageToRoute = {
-    "home": "/",
-    "browse": "/browse",
-    "jobs": "/jobs",
-    "categories": "/categories",
-    "blog": "/blog",
-    "become": "/become",
-    "webinar": "/webinar",
-    "smart-finder": "/smart-finder",
-    "login": "/login",
-    "signup": "/get-started",
-    "help": "/help-center",
-    "dispute": "/dispute-resolution"
-  };
-
-  function cleanPath(){
-    return (location.pathname || "/")
-      .replace(/^\/+|\/+$/g, "")
-      .split("/")[0]
-      .toLowerCase();
-  }
-
-  function pageExists(page){
-    return !!document.getElementById("page-" + page);
-  }
-
-  function getPageFromUrl(){
-    var key = cleanPath();
-    var mapped = routeMap[key] || key;
-    if(pageExists(mapped)) return mapped;
-    return "home";
-  }
-
-  function showPage(page){
-    if(!pageExists(page)) page = "home";
-
-    document.querySelectorAll(".page").forEach(function(el){
-      el.classList.remove("on");
-    });
-
-    var target = document.getElementById("page-" + page);
-    if(target){
-      target.classList.add("on");
-    }
-
+  function applyCoreRoute(){
     try{
-      if(typeof renderAll === "function") renderAll();
-    }catch(e){}
-
-    try{
-      if(typeof updateNav === "function") updateNav();
-    }catch(e){}
-
-    try{
-      if(typeof fixFormLogos === "function") fixFormLogos();
-    }catch(e){}
-  }
-
-  function restoreFromUrl(){
-    showPage(getPageFromUrl());
-  }
-
-  function patchGo(){
-    var oldGo = window.go;
-    if(typeof oldGo !== "function" || oldGo.__guidcyBlogStylePatched) return;
-
-    var patched = function(page){
-      var result = oldGo.apply(this, arguments);
-
-      if(page){
-        var route = pageToRoute[page] || ("/" + page);
-        try{
-          if(location.pathname !== route){
-            history.pushState({page: page}, "", route);
-          }
-        }catch(e){}
+      if(typeof getPageFromPath==='function' && typeof renderPage==='function'){
+        var page=getPageFromPath();
+        if(page && page!=='home') renderPage(page);
       }
-
-      return result;
-    };
-
-    patched.__guidcyBlogStylePatched = true;
-    window.go = patched;
+    }catch(e){}
   }
-
-  function boot(){
-    patchGo();
-
-    /*
-      Run after original scripts also, because some older code sets page-home again.
-      This only restores the visible section based on URL.
-    */
-    [0, 100, 400, 1000, 2000].forEach(function(delay){
-      setTimeout(function(){
-        patchGo();
-        restoreFromUrl();
-      }, delay);
-    });
-  }
-
-  window.addEventListener("popstate", restoreFromUrl);
-
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", boot);
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){setTimeout(applyCoreRoute,80);setTimeout(applyCoreRoute,400);});
   }else{
-    boot();
+    setTimeout(applyCoreRoute,80);setTimeout(applyCoreRoute,400);
   }
 })();
 </script>

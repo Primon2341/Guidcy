@@ -49,27 +49,13 @@ function forceCopyRootFile(file){
   return false;
 }
 
-function normalizeRoute(route){
-  return String(route || "")
-    .trim()
-    .replace(/^https?:\/\/[^/]+/i,"")
-    .replace(/[?#].*$/,"")
-    .replace(/^\/+|\/+$/g,"");
-}
-
-function isAssetRoute(route){
-  return route.startsWith("api/") ||
-    route.includes("..") ||
-    route.includes("\\") ||
-    /\.(png|jpg|jpeg|gif|svg|ico|webmanifest|xml|txt|js|css|json|map|woff|woff2|ttf|eot|pdf|zip)$/i.test(route);
-}
-
 function addRoute(route, indexHtml){
-  const clean = normalizeRoute(route);
-  if(!clean || isAssetRoute(clean)) return;
-  const routeDir = path.join(publicDir, clean);
-  fs.mkdirSync(routeDir, {recursive:true});
-  fs.writeFileSync(path.join(routeDir,"index.html"), indexHtml, "utf8");
+  const clean = String(route||"").trim().replace(/^\/+|\/+$/g,"");
+  if(!clean) return;
+  if(clean.startsWith("api/") || clean.includes("..") || clean.includes("\\") || /\.(png|jpg|jpeg|gif|svg|ico|webmanifest|xml|txt|js|css|json|map|woff|woff2|ttf|eot|pdf|zip)$/i.test(clean)) return;
+  const dir = path.join(publicDir, clean);
+  fs.mkdirSync(dir, {recursive:true});
+  fs.writeFileSync(path.join(dir,"index.html"), indexHtml, "utf8");
   console.log("Created route:", "/" + clean);
 }
 
@@ -78,7 +64,7 @@ fs.mkdirSync(publicDir, {recursive:true});
 
 if(exists(distDir)) copyRecursive(distDir, publicDir);
 
-/* Always deploy latest root index.html */
+/* Root index.html must override old dist/index.html */
 forceCopyRootFile("index.html");
 
 if(!exists(path.join(publicDir,"index.html"))) copyFirstAvailable("index.html");
@@ -95,44 +81,23 @@ if(!exists(indexPath)){
   console.error("Build failed: index.html missing.");
   process.exit(1);
 }
-
 const indexHtml = fs.readFileSync(indexPath,"utf8");
 
 const routes = new Set([
-  "home",
-  "browse",
-  "jobs",
-  "categories",
-  "blog",
-  "become",
-  "become-a-consultant",
-  "webinar",
-  "webinars",
-  "smart-finder",
-  "smartfinder",
-  "login",
-  "signup",
-  "get-started",
-  "help",
-  "help-center",
-  "dispute",
-  "dispute-resolution"
+  "browse","jobs","categories","blog",
+  "become","become-a-consultant",
+  "webinar","webinars",
+  "smart-finder","smartfinder",
+  "login","signup","get-started",
+  "help","help-center","dispute","dispute-resolution",
+  "about","contact","faq","terms","privacy","refund","disclaimer",
+  "dashboard","user-dashboard","consultant-dashboard","admin","admin-dashboard"
 ]);
 
-for(const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)){
-  routes.add(match[1]);
-}
+for(const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) routes.add(match[1]);
 
-for(const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)){
-  routes.add(match[1]);
-}
+for(const route of routes) addRoute(route, indexHtml);
 
-for(const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)){
-  routes.add(match[1]);
-}
-
-for(const route of routes){
-  addRoute(route, indexHtml);
-}
-
-console.log("Build completed successfully. Blog-style refresh flow applied to navbar pages.");
+console.log("Build completed successfully. Core route map updated for all navbar/footer pages.");
