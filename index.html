@@ -11338,3 +11338,178 @@ body.gmob-open{overflow:hidden}
   setTimeout(addAdminButtons,900);
 })();
 </script>
+
+
+<!-- === GUIDCY SINGLE-ENTRY SUPPORT/DISPUTE HOTFIX === -->
+<script>
+(function(){
+  'use strict';
+
+  const submitLock = { help:false, dispute:false };
+  const lastFingerprint = { help:'', dispute:'' };
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  function el(id){ return document.getElementById(id); }
+  function val(id){ const x=el(id); return x && typeof x.value==='string' ? x.value.trim() : ''; }
+  function sel(id, fallback){ const x=el(id); return x && x.value ? x.value : fallback; }
+  function safeToast(msg,type){ try{ toast(msg,type||'green'); }catch(e){ alert(msg); } }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+  function userUUID(){
+    const id = window.currentUser && window.currentUser.id ? String(window.currentUser.id) : '';
+    return UUID_RE.test(id) ? id : null;
+  }
+  function makeCode(prefix){
+    if(window.crypto && crypto.getRandomValues){
+      const a=new Uint32Array(1); crypto.getRandomValues(a);
+      return prefix + '-' + String(a[0]).slice(-6);
+    }
+    return prefix + '-' + Date.now().toString().slice(-6);
+  }
+  function fingerprint(obj){
+    return Object.keys(obj).sort().map(k=>k+':'+String(obj[k]||'').toLowerCase().trim()).join('|');
+  }
+  function getClient(){ return window.sb || window.supabaseClient || null; }
+  async function insertOnce(table,row){
+    const client=getClient();
+    if(!client || !client.from) throw new Error('Supabase client is not initialized. Check SUPABASE_URL and SUPABASE_ANON_KEY.');
+    const { data, error } = await client.from(table).insert(row).select().single();
+    if(error) throw error;
+    return data;
+  }
+  function setBtnBusy(ev,busy){
+    const b = ev && (ev.currentTarget || ev.target);
+    if(b && b.tagName === 'BUTTON'){
+      b.disabled = !!busy;
+      b.style.opacity = busy ? '0.65' : '';
+      b.style.pointerEvents = busy ? 'none' : '';
+    }
+  }
+
+  window.ghelpSubmitTicket = async function(ev){
+    if(ev){ try{ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }catch(e){} }
+    if(submitLock.help) return false;
+
+    const base = {
+      name: val('ghelp-name'),
+      email: val('ghelp-email'),
+      topic: sel('ghelp-topic','General'),
+      priority: sel('ghelp-priority','Normal'),
+      message: val('ghelp-msg')
+    };
+    if(!base.email || !base.message){ safeToast('Please enter your email and describe your issue','red'); return false; }
+
+    const fp = fingerprint(base);
+    if(lastFingerprint.help === fp) return false;
+    submitLock.help = true;
+    lastFingerprint.help = fp;
+    setBtnBusy(ev,true);
+
+    const ticket_code = makeCode('HLP');
+    const row = {
+      ticket_code,
+      name: base.name,
+      email: base.email,
+      topic: base.topic,
+      priority: base.priority,
+      message: base.message,
+      status: 'Open',
+      admin_comment: '',
+      created_by: userUUID()
+    };
+
+    try{
+      await insertOnce('support_tickets', row);
+      const out=el('ghelp-ticket-out');
+      if(out){
+        out.innerHTML='<strong>✓ Ticket has been raised successfully.</strong><br><br><strong>Ticket ID:</strong> '+esc(ticket_code)+'<br><strong>Topic:</strong> '+esc(base.topic)+'<br><strong>Priority:</strong> '+esc(base.priority)+'<br><strong>Status:</strong> Open<br><br>Save this Ticket ID to track your support request.';
+        out.classList.add('on');
+      }
+      ['ghelp-name','ghelp-email','ghelp-msg'].forEach(k=>{ const x=el(k); if(x) x.value=''; });
+      safeToast('Ticket has been raised successfully.','green');
+    }catch(err){
+      console.error('support_tickets insert failed:',err);
+      lastFingerprint.help = '';
+      safeToast('Ticket was not saved in Supabase. Please check table/RLS configuration.','red');
+    }finally{
+      setTimeout(()=>{ submitLock.help=false; setBtnBusy(ev,false); },900);
+    }
+    return false;
+  };
+
+  window.gdispSubmit = async function(ev){
+    if(ev){ try{ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }catch(e){} }
+    if(submitLock.dispute) return false;
+
+    const base = {
+      name: val('gdisp-name'),
+      email: val('gdisp-email'),
+      booking_reference: val('gdisp-booking'),
+      consultant_name: val('gdisp-consultant'),
+      issue_type: sel('gdisp-type','Other'),
+      preferred_resolution: sel('gdisp-resolution','Review request'),
+      details: val('gdisp-details')
+    };
+    if(!base.email || !base.details){ safeToast('Please enter your email and describe the dispute','red'); return false; }
+
+    const fp = fingerprint(base);
+    if(lastFingerprint.dispute === fp) return false;
+    submitLock.dispute = true;
+    lastFingerprint.dispute = fp;
+    setBtnBusy(ev,true);
+
+    const dispute_code = makeCode('DSP');
+    const row = {
+      dispute_code,
+      name: base.name,
+      email: base.email,
+      booking_reference: base.booking_reference,
+      consultant_name: base.consultant_name,
+      issue_type: base.issue_type,
+      preferred_resolution: base.preferred_resolution,
+      details: base.details,
+      status: 'Under Review',
+      admin_comment: '',
+      created_by: userUUID()
+    };
+
+    try{
+      await insertOnce('disputes', row);
+      const out=el('gdisp-submit-out');
+      if(out){
+        out.innerHTML='<strong>✓ Dispute has been raised successfully.</strong><br><br><strong>Dispute ID:</strong> '+esc(dispute_code)+'<br><strong>Issue:</strong> '+esc(base.issue_type)+'<br><strong>Preferred resolution:</strong> '+esc(base.preferred_resolution)+'<br><strong>Status:</strong> Under Review<br><br>Save this Dispute ID to track your case.';
+        out.classList.add('on');
+      }
+      ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(k=>{ const x=el(k); if(x) x.value=''; });
+      safeToast('Dispute has been raised successfully.','green');
+    }catch(err){
+      console.error('disputes insert failed:',err);
+      lastFingerprint.dispute = '';
+      safeToast('Dispute was not saved in Supabase. Please check table/RLS configuration.','red');
+    }finally{
+      setTimeout(()=>{ submitLock.dispute=false; setBtnBusy(ev,false); },900);
+    }
+    return false;
+  };
+
+  window.guidcySubmitHelpTicket = window.ghelpSubmitTicket;
+  window.guidcySubmitDispute = window.gdispSubmit;
+
+  /* Stops inline onclick + old capture handlers from creating a second insert. */
+  document.addEventListener('click', function(e){
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if(!b) return;
+    const oc = String(b.getAttribute('onclick') || '');
+    if(oc.indexOf('ghelpSubmitTicket()') !== -1){
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      window.ghelpSubmitTicket({ currentTarget:b, target:b, preventDefault(){}, stopPropagation(){}, stopImmediatePropagation(){} });
+      return false;
+    }
+    if(oc.indexOf('gdispSubmit()') !== -1){
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      window.gdispSubmit({ currentTarget:b, target:b, preventDefault(){}, stopPropagation(){}, stopImmediatePropagation(){} });
+      return false;
+    }
+  }, true);
+})();
+</script>
+<!-- === END GUIDCY SINGLE-ENTRY SUPPORT/DISPUTE HOTFIX === -->
