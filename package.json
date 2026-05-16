@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "node build.js",
+    "build": "node build-static.js",
     "start": "vercel dev"
   },
   "engines": {
