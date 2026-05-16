@@ -44,6 +44,32 @@ function copyFirstAvailable(file) {
   return false;
 }
 
+function normalizeRoute(route) {
+  return String(route || "")
+    .trim()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function addRoute(route, indexHtml) {
+  const clean = normalizeRoute(route);
+  if (!clean) return;
+  if (
+    clean.startsWith("api/") ||
+    clean.includes("..") ||
+    clean.includes("\\") ||
+    clean.match(/\.(png|jpg|jpeg|gif|svg|ico|webmanifest|xml|txt|js|css|json|map|woff|woff2|ttf|eot)$/i)
+  ) {
+    return;
+  }
+
+  const routeDir = path.join(publicDir, clean);
+  fs.mkdirSync(routeDir, { recursive: true });
+  fs.writeFileSync(path.join(routeDir, "index.html"), indexHtml, "utf8");
+  console.log("Created refresh-safe route: /" + clean);
+}
+
 fs.rmSync(publicDir, { recursive: true, force: true });
 fs.mkdirSync(publicDir, { recursive: true });
 
@@ -85,53 +111,119 @@ if (!exists(indexPath)) {
   process.exit(1);
 }
 
-/*
-  IMPORTANT FIX:
-  Vercel routing may still show 404 on refresh if the route fallback is not applied.
-  This creates real physical folders for every internal Guidcy page.
-  Example:
-  public/login/index.html
-  public/browse/index.html
-  public/webinar/index.html
+const indexHtml = fs.readFileSync(indexPath, "utf8");
 
-  So refreshing /login, /browse, /webinar can never return 404,
-  even if Vercel ignores the fallback route.
+/*
+  Full-site refresh fix:
+  1. Creates physical folders for known Guidcy pages.
+  2. Automatically scans index.html for go('page'), go("page"), href="/page", href='/page',
+     window.location.href='/page' and creates route folders for those pages.
+  3. Keeps favicon/assets/API untouched.
 */
-const spaRoutes = [
-  "login",
-  "signup",
-  "get-started",
+
+const manualRoutes = [
+  // Main pages
+  "home",
+  "explore",
   "browse",
   "categories",
   "blog",
-  "become",
+  "blogs",
+  "jobs",
+  "smart-finder",
+  "smartfinder",
   "webinar",
   "webinars",
-  "jobs",
+  "become",
+  "become-a-consultant",
+  "consultant",
+  "consultants",
+
+  // Auth pages
+  "login",
+  "signup",
+  "sign-up",
+  "get-started",
+  "getstarted",
+  "register",
+  "registration",
+  "forgot-password",
+  "reset-password",
+
+  // Help/legal pages
   "help",
   "help-center",
+  "support",
   "dispute",
   "dispute-resolution",
   "contact",
   "about",
   "privacy",
+  "privacy-policy",
   "terms",
+  "terms-and-conditions",
+  "refund",
+  "refund-policy",
+  "cancellation",
+  "cancellation-policy",
+
+  // Dashboards
   "dashboard",
   "user-dashboard",
   "consultant-dashboard",
   "admin",
   "admin-dashboard",
-  "smart-finder"
+  "profile",
+  "booking",
+  "bookings",
+  "payment",
+  "confirmation",
+  "confirm",
+
+  // SEO pages often used in Guidcy
+  "business-consultant",
+  "career-guidance",
+  "financial-advisor",
+  "startup-mentor",
+  "legal-consultant",
+  "technology-consultant",
+  "marketing-consultant",
+  "college-finder",
+  "college-guidance"
 ];
 
-const indexHtml = fs.readFileSync(indexPath, "utf8");
+const discoveredRoutes = new Set();
 
-for (const route of spaRoutes) {
-  const routeDir = path.join(publicDir, route);
-  fs.mkdirSync(routeDir, { recursive: true });
-  fs.writeFileSync(path.join(routeDir, "index.html"), indexHtml, "utf8");
-  console.log("Created SPA route:", "/" + route);
+// go('page') / go("page")
+for (const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)) {
+  discoveredRoutes.add(match[1]);
+}
+
+// id="page-xyz"
+for (const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)) {
+  discoveredRoutes.add(match[1]);
+}
+
+// href="/xyz" and href='/xyz'
+for (const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
+  discoveredRoutes.add(match[1]);
+}
+
+// window.location.href='/xyz' or location.href="/xyz"
+for (const match of indexHtml.matchAll(/(?:window\.)?location\.href\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
+  discoveredRoutes.add(match[1]);
+}
+
+// history.pushState(..., "", "/xyz")
+for (const match of indexHtml.matchAll(/pushState\s*\([^)]*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
+  discoveredRoutes.add(match[1]);
+}
+
+const allRoutes = new Set([...manualRoutes, ...discoveredRoutes]);
+
+for (const route of allRoutes) {
+  addRoute(route, indexHtml);
 }
 
 console.log("Build completed successfully.");
-console.log("Public output contains index.html, favicon files, and physical SPA route folders.");
+console.log("Public output contains index.html, static files, and refresh-safe folders for all discovered pages.");
