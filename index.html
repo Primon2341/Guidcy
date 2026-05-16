@@ -6235,7 +6235,7 @@ body{overflow-x:hidden}
           ✨ AI-Powered Personal Recommender
         </div>
         <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(28px,5vw,42px);font-weight:500;margin-bottom:10px;line-height:1.15">Find What's <em style="font-style:italic;color:#C9A96E">Right for You</em></h1>
-        <p style="color:var(--muted);font-size:15px;max-width:500px;margin:0 auto;line-height:1.65">Tell us about yourself — our AI searches across the web to find the most relevant jobs or educational programs just for you.</p>
+        <p style="color:var(--muted);font-size:15px;max-width:500px;margin:0 auto;line-height:1.65">Tell us about yourself — our AI recommends the most relevant jobs or educational programs just for you.</p>
       </div>
 
       <!-- Mode switcher -->
@@ -6331,7 +6331,7 @@ body{overflow-x:hidden}
       results.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center">
         <div style="font-size:36px;margin-bottom:16px;animation:pulse2 1.5s infinite">🤖</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:8px">AI is analysing your profile...</div>
-        <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Searching the web for the best matches, ranking them by fit with your profile. This takes 10–20 seconds.</div>
+        <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Generating best-fit recommendations and ranking them by fit with your profile.</div>
         <div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
           ${Array(5).fill(0).map((_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:var(--blue,#3B82F6);animation:pulse2 1.2s ${i*0.2}s infinite"></div>`).join('')}
         </div>
@@ -6381,7 +6381,7 @@ body{overflow-x:hidden}
           <div style="font-size:28px;margin-bottom:10px">⚠️</div>
           <div style="font-weight:600;margin-bottom:6px;color:#991B1B">Could not fetch recommendations</div>
           <p style="font-size:13px;color:#7F1D1D;max-width:400px;margin:0 auto">${safe(e.message)}</p>
-          ${e.message.includes('GEMINI')?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">Add GROQ_API_KEY in Vercel → Project Settings → Environment Variables → Redeploy</p>':''}
+          ${(e.message.includes('OPENAI_API_KEY')||e.message.includes('OpenAI'))?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">Add OPENAI_API_KEY in Vercel → Project Settings → Environment Variables → Redeploy</p>':''}
         </div>`;
         if(btn){btn.disabled=false;btn.textContent='✨ Find My Best Matches';}
         return;
@@ -9987,201 +9987,6 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
 
-
-
-<!-- === GUIDCY FINAL PATCH: user can track latest admin status for support tickets/disputes === -->
-<script id="guidcy-final-ticket-dispute-status-tracking-fix">
-(function(){
-  'use strict';
-
-  function byId(id){ return document.getElementById(id); }
-  function val(id){ var x=byId(id); return x && typeof x.value === 'string' ? x.value.trim() : ''; }
-  function esc(v){ return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
-  function toastSafe(msg,type){ try{ if(typeof toast==='function') toast(msg,type||'green'); else alert(msg); }catch(_){ alert(msg); } }
-  function nowISO(){ return new Date().toISOString(); }
-  function sbClient(){ try{ return window.sb || (typeof sb !== 'undefined' ? sb : null); }catch(_){ return null; } }
-  function isUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'')); }
-  function clean(v){ return String(v||'').trim().replace(/[%,()]/g,'').slice(0,120); }
-  function localGet(k){ try{ return JSON.parse(localStorage.getItem(k)||'[]') || []; }catch(_){ return []; } }
-  function localSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v||[])); }catch(_){} }
-  function tableMeta(table,type){
-    var isTicket = type === 'ticket' || table === 'support_tickets';
-    return {
-      codeCol: isTicket ? 'ticket_code' : 'dispute_code',
-      localKey: isTicket ? 'guidcy_help_tickets' : 'guidcy_disputes'
-    };
-  }
-
-  async function findCase(table,type,key){
-    var c = sbClient();
-    var meta = tableMeta(table,type);
-    var k = clean(key);
-    if(!k) return null;
-
-    if(c){
-      var q;
-      if(isUuid(k)){
-        q = c.from(table).select('*').eq('id',k).limit(1);
-      }else{
-        q = c.from(table).select('*').eq(meta.codeCol,k).limit(1);
-      }
-      var res = await q;
-      if(!res.error && res.data && res.data[0]) return res.data[0];
-
-      // User-facing tracking also supports registered email. This keeps ticket ID lookup exact and email lookup useful.
-      var res2 = await c.from(table)
-        .select('*')
-        .or(meta.codeCol+'.eq.'+k+',email.ilike.%'+k+'%')
-        .order('created_at',{ascending:false})
-        .limit(1);
-      if(!res2.error && res2.data && res2.data[0]) return res2.data[0];
-      if(res2.error) console.warn(table+' lookup failed:', res2.error.message);
-    }
-
-    return localGet(meta.localKey).find(function(x){
-      return String(x.id||'').toLowerCase() === k.toLowerCase() ||
-             String(x[meta.codeCol]||'').toLowerCase() === k.toLowerCase() ||
-             String(x.email||'').toLowerCase() === k.toLowerCase();
-    }) || null;
-  }
-
-  async function updateCaseInSupabase(table,type,key,patch){
-    var c = sbClient();
-    if(!c) return false;
-    var meta = tableMeta(table,type);
-    var k = clean(key);
-    if(!k) return false;
-
-    var payload = Object.assign({}, patch, { updated_at: nowISO() });
-    var query = c.from(table).update(payload);
-    query = isUuid(k) ? query.eq('id',k) : query.eq(meta.codeCol,k);
-    var res = await query.select('*').limit(1);
-
-    if(!res.error) return true;
-
-    // Many existing Guidcy tables do not have updated_at. Retry without it so status is saved in Supabase.
-    if(String(res.error.message||'').toLowerCase().includes('updated_at')){
-      var payload2 = Object.assign({}, patch);
-      var query2 = c.from(table).update(payload2);
-      query2 = isUuid(k) ? query2.eq('id',k) : query2.eq(meta.codeCol,k);
-      var res2 = await query2.select('*').limit(1);
-      if(!res2.error) return true;
-      console.warn(table+' update retry failed:', res2.error.message);
-      return false;
-    }
-
-    // If an older card passed display code while Supabase row id exists, resolve row first then update by id.
-    var row = await findCase(table,type,k);
-    if(row && row.id && String(row.id) !== k){
-      var payload3 = Object.assign({}, patch);
-      var res3 = await c.from(table).update(payload3).eq('id',row.id).select('*').limit(1);
-      if(!res3.error) return true;
-      console.warn(table+' update by resolved id failed:', res3.error.message);
-      return false;
-    }
-
-    console.warn(table+' update failed:', res.error.message);
-    return false;
-  }
-
-  async function deleteCaseInSupabase(table,type,key){
-    var c = sbClient();
-    if(!c) return false;
-    var meta = tableMeta(table,type);
-    var k = clean(key);
-    if(!k) return false;
-    var q = c.from(table).delete();
-    q = isUuid(k) ? q.eq('id',k) : q.eq(meta.codeCol,k);
-    var res = await q;
-    if(!res.error) return true;
-    console.warn(table+' delete failed:', res.error.message);
-    return false;
-  }
-
-  function updateLocal(table,type,key,patch,remove){
-    var meta = tableMeta(table,type);
-    var arr = localGet(meta.localKey);
-    if(remove){
-      arr = arr.filter(function(x){ return String(x.id)!==String(key) && String(x[meta.codeCol])!==String(key); });
-      localSet(meta.localKey,arr);
-      return;
-    }
-    var item = arr.find(function(x){ return String(x.id)===String(key) || String(x[meta.codeCol])===String(key); });
-    if(item){ Object.assign(item,patch); localSet(meta.localKey,arr); }
-  }
-
-  // Admin actions: always write status/comment back to Supabase, so user tracking gets the latest value.
-  window.gadminUpdateCase = async function(table,rowId,type){
-    var stEl = byId('st-'+CSS.escape(String(rowId)));
-    var cmEl = byId('cm-'+CSS.escape(String(rowId)));
-    var st = stEl ? stEl.value : '';
-    var cm = cmEl ? cmEl.value : '';
-    var ok = await updateCaseInSupabase(table,type,rowId,{status:st,admin_comment:cm});
-    if(!ok) updateLocal(table,type,rowId,{status:st,admin_comment:cm,updated_at:nowISO()});
-    toastSafe(ok ? 'Case updated' : 'Case updated locally only. Check Supabase RLS/table columns.','green');
-    try{ if(typeof swAD==='function') swAD(type==='ticket'?'support':'disputes',null); }catch(_){}
-  };
-
-  window.gadminResolveCase = async function(table,rowId,type){
-    var cmEl = byId('cm-'+CSS.escape(String(rowId)));
-    var cm = cmEl && cmEl.value ? cmEl.value : 'Resolved by admin';
-    var ok = await updateCaseInSupabase(table,type,rowId,{status:'Resolved',admin_comment:cm,resolved_at:nowISO()});
-    if(!ok) updateLocal(table,type,rowId,{status:'Resolved',admin_comment:cm,resolved_at:nowISO()});
-    toastSafe(ok ? 'Marked as resolved' : 'Resolved locally only. Check Supabase RLS/table columns.','green');
-    try{ if(typeof swAD==='function') swAD(type==='ticket'?'support':'disputes',null); }catch(_){}
-  };
-
-  window.gadminDeleteCase = async function(table,rowId,type){
-    if(!confirm('Delete this case permanently?')) return;
-    var ok = await deleteCaseInSupabase(table,type,rowId);
-    if(!ok) updateLocal(table,type,rowId,{},true);
-    toastSafe(ok ? 'Case deleted' : 'Case deleted locally only. Check Supabase RLS/table policies.','green');
-    try{ if(typeof swAD==='function') swAD(type==='ticket'?'support':'disputes',null); }catch(_){}
-  };
-
-  // User tracking: fetch fresh row from Supabase using Ticket/Dispute ID or email and display admin status/comment.
-  window.ghelpTrackTicket = async function(){
-    var key = val('ghelp-track-id');
-    if(!key){ toastSafe('Enter your Ticket ID or registered email','red'); return; }
-    var t = await findCase('support_tickets','ticket',key);
-    var out = byId('ghelp-track-out');
-    if(out){
-      out.innerHTML = t ? '<strong>Ticket found</strong><br><br>'+ 
-        '<strong>ID:</strong> '+esc(t.ticket_code || t.id)+'<br>'+ 
-        '<strong>Topic:</strong> '+esc(t.topic || 'Support ticket')+'<br>'+ 
-        '<strong>Status:</strong> '+esc(t.status || 'Open')+'<br>'+ 
-        '<strong>Priority:</strong> '+esc(t.priority || 'Normal')+ 
-        (t.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(t.admin_comment) : '<br><strong>Admin comment:</strong> No admin comment added yet.')+ 
-        (t.updated_at ? '<br><strong>Last updated:</strong> '+esc(new Date(t.updated_at).toLocaleString('en-IN')) : '')
-        : 'No ticket found matching that Ticket ID or email. Please check your Ticket ID and try again.';
-      out.classList.add('on');
-    }
-  };
-  window.ghelpCheckTicket = window.ghelpTrackTicket;
-  window.guidcyCheckTicket = window.ghelpTrackTicket;
-
-  window.gdispTrack = async function(){
-    var key = val('gdisp-track-id');
-    if(!key){ toastSafe('Enter your Dispute ID or registered email','red'); return; }
-    var d = await findCase('disputes','dispute',key);
-    var out = byId('gdisp-track-out');
-    if(out){
-      out.innerHTML = d ? '<strong>Dispute found</strong><br><br>'+ 
-        '<strong>ID:</strong> '+esc(d.dispute_code || d.id)+'<br>'+ 
-        '<strong>Issue type:</strong> '+esc(d.issue_type || d.type || 'Dispute case')+'<br>'+ 
-        '<strong>Preferred resolution:</strong> '+esc(d.preferred_resolution || d.resolution || 'Review request')+'<br>'+ 
-        '<strong>Status:</strong> '+esc(d.status || 'Under Review')+ 
-        (d.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(d.admin_comment) : '<br><strong>Admin comment:</strong> No admin comment added yet.')+ 
-        (d.updated_at ? '<br><strong>Last updated:</strong> '+esc(new Date(d.updated_at).toLocaleString('en-IN')) : '')
-        : 'No dispute found matching that Dispute ID or email. Please verify your Dispute ID and try again.';
-      out.classList.add('on');
-    }
-  };
-  window.guidcyCheckDispute = window.gdispTrack;
-})();
-</script>
-<!-- === END GUIDCY FINAL PATCH: user can track latest admin status for support tickets/disputes === -->
-
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
@@ -12205,109 +12010,3 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
-
-<!-- === GUIDCY FINAL PATCH: Help Support status uses same live Supabase logic as Dispute Resolution === -->
-<script id="guidcy-help-support-live-status-final-fix">
-(function(){
-  'use strict';
-  function byId(x){return document.getElementById(x)}
-  function val(x){var e=byId(x);return e&&typeof e.value==='string'?e.value.trim():''}
-  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function toastSafe(msg,type){try{if(typeof toast==='function')toast(msg,type||'green');else alert(msg)}catch(e){alert(msg)}}
-  function sbClient(){try{return window.sb || (typeof sb!=='undefined'?sb:null)}catch(e){return null}}
-  function isUuid(v){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''))}
-  function nowISO(){return new Date().toISOString()}
-  function localGet(k){try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return []}}
-  function localSet(k,v){try{localStorage.setItem(k,JSON.stringify(v||[]))}catch(e){}}
-  function meta(table,type){var support=(type==='ticket'||table==='support_tickets');return {codeCol:support?'ticket_code':'dispute_code',localKey:support?'guidcy_help_tickets':'guidcy_disputes'}}
-
-  async function findCaseFresh(table,type,key){
-    var c=sbClient(); var m=meta(table,type); var raw=String(key||'').trim(); if(!raw)return null;
-    if(c){
-      // Exact ID/code lookup first. This avoids stale email matches and mirrors the working dispute behavior.
-      var r1=isUuid(raw)?await c.from(table).select('*').eq('id',raw).limit(1):await c.from(table).select('*').eq(m.codeCol,raw).limit(1);
-      if(!r1.error && r1.data && r1.data[0])return r1.data[0];
-      // If a database id exists but is not UUID, try id as text too.
-      var r1b=await c.from(table).select('*').eq('id',raw).limit(1);
-      if(!r1b.error && r1b.data && r1b.data[0])return r1b.data[0];
-      // Registered email lookup as fallback.
-      var r2=await c.from(table).select('*').ilike('email',raw).order('created_at',{ascending:false}).limit(1);
-      if(!r2.error && r2.data && r2.data[0])return r2.data[0];
-      if(r1.error)console.warn(table+' exact lookup failed:',r1.error.message);
-      if(r2.error)console.warn(table+' email lookup failed:',r2.error.message);
-    }
-    var low=raw.toLowerCase();
-    return localGet(m.localKey).find(function(x){return String(x.id||'').toLowerCase()===low||String(x[m.codeCol]||'').toLowerCase()===low||String(x.email||'').toLowerCase()===low})||null;
-  }
-
-  async function updateCaseLive(table,type,rowId,patch){
-    var c=sbClient(); var m=meta(table,type); var raw=String(rowId||'').trim(); if(!c||!raw)return false;
-    async function tryUpdate(col,val,payload){return await c.from(table).update(payload).eq(col,val).select('*').limit(1)}
-    var payload=Object.assign({},patch,{updated_at:nowISO()});
-    var res=isUuid(raw)?await tryUpdate('id',raw,payload):await tryUpdate(m.codeCol,raw,payload);
-    if(!res.error)return true;
-    // Existing support_tickets table may not have updated_at/resolved_at. Retry only with safe columns.
-    var safePayload={status:patch.status,admin_comment:patch.admin_comment||''};
-    var res2=isUuid(raw)?await tryUpdate('id',raw,safePayload):await tryUpdate(m.codeCol,raw,safePayload);
-    if(!res2.error)return true;
-    // Some admin cards pass ticket_code while the row has a UUID id, or vice versa. Resolve the row then update by id.
-    var row=await findCaseFresh(table,type,raw);
-    if(row&&row.id){
-      var res3=await tryUpdate('id',row.id,safePayload);
-      if(!res3.error)return true;
-      console.warn(table+' resolved-id update failed:',res3.error.message);
-    }
-    console.warn(table+' update failed:',(res2.error&&res2.error.message)||(res.error&&res.error.message));
-    return false;
-  }
-
-  function updateLocalCase(table,type,rowId,patch,remove){
-    var m=meta(table,type); var arr=localGet(m.localKey); var raw=String(rowId||'');
-    if(remove){arr=arr.filter(function(x){return String(x.id)!==raw&&String(x[m.codeCol])!==raw});localSet(m.localKey,arr);return}
-    var item=arr.find(function(x){return String(x.id)===raw||String(x[m.codeCol])===raw});
-    if(item){Object.assign(item,patch,{updated_at:nowISO()});localSet(m.localKey,arr)}
-  }
-
-  // Final override: admin status/comment update now saves support_tickets exactly like disputes.
-  window.gadminUpdateCase=async function(table,rowId,type){
-    var stEl=byId('st-'+(window.CSS&&CSS.escape?CSS.escape(String(rowId)):String(rowId)));
-    var cmEl=byId('cm-'+(window.CSS&&CSS.escape?CSS.escape(String(rowId)):String(rowId)));
-    var st=stEl?stEl.value:''; var cm=cmEl?cmEl.value:'';
-    var ok=await updateCaseLive(table,type,rowId,{status:st,admin_comment:cm});
-    if(!ok)updateLocalCase(table,type,rowId,{status:st,admin_comment:cm},false);
-    toastSafe(ok?'Case updated':'Case updated locally only. Check Supabase columns/RLS.','green');
-    try{if(typeof swAD==='function')swAD(type==='ticket'?'support':'disputes',null)}catch(e){}
-  };
-
-  window.gadminResolveCase=async function(table,rowId,type){
-    var cmEl=byId('cm-'+(window.CSS&&CSS.escape?CSS.escape(String(rowId)):String(rowId)));
-    var cm=cmEl&&cmEl.value?cmEl.value:'Resolved by admin';
-    var ok=await updateCaseLive(table,type,rowId,{status:'Resolved',admin_comment:cm,resolved_at:nowISO()});
-    if(!ok)updateLocalCase(table,type,rowId,{status:'Resolved',admin_comment:cm},false);
-    toastSafe(ok?'Marked as resolved':'Resolved locally only. Check Supabase columns/RLS.','green');
-    try{if(typeof swAD==='function')swAD(type==='ticket'?'support':'disputes',null)}catch(e){}
-  };
-
-  // Final override: Help Support tracking always reads latest support_tickets row from Supabase first.
-  window.ghelpTrackTicket=async function(){
-    var key=val('ghelp-track-id');
-    if(!key){toastSafe('Enter your Ticket ID or registered email','red');return}
-    var t=await findCaseFresh('support_tickets','ticket',key);
-    var out=byId('ghelp-track-out');
-    if(out){
-      out.innerHTML=t?'<strong>Ticket found</strong><br><br>'+
-        '<strong>ID:</strong> '+esc(t.ticket_code||t.id)+'<br>'+
-        '<strong>Topic:</strong> '+esc(t.topic||'Support ticket')+'<br>'+
-        '<strong>Status:</strong> '+esc(t.status||'Open')+'<br>'+
-        '<strong>Priority:</strong> '+esc(t.priority||'Normal')+
-        (t.admin_comment?'<br><strong>Admin comment:</strong> '+esc(t.admin_comment):'<br><strong>Admin comment:</strong> No admin comment added yet.')+
-        (t.updated_at?'<br><strong>Last updated:</strong> '+esc(new Date(t.updated_at).toLocaleString('en-IN')):'')
-        :'No ticket found matching that Ticket ID or email. Please check your Ticket ID and try again.';
-      out.classList.add('on');
-    }
-  };
-  window.ghelpCheckTicket=window.ghelpTrackTicket;
-  window.guidcyCheckTicket=window.ghelpTrackTicket;
-})();
-</script>
-<!-- === END GUIDCY FINAL PATCH: Help Support live status === -->
