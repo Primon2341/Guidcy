@@ -2,11 +2,14 @@
   "name": "guidcy-static-with-jobs-api",
   "version": "1.0.0",
   "private": true,
+  "description": "Guidcy static website with API routes deployed on Vercel",
   "scripts": {
     "build": "node build-static.js",
     "start": "vercel dev"
   },
   "engines": {
     "node": "20.x"
-  }
+  },
+  "dependencies": {},
+  "devDependencies": {}
 }
