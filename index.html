@@ -6235,7 +6235,7 @@ body{overflow-x:hidden}
           ✨ AI-Powered Personal Recommender
         </div>
         <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(28px,5vw,42px);font-weight:500;margin-bottom:10px;line-height:1.15">Find What's <em style="font-style:italic;color:#C9A96E">Right for You</em></h1>
-        <p style="color:var(--muted);font-size:15px;max-width:500px;margin:0 auto;line-height:1.65">Tell us about yourself — our AI searches across the web to find the most relevant jobs or educational programs just for you.</p>
+        <p style="color:var(--muted);font-size:15px;max-width:500px;margin:0 auto;line-height:1.65">Tell us about yourself — our AI recommends the most relevant jobs or educational programs just for you.</p>
       </div>
 
       <!-- Mode switcher -->
@@ -6331,7 +6331,7 @@ body{overflow-x:hidden}
       results.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center">
         <div style="font-size:36px;margin-bottom:16px;animation:pulse2 1.5s infinite">🤖</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:8px">AI is analysing your profile...</div>
-        <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Searching the web for the best matches, ranking them by fit with your profile. This takes 10–20 seconds.</div>
+        <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Generating best-fit recommendations and ranking them by fit with your profile.</div>
         <div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
           ${Array(5).fill(0).map((_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:var(--blue,#3B82F6);animation:pulse2 1.2s ${i*0.2}s infinite"></div>`).join('')}
         </div>
@@ -6381,7 +6381,7 @@ body{overflow-x:hidden}
           <div style="font-size:28px;margin-bottom:10px">⚠️</div>
           <div style="font-weight:600;margin-bottom:6px;color:#991B1B">Could not fetch recommendations</div>
           <p style="font-size:13px;color:#7F1D1D;max-width:400px;margin:0 auto">${safe(e.message)}</p>
-          ${e.message.includes('GEMINI')?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">Add GROQ_API_KEY in Vercel → Project Settings → Environment Variables → Redeploy</p>':''}
+          ${(e.message.includes('OPENAI_API_KEY')||e.message.includes('OpenAI'))?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">Add OPENAI_API_KEY in Vercel → Project Settings → Environment Variables → Redeploy</p>':''}
         </div>`;
         if(btn){btn.disabled=false;btn.textContent='✨ Find My Best Matches';}
         return;
