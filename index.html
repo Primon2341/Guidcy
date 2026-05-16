@@ -9861,6 +9861,85 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 
+
+
+<!-- === GUIDCY CONSULTANT WEBINAR DASHBOARD PATCH — desktop + mobile === -->
+<style id="guidcy-consultant-webinar-dashboard-css">
+.guidcy-wbn-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.guidcy-wbn-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative;overflow:hidden}
+.guidcy-wbn-kpi:after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--blue)}
+.guidcy-wbn-kpi.green:after{background:var(--green)}.guidcy-wbn-kpi.gold:after{background:var(--gold)}.guidcy-wbn-kpi.dark:after{background:var(--ink)}
+.guidcy-wbn-kpi-val{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--ink);line-height:1}
+.guidcy-wbn-kpi-lbl{font-size:11px;color:var(--muted);margin-top:6px}
+.guidcy-wbn-history-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;overflow:hidden}
+.guidcy-wbn-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.guidcy-wbn-table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.guidcy-wbn-table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
+.guidcy-wbn-table th{padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)}
+.guidcy-wbn-table td{padding:12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--ink2)}
+.guidcy-wbn-empty{background:var(--surface);border:1.5px dashed var(--border2);border-radius:var(--r);padding:34px 20px;text-align:center;color:var(--muted)}
+.guidcy-wbn-overview-strip{margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+@media(max-width:900px){.guidcy-wbn-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.guidcy-wbn-toolbar{align-items:stretch}.guidcy-wbn-toolbar .btn{width:100%}.guidcy-wbn-table{min-width:720px}}
+@media(max-width:560px){.guidcy-wbn-kpi-grid{grid-template-columns:1fr}.guidcy-wbn-kpi-val{font-size:27px}}
+</style>
+<script id="guidcy-consultant-webinar-dashboard-js">
+(function(){
+  function byId(id){return document.getElementById(id)}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function txt(v){return String(v==null?'':v).trim()}
+  function money(n){n=Number(n||0);return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function currentEmail(){try{return txt((window.currentProfile&&window.currentProfile.email)||(window.currentUser&&window.currentUser.email)||'').toLowerCase()}catch(e){return ''}}
+  function currentName(){try{return txt((window.currentProfile&&window.currentProfile.full_name)||(window.currentUser&&window.currentUser.user_metadata&&window.currentUser.user_metadata.full_name)||'Consultant')}catch(e){return 'Consultant'}}
+  function currentUid(){try{return txt(window.currentUser&&window.currentUser.id)}catch(e){return ''}}
+  function isConsultantOrAdmin(){var r=txt(window.loggedIn||((window.currentProfile||{}).role)).toLowerCase();return r==='consultant'||r==='admin'}
+  function stableId(w){return 'wbn_'+btoa(unescape(encodeURIComponent([w.title,w.date,w.time,w.speaker].join('|')))).replace(/[^a-zA-Z0-9]/g,'').slice(0,24)}
+  function readLocal(){try{return JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[]}catch(e){return []}}
+  function writeLocal(a){try{localStorage.setItem('guidcy_webinars',JSON.stringify(a||[]))}catch(e){}}
+  function regsLocal(){try{return JSON.parse(localStorage.getItem('guidcy_webinar_regs')||'[]')||[]}catch(e){return []}}
+  function norm(w){w=w||{};var price=Number(w.price_amount||w.priceAmount||w.fees||0)||0;var title=txt(w.title);var date=txt(w.date);var time=txt(w.time);var speaker=txt(w.speaker||w.speaker_name||w.publisher_name||currentName());return {id:txt(w.id)||stableId({title,date,time,speaker}),title:title||'Untitled webinar',cat:txt(w.cat||w.category)||'General',desc:txt(w.desc||w.description),date:date,time:time,dur:txt(w.dur||w.duration)||'60 minutes',seats:Number(w.seats||100)||100,speaker:speaker,speakerRole:txt(w.speakerRole||w.speaker_role),link:txt(w.link||w.meet_link),priceAmount:price,isPaid:!!(w.is_paid||w.isPaid||price>0),publisherEmail:txt(w.publisher_email).toLowerCase(),publisherName:txt(w.publisher_name),createdBy:txt(w.created_by),createdAt:txt(w.created_at)}}
+  function key(w){w=norm(w);return [w.title.toLowerCase(),w.date,w.time,(w.speaker||'').toLowerCase()].join('|')}
+  function dedupe(a){var m={};(a||[]).map(norm).forEach(function(w){m[key(w)]=Object.assign(m[key(w)]||{},w)});return Object.keys(m).map(function(k){return m[k]}).sort(function(a,b){return String(b.date+' '+b.time).localeCompare(String(a.date+' '+a.time))})}
+  function status(w){w=norm(w);if(!w.date)return 'upcoming';var d=new Date(w.date+'T'+(w.time||'23:59'));if(isNaN(d))return 'upcoming';var now=new Date();var end=new Date(d.getTime()+90*60000);if(now>=d&&now<=end)return 'live';return now>end?'completed':'upcoming'}
+  function isMine(w){w=norm(w);var em=currentEmail(),uid=currentUid(),nm=currentName().toLowerCase();return (!!em&&w.publisherEmail===em)||(!!uid&&w.createdBy===uid)||(!!nm&&String(w.publisherName||'').toLowerCase()===nm)||(!!nm&&String(w.speaker||'').toLowerCase()===nm)}
+  async function fetchDb(){try{if(window.sb){var r=await window.sb.from('webinars').select('*').order('created_at',{ascending:false});if(!r.error&&Array.isArray(r.data))return r.data.map(norm)}}catch(e){}try{if(typeof window.supabaseRest==='function'){var rr=await window.supabaseRest('webinars?select=*',{method:'GET',timeoutMs:20000});if(Array.isArray(rr.data))return rr.data.map(norm)}}catch(e){}return []}
+  async function myWebinars(){var all=dedupe(readLocal().concat(await fetchDb()));writeLocal(all);return all.filter(isMine)}
+  async function upsertWebinar(w){w=norm(w);var row={id:w.id,title:w.title,category:w.cat,description:w.desc,date:w.date,time:w.time,duration:w.dur,seats:w.seats,speaker:w.speaker,speaker_role:w.speakerRole,meet_link:w.link,price_type:w.priceAmount>0?'paid':'free',price_amount:w.priceAmount,is_paid:w.priceAmount>0,publisher_email:currentEmail()||w.publisherEmail,publisher_name:currentName()||w.publisherName,created_by:currentUid()||null,created_at:w.createdAt||new Date().toISOString()};
+    var local=dedupe(readLocal().concat([Object.assign({},w,row)]));writeLocal(local);
+    try{if(window.sb){var r=await window.sb.from('webinars').upsert(row,{onConflict:'id'});if(!r.error)return true;console.warn('webinar dashboard upsert failed',r.error)}}catch(e){console.warn(e)}
+    try{if(typeof window.supabaseRest==='function'){var rr=await window.supabaseRest('webinars?on_conflict=id',{method:'POST',body:[row],prefer:'resolution=merge-duplicates,return=representation',timeoutMs:20000});return !!rr.ok}}catch(e){console.warn(e)}
+    return false;
+  }
+  function ensureDashboardButton(){var side=document.querySelector('#page-cons-dash .side-nav');if(!side||byId('cons-webinars-btn'))return;var btn=document.createElement('button');btn.className='side-btn';btn.id='cons-webinars-btn';btn.setAttribute('onclick',"swCD('webinars',this)");btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M10 15l2 2 4-4"/></svg>Webinar history';var div=side.querySelector('.side-divider');side.insertBefore(btn,div||side.lastElementChild)}
+  function counts(list){return {total:list.length,completed:list.filter(function(w){return status(w)==='completed'}).length,upcoming:list.filter(function(w){return status(w)==='upcoming'}).length,live:list.filter(function(w){return status(w)==='live'}).length,paid:list.filter(function(w){return norm(w).priceAmount>0}).length}}
+  function regCountFor(w){w=norm(w);var rs=regsLocal();return rs.filter(function(r){return String(r.wid||r.webinar_id||'')===String(w.id)||String(r.webinarTitle||r.webinar_title||'')===String(w.title)}).length}
+  function statusPill(s){return s==='completed'?'<span class="status-pill sp-done">Completed</span>':s==='live'?'<span class="status-pill sp-upcoming">Live</span>':'<span class="status-pill sp-pending">Upcoming</span>'}
+  function fmtDate(w){w=norm(w);try{return new Date(w.date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return w.date||'—'}}
+  async function renderWebinarHistory(btn){ensureDashboardButton();if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(e){}}var m=byId('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';var list=await myWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Published webinar list</div><div style="font-size:12px;color:var(--muted)">Shows webinars published by your consultant account across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish new webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(w){w=norm(w);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div><p style="font-size:13px;margin-bottom:18px">Once you publish webinars, their posted/completed history will appear here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish your first webinar</button></div>')}
+  async function injectOverviewStrip(){var m=byId('cdash-main');if(!m||byId('guidcy-wbn-overview-strip'))return;var list=await myWebinars();var c=counts(list);var div=document.createElement('div');div.id='guidcy-wbn-overview-strip';div.className='guidcy-wbn-overview-strip';div.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Webinar publishing summary</div><div style="font-size:12px;color:var(--muted)">'+c.total+' posted · '+c.completed+' completed · '+(c.upcoming+c.live)+' upcoming/live</div></div><button class="btn btn-blue" onclick="swCD(\'webinars\',document.getElementById(\'cons-webinars-btn\'))">View history</button></div>';m.appendChild(div)}
+  var oldSwCD=window.swCD;
+  window.swCD=async function(view,btn){ensureDashboardButton();if(view==='webinars')return renderWebinarHistory(btn);var r=oldSwCD?await oldSwCD.apply(this,arguments):undefined;if(view==='overview')setTimeout(injectOverviewStrip,80);return r};
+  var oldGo=window.go;
+  window.go=function(page){var r=oldGo?oldGo.apply(this,arguments):undefined;if(page==='cons-dash')setTimeout(ensureDashboardButton,120);return r};
+  var oldPublish=window.wbnPublish;
+  window.wbnPublish=async function(){
+    if(!isConsultantOrAdmin()){try{toast('Please register as consultant to publish a webinar','red')}catch(e){alert('Please register as consultant to publish a webinar')}return false}
+    var title=txt(byId('wbn-pub-title')&&byId('wbn-pub-title').value),date=txt(byId('wbn-pub-date')&&byId('wbn-pub-date').value),time=txt(byId('wbn-pub-time')&&byId('wbn-pub-time').value),speaker=txt(byId('wbn-pub-speaker')&&byId('wbn-pub-speaker').value)||currentName();
+    if(!title||!date||!time||!speaker){try{toast('Please fill in title, date, time and speaker name','red')}catch(e){}return false}
+    var priceType=txt(byId('wbn-pub-price-type')&&byId('wbn-pub-price-type').value).toLowerCase();var priceAmount=priceType==='paid'?(Number(byId('wbn-pub-price')&&byId('wbn-pub-price').value)||0):0;if(priceType==='paid'&&priceAmount<=0){try{toast('Please enter valid webinar fees for paid webinar','red')}catch(e){}return false}
+    var w=norm({title:title,cat:txt(byId('wbn-pub-cat')&&byId('wbn-pub-cat').value)||'General',date:date,time:time,dur:txt(byId('wbn-pub-dur')&&byId('wbn-pub-dur').value)||'60 minutes',seats:Number(byId('wbn-pub-seats')&&byId('wbn-pub-seats').value)||100,desc:txt(byId('wbn-pub-desc')&&byId('wbn-pub-desc').value),speaker:speaker,speakerRole:txt(byId('wbn-pub-speaker-role')&&byId('wbn-pub-speaker-role').value),link:txt(byId('wbn-pub-link')&&byId('wbn-pub-link').value),priceAmount:priceAmount,isPaid:priceAmount>0,publisherEmail:currentEmail(),publisherName:currentName(),createdBy:currentUid(),createdAt:new Date().toISOString()});
+    var btn=document.querySelector('#wbn-admin-panel button[onclick="wbnPublish()"]');if(btn){btn.disabled=true;btn.textContent='Saving…'}
+    var ok=await upsertWebinar(w);if(btn){btn.disabled=false;btn.textContent='Publish webinar'}
+    var st=byId('wbn-pub-status');if(st){st.textContent=ok?'✓ Webinar published successfully!':'✓ Webinar saved locally. Supabase sync needs table/policy check.';st.style.display='block';setTimeout(function(){st.style.display='none'},3000)}
+    try{toast(ok?'Webinar published!':'Webinar saved locally; Supabase sync failed.','green')}catch(e){}
+    ['wbn-pub-title','wbn-pub-date','wbn-pub-time','wbn-pub-desc','wbn-pub-speaker','wbn-pub-speaker-role','wbn-pub-link','wbn-pub-price'].forEach(function(id){var el=byId(id);if(el)el.value=''})
+    try{if(typeof window.wbnRender==='function')window.wbnRender()}catch(e){}
+    return false;
+  };
+  document.addEventListener('DOMContentLoaded',function(){ensureDashboardButton();if(byId('page-cons-dash')&&(byId('page-cons-dash').classList.contains('on')||byId('page-cons-dash').classList.contains('active')))setTimeout(ensureDashboardButton,100)});
+  window.addEventListener('load',function(){setTimeout(ensureDashboardButton,300)});
+})();
+</script>
+<!-- === END GUIDCY CONSULTANT WEBINAR DASHBOARD PATCH === -->
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
