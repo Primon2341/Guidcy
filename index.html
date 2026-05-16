@@ -11550,3 +11550,120 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY ADMIN WEBINAR HISTORY DASHBOARD PATCH === -->
+
+<!-- === GUIDCY FINAL FIX: prevent duplicate webinar registration/publish entries + dedupe admin/consultant history === -->
+<script id="guidcy-final-webinar-single-entry-fix">
+(function(){
+  function byId(id){return document.getElementById(id)}
+  function txt(v){return String(v==null?'':v).trim()}
+  function esc(v){return txt(v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
+  function money(n){n=Number(n||0);return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function getRole(){return txt(window.loggedIn||((window.currentProfile||{}).role)).toLowerCase()}
+  function isAdmin(){return getRole()==='admin'}
+  function currentEmail(){return txt((window.currentUser||{}).email||(window.currentProfile||{}).email).toLowerCase()}
+  function stableId(w){try{return 'wbn_'+btoa(unescape(encodeURIComponent([w.title,w.date,w.time].join('|').toLowerCase()))).replace(/[^a-zA-Z0-9]/g,'').slice(0,28)}catch(e){return 'wbn_'+Date.now()}}
+  function norm(w){
+    w=w||{};
+    var title=txt(w.title||w.webinar_title||w.name);
+    var date=txt(w.date||w.webinar_date||(w.start_date?txt(w.start_date).slice(0,10):''));
+    var time=txt(w.time||w.webinar_time||(w.start_time?txt(w.start_time).slice(11,16):''));
+    var speaker=txt(w.speaker||w.speaker_name||w.publisher_name||w.consultant_name);
+    var price=Number(w.price_amount||w.priceAmount||w.price||w.fees||0)||0;
+    return {
+      id:txt(w.id||w.webinar_id)||stableId({title:title,date:date,time:time}),
+      title:title||'Untitled webinar',cat:txt(w.cat||w.category)||'General',desc:txt(w.desc||w.description),date:date,time:time,
+      dur:txt(w.dur||w.duration)||'60 minutes',seats:Number(w.seats||w.capacity||100)||100,
+      speaker:speaker||'—',speakerRole:txt(w.speakerRole||w.speaker_role),link:txt(w.link||w.meet_link||w.zoom_link||w.webinar_link),
+      priceAmount:price,isPaid:!!(w.is_paid||w.isPaid||price>0),publisherEmail:txt(w.publisher_email||w.publisherEmail||w.consultant_email).toLowerCase(),
+      publisherName:txt(w.publisher_name||w.publisherName||w.consultant_name),createdBy:txt(w.created_by||w.createdBy),createdAt:txt(w.created_at||w.createdAt),
+      _source:txt(w._source)
+    };
+  }
+  function key(w){w=norm(w);return [w.title.toLowerCase().replace(/\s+/g,' '),w.date,w.time].join('|')}
+  function dedupeWebinars(arr){
+    var map={};
+    (arr||[]).forEach(function(raw){
+      var w=norm(raw); if(!w.title&&!w.date)return;
+      var k=key(w), old=map[k];
+      /* Prefer Supabase row over localStorage duplicate; otherwise keep the richer/latest row. */
+      if(!old || (old._source!=='db'&&w._source==='db') || (txt(w.createdAt)>txt(old.createdAt))){map[k]=Object.assign({},old||{},w)}
+    });
+    return Object.keys(map).map(function(k){return map[k]}).sort(function(a,b){return String((b.date||'')+' '+(b.time||'')).localeCompare(String((a.date||'')+' '+(a.time||'')))})
+  }
+  function readLocalWebinars(){try{return (JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[]).map(function(w){w._source='local';return w})}catch(e){return []}}
+  function readLocalRegs(){try{return JSON.parse(localStorage.getItem('guidcy_webinar_regs')||'[]')||[]}catch(e){return []}}
+  async function fetchDbWebinars(){
+    try{if(window.sb){var r=await window.sb.from('webinars').select('*').order('created_at',{ascending:false});if(!r.error&&Array.isArray(r.data))return r.data.map(function(w){w._source='db';return w})}}catch(e){}
+    try{if(typeof window.supabaseRest==='function'){var rr=await window.supabaseRest('webinars?select=*&order=created_at.desc',{method:'GET',timeoutMs:20000});if(Array.isArray(rr.data))return rr.data.map(function(w){w._source='db';return w})}}catch(e){}
+    return [];
+  }
+  async function fetchDbRegs(){
+    try{if(window.sb){var r=await window.sb.from('webinar_registrations').select('*').order('registered_at',{ascending:false});if(!r.error&&Array.isArray(r.data))return r.data}}catch(e){}
+    try{if(typeof window.supabaseRest==='function'){var rr=await window.supabaseRest('webinar_registrations?select=*&order=registered_at.desc',{method:'GET',timeoutMs:15000});if(Array.isArray(rr.data))return rr.data}}catch(e){}
+    return [];
+  }
+  async function allWebinars(){return dedupeWebinars(readLocalWebinars().concat(await fetchDbWebinars()))}
+  function status(w){w=norm(w);if(!w.date)return 'upcoming';var d=new Date(w.date+'T'+(w.time||'23:59'));if(isNaN(d))return 'upcoming';var now=new Date();var end=new Date(d.getTime()+90*60000);if(now>=d&&now<=end)return 'live';return now>end?'completed':'upcoming'}
+  function counts(list){return {total:list.length,completed:list.filter(function(w){return status(w)==='completed'}).length,upcoming:list.filter(function(w){return status(w)==='upcoming'}).length,live:list.filter(function(w){return status(w)==='live'}).length,paid:list.filter(function(w){return norm(w).priceAmount>0}).length}}
+  function pill(s){return s==='completed'?'<span class="status-pill sp-done">Completed</span>':s==='live'?'<span class="status-pill sp-upcoming">Live</span>':'<span class="status-pill sp-pending">Upcoming</span>'}
+  function fmtDate(w){w=norm(w);try{return w.date?new Date(w.date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'}catch(e){return w.date||'—'}}
+  function regKey(r){return [txt(r.webinar_id||r.wid),txt(r.email).toLowerCase(),txt(r.phone)].join('|')}
+  function dedupeRegs(regs){var m={};(regs||[]).forEach(function(r){var k=regKey(r);if(!m[k])m[k]=r;});return Object.keys(m).map(function(k){return m[k]})}
+  async function regCounts(){var regs=dedupeRegs(readLocalRegs().concat(await fetchDbRegs()));var c={};regs.forEach(function(r){var id=txt(r.webinar_id||r.wid);if(id)c[id]=(c[id]||0)+1});return c}
+  function publisher(w){w=norm(w);return txt(w.publisherName)||txt(w.speaker)||txt(w.publisherEmail)||'—'}
+
+  /* Single-click lock: prevents inline onclick + extra mobile/capture handlers from inserting twice. */
+  var oldSubmit=window.wbnSubmitReg;
+  window.wbnSubmitReg=async function(){
+    var fp=[txt((byId('wbn-reg-webinar-name')||{}).textContent),txt((byId('wbn-reg-email')||{}).value).toLowerCase(),txt((byId('wbn-reg-phone')||{}).value)].join('|');
+    var now=Date.now();
+    if(window.__guidcyWbnSubmitting && window.__guidcyWbnSubmitFp===fp && !window._wbnPaidOk){return;}
+    if(window.__guidcyWbnLastFp===fp && now-window.__guidcyWbnLastAt<7000 && !window._wbnPaidOk){try{toast('This webinar registration is already being processed.','blue')}catch(e){}return;}
+    window.__guidcyWbnSubmitting=true; window.__guidcyWbnSubmitFp=fp; window.__guidcyWbnLastFp=fp; window.__guidcyWbnLastAt=now;
+    try{return await oldSubmit.apply(this,arguments)}finally{setTimeout(function(){window.__guidcyWbnSubmitting=false},2500)}
+  };
+
+  /* Capture the registration button click once on desktop/mobile and stop old duplicate listeners. */
+  document.addEventListener('click',function(e){
+    var btn=e.target&&e.target.closest&&e.target.closest('#wbn-reg-form .btn-blue');
+    if(!btn)return;
+    e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    window.wbnSubmitReg();
+  },true);
+
+  async function renderAdmin(btn){
+    if(!isAdmin()){return;}
+    if(btn){document.querySelectorAll('#page-admin .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}
+    var m=byId('adash-main'); if(!m)return;
+    m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';
+    var list=await allWebinars(), c=counts(list), rc=await regCounts();
+    m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Duplicate local/database copies are merged, so one published webinar appears only once on desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisher(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p></div>')
+  }
+
+  async function renderConsultant(btn){
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(e){}}
+    var m=byId('cdash-main'); if(!m)return;
+    m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';
+    var me=currentEmail(), all=await allWebinars();
+    var list=all.filter(function(raw){var w=norm(raw);return !me || w.publisherEmail===me || txt(w.speaker).toLowerCase()===txt((window.currentProfile||{}).name||(window.currentUser||{}).name).toLowerCase()});
+    var c=counts(list), rc=await regCounts();
+    m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\')">View</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div></div>')
+  }
+
+  var oldSwAD=window.swAD;
+  window.swAD=function(view,btn){if(view==='webinars')return renderAdmin(btn);return oldSwAD?oldSwAD.apply(this,arguments):undefined};
+  var oldSwCD=window.swCD;
+  window.swCD=function(view,btn){if(view==='webinars')return renderConsultant(btn);return oldSwCD?oldSwCD.apply(this,arguments):undefined};
+
+  var oldRenderRegs=window.wbnRenderRegs;
+  window.wbnRenderRegs=async function(){
+    var container=byId('wbn-regs-list'); if(!container){return oldRenderRegs&&oldRenderRegs.apply(this,arguments)}
+    container.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Loading…</div>';
+    var regs=dedupeRegs(readLocalRegs().concat(await fetchDbRegs()));
+    if(!regs.length){container.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted)">No registrations yet.</div>';return;}
+    var rows=regs.map(function(r){return '<tr><td style="padding:10px 14px;font-weight:600;color:var(--ink)">'+esc(r.webinar_title||r.webinarTitle||'Webinar')+'</td><td style="padding:10px 14px">'+esc(r.name)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.email)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.phone)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.role)+'</td><td style="padding:10px 14px;color:var(--muted);white-space:nowrap">'+esc(r.registered_at||r.registeredAt||'')+'</td></tr>'}).join('');
+    container.innerHTML='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Webinar</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Name</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Email</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Phone</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Role</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Registered at</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  };
+})();
+</script>
+<!-- === END GUIDCY FINAL WEBINAR SINGLE ENTRY FIX === -->
