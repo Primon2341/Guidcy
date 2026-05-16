@@ -2437,7 +2437,7 @@ async function loadProfile(){
 async function gSignIn(){
   if(!sb){
     loggedIn='user';currentProfile={full_name:'Aarav Shah',role:'user',avatar_initials:'AS'};
-    updateNav();toast('Demo mode — add Supabase for real auth','blue');
+    updateNav();toast('Demo mode — live database is not connected','blue');
     setTimeout(()=>go('user-dash'),700);return;
   }
   const{error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:'https://guidcy.com'}});
@@ -3083,7 +3083,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
 
   if(!CFG?.supabase_url || !CFG?.supabase_key){
     console.error('❌ Supabase URL/key missing in CFG');
-    toast('Supabase config missing. Booking was not saved.','red');
+    toast('Booking was not saved. Please check your connection and try again.','red');
     return;
   }
 
@@ -3159,7 +3159,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
 
     if(!savedRow?.id){
       console.error('❌ Booking inserted but no row/id returned:',insertResult.data);
-      toast('Booking save returned no ID. Check Supabase return/RLS select policy.','red');
+      toast('Booking was not saved. Please try again.','red');
       return null;
     }
 
@@ -5416,7 +5416,7 @@ cancelBooking=async function(bookingId,role){
   window.doSignup=async function(type){
     injectSignupExtras();
     if(!sb){
-      try{toast('Supabase is not connected. Please configure Supabase before live signup.','red');}catch(_){alert('Supabase is not connected.');}
+      try{toast('Signup was not completed. Please try again.','red');}catch(_){alert('Signup was not completed. Please try again.');}
       return;
     }
     if(type==='user'){
@@ -5725,13 +5725,13 @@ cancelBooking=async function(bookingId,role){
 
   // 2) Better Google signup/login button support.
   window.gSignIn=async function(){
-    if(!window.sb && typeof sb==='undefined'){try{toast('Supabase is not configured yet','red')}catch(e){};return;}
+    if(!window.sb && typeof sb==='undefined'){try{toast('Sign-in is not available right now. Please try again later.','red')}catch(e){};return;}
     const client=window.sb || sb;
     const redirectTo=window.location.origin + '/dashboard';
     try{
       const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo,queryParams:{access_type:'offline',prompt:'select_account'}}});
       if(error) throw error;
-    }catch(e){try{toast((e&&e.message)||'Google sign-in failed. Check Supabase Google provider and redirect URL settings.','red')}catch(_){alert((e&&e.message)||'Google sign-in failed')}}
+    }catch(e){try{toast((e&&e.message)||'Google sign-in failed. Please try again.','red')}catch(_){alert((e&&e.message)||'Google sign-in failed')}}
   };
   function addGoogleSignupButton(){
     const card=document.querySelector('#page-signup .form-card'); if(!card||card.querySelector('.signup-google-added'))return;
@@ -9758,7 +9758,7 @@ body.gmob-open{overflow:hidden}
       toastSafe('Ticket has been raised successfully.','green');
     }catch(err){
       console.error('support_tickets insert failed:',err);
-      if(out){ out.innerHTML='<strong>Ticket was not saved.</strong><br><br>Supabase returned: '+esc(err.message || err.details || err.hint || 'Unknown error')+'<br><br>Please run the SQL table/policy fix and retry.'; out.classList.add('on'); }
+      if(out){ out.innerHTML='<strong>Ticket was not raised.</strong><br><br>Please check your connection and try again.'; out.classList.add('on'); }
       toastSafe('Ticket was not saved in Supabase. Check table/RLS setup.','red');
     }finally{ setBusy(btn,false); }
   };
@@ -9824,7 +9824,7 @@ body.gmob-open{overflow:hidden}
       toastSafe('Dispute has been raised successfully.','green');
     }catch(err){
       console.error('disputes insert failed:',err);
-      if(out){ out.innerHTML='<strong>Dispute was not saved.</strong><br><br>Supabase returned: '+esc(err.message || err.details || err.hint || 'Unknown error')+'<br><br>Please run the SQL table/policy fix and retry.'; out.classList.add('on'); }
+      if(out){ out.innerHTML='<strong>Dispute was not raised.</strong><br><br>Please check your connection and try again.'; out.classList.add('on'); }
       toastSafe('Dispute was not saved in Supabase. Check table/RLS setup.','red');
     }finally{ setBusy(btn,false); }
   };
@@ -9929,8 +9929,8 @@ body.gmob-open{overflow:hidden}
     var w=norm({title:title,cat:txt(byId('wbn-pub-cat')&&byId('wbn-pub-cat').value)||'General',date:date,time:time,dur:txt(byId('wbn-pub-dur')&&byId('wbn-pub-dur').value)||'60 minutes',seats:Number(byId('wbn-pub-seats')&&byId('wbn-pub-seats').value)||100,desc:txt(byId('wbn-pub-desc')&&byId('wbn-pub-desc').value),speaker:speaker,speakerRole:txt(byId('wbn-pub-speaker-role')&&byId('wbn-pub-speaker-role').value),link:txt(byId('wbn-pub-link')&&byId('wbn-pub-link').value),priceAmount:priceAmount,isPaid:priceAmount>0,publisherEmail:currentEmail(),publisherName:currentName(),createdBy:currentUid(),createdAt:new Date().toISOString()});
     var btn=document.querySelector('#wbn-admin-panel button[onclick="wbnPublish()"]');if(btn){btn.disabled=true;btn.textContent='Saving…'}
     var ok=await upsertWebinar(w);if(btn){btn.disabled=false;btn.textContent='Publish webinar'}
-    var st=byId('wbn-pub-status');if(st){st.textContent=ok?'✓ Webinar published successfully!':'✓ Webinar saved locally. Supabase sync needs table/policy check.';st.style.display='block';setTimeout(function(){st.style.display='none'},3000)}
-    try{toast(ok?'Webinar published!':'Webinar saved locally; Supabase sync failed.','green')}catch(e){}
+    var st=byId('wbn-pub-status');if(st){st.textContent=ok?'✓ Webinar published successfully!':'Webinar was not published. Please try again.';st.style.display='block';setTimeout(function(){st.style.display='none'},3000)}
+    try{toast(ok?'Webinar published!':'Webinar was not published. Please try again.','green')}catch(e){}
     ['wbn-pub-title','wbn-pub-date','wbn-pub-time','wbn-pub-desc','wbn-pub-speaker','wbn-pub-speaker-role','wbn-pub-link','wbn-pub-price'].forEach(function(id){var el=byId(id);if(el)el.value=''})
     try{if(typeof window.wbnRender==='function')window.wbnRender()}catch(e){}
     return false;
@@ -9940,6 +9940,53 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY CONSULTANT WEBINAR DASHBOARD PATCH === -->
+
+
+<!-- === GUIDCY FINAL PATCH: generic user-facing database error messages === -->
+<script id="guidcy-user-facing-db-error-sanitizer-js">
+(function(){
+  function cleanMsg(msg){
+    msg = String(msg || '');
+    if(/support_tickets|ticket|help center/i.test(msg) && /supabase|rls|policy|schema|table|postgres|database|fetch|network/i.test(msg)){
+      return 'Ticket was not raised. Please check your connection and try again.';
+    }
+    if(/disputes|dispute/i.test(msg) && /supabase|rls|policy|schema|table|postgres|database|fetch|network/i.test(msg)){
+      return 'Dispute was not raised. Please check your connection and try again.';
+    }
+    if(/webinar/i.test(msg) && /supabase|rls|policy|schema|table|postgres|database|fetch|network/i.test(msg)){
+      return 'Webinar was not published. Please check your connection and try again.';
+    }
+    if(/booking|session/i.test(msg) && /supabase|rls|policy|schema|table|postgres|database|fetch|network/i.test(msg)){
+      return 'Booking was not saved. Please check your connection and try again.';
+    }
+    if(/signup|sign.?in|auth|login|google/i.test(msg) && /supabase|rls|policy|schema|table|postgres|database|redirect|provider/i.test(msg)){
+      return 'This action was not completed. Please try again.';
+    }
+    if(/supabase/i.test(msg)){
+      return msg.replace(/Supabase/gi,'database').replace(/RLS/gi,'security').replace(/Postgres/gi,'database');
+    }
+    return msg;
+  }
+
+  var oldToast = window.toast;
+  if(typeof oldToast === 'function' && !oldToast.__guidcyDbSanitized){
+    var wrapped = function(message, type){
+      return oldToast.call(this, cleanMsg(message), type);
+    };
+    wrapped.__guidcyDbSanitized = true;
+    window.toast = wrapped;
+  }
+
+  var oldAlert = window.alert;
+  if(typeof oldAlert === 'function' && !oldAlert.__guidcyDbSanitized){
+    var wrappedAlert = function(message){ return oldAlert.call(window, cleanMsg(message)); };
+    wrappedAlert.__guidcyDbSanitized = true;
+    window.alert = wrappedAlert;
+  }
+})();
+</script>
+<!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
@@ -11457,7 +11504,7 @@ body.gmob-open{overflow:hidden}
     }catch(err){
       console.error('support_tickets insert failed:',err);
       lastSubmit.help={sig:'',at:0};
-      if(out){out.innerHTML='<strong>Ticket was not saved.</strong><br><br>Supabase returned: '+esc(err.message||err.details||err.hint||'Unknown error')+'<br><br>Please check the support_tickets table and RLS policy.';out.classList.add('on')}
+      if(out){out.innerHTML='<strong>Ticket was not raised.</strong><br><br>Please check your connection and try again.';out.classList.add('on')}
       toastSafe('Ticket was not saved in Supabase.','red')
     }finally{submitLocks.help=false;setBusy(btn,false)}
     return false;
@@ -11485,7 +11532,7 @@ body.gmob-open{overflow:hidden}
     }catch(err){
       console.error('disputes insert failed:',err);
       lastSubmit.dispute={sig:'',at:0};
-      if(out){out.innerHTML='<strong>Dispute was not saved.</strong><br><br>Supabase returned: '+esc(err.message||err.details||err.hint||'Unknown error')+'<br><br>Please check the disputes table and RLS policy.';out.classList.add('on')}
+      if(out){out.innerHTML='<strong>Dispute was not raised.</strong><br><br>Please check your connection and try again.';out.classList.add('on')}
       toastSafe('Dispute was not saved in Supabase.','red')
     }finally{submitLocks.dispute=false;setBusy(btn,false)}
     return false;
@@ -11828,7 +11875,7 @@ body.gmob-open{overflow:hidden}
     }
     var m = byId('adash-main');
     if(!m) return;
-    m.innerHTML = '<div style="padding:24px;color:var(--muted)">Loading latest webinar history from Supabase...</div>';
+    m.innerHTML = '<div style="padding:24px;color:var(--muted)">Loading latest webinar history from live database...</div>';
     var list = await fetchSupabaseWebinarsOnly();
     var c = counts(list);
     m.innerHTML = '<div class="dash-title">All webinar history</div>'
