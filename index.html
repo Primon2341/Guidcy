@@ -12213,3 +12213,193 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
+
+<!-- === GUIDCY FINAL PATCH: reliable same-page refresh for full website === -->
+<script id="guidcy-final-route-persistence-v2">
+(function(){
+  'use strict';
+
+  var PAGE_URLS = {
+    'home':'/',
+    'browse':'/browse',
+    'categories':'/categories',
+    'blog':'/blog',
+    'become':'/become-a-consultant',
+    'webinar':'/webinar',
+    'help':'/help-center',
+    'dispute':'/dispute-resolution',
+    'login':'/login',
+    'signup':'/signup',
+    'user-dash':'/dashboard',
+    'cons-dash':'/consultant-dashboard',
+    'admin-dash':'/admin',
+    'about':'/about',
+    'contact':'/contact',
+    'faq':'/faq',
+    'terms':'/terms',
+    'privacy':'/privacy',
+    'refund':'/refund',
+    'disclaimer':'/disclaimer',
+    'profile':'/profile',
+    'payment':'/payment',
+    'confirm':'/confirm',
+    'review':'/review',
+    'meeting':'/meeting'
+  };
+
+  var PATH_TO_PAGE = {};
+  Object.keys(PAGE_URLS).forEach(function(k){ PATH_TO_PAGE[PAGE_URLS[k]] = k; });
+  var ALIAS = {
+    'admin':'admin-dash',
+    'consultant-dashboard':'cons-dash',
+    'consultant':'cons-dash',
+    'dashboard':'user-dash',
+    'user-dashboard':'user-dash',
+    'help-center':'help',
+    'dispute-resolution':'dispute',
+    'become-consultant':'become',
+    'become-a-consultant':'become',
+    'webinars':'webinar'
+  };
+
+  var PAGE_KEY = 'guidcy_last_page_v2';
+  var SUB_KEY = 'guidcy_last_subview_v2';
+
+  function normalizePage(page){
+    page = String(page || 'home').replace(/^#|^page-/g,'').trim();
+    return ALIAS[page] || page || 'home';
+  }
+  function pageExists(page){ return !!document.getElementById('page-' + normalizePage(page)); }
+  function cleanPath(){
+    var p = location.pathname || '/';
+    if(p.length > 1) p = p.replace(/\/+$/,'');
+    return p || '/';
+  }
+  function pageFromUrl(){
+    var path = cleanPath();
+    if(PATH_TO_PAGE[path]) return PATH_TO_PAGE[path];
+    if(location.hash){
+      var h = normalizePage(location.hash.slice(1));
+      if(pageExists(h)) return h;
+    }
+    var last = path.split('/').filter(Boolean).pop();
+    if(last){
+      var p = normalizePage(last);
+      if(pageExists(p)) return p;
+    }
+    return path === '/' ? 'home' : null;
+  }
+  function remember(page){
+    page = normalizePage(page);
+    if(!pageExists(page)) page = 'home';
+    try{ localStorage.setItem(PAGE_KEY, page); }catch(e){}
+    return page;
+  }
+  function setActiveNav(page){
+    try{
+      document.querySelectorAll('.nav-link').forEach(function(b){ b.classList.remove('on'); });
+      var textMap = {
+        'home':'Explore','browse':'Browse','categories':'Categories','blog':'Blog','become':'Become','webinar':'Webinars'
+      };
+      var needle = textMap[page];
+      if(!needle) return;
+      document.querySelectorAll('.nav-link').forEach(function(b){
+        if((b.textContent || '').indexOf(needle) !== -1) b.classList.add('on');
+      });
+    }catch(e){}
+  }
+  function closeMenus(){
+    try{ document.body.classList.remove('menu-open'); }catch(e){}
+    try{ var b=document.getElementById('mobile-burger'); if(b) b.classList.remove('on'); }catch(e){}
+    try{ var n=document.getElementById('nav-links'); if(n) n.classList.remove('on'); }catch(e){}
+    try{ if(typeof window.closeMobileMenu === 'function') window.closeMobileMenu(); }catch(e){}
+  }
+  function runPageInit(page){
+    setTimeout(function(){
+      try{ if(page === 'home' && typeof window.initHome === 'function') window.initHome(); }catch(e){}
+      try{ if(page === 'browse' && typeof window.initBrowse === 'function') window.initBrowse(); }catch(e){}
+      try{ if(page === 'categories' && typeof window.initCategories === 'function') window.initCategories(); }catch(e){}
+      try{ if(page === 'blog' && typeof window.renderGuidcyBlog === 'function') window.renderGuidcyBlog(); }catch(e){}
+      try{ if(page === 'faq' && typeof window.initFAQ === 'function') window.initFAQ(); }catch(e){}
+      try{ if(page === 'webinar' && typeof window.wbnRender === 'function') window.wbnRender(); }catch(e){}
+      try{ if(page === 'help' && typeof window.ghelpRender === 'function') window.ghelpRender(); }catch(e){}
+      try{ if(page === 'dispute' && typeof window.gdispRender === 'function') window.gdispRender(); }catch(e){}
+      try{
+        var sub = JSON.parse(localStorage.getItem(SUB_KEY) || '{}');
+        if(page === 'user-dash' && typeof window.swUD === 'function') window.swUD(sub['user-dash'] || 'upcoming', null);
+        if(page === 'cons-dash' && typeof window.swCD === 'function') window.swCD(sub['cons-dash'] || 'overview', null);
+        if(page === 'admin-dash' && typeof window.swAD === 'function') window.swAD(sub['admin-dash'] || 'overview', null);
+      }catch(e){}
+    }, 60);
+  }
+  function renderPageDirect(page, opts){
+    page = remember(page);
+    closeMenus();
+    document.querySelectorAll('.page').forEach(function(el){ el.classList.remove('on','active'); });
+    var el = document.getElementById('page-' + page) || document.getElementById('page-home');
+    if(el) el.classList.add('on');
+    setActiveNav(page);
+    if(!(opts && opts.keepScroll)) window.scrollTo(0,0);
+    runPageInit(page);
+    return page;
+  }
+  function setUrl(page, replace){
+    page = normalizePage(page);
+    var url = PAGE_URLS[page] || ('#' + page);
+    try{
+      var current = pageFromUrl();
+      if(replace) history.replaceState({page:page}, '', url);
+      else if(current !== page || cleanPath() !== url) history.pushState({page:page}, '', url);
+    }catch(e){}
+  }
+
+  // Final navigation function used by desktop and mobile inline onclick handlers.
+  window.PAGE_URLS = Object.assign({}, window.PAGE_URLS || {}, PAGE_URLS);
+  window.go = function(page, options){
+    page = normalizePage(page);
+    if(!pageExists(page)) page = 'home';
+    setUrl(page, options && options.replace);
+    return renderPageDirect(page, options);
+  };
+  window.renderPage = function(page){ return renderPageDirect(page); };
+  window.getPageFromPath = function(){ return pageFromUrl() || 'home'; };
+
+  function wrapSubSwitcher(fnName, pageKey, fallback){
+    var fn = window[fnName];
+    if(typeof fn !== 'function' || fn.__guidcyPersistV2) return;
+    var wrapped = function(view, btn){
+      try{
+        var obj = JSON.parse(localStorage.getItem(SUB_KEY) || '{}');
+        obj[pageKey] = view || obj[pageKey] || fallback;
+        localStorage.setItem(SUB_KEY, JSON.stringify(obj));
+      }catch(e){}
+      return fn.apply(this, arguments);
+    };
+    wrapped.__guidcyPersistV2 = true;
+    window[fnName] = wrapped;
+  }
+
+  function restore(){
+    wrapSubSwitcher('swUD','user-dash','upcoming');
+    wrapSubSwitcher('swCD','cons-dash','overview');
+    wrapSubSwitcher('swAD','admin-dash','overview');
+    var page = pageFromUrl();
+    if(!page){ try{ page = localStorage.getItem(PAGE_KEY) || 'home'; }catch(e){ page = 'home'; } }
+    page = normalizePage(page);
+    if(!pageExists(page)) page = 'home';
+    setUrl(page, true);
+    renderPageDirect(page, {replace:true, keepScroll:true});
+  }
+
+  window.addEventListener('popstate', function(e){
+    var page = normalizePage((e.state && e.state.page) || pageFromUrl() || 'home');
+    renderPageDirect(page, {keepScroll:true});
+  });
+
+  // Run later than older patches that force Home during load.
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 100); });
+  else setTimeout(restore, 100);
+  window.addEventListener('load', function(){ setTimeout(restore, 350); setTimeout(restore, 1200); setTimeout(restore, 2200); });
+})();
+</script>
+<!-- === END GUIDCY FINAL PATCH: reliable same-page refresh for full website === -->
