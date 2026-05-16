@@ -965,6 +965,14 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
   .section,.browse-main,.profile-main,.dash-main,.info-page{padding-left:12px!important;padding-right:12px!important}
 }
 
+
+/* === Current work + company themed display === */
+.c-role.guidcy-work-company,
+.profile-role.guidcy-work-company{
+  color:var(--blue) !important;
+  font-weight:600 !important;
+}
+
 </style>
 
 <!-- Supabase JS -->
@@ -2572,7 +2580,7 @@ async function doSignup(type){
       if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Create account';}return;}
       if(data.user){
         {
-          const profilePayload={id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege,current_work:currentCompanyCollege};
+          const profilePayload={id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege};
           const{error:pErr}=await sb.from('profiles').upsert(profilePayload);
           if(pErr){
             console.warn('Profile current company/college save skipped, retrying basic profile:',pErr);
@@ -2607,7 +2615,7 @@ async function doSignup(type){
       if(data.user){
         // Save to profiles
         {
-          const profilePayload={id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege,current_work:currentCompanyCollege};
+          const profilePayload={id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege};
           const{error:pErr}=await sb.from('profiles').upsert(profilePayload);
           if(pErr){
             console.warn('Profile current company/college save skipped, retrying basic profile:',pErr);
@@ -2824,8 +2832,8 @@ function renderGrid(list,containerId){
         <div class="c-avatar" style="background:${c.bg};color:${c.color};border-color:${c.color}22">${c.initials}</div>
         ${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}
         <div class="c-name">${c.name}</div>
-        <div class="c-role">${guidcyCurrentWorkCompanyLine(c)}</div>
-        ${c.current_company_college?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🏢 ${c.current_company_college}</div>`:''}
+        <div class="c-role guidcy-work-company">${[c.role||c.current_work||"Consultant",c.current_company_college||c.company||c.organization].filter(Boolean).join(", ")}</div>
+        
         <div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starsHtml(c.rating)}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div>
       </div>
       <div class="ccard-bot">
@@ -2920,14 +2928,14 @@ async function openProfile(dbId,localId){
         // Education details for the public consultant profile.
         // Keep this inside openProfile so it renders immediately with the profile header,
         // instead of relying on a later patch that may not run on every browser.
-        let profEdu={}, eduDegree=data.highest_education||data.highest_degree||data.education||data.degree||'', eduCollege=data.college||data.university||data.institute||data.college_university||'', currentCompany=data.current_company_college||data.current_work||data.company||data.organization||'';
+        let profEdu={}, eduDegree=data.highest_education||data.highest_degree||data.education||data.degree||'', eduCollege=data.college||data.university||data.institute||data.college_university||'', currentCompany=data.current_company_college||data.company||data.organization||'';
         if((!eduDegree||!eduCollege||!currentCompany) && data.profile_id){
           try{
             const{data:pdata}=await sb.from('profiles').select('*').eq('id',data.profile_id).single();
             profEdu=pdata||{};
             eduDegree=eduDegree||profEdu.highest_education||profEdu.highest_degree||profEdu.education||profEdu.degree||'';
             eduCollege=eduCollege||profEdu.college||profEdu.university||profEdu.institute||profEdu.college_university||'';
-            currentCompany=currentCompany||profEdu.current_company_college||profEdu.current_work||profEdu.company||profEdu.organization||'';
+            currentCompany=currentCompany||profEdu.current_company_college||profEdu.company||profEdu.organization||'';
           }catch(_){ }
         }
 
@@ -2935,7 +2943,7 @@ async function openProfile(dbId,localId){
           role:data.specialty||'Consultant',bg:data.avatar_bg||'#EBF4FF',color:data.avatar_color||'#1E72BE',
           rating:parseFloat(data.rating)||0,reviews:data.review_count||0,
           price:data.video_price||data.rate||2000,video_price:data.video_price||data.rate||2000,audio_price:data.audio_price||0,chat_price:data.chat_price||0,exp:data.experience||'',
-          highest_education:eduDegree,college:eduCollege,current_work:currentCompany,current_company_college:currentCompany,
+          highest_education:eduDegree,college:eduCollege,current_work:data.current_work||'',current_company_college:currentCompany,
           tags:data.tags||[],certs:data.certs||[],
           avail:data.available_days||[],slots:data.slots||['10:00 AM','2:00 PM','4:00 PM'],
           availabilityMap:data.availability_map||{},
@@ -2955,8 +2963,8 @@ async function openProfile(dbId,localId){
       <div style="flex:1">
         ${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:8px">✓ Verified consultant</div>`:''}
         <div class="profile-name">${c.name}</div>
-        <div class="profile-role">${guidcyCurrentWorkCompanyLine(c)}</div>
-        ${(c.highest_education||c.college||c.current_company_college||c.current_work)?`<div class="profile-meta profile-education-meta" style="margin:6px 0 10px">${c.highest_education?`<div class="meta-item">🎓 ${c.highest_education}</div>`:''}${c.college?`<div class="meta-item">🏫 ${c.college}</div>`:''}${(c.current_company_college||c.current_work)?`<div class="meta-item">🏢 ${c.current_company_college||c.current_work}</div>`:''}</div>`:''}
+        <div class="profile-role">${[c.role,c.current_company_college].filter(Boolean).join(', ')}</div>
+        ${(c.highest_education||c.college||c.current_company_college||c.current_work)?`<div class="profile-meta profile-education-meta" style="margin:6px 0 10px">${c.highest_education?`<div class="meta-item">🎓 ${c.highest_education}</div>`:''}${c.college?`<div class="meta-item">🏫 ${c.college}</div>`:''}</div>`:''}
         <div class="profile-meta">
           <div class="meta-item">⭐ ${c.rating>0?c.rating:'-'} · ${c.reviews} reviews</div>
           ${c.exp?`<div class="meta-item">· ${c.exp} experience</div>`:''}
@@ -5455,6 +5463,7 @@ cancelBooking=async function(bookingId,role){
         <div class="field"><label>Highest education *</label><input id="su-edu" placeholder="Example: MBA, B.Tech, M.Tech, PhD" required/></div>
         <div class="field"><label>College / University *</label><input id="su-college" placeholder="Example: IIT Delhi, Delhi University" required/></div>
         <div class="field"><label>Current job / work *</label><input id="su-work" placeholder="Example: Product Manager, Student, Founder" required/></div>
+        <div class="field"><label>Current Company / College *</label><input id="su-company-college" placeholder="Example: IOCL, IIT Roorkee, Delhi University" required/></div>
         <div class="field"><label>LinkedIn profile URL <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">Optional</span></label><input id="su-linkedin" type="url" placeholder="https://linkedin.com/in/yourname"/></div>`;
       if(pwField) userForm.insertBefore(block,pwField); else userForm.appendChild(block);
     }
@@ -5466,7 +5475,8 @@ cancelBooking=async function(bookingId,role){
         <div class="field"><label>Profile picture <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">Optional</span></label><input type="file" id="sc-avatar" accept="image/*"/></div>
         <div class="field"><label>Highest education *</label><input id="sc-edu" placeholder="Example: MBA, B.Tech, M.Tech, PhD" required/></div>
         <div class="field"><label>College / University *</label><input id="sc-college" placeholder="Example: IIT Roorkee, IIM Bangalore" required/></div>
-        <div class="field"><label>Current job / work *</label><input id="sc-work" placeholder="Example: Business Consultant, R&D Manager, Founder" required/></div>`;
+        <div class="field"><label>Current job / work *</label><input id="sc-work" placeholder="Example: Business Consultant, R&D Manager, Founder" required/></div>
+        <div class="field"><label>Current Company / College *</label><input id="sc-company-college" placeholder="Example: IOCL, IIT Roorkee, Google" required/></div>`;
       if(bioField) consForm.insertBefore(block,bioField); else consForm.appendChild(block);
       const oldLink=Array.from(consForm.querySelectorAll('label')).find(l=>/LinkedIn/i.test(l.textContent||''));
       if(oldLink && !/Optional/i.test(oldLink.textContent)){oldLink.innerHTML='LinkedIn / Portfolio URL <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">Optional</span>';}
@@ -5520,16 +5530,16 @@ cancelBooking=async function(bookingId,role){
     }
     if(type==='user'){
       const fn=val('su-fn'), ln=val('su-ln'), email=val('su-em'), pass=val('su-pw');
-      if(!required(['su-fn','su-ln','su-em','su-edu','su-college','su-work','su-pw'],'Please fill all mandatory user signup fields.')) return;
+      if(!required(['su-fn','su-ln','su-em','su-edu','su-college','su-work','su-company-college','su-pw'],'Please fill all mandatory user signup fields.')) return;
       if(pass.length<8){toast('Password must be at least 8 characters','red');return;}
       const full=(fn+' '+ln).trim(); const btn=document.querySelector('#su-user-form .primary-btn'); if(btn){btn.disabled=true;btn.textContent='Creating account...';}
       try{
         const avatar_url=await imageFromInput('su-avatar');
-        const metadata={full_name:full,role:'user',highest_education:val('su-edu'),college:val('su-college'),current_work:val('su-work'),linkedin_url:val('su-linkedin'),avatar_url};
+        const metadata={full_name:full,role:'user',highest_education:val('su-edu'),college:val('su-college'),current_work:val('su-work'),current_company_college:val('su-company-college'),linkedin_url:val('su-linkedin'),avatar_url};
         const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:metadata}});
         if(error) throw error;
         if(data.user){
-          const row={id:data.user.id,role:'user',full_name:full,email,avatar_initials:initials(full),avatar_url,highest_education:val('su-edu'),college:val('su-college'),current_work:val('su-work'),linkedin_url:val('su-linkedin')};
+          const row={id:data.user.id,role:'user',full_name:full,email,avatar_initials:initials(full),avatar_url,highest_education:val('su-edu'),college:val('su-college'),current_work:val('su-work'),current_company_college:val('su-company-college'),linkedin_url:val('su-linkedin')};
           await upsertProfile(row); setCurrentUser(data.user); setCurrentProfile(row); try{loggedIn='user';}catch(_){window.loggedIn='user';}
           updateNav(); toast('Account created! Welcome to Guidcy 🎉','green'); setTimeout(()=>go('user-dash'),700);
         }
@@ -5537,18 +5547,18 @@ cancelBooking=async function(bookingId,role){
       if(btn){btn.disabled=false;btn.textContent='Create account';}
     }else{
       const fn=val('sc-fn'), ln=val('sc-ln'), email=val('sc-em'), pass=val('sc-pw');
-      if(!required(['sc-fn','sc-ln','sc-em','sc-edu','sc-college','sc-work','sc-rate','sc-bio','sc-pw'],'Please fill all mandatory consultant signup fields.')) return;
+      if(!required(['sc-fn','sc-ln','sc-em','sc-edu','sc-college','sc-work','sc-company-college','sc-rate','sc-bio','sc-pw'],'Please fill all mandatory consultant signup fields.')) return;
       if(pass.length<8){toast('Password must be at least 8 characters','red');return;}
       const full=(fn+' '+ln).trim(); const category=val('sc-cat')||'Business Strategy'; const exp=val('sc-exp')||'1–3 yrs'; const rate=money(val('sc-rate'),2000); const btn=id('cons-signup-btn');
       if(btn){btn.disabled=true;btn.textContent='Submitting application...';}
       try{
         const avatar_url=await imageFromInput('sc-avatar'); const title=val('sc-title')||document.querySelector('#su-cons-form input[placeholder="Senior Business Strategy Consultant"]')?.value?.trim()||category;
-        const metadata={full_name:full,role:'consultant',highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),linkedin_url:document.querySelector('#su-cons-form input[type="url"]')?.value?.trim()||'',avatar_url};
+        const metadata={full_name:full,role:'consultant',highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),current_company_college:val('sc-company-college'),linkedin_url:document.querySelector('#su-cons-form input[type="url"]')?.value?.trim()||'',avatar_url};
         const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:metadata}}); if(error) throw error;
         if(data.user){
-          const p={id:data.user.id,role:'consultant',full_name:full,email,avatar_initials:initials(full),avatar_url,highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),linkedin_url:metadata.linkedin_url};
+          const p={id:data.user.id,role:'consultant',full_name:full,email,avatar_initials:initials(full),avatar_url,highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),current_company_college:val('sc-company-college'),linkedin_url:metadata.linkedin_url};
           await upsertProfile(p);
-          await insertConsultant({profile_id:data.user.id,name:full,avatar_initials:initials(full),avatar_url,avatar_bg:'#EBF4FF',avatar_color:'#1E72BE',specialty:title||category,category,bio:val('sc-bio'),experience:exp,rate,price:rate,video_price:rate,badge:'new',is_active:true,session_types:['video'],rating:0,review_count:0,highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),linkedin_url:metadata.linkedin_url});
+          await insertConsultant({profile_id:data.user.id,name:full,avatar_initials:initials(full),avatar_url,avatar_bg:'#EBF4FF',avatar_color:'#1E72BE',specialty:title||category,category,bio:val('sc-bio'),experience:exp,rate,price:rate,video_price:rate,badge:'new',is_active:true,session_types:['video'],rating:0,review_count:0,highest_education:val('sc-edu'),college:val('sc-college'),current_work:val('sc-work'),current_company_college:val('sc-company-college'),linkedin_url:metadata.linkedin_url});
           setCurrentUser(data.user); setCurrentProfile(p); try{loggedIn='consultant';}catch(_){window.loggedIn='consultant';}
           updateNav(); toast('Account created! Welcome to Guidcy 🎉','green'); setTimeout(()=>go('cons-dash'),700);
         }
@@ -5642,7 +5652,7 @@ cancelBooking=async function(bookingId,role){
       if(containerId==='cons-grid')g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
       else g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters.</p></div>'; return;
     }
-    g.innerHTML=list.map(c=>`<div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})"><div class="ccard-top">${c.avatar_url?`<div class="c-avatar" style="background:url('${esc(c.avatar_url)}') center/cover no-repeat;border-color:${c.color||'#1E72BE'}22"></div>`:`<div class="c-avatar" style="background:${c.bg};color:${c.color};border-color:${c.color}22">${esc(c.initials)}</div>`}${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}<div class="c-name">${esc(c.name)}</div><div class="c-role">${esc(c.role)}</div><div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(c.rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${Number(c.price||0).toLocaleString()}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">Book</button></div></div>`).join('');
+    g.innerHTML=list.map(c=>`<div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})"><div class="ccard-top">${c.avatar_url?`<div class="c-avatar" style="background:url('${esc(c.avatar_url)}') center/cover no-repeat;border-color:${c.color||'#1E72BE'}22"></div>`:`<div class="c-avatar" style="background:${c.bg};color:${c.color};border-color:${c.color}22">${esc(c.initials)}</div>`}${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}<div class="c-name">${esc(c.name)}</div><div class="c-role guidcy-work-company">${[c.role||c.current_work||"Consultant",c.current_company_college||c.company||c.organization].filter(Boolean).join(", ")}</div><div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(c.rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${Number(c.price||0).toLocaleString()}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">Book</button></div></div>`).join('');
   };
 })();
 </script>
@@ -8473,7 +8483,7 @@ body.gmob-open{overflow:hidden}
     var patched=async function(){var r=await oldOpen.apply(this,arguments); setTimeout(addEducationToProfile,80); return r;};
     patched.guidcyFourPatch=true; window.openProfile=patched;
   }
-  function consultantText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types,c.highest_education,c.highest_degree,c.education,c.degree,c.college,c.university,c.institute,c.current_work].map(txt).join(' ').toLowerCase();}
+  function consultantText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types,c.highest_education,c.highest_degree,c.education,c.degree,c.college,c.university,c.institute,c.current_work,c.current_company_college,c.company,c.organization].map(txt).join(' ').toLowerCase();}
   window.guidcyConsultantSearchText=consultantText;
   async function consultants(){try{if(typeof window.fetchConsultants==='function'){var x=await window.fetchConsultants({maxPrice:999999}); if(Array.isArray(x))return x;}}catch(e){} return Array.isArray(window.SEED_CONSULTANTS)?window.SEED_CONSULTANTS:[];}
   function localWebinars(){try{return JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[]}catch(e){return []}}
@@ -8495,13 +8505,13 @@ body.gmob-open{overflow:hidden}
   function highlight(text,q){var s=esc(text); if(!q)return s; try{return s.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>')}catch(e){return s}}
   function consultantRow(c,q,source){
     var id=String(c.dbId||c.id||'').replace(/'/g,"\\'"); var local=(typeof c.id==='number')?c.id:'null'; var name=String(c.name||'Consultant').replace(/'/g,"\\'");
-    var edu=getConsEdu(c); var line=[c.role||c.specialty||c.category||'Consultant',edu.degree,edu.college].filter(Boolean).join(' · ');
+    var edu=getConsEdu(c); var line=[c.role||c.specialty||c.category||'Consultant',edu.degree,edu.college].filter(Boolean).join(', ');
     return '<div class="search-suggest-item" onmousedown="event.preventDefault();window.selectHeroSuggestion?window.selectHeroSuggestion(\''+id+'\','+local+',\''+name+'\'):window.openProfile&&window.openProfile(\''+id+'\','+local+')">'
       +'<div class="search-suggest-avatar" style="background:'+(c.bg||'#EBF4FF')+';color:'+(c.color||'#1E72BE')+'">'+esc(c.initials||initials(c.name))+'</div>'
       +'<div style="min-width:0;flex:1"><div class="search-suggest-name">'+highlight(c.name||'Consultant',q)+'</div><div class="search-suggest-role">'+highlight(line,q)+'</div></div><div class="guidcy-search-type">'+source+'</div></div>';
   }
   function pageRow(p,q){return '<div class="search-suggest-item" onmousedown="event.preventDefault();window.hideHeroSuggestions&&window.hideHeroSuggestions();('+openPage.toString()+')(\''+p.page+'\')"><div class="search-suggest-avatar" style="background:#EDFAF1;color:#2E9438">📄</div><div style="min-width:0;flex:1"><div class="search-suggest-name">'+highlight(p.title,q)+'</div><div class="search-suggest-role">'+highlight(p.sub,q)+'</div></div><div class="guidcy-search-type">'+p.type+'</div></div>';}
-  function webinarRow(w,q){var title=w.title||w.webinar_title||w.name||'Webinar'; var sub=[w.cat||w.category||'Webinar',w.date||w.webinar_date||'',w.time||w.webinar_time||''].filter(Boolean).join(' · '); return '<div class="search-suggest-item" onmousedown="event.preventDefault();window.hideHeroSuggestions&&window.hideHeroSuggestions();window.go&&go(\'webinar\')"><div class="search-suggest-avatar" style="background:#F7F0E6;color:#8B6E3F">🎥</div><div style="min-width:0;flex:1"><div class="search-suggest-name">'+highlight(title,q)+'</div><div class="search-suggest-role">'+highlight(sub,q)+'</div></div><div class="guidcy-search-type">Webinar</div></div>';}
+  function webinarRow(w,q){var title=w.title||w.webinar_title||w.name||'Webinar'; var sub=[w.cat||w.category||'Webinar',w.date||w.webinar_date||'',w.time||w.webinar_time||''].filter(Boolean).join(', '); return '<div class="search-suggest-item" onmousedown="event.preventDefault();window.hideHeroSuggestions&&window.hideHeroSuggestions();window.go&&go(\'webinar\')"><div class="search-suggest-avatar" style="background:#F7F0E6;color:#8B6E3F">🎥</div><div style="min-width:0;flex:1"><div class="search-suggest-name">'+highlight(title,q)+'</div><div class="search-suggest-role">'+highlight(sub,q)+'</div></div><div class="guidcy-search-type">Webinar</div></div>';}
   window.hideHeroSuggestions=function(){var box=document.getElementById('hero-search-suggestions'); if(box){box.classList.remove('on'); box.innerHTML='';}};
   window.renderHeroSuggestions=async function(){
     var input=document.getElementById('srch'), box=document.getElementById('hero-search-suggestions'); if(!input||!box)return;
@@ -8549,15 +8559,22 @@ body.gmob-open{overflow:hidden}
     degree:txt(c.highest_education||c.highest_degree||c.education||c.degree||''),
     college:txt(c.college||c.university||c.institute||c.college_university||'')
   };}
-  function eduLine(c){var e=eduOf(c);return [e.degree,e.college].filter(Boolean).join(' · ');}
-  function fullText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types,c.highest_education,c.highest_degree,c.education,c.degree,c.college,c.university,c.institute,c.college_university,c.current_work].map(txt).join(' ').toLowerCase();}
+  function eduLine(c){var e=eduOf(c);return [e.degree,e.college].filter(Boolean).join(', ');}
+
+  function workCompanyLine(c){
+    var work=txt(c.role||c.current_work||c.specialty||c.category||'Consultant');
+    var company=txt(c.current_company_college||c.company||c.organization||'');
+    return [work,company].filter(Boolean).join(', ');
+  }
+
+  function fullText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.exp,c.experience,c.tags,c.certs,c.languages,c.sessionTypes,c.session_types,c.highest_education,c.highest_degree,c.education,c.degree,c.college,c.university,c.institute,c.college_university,c.current_work,c.current_company_college,c.company,c.organization].map(txt).join(' ').toLowerCase();}
   function mapRaw(c){return {
     id:c.id,dbId:c.id,name:c.name,initials:c.avatar_initials||initials(c.name),avatar_url:c.avatar_url||'',
     role:c.specialty||c.category||'Consultant',bg:c.avatar_bg||'#EBF4FF',color:c.avatar_color||'#1E72BE',
     rating:parseFloat(c.rating)||0,reviews:c.review_count||0,price:c.rate||c.price||c.video_price||2000,exp:c.experience||'',
     badge:c.badge||'new',tags:c.tags||[],certs:c.certs||[],bio:c.bio||'',avail:c.available_days||[],slots:c.slots||['10:00 AM','2:00 PM','4:00 PM'],
     sessionTypes:c.session_types||['video'],category:c.category||c.specialty||'',reviewList:[],
-    highest_education:c.highest_education||c.highest_degree||c.education||c.degree||'',college:c.college||c.university||c.institute||c.college_university||'',current_work:c.current_work||''
+    highest_education:c.highest_education||c.highest_degree||c.education||c.degree||'',college:c.college||c.university||c.institute||c.college_university||'',current_work:c.current_work||'',current_company_college:c.current_company_college||c.company||c.organization||''
   };}
 
   var oldFetch=window.fetchConsultants;
@@ -8571,7 +8588,7 @@ body.gmob-open{overflow:hidden}
           var r=await window.sb.from('consultants').select('*').eq('is_active',true);
           var raw=(r&&Array.isArray(r.data))?r.data:[];
           var rawMap={}; raw.forEach(function(x){rawMap[String(x.id)]=x;});
-          list=list.map(function(c){var rawRow=rawMap[String(c.dbId||c.id)]||{};return Object.assign({},c,{highest_education:c.highest_education||rawRow.highest_education||rawRow.highest_degree||rawRow.education||rawRow.degree||'',college:c.college||rawRow.college||rawRow.university||rawRow.institute||rawRow.college_university||'',current_work:c.current_work||rawRow.current_work||''});});
+          list=list.map(function(c){var rawRow=rawMap[String(c.dbId||c.id)]||{};return Object.assign({},c,{highest_education:c.highest_education||rawRow.highest_education||rawRow.highest_degree||rawRow.education||rawRow.degree||'',college:c.college||rawRow.college||rawRow.university||rawRow.institute||rawRow.college_university||'',current_work:c.current_work||rawRow.current_work||'',current_company_college:c.current_company_college||rawRow.current_company_college||rawRow.company||rawRow.organization||''});});
           if(filters.search){
             var s=String(filters.search||'').toLowerCase();
             var extra=raw.filter(function(c){
@@ -8604,7 +8621,7 @@ body.gmob-open{overflow:hidden}
     g.innerHTML=list.map(function(c){
       var id=esc(c.id||c.dbId), local=(typeof c.id==='number'?c.id:-1), edu=eduLine(c);
       var avatar=c.avatar_url?'<div class="c-avatar" style="background:url(\''+esc(c.avatar_url)+'\') center/cover no-repeat;border-color:'+(c.color||'#1E72BE')+'22"></div>':'<div class="c-avatar" style="background:'+(c.bg||'#EBF4FF')+';color:'+(c.color||'#1E72BE')+';border-color:'+(c.color||'#1E72BE')+'22">'+esc(c.initials||initials(c.name))+'</div>';
-      return '<div class="ccard" onclick="openProfile(\''+id+'\','+local+')"><div class="ccard-top">'+avatar+(c.badge==='verified'?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">'+(c.badge==='pending'?'Under Review':'New')+'</div>')+'<div class="c-name">'+esc(c.name||'Consultant')+'</div><div class="c-role">'+esc(c.role||'Consultant')+'</div>'+(edu?'<div class="guidcy-card-edu">🎓 '+esc(edu)+'</div>':'')+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+stars(c.rating)+'</span><span class="c-rev" style="margin-left:4px">'+(Number(c.rating)>0?esc(c.rating)+' ('+esc(c.reviews||0)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+Number(c.price||0).toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile(\''+id+'\','+local+')">Book</button></div></div>';
+      return '<div class="ccard" onclick="openProfile(\''+id+'\','+local+')"><div class="ccard-top">'+avatar+(c.badge==='verified'?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">'+(c.badge==='pending'?'Under Review':'New')+'</div>')+'<div class="c-name">'+esc(c.name||'Consultant')+'</div><div class="c-role guidcy-work-company">'+esc(workCompanyLine(c)||'Consultant')+'</div>'+(edu?'<div class="guidcy-card-edu">🎓 '+esc(edu)+'</div>':'')+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+stars(c.rating)+'</span><span class="c-rev" style="margin-left:4px">'+(Number(c.rating)>0?esc(c.rating)+' ('+esc(c.reviews||0)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+Number(c.price||0).toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile(\''+id+'\','+local+')">Book</button></div></div>';
     }).join('');
   };
 
@@ -10162,52 +10179,64 @@ body.gmob-open{overflow:hidden}
   }
 })();
 </script>
-<script id="guidcy-current-work-company-display-fix">
+<script id="guidcy-current-work-company-final-display-fix">
 (function(){
-  function pick(obj, keys){
-    for(var i=0;i<keys.length;i++){
-      var v = obj && obj[keys[i]];
-      if(v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
-    }
-    return '';
+  function txt(v){return (v===undefined||v===null)?'':String(v).trim();}
+  window.guidcyWorkCompanyLine=function(c){
+    var work=txt(c&& (c.role||c.current_work||c.specialty||c.category)) || 'Consultant';
+    var company=txt(c&& (c.current_company_college||c.company||c.organization));
+    return [work,company].filter(Boolean).join(', ');
+  };
+})();
+</script>
+<script id="guidcy-browse-card-work-company-final-fix">
+(function(){
+  function txt(v){return v===undefined||v===null?'':String(v).trim();}
+  function lineFromCard(card){
+    var nameEl=card.querySelector('.c-name');
+    var roleEl=card.querySelector('.c-role');
+    if(!nameEl || !roleEl) return;
+
+    var name=txt(nameEl.textContent).toLowerCase();
+    var list=(window.consultants||window.CONSULTANTS||window.allConsultants||[]);
+    if(!Array.isArray(list)) return;
+
+    var c=list.find(function(x){
+      return txt(x.name||x.full_name).toLowerCase()===name;
+    });
+    if(!c) return;
+
+    var work=txt(c.role||c.current_work||c.specialty||c.category)||'Consultant';
+    var company=txt(c.current_company_college||c.company||c.organization);
+    roleEl.textContent=[work,company].filter(Boolean).join(', ');
+    roleEl.classList.add('guidcy-work-company');
   }
 
-  window.guidcyCurrentWorkCompanyLine = function(c){
-    var work = pick(c, ['role','current_work','work','designation','profession','title']);
-    var company = pick(c, ['current_company_college','current_company','company','college_current','organization','current_organization']);
-    if(work && company) return work + ' · ' + company;
-    return work || company || '';
-  };
-
-  window.guidcyEducationCollegeLine = function(c){
-    var education = pick(c, ['highest_qualification','education','qualification','highestEducation']);
-    var college = pick(c, ['college','college_name','university','institute']);
-    if(education && college) return education + ' · ' + college;
-    return education || college || '';
-  };
-
-  function fixVisibleConsultantCards(){
-    document.querySelectorAll('.ccard').forEach(function(card){
-      var roleEl = card.querySelector('.c-role');
-      if(!roleEl) return;
-
-      /*
-        Existing renderers already put consultant data into the card text.
-        This DOM pass prevents duplicate company lines if the renderer already added it.
-        It only cleans accidental double " · " formatting; no functional data is changed.
-      */
-      roleEl.textContent = roleEl.textContent.replace(/\s+·\s+·\s+/g, ' · ').trim();
+  function apply(){
+    document.querySelectorAll('.ccard').forEach(lineFromCard);
+    document.querySelectorAll('.profile-role').forEach(function(el){
+      el.textContent=el.textContent.replace(/\s*·\s*/g, ', ');
+      el.classList.add('guidcy-work-company');
     });
   }
 
-  if(document.readyState === 'loading'){
+  if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', function(){
-      setTimeout(fixVisibleConsultantCards, 200);
-      setTimeout(fixVisibleConsultantCards, 800);
+      setTimeout(apply,100);setTimeout(apply,500);setTimeout(apply,1200);
     });
   }else{
-    setTimeout(fixVisibleConsultantCards, 200);
-    setTimeout(fixVisibleConsultantCards, 800);
+    setTimeout(apply,100);setTimeout(apply,500);setTimeout(apply,1200);
+  }
+
+  var oldRenderGrid=window.renderGrid;
+  if(typeof oldRenderGrid==='function' && !oldRenderGrid.__guidcyWorkCompanyCardPatched){
+    var patched=function(){
+      var r=oldRenderGrid.apply(this,arguments);
+      setTimeout(apply,30);
+      return r;
+    };
+    patched.__guidcyWorkCompanyCardPatched=true;
+    window.renderGrid=patched;
   }
 })();
 </script>
