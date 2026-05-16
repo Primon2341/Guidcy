@@ -78,7 +78,7 @@ fs.mkdirSync(publicDir, {recursive:true});
 
 if(exists(distDir)) copyRecursive(distDir, publicDir);
 
-/* Critical: latest root index.html must override old dist/index.html */
+/* Latest root index.html must override old dist/index.html */
 forceCopyRootFile("index.html");
 
 if(!exists(path.join(publicDir,"index.html"))) copyFirstAvailable("index.html");
@@ -95,55 +95,28 @@ if(!exists(indexPath)){
   console.error("Build failed: index.html was not found in root or dist.");
   process.exit(1);
 }
-
 const indexHtml = fs.readFileSync(indexPath,"utf8");
 
 const routes = new Set([
   "home","explore",
-  "browse","profile","consultants","consultant-profile",
-  "login","log-in","signin","sign-in",
-  "signup","sign-up","get-started","getstarted","register","registration",
-  "payment","pay","confirm","confirmation","meeting","meet","review",
-  "user-dash","user-dashboard","dashboard",
-  "cons-dash","consultant-dashboard","consultant-dash",
-  "admin-dash","admin-dashboard","admin",
-  "categories","category","become","become-a-consultant","become-consultant",
-  "about","contact","faq","faqs","terms","terms-and-conditions",
-  "privacy","privacy-policy","refund","refund-policy","disclaimer",
-  "blog","blogs","jobs","smart-finder","smartfinder","ai-finder",
-  "webinar","webinars","help","help-center","support",
-  "dispute","dispute-resolution",
-  "business-consultant","career-guidance","financial-advisor","startup-mentor",
-  "legal-consultant","technology-consultant","marketing-consultant",
-  "college-finder","college-guidance"
+  "browse","categories","blog","blogs",
+  "jobs",
+  "become","become-a-consultant","become-consultant",
+  "webinar","webinars",
+  "smart-finder","smartfinder","ai-finder",
+  "login","signup","get-started","help","help-center","dispute","dispute-resolution",
+  "about","contact","faq","terms","privacy","refund","disclaimer",
+  "dashboard","user-dashboard","user-dash","consultant-dashboard","cons-dash",
+  "admin-dashboard","admin","admin-dash"
 ]);
 
-/* Detect actual page IDs and create folders for them */
-for(const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)){
-  routes.add(match[1]);
-}
-
-/* Detect go('page') */
-for(const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)){
-  routes.add(match[1]);
-}
-
-/* Detect href="/page" */
-for(const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)){
-  routes.add(match[1]);
-}
-
-/* Detect location.href="/page" */
-for(const match of indexHtml.matchAll(/(?:window\.)?location\.href\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)){
-  routes.add(match[1]);
-}
-
-/* Detect pushState(..."/page") */
-for(const match of indexHtml.matchAll(/pushState\s*\([^)]*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)){
-  routes.add(match[1]);
-}
+for(const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/(?:window\.)?location\.href\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) routes.add(match[1]);
+for(const match of indexHtml.matchAll(/pushState\s*\([^)]*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) routes.add(match[1]);
 
 for(const route of routes) addRoute(route, indexHtml);
 
 console.log("Build completed successfully.");
-console.log("Complete refresh-state fix installed for all detected Guidcy pages.");
+console.log("Final navbar routes refresh fix installed.");
