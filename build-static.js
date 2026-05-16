@@ -44,6 +44,18 @@ function copyFirstAvailable(file) {
   return false;
 }
 
+function forceCopyRootFile(file) {
+  const src = path.join(root, file);
+  if (exists(src)) {
+    const dest = path.join(publicDir, file);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+    console.log("Forced latest root file:", file);
+    return true;
+  }
+  return false;
+}
+
 function normalizeRoute(route) {
   return String(route || "")
     .trim()
@@ -80,6 +92,13 @@ if (exists(distDir)) {
   console.log("dist folder not found. Continuing with root files...");
 }
 
+/*
+  CRITICAL:
+  Dist may contain an older index.html. After copying dist, force-copy the root index.html
+  so the latest logo/page changes always go live.
+*/
+forceCopyRootFile("index.html");
+
 if (!exists(path.join(publicDir, "index.html"))) {
   copyFirstAvailable("index.html");
 }
@@ -113,117 +132,30 @@ if (!exists(indexPath)) {
 
 const indexHtml = fs.readFileSync(indexPath, "utf8");
 
-/*
-  Full-site refresh fix:
-  1. Creates physical folders for known Guidcy pages.
-  2. Automatically scans index.html for go('page'), go("page"), href="/page", href='/page',
-     window.location.href='/page' and creates route folders for those pages.
-  3. Keeps favicon/assets/API untouched.
-*/
-
 const manualRoutes = [
-  // Main pages
-  "home",
-  "explore",
-  "browse",
-  "categories",
-  "blog",
-  "blogs",
-  "jobs",
-  "smart-finder",
-  "smartfinder",
-  "webinar",
-  "webinars",
-  "become",
-  "become-a-consultant",
-  "consultant",
-  "consultants",
-
-  // Auth pages
-  "login",
-  "signup",
-  "sign-up",
-  "get-started",
-  "getstarted",
-  "register",
-  "registration",
-  "forgot-password",
-  "reset-password",
-
-  // Help/legal pages
-  "help",
-  "help-center",
-  "support",
-  "dispute",
-  "dispute-resolution",
-  "contact",
-  "about",
-  "privacy",
-  "privacy-policy",
-  "terms",
-  "terms-and-conditions",
-  "refund",
-  "refund-policy",
-  "cancellation",
-  "cancellation-policy",
-
-  // Dashboards
-  "dashboard",
-  "user-dashboard",
-  "consultant-dashboard",
-  "admin",
-  "admin-dashboard",
-  "profile",
-  "booking",
-  "bookings",
-  "payment",
-  "confirmation",
-  "confirm",
-
-  // SEO pages often used in Guidcy
-  "business-consultant",
-  "career-guidance",
-  "financial-advisor",
-  "startup-mentor",
-  "legal-consultant",
-  "technology-consultant",
-  "marketing-consultant",
-  "college-finder",
-  "college-guidance"
+  "home","explore","browse","categories","blog","blogs","jobs","smart-finder","smartfinder",
+  "webinar","webinars","become","become-a-consultant","consultant","consultants",
+  "login","signup","sign-up","get-started","getstarted","register","registration",
+  "forgot-password","reset-password","help","help-center","support","dispute",
+  "dispute-resolution","contact","about","privacy","privacy-policy","terms",
+  "terms-and-conditions","refund","refund-policy","cancellation","cancellation-policy",
+  "dashboard","user-dashboard","consultant-dashboard","admin","admin-dashboard",
+  "profile","booking","bookings","payment","confirmation","confirm","business-consultant",
+  "career-guidance","financial-advisor","startup-mentor","legal-consultant",
+  "technology-consultant","marketing-consultant","college-finder","college-guidance"
 ];
 
 const discoveredRoutes = new Set();
 
-// go('page') / go("page")
-for (const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)) {
-  discoveredRoutes.add(match[1]);
-}
-
-// id="page-xyz"
-for (const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)) {
-  discoveredRoutes.add(match[1]);
-}
-
-// href="/xyz" and href='/xyz'
-for (const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
-  discoveredRoutes.add(match[1]);
-}
-
-// window.location.href='/xyz' or location.href="/xyz"
-for (const match of indexHtml.matchAll(/(?:window\.)?location\.href\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
-  discoveredRoutes.add(match[1]);
-}
-
-// history.pushState(..., "", "/xyz")
-for (const match of indexHtml.matchAll(/pushState\s*\([^)]*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) {
-  discoveredRoutes.add(match[1]);
-}
+for (const match of indexHtml.matchAll(/\bgo\s*\(\s*['"]([^'"]+)['"]/g)) discoveredRoutes.add(match[1]);
+for (const match of indexHtml.matchAll(/id\s*=\s*["']page-([^"']+)["']/g)) discoveredRoutes.add(match[1]);
+for (const match of indexHtml.matchAll(/\bhref\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) discoveredRoutes.add(match[1]);
+for (const match of indexHtml.matchAll(/(?:window\.)?location\.href\s*=\s*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) discoveredRoutes.add(match[1]);
+for (const match of indexHtml.matchAll(/pushState\s*\([^)]*["']\/([^"':?#]+)(?:[?#][^"']*)?["']/g)) discoveredRoutes.add(match[1]);
 
 const allRoutes = new Set([...manualRoutes, ...discoveredRoutes]);
 
-for (const route of allRoutes) {
-  addRoute(route, indexHtml);
-}
+for (const route of allRoutes) addRoute(route, indexHtml);
 
 console.log("Build completed successfully.");
-console.log("Public output contains index.html, static files, and refresh-safe folders for all discovered pages.");
+console.log("Latest root index.html has been deployed into public and all route folders.");

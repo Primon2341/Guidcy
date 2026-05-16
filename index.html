@@ -1228,7 +1228,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
   <div class="form-page">
     <div class="form-card">
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
-        <img src="/logo.png" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
         <div style="font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600;line-height:1">Guidance Made Simple</div>
       </div>
       <div class="form-title">Welcome back</div>
@@ -1252,7 +1252,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
   <div class="form-page" style="max-width:520px">
     <div class="form-card">
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
-        <img src="/logo.png" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
         <div style="font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600;line-height:1">Guidance Made Simple</div>
       </div>
       <div class="form-title">Join Guidcy</div>
@@ -9661,42 +9661,62 @@ body.gmob-open{overflow:hidden}
 
 <script id="guidcy-form-logo-final-fix">
 (function(){
+  var GUIDCY_FORM_LOGO='/logo.jpeg?v=guidcy-login-logo-20260517';
+
   function fixFormLogos(){
     document.querySelectorAll('#page-login .form-logo-wrap,#page-signup .form-logo-wrap').forEach(function(wrap){
       wrap.style.flexDirection='column';
       wrap.style.gap='6px';
+      wrap.style.alignItems='center';
+      wrap.style.justifyContent='center';
 
       var img=wrap.querySelector('img');
-      if(img){
-        img.src='/logo.png';
-        img.alt='Guidcy';
-        img.style.height='58px';
-        img.style.width='auto';
-        img.style.maxWidth='180px';
-        img.style.objectFit='contain';
+      if(!img){
+        img=document.createElement('img');
+        wrap.insertBefore(img,wrap.firstChild);
       }
 
-      if(!wrap.querySelector('.guidcy-form-logo-tagline')){
-        var tag=document.createElement('div');
+      img.src=GUIDCY_FORM_LOGO;
+      img.alt='Guidcy';
+      img.style.height='58px';
+      img.style.width='auto';
+      img.style.maxWidth='190px';
+      img.style.objectFit='contain';
+      img.removeAttribute('srcset');
+
+      var tag=wrap.querySelector('.guidcy-form-logo-tagline');
+      if(!tag){
+        tag=document.createElement('div');
         tag.className='guidcy-form-logo-tagline';
-        tag.textContent='Guidance Made Simple';
-        tag.style.fontSize='12px';
-        tag.style.color='var(--muted)';
-        tag.style.letterSpacing='.08em';
-        tag.style.textTransform='uppercase';
-        tag.style.fontWeight='600';
-        tag.style.lineHeight='1';
         wrap.appendChild(tag);
       }
+      tag.textContent='Guidance Made Simple';
+      tag.style.fontSize='12px';
+      tag.style.color='var(--muted)';
+      tag.style.letterSpacing='.08em';
+      tag.style.textTransform='uppercase';
+      tag.style.fontWeight='600';
+      tag.style.lineHeight='1';
+      tag.style.textAlign='center';
     });
   }
+
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fixFormLogos); else fixFormLogos();
+
   var oldGo=window.go;
   if(typeof oldGo==='function' && !oldGo.__guidcyFormLogoPatched){
-    var patched=function(){ var r=oldGo.apply(this,arguments); setTimeout(fixFormLogos,30); return r; };
+    var patched=function(){
+      var r=oldGo.apply(this,arguments);
+      setTimeout(fixFormLogos,20);
+      setTimeout(fixFormLogos,120);
+      return r;
+    };
     patched.__guidcyFormLogoPatched=true;
     window.go=patched;
   }
+
+  setTimeout(fixFormLogos,300);
+  setTimeout(fixFormLogos,1000);
 })();
 </script>
 
