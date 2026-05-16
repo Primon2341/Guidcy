@@ -1,123 +1,20 @@
 {
-  "cleanUrls": false,
+  "cleanUrls": true,
   "trailingSlash": false,
   "headers": [
     {
-      "source": "/favicon.ico",
+      "source": "/(favicon.ico|favicon.svg|favicon.png|favicon-16x16.png|favicon-32x32.png|favicon-48x48.png|favicon-96x96.png|favicon-180x180.png|favicon-192x192.png|favicon-512x512.png|apple-touch-icon.png|site.webmanifest|manifest.json|robots.txt|sitemap.xml|logo.png|logo.jpeg)",
       "headers": [
-        {
-          "key": "Content-Type",
-          "value": "image/x-icon"
-        },
         {
           "key": "Cache-Control",
           "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    },
-    {
-      "source": "/favicon.svg",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "image/svg+xml; charset=utf-8"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    },
-    {
-      "source": "/site.webmanifest",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/manifest+json; charset=utf-8"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    },
-    {
-      "source": "/(favicon-.*.png|apple-touch-icon.png|favicon.png|logo.png)",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "image/png"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
         }
       ]
     }
   ],
   "rewrites": [
     {
-      "source": "/favicon.ico",
-      "destination": "/favicon.ico"
-    },
-    {
-      "source": "/favicon.svg",
-      "destination": "/favicon.svg"
-    },
-    {
-      "source": "/site.webmanifest",
-      "destination": "/site.webmanifest"
-    },
-    {
-      "source": "/favicon-16x16.png",
-      "destination": "/favicon-16x16.png"
-    },
-    {
-      "source": "/favicon-32x32.png",
-      "destination": "/favicon-32x32.png"
-    },
-    {
-      "source": "/favicon-48x48.png",
-      "destination": "/favicon-48x48.png"
-    },
-    {
-      "source": "/favicon-96x96.png",
-      "destination": "/favicon-96x96.png"
-    },
-    {
-      "source": "/favicon-180x180.png",
-      "destination": "/favicon-180x180.png"
-    },
-    {
-      "source": "/favicon-192x192.png",
-      "destination": "/favicon-192x192.png"
-    },
-    {
-      "source": "/favicon-512x512.png",
-      "destination": "/favicon-512x512.png"
-    },
-    {
-      "source": "/apple-touch-icon.png",
-      "destination": "/apple-touch-icon.png"
-    },
-    {
-      "source": "/((?!api/|favicon.ico|favicon.svg|site.webmanifest|favicon-16x16.png|favicon-32x32.png|favicon-48x48.png|favicon-96x96.png|favicon-180x180.png|favicon-192x192.png|favicon-512x512.png|apple-touch-icon.png|favicon.png|logo.png|robots.txt|sitemap.xml).*)",
+      "source": "/((?!api/|favicon.ico|favicon.svg|favicon.png|favicon-16x16.png|favicon-32x32.png|favicon-48x48.png|favicon-96x96.png|favicon-180x180.png|favicon-192x192.png|favicon-512x512.png|apple-touch-icon.png|site.webmanifest|manifest.json|robots.txt|sitemap.xml|logo.png|logo.jpeg).*)",
       "destination": "/index.html"
     }
   ]
