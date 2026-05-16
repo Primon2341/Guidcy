@@ -9987,6 +9987,162 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
 
+
+
+<!-- === GUIDCY FINAL FIX: Support ticket admin status must update and track by Ticket ID === -->
+<script id="guidcy-help-ticket-admin-status-final-fix">
+(function(){
+  'use strict';
+
+  function id(x){ return document.getElementById(x); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function toastSafe(msg,type){ try{ if(typeof window.showToast==='function') window.showToast(msg,type||'green'); else if(typeof window.toast==='function') window.toast(msg,type||'green'); else alert(msg); }catch(e){ alert(msg); } }
+  function localGet(k){ try{return JSON.parse(localStorage.getItem(k)||'[]')||[]}catch(e){return[]} }
+  function localSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v||[]));}catch(e){} }
+  function nowISO(){ return new Date().toISOString(); }
+  function sbClient(){
+    try{
+      if(window.sb) return window.sb;
+      if(window.supabaseClient) return window.supabaseClient;
+      if(window.supabase && window.CFG && window.CFG.supabase_url && window.CFG.supabase_key){
+        window.sb = window.supabase.createClient(window.CFG.supabase_url, window.CFG.supabase_key);
+        return window.sb;
+      }
+    }catch(e){}
+    return null;
+  }
+  function cleanKey(v){ return String(v||'').trim().replace(/[%,()]/g,'').slice(0,140); }
+  function isUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'')); }
+  function caseCodeCol(table,type){ return (table==='disputes' || type==='dispute') ? 'dispute_code' : 'ticket_code'; }
+  function localKey(type){ return type==='dispute' ? 'guidcy_disputes' : 'guidcy_help_tickets'; }
+
+  async function updateByRealKey(table,rowId,type,patch){
+    var c=sbClient();
+    if(!c || !rowId) return false;
+    var codeCol=caseCodeCol(table,type);
+    var payload=Object.assign({},patch,{updated_at:nowISO()});
+
+    // First update by UUID id when the identifier is a real UUID.
+    if(isUuid(rowId)){
+      var r1=await c.from(table).update(payload).eq('id',rowId).select('id,'+codeCol).limit(1);
+      if(!r1.error && r1.data && r1.data.length) return true;
+      if(r1.error) console.warn(table+' update by id failed:',r1.error.message);
+    }
+
+    // Then update by public case code. This is the important fix for HLP-xxxx ticket tracking.
+    var r2=await c.from(table).update(payload).eq(codeCol,String(rowId)).select('id,'+codeCol).limit(1);
+    if(!r2.error && r2.data && r2.data.length) return true;
+    if(r2.error) console.warn(table+' update by '+codeCol+' failed:',r2.error.message);
+
+    return false;
+  }
+
+  async function deleteByRealKey(table,rowId,type){
+    var c=sbClient();
+    if(!c || !rowId) return false;
+    var codeCol=caseCodeCol(table,type);
+    if(isUuid(rowId)){
+      var r1=await c.from(table).delete().eq('id',rowId).select('id').limit(1);
+      if(!r1.error && r1.data && r1.data.length) return true;
+    }
+    var r2=await c.from(table).delete().eq(codeCol,String(rowId)).select(codeCol).limit(1);
+    return !!(!r2.error && r2.data && r2.data.length);
+  }
+
+  function updateLocalFallback(rowId,type,patch,remove){
+    var k=localKey(type);
+    var arr=localGet(k);
+    if(remove){
+      arr=arr.filter(function(x){ return String(x.id)!==String(rowId) && String(x.ticket_code)!==String(rowId) && String(x.dispute_code)!==String(rowId); });
+      localSet(k,arr); return true;
+    }
+    var hit=false;
+    arr.forEach(function(x){
+      if(String(x.id)===String(rowId) || String(x.ticket_code)===String(rowId) || String(x.dispute_code)===String(rowId)){
+        Object.assign(x,patch,{updated_at:nowISO()}); hit=true;
+      }
+    });
+    if(hit) localSet(k,arr);
+    return hit;
+  }
+
+  async function searchSupportTicket(key){
+    var c=sbClient();
+    var k=cleanKey(key);
+    if(!k) return null;
+
+    if(c){
+      // Exact Ticket ID lookup first, so HLP-xxxx always returns the same updated ticket.
+      var byCode=await c.from('support_tickets').select('*').ilike('ticket_code',k).limit(1);
+      if(!byCode.error && byCode.data && byCode.data[0]) return byCode.data[0];
+
+      // Email lookup remains supported, but returns latest ticket for that email.
+      var byEmail=await c.from('support_tickets').select('*').ilike('email',k).order('created_at',{ascending:false}).limit(1);
+      if(!byEmail.error && byEmail.data && byEmail.data[0]) return byEmail.data[0];
+
+      // Last fallback for users who paste partial IDs.
+      var any=await c.from('support_tickets').select('*').or('ticket_code.ilike.%'+k+'%,email.ilike.%'+k+'%').order('created_at',{ascending:false}).limit(1);
+      if(!any.error && any.data && any.data[0]) return any.data[0];
+    }
+
+    return localGet('guidcy_help_tickets').find(function(x){
+      return String(x.ticket_code||x.id||'').toLowerCase()===k.toLowerCase() || String(x.email||'').toLowerCase()===k.toLowerCase();
+    }) || null;
+  }
+
+  window.ghelpTrackTicket = async function(){
+    var key=(id('ghelp-track-id') && id('ghelp-track-id').value || '').trim();
+    if(!key){ toastSafe('Enter your Ticket ID or registered email','red'); return; }
+    var t=await searchSupportTicket(key);
+    var out=id('ghelp-track-out');
+    if(out){
+      out.innerHTML = t ? '<strong>Ticket found</strong><br><br>'+
+        '<strong>ID:</strong> '+esc(t.ticket_code || t.id)+'<br>'+
+        '<strong>Topic:</strong> '+esc(t.topic || 'General')+'<br>'+
+        '<strong>Status:</strong> '+esc(t.status || 'Open')+'<br>'+
+        '<strong>Priority:</strong> '+esc(t.priority || 'Normal')+
+        (t.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(t.admin_comment) : '')+
+        (t.updated_at ? '<br><strong>Last updated:</strong> '+esc(new Date(t.updated_at).toLocaleString('en-IN')) : '')
+        : 'No ticket found matching that Ticket ID or email. Please check your Ticket ID and try again.';
+      out.classList.add('on');
+    }
+  };
+  window.ghelpCheckTicket = window.ghelpTrackTicket;
+  window.guidcyCheckTicket = window.ghelpTrackTicket;
+
+  window.gadminUpdateCase = async function(table,rowId,type){
+    var stEl=id('st-'+(window.CSS && CSS.escape ? CSS.escape(rowId) : rowId));
+    var cmEl=id('cm-'+(window.CSS && CSS.escape ? CSS.escape(rowId) : rowId));
+    var st=(stEl && stEl.value) || '';
+    var cm=(cmEl && cmEl.value) || '';
+    var patch={status:st,admin_comment:cm};
+    var ok=await updateByRealKey(table,rowId,type,patch);
+    if(!ok) ok=updateLocalFallback(rowId,type,patch,false);
+    toastSafe(ok ? 'Case updated' : 'Case was not updated. Please check Supabase table/RLS policy.','green');
+    try{ if(type==='ticket' && typeof renderSupportAdmin==='function') await renderSupportAdmin(); else if(typeof renderDisputeAdmin==='function') await renderDisputeAdmin(); else if(typeof swAD==='function') await swAD(type==='ticket'?'support':'disputes',null); }catch(e){}
+  };
+
+  window.gadminResolveCase = async function(table,rowId,type){
+    var cmEl=id('cm-'+(window.CSS && CSS.escape ? CSS.escape(rowId) : rowId));
+    var cm=(cmEl && cmEl.value) || 'Resolved by admin';
+    var patch={status:'Resolved',admin_comment:cm,resolved_at:nowISO()};
+    var ok=await updateByRealKey(table,rowId,type,patch);
+    if(!ok) ok=updateLocalFallback(rowId,type,patch,false);
+    toastSafe(ok ? 'Marked as resolved' : 'Case was not resolved. Please check Supabase table/RLS policy.','green');
+    try{ if(type==='ticket' && typeof renderSupportAdmin==='function') await renderSupportAdmin(); else if(typeof renderDisputeAdmin==='function') await renderDisputeAdmin(); else if(typeof swAD==='function') await swAD(type==='ticket'?'support':'disputes',null); }catch(e){}
+  };
+
+  window.gadminDeleteCase = async function(table,rowId,type){
+    if(!confirm('Delete this case permanently?')) return;
+    var ok=await deleteByRealKey(table,rowId,type);
+    if(!ok) ok=updateLocalFallback(rowId,type,{},true);
+    toastSafe(ok ? 'Case deleted' : 'Case was not deleted. Please check Supabase table/RLS policy.','green');
+    try{ if(type==='ticket' && typeof renderSupportAdmin==='function') await renderSupportAdmin(); else if(typeof renderDisputeAdmin==='function') await renderDisputeAdmin(); else if(typeof swAD==='function') await swAD(type==='ticket'?'support':'disputes',null); }catch(e){}
+  };
+})();
+</script>
+<!-- === END GUIDCY FINAL FIX: Support ticket admin status must update and track by Ticket ID === -->
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
