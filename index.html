@@ -10039,36 +10039,34 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
-<script id="guidcy-navbar-page-refresh-final-fix">
+<script id="guidcy-blog-style-route-fix">
 (function(){
   /*
-    FINAL navbar refresh fix.
-    This runs at the very end and wins over older page initialization scripts.
+    Guidcy refresh fix using the same simple flow that works for Blog:
+    URL path -> matching page section -> keep that section visible after refresh.
 
-    Specifically fixes:
+    Fixed navbar routes:
+    /browse
     /jobs
+    /categories
+    /blog
     /become
     /webinar
     /smart-finder
-
-    Also supports all normal page-* sections.
   */
 
-  var PATH_TO_PAGE = {
+  var routeMap = {
     "": "home",
     "home": "home",
     "explore": "home",
 
     "browse": "browse",
+    "jobs": "jobs",
     "categories": "categories",
     "blog": "blog",
-    "blogs": "blog",
-
-    "jobs": "jobs",
 
     "become": "become",
     "become-a-consultant": "become",
-    "become-consultant": "become",
 
     "webinar": "webinar",
     "webinars": "webinar",
@@ -10082,42 +10080,27 @@ body.gmob-open{overflow:hidden}
 
     "help": "help",
     "help-center": "help",
+
     "dispute": "dispute",
-    "dispute-resolution": "dispute",
-
-    "about": "about",
-    "contact": "contact",
-    "faq": "faq",
-    "terms": "terms",
-    "privacy": "privacy",
-    "refund": "refund",
-    "disclaimer": "disclaimer",
-
-    "dashboard": "user-dash",
-    "user-dashboard": "user-dash",
-    "user-dash": "user-dash",
-    "consultant-dashboard": "cons-dash",
-    "cons-dash": "cons-dash",
-    "admin-dashboard": "admin-dash",
-    "admin": "admin-dash",
-    "admin-dash": "admin-dash"
+    "dispute-resolution": "dispute"
   };
 
-  var PAGE_TO_PATH = {
+  var pageToRoute = {
     "home": "/",
+    "browse": "/browse",
     "jobs": "/jobs",
+    "categories": "/categories",
+    "blog": "/blog",
     "become": "/become",
     "webinar": "/webinar",
     "smart-finder": "/smart-finder",
+    "login": "/login",
     "signup": "/get-started",
     "help": "/help-center",
-    "dispute": "/dispute-resolution",
-    "user-dash": "/user-dashboard",
-    "cons-dash": "/consultant-dashboard",
-    "admin-dash": "/admin-dashboard"
+    "dispute": "/dispute-resolution"
   };
 
-  function getPathKey(){
+  function cleanPath(){
     return (location.pathname || "/")
       .replace(/^\/+|\/+$/g, "")
       .split("/")[0]
@@ -10128,129 +10111,87 @@ body.gmob-open{overflow:hidden}
     return !!document.getElementById("page-" + page);
   }
 
-  function targetPageFromUrl(){
-    var key = getPathKey();
-    if(PATH_TO_PAGE[key]) return PATH_TO_PAGE[key];
-    if(pageExists(key)) return key;
+  function getPageFromUrl(){
+    var key = cleanPath();
+    var mapped = routeMap[key] || key;
+    if(pageExists(mapped)) return mapped;
     return "home";
   }
 
-  function markOnly(page){
-    document.querySelectorAll(".page").forEach(function(p){
-      p.classList.remove("on");
-      p.classList.remove("active");
+  function showPage(page){
+    if(!pageExists(page)) page = "home";
+
+    document.querySelectorAll(".page").forEach(function(el){
+      el.classList.remove("on");
     });
-    var el = document.getElementById("page-" + page);
-    if(el) el.classList.add("on");
-  }
 
-  function ensureDynamicPage(page){
+    var target = document.getElementById("page-" + page);
+    if(target){
+      target.classList.add("on");
+    }
+
     try{
-      if(page === "jobs"){
-        if(typeof window.renderJobsPage === "function"){
-          window.renderJobsPage();
-        }else if(typeof window.ensureJobs === "function"){
-          window.ensureJobs();
-        }else if(typeof window.renderPage === "function"){
-          window.renderPage("jobs");
-        }
-      }
+      if(typeof renderAll === "function") renderAll();
+    }catch(e){}
 
-      if(page === "webinar"){
-        if(typeof window.renderWebinarsPage === "function") window.renderWebinarsPage();
-        if(typeof window.renderWebinarPage === "function") window.renderWebinarPage();
-      }
+    try{
+      if(typeof updateNav === "function") updateNav();
+    }catch(e){}
 
-      if(page === "smart-finder"){
-        if(typeof window.renderSmartFinderPage === "function") window.renderSmartFinderPage();
-        if(typeof window.initSmartFinder === "function") window.initSmartFinder();
-      }
+    try{
+      if(typeof fixFormLogos === "function") fixFormLogos();
     }catch(e){}
   }
 
-  function showTargetPage(){
-    var page = targetPageFromUrl();
-
-    if(page === "home"){
-      markOnly("home");
-      return;
-    }
-
-    /*
-      Use the website's own go/renderPage methods first.
-      This is important for /jobs because the jobs page is dynamically created.
-    */
-    try{
-      if(typeof window.go === "function"){
-        window.__guidcyRouteFixRunning = true;
-        window.go(page);
-        window.__guidcyRouteFixRunning = false;
-      }else if(typeof window.renderPage === "function"){
-        window.renderPage(page);
-      }
-    }catch(e){
-      window.__guidcyRouteFixRunning = false;
-    }
-
-    ensureDynamicPage(page);
-
-    /*
-      Final hard selection after dynamic creation.
-    */
-    setTimeout(function(){
-      ensureDynamicPage(page);
-      if(pageExists(page)) markOnly(page);
-
-      try{ if(typeof window.renderAll === "function") window.renderAll(); }catch(e){}
-      try{ if(typeof window.updateNav === "function") window.updateNav(); }catch(e){}
-      try{ if(typeof window.fixFormLogos === "function") window.fixFormLogos(); }catch(e){}
-    }, 40);
+  function restoreFromUrl(){
+    showPage(getPageFromUrl());
   }
 
-  function patchGoUrl(){
+  function patchGo(){
     var oldGo = window.go;
-    if(typeof oldGo === "function" && !oldGo.__guidcyNavbarRefreshFinalPatched){
-      var patched = function(page){
-        var result = oldGo.apply(this, arguments);
+    if(typeof oldGo !== "function" || oldGo.__guidcyBlogStylePatched) return;
 
-        if(page && !window.__guidcyRouteFixRunning){
-          var path = PAGE_TO_PATH[page] || ("/" + page);
-          try{
-            if(location.pathname !== path) history.pushState({page:page}, "", path);
-          }catch(e){}
-        }
+    var patched = function(page){
+      var result = oldGo.apply(this, arguments);
 
-        return result;
-      };
-      patched.__guidcyNavbarRefreshFinalPatched = true;
-      window.go = patched;
-    }
+      if(page){
+        var route = pageToRoute[page] || ("/" + page);
+        try{
+          if(location.pathname !== route){
+            history.pushState({page: page}, "", route);
+          }
+        }catch(e){}
+      }
+
+      return result;
+    };
+
+    patched.__guidcyBlogStylePatched = true;
+    window.go = patched;
   }
 
   function boot(){
-    patchGoUrl();
+    patchGo();
 
     /*
-      Repeat because older scripts may set page-home after first load.
-      This does not alter content; it only re-selects the correct visible page.
+      Run after original scripts also, because some older code sets page-home again.
+      This only restores the visible section based on URL.
     */
-    [0, 80, 250, 700, 1400, 2500].forEach(function(ms){
+    [0, 100, 400, 1000, 2000].forEach(function(delay){
       setTimeout(function(){
-        patchGoUrl();
-        showTargetPage();
-      }, ms);
+        patchGo();
+        restoreFromUrl();
+      }, delay);
     });
   }
+
+  window.addEventListener("popstate", restoreFromUrl);
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", boot);
   }else{
     boot();
   }
-
-  window.addEventListener("popstate", function(){
-    setTimeout(showTargetPage, 0);
-  });
 })();
 </script>
 </body>
