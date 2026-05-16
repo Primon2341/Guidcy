@@ -11832,7 +11832,7 @@ body.gmob-open{overflow:hidden}
     var list = await fetchSupabaseWebinarsOnly();
     var c = counts(list);
     m.innerHTML = '<div class="dash-title">All webinar history</div>'
-      + '<div style="font-size:12px;color:var(--muted);margin:-10px 0 18px">Live Supabase view — if a webinar is deleted from Supabase, this dashboard updates from the database instead of local cache.</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin:-10px 0 18px">Live database view — if a webinar is deleted, this dashboard updates from the database instead of local cache.</div>'
       + '<div class="guidcy-wbn-kpi-grid">'
       + '<div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div>'
       + '<div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div>'
@@ -11854,7 +11854,7 @@ body.gmob-open{overflow:hidden}
     var div = document.createElement('div');
     div.id = 'guidcy-admin-wbn-overview-strip';
     div.className = 'guidcy-wbn-overview-strip';
-    div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Webinar platform summary</div><div style="font-size:12px;color:var(--muted)">Live Supabase: '+c.total+' registered · '+c.completed+' completed · '+(c.upcoming+c.live)+' upcoming/live · '+c.paid+' paid</div></div><button class="btn btn-blue" onclick="swAD(\'webinars\',document.getElementById(\'admin-webinars-btn\'))">View all webinars</button></div>';
+    div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Webinar platform summary</div><div style="font-size:12px;color:var(--muted)">Live database: '+c.total+' registered · '+c.completed+' completed · '+(c.upcoming+c.live)+' upcoming/live · '+c.paid+' paid</div></div><button class="btn btn-blue" onclick="swAD(\'webinars\',document.getElementById(\'admin-webinars-btn\'))">View all webinars</button></div>';
     m.appendChild(div);
   }
 
@@ -11899,3 +11899,67 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL PATCH: admin webinar dashboard live Supabase only === -->
+
+<!-- === GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
+<script id="guidcy-admin-webinar-single-strip-fix-js">
+(function(){
+  function qsa(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function isAdminPageOpen(){ var p=document.getElementById('page-admin'); return !!(p && p.classList.contains('on')); }
+
+  function cleanupDuplicateAdminWebinarStrips(){
+    var strips = qsa('#page-admin .guidcy-wbn-overview-strip, #adash-main .guidcy-wbn-overview-strip');
+    if(strips.length <= 1) return;
+
+    // Prefer the live Supabase strip and remove older cached/local summary strips.
+    var keep = null;
+    for(var i=strips.length-1;i>=0;i--){
+      if((strips[i].textContent || '').indexOf('Live database') !== -1){ keep = strips[i]; break; }
+    }
+    if(!keep) keep = strips[strips.length - 1];
+
+    strips.forEach(function(el){
+      if(el !== keep && el.parentNode) el.parentNode.removeChild(el);
+    });
+
+    // Keep only one id in DOM. Duplicate ids can break getElementById based refresh logic.
+    keep.id = 'guidcy-admin-wbn-overview-strip';
+  }
+
+  function scheduleCleanup(){
+    setTimeout(cleanupDuplicateAdminWebinarStrips, 50);
+    setTimeout(cleanupDuplicateAdminWebinarStrips, 250);
+    setTimeout(cleanupDuplicateAdminWebinarStrips, 800);
+  }
+
+  // Wrap navigation and admin tab switching because older patches inject the strip during both flows.
+  var prevGo = window.go;
+  window.go = function(page){
+    var result = prevGo ? prevGo.apply(this, arguments) : undefined;
+    if(page === 'admin') scheduleCleanup();
+    return result;
+  };
+
+  var prevSwAD = window.swAD;
+  window.swAD = function(view, btn){
+    var result = prevSwAD ? prevSwAD.apply(this, arguments) : undefined;
+    if(view === 'overview' || view === 'analytics' || view === 'webinars') scheduleCleanup();
+    return result;
+  };
+
+  // Watch admin dashboard mutations and immediately remove stale duplicate summary strips.
+  function attachObserver(){
+    var main = document.getElementById('adash-main');
+    if(!main || main.__guidcySingleStripObserver) return;
+    main.__guidcySingleStripObserver = true;
+    var obs = new MutationObserver(function(){
+      if(isAdminPageOpen()) cleanupDuplicateAdminWebinarStrips();
+    });
+    obs.observe(main, {childList:true, subtree:false});
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ attachObserver(); scheduleCleanup(); });
+  window.addEventListener('load', function(){ attachObserver(); scheduleCleanup(); });
+  setInterval(function(){ attachObserver(); if(isAdminPageOpen()) cleanupDuplicateAdminWebinarStrips(); }, 1500);
+})();
+</script>
+<!-- === END GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
