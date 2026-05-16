@@ -10040,6 +10040,150 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
 
+<script id="guidcy-route-refresh-state-fix">
+(function(){
+  var routeToPage = {
+    "": "home",
+    "home": "home",
+    "explore": "home",
+
+    "browse": "browse",
+    "categories": "categories",
+    "blog": "blog",
+    "blogs": "blog",
+    "jobs": "jobs",
+    "smart-finder": "smart-finder",
+    "smartfinder": "smart-finder",
+
+    "become": "become",
+    "become-a-consultant": "become",
+    "consultant": "become",
+    "consultants": "browse",
+
+    "webinar": "webinar",
+    "webinars": "webinar",
+
+    "login": "login",
+    "signup": "signup",
+    "sign-up": "signup",
+    "get-started": "signup",
+    "getstarted": "signup",
+    "register": "signup",
+    "registration": "signup",
+
+    "help": "help",
+    "help-center": "help",
+    "support": "help",
+
+    "dispute": "dispute",
+    "dispute-resolution": "dispute",
+
+    "contact": "contact",
+    "about": "about",
+    "privacy": "privacy",
+    "privacy-policy": "privacy",
+    "terms": "terms",
+    "terms-and-conditions": "terms",
+
+    "dashboard": "dashboard",
+    "user-dashboard": "dashboard",
+    "consultant-dashboard": "dashboard",
+    "admin": "dashboard",
+    "admin-dashboard": "dashboard"
+  };
+
+  function cleanPath(){
+    return (location.pathname || "/")
+      .replace(/^\/+|\/+$/g,"")
+      .split("/")[0]
+      .toLowerCase();
+  }
+
+  function pageExists(page){
+    return !!document.getElementById("page-" + page);
+  }
+
+  function resolvePageFromPath(){
+    var first = cleanPath();
+    var page = routeToPage[first] || first;
+    if(pageExists(page)) return page;
+
+    /* fallback for routes matching page id directly */
+    var direct = first.replace(/[^a-z0-9_-]/g,"");
+    if(pageExists(direct)) return direct;
+
+    return "home";
+  }
+
+  function showPageWithoutReset(page){
+    if(!pageExists(page)) page = "home";
+
+    document.querySelectorAll(".page").forEach(function(el){
+      el.classList.remove("on");
+    });
+
+    var target = document.getElementById("page-" + page);
+    if(target) target.classList.add("on");
+
+    document.querySelectorAll(".nav-link").forEach(function(btn){
+      btn.classList.remove("on");
+    });
+
+    try{
+      if(typeof renderAll === "function") renderAll();
+      if(typeof updateNav === "function") updateNav();
+      if(typeof fixFormLogos === "function") fixFormLogos();
+    }catch(e){}
+
+    window.scrollTo(0,0);
+  }
+
+  function applyInitialRoute(){
+    var page = resolvePageFromPath();
+    if(page && page !== "home"){
+      setTimeout(function(){ showPageWithoutReset(page); }, 0);
+      setTimeout(function(){ showPageWithoutReset(page); }, 80);
+      setTimeout(function(){ showPageWithoutReset(page); }, 300);
+    }
+  }
+
+  /* Patch go() so future navigation updates URL path also */
+  function patchGo(){
+    var oldGo = window.go;
+    if(typeof oldGo === "function" && !oldGo.__guidcyRouteRefreshPatched){
+      var patched = function(page){
+        var result = oldGo.apply(this, arguments);
+
+        var urlPage = page || "home";
+        var path = urlPage === "home" ? "/" : "/" + urlPage;
+        if(location.pathname !== path){
+          try{ history.pushState({page:urlPage}, "", path); }catch(e){}
+        }
+
+        return result;
+      };
+      patched.__guidcyRouteRefreshPatched = true;
+      window.go = patched;
+    }
+  }
+
+  window.addEventListener("popstate", function(){
+    showPageWithoutReset(resolvePageFromPath());
+  });
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){
+      patchGo();
+      applyInitialRoute();
+    });
+  }else{
+    patchGo();
+    applyInitialRoute();
+  }
+
+  setTimeout(function(){ patchGo(); applyInitialRoute(); }, 500);
+})();
+</script>
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
