@@ -35,7 +35,7 @@ function copyFirstAvailable(file) {
       const dest = path.join(publicDir, file);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       fs.copyFileSync(src, dest);
-      console.log("Copied:", file, "from", src.includes("/dist/") || src.includes("\\dist\\") ? "dist" : "root");
+      console.log("Copied:", file);
       return true;
     }
   }
@@ -78,10 +78,60 @@ if (!exists(path.join(publicDir, "index.html"))) {
   "sitemap.xml"
 ].forEach(copyFirstAvailable);
 
-if (!exists(path.join(publicDir, "index.html"))) {
+const indexPath = path.join(publicDir, "index.html");
+
+if (!exists(indexPath)) {
   console.error("Build failed: index.html was not found in root or dist.");
   process.exit(1);
 }
 
+/*
+  IMPORTANT FIX:
+  Vercel routing may still show 404 on refresh if the route fallback is not applied.
+  This creates real physical folders for every internal Guidcy page.
+  Example:
+  public/login/index.html
+  public/browse/index.html
+  public/webinar/index.html
+
+  So refreshing /login, /browse, /webinar can never return 404,
+  even if Vercel ignores the fallback route.
+*/
+const spaRoutes = [
+  "login",
+  "signup",
+  "get-started",
+  "browse",
+  "categories",
+  "blog",
+  "become",
+  "webinar",
+  "webinars",
+  "jobs",
+  "help",
+  "help-center",
+  "dispute",
+  "dispute-resolution",
+  "contact",
+  "about",
+  "privacy",
+  "terms",
+  "dashboard",
+  "user-dashboard",
+  "consultant-dashboard",
+  "admin",
+  "admin-dashboard",
+  "smart-finder"
+];
+
+const indexHtml = fs.readFileSync(indexPath, "utf8");
+
+for (const route of spaRoutes) {
+  const routeDir = path.join(publicDir, route);
+  fs.mkdirSync(routeDir, { recursive: true });
+  fs.writeFileSync(path.join(routeDir, "index.html"), indexHtml, "utf8");
+  console.log("Created SPA route:", "/" + route);
+}
+
 console.log("Build completed successfully.");
-console.log("Vercel should deploy the public folder now.");
+console.log("Public output contains index.html, favicon files, and physical SPA route folders.");
