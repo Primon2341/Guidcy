@@ -9678,6 +9678,189 @@ body.gmob-open{overflow:hidden}
   }
 })();
 </script>
+
+
+<!-- === GUIDCY FINAL FIX: Help Center + Dispute Resolution must save to Supabase on desktop and mobile === -->
+<script id="guidcy-final-support-dispute-supabase-only-fix">
+(function(){
+  'use strict';
+
+  function el(id){ return document.getElementById(id); }
+  function val(id){ var x=el(id); return x && typeof x.value==='string' ? x.value.trim() : ''; }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
+  function toastSafe(msg,type){ try{ if(typeof toast==='function') toast(msg,type||'green'); else alert(msg); }catch(_){ alert(msg); } }
+  function code(prefix){ return prefix+'-'+Date.now().toString().slice(-6); }
+  function sbClient(){ try{ return window.sb || (typeof sb!=='undefined' ? sb : null); }catch(_){ return null; } }
+  function uuidOrNull(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'')) ? v : null; }
+  function cleanSearch(v){ return String(v||'').trim().replace(/[%,()]/g,'').slice(0,120); }
+  function setBusy(btn, busy, text){
+    if(!btn) return;
+    if(busy){ btn.dataset.oldText=btn.textContent; btn.disabled=true; btn.textContent=text || 'Submitting...'; }
+    else{ btn.disabled=false; if(btn.dataset.oldText) btn.textContent=btn.dataset.oldText; }
+  }
+  async function insertSupabase(table,row){
+    var c=sbClient();
+    if(!c) throw new Error('Supabase client is not configured. Please check CFG.supabase_url and CFG.supabase_key.');
+    var res=await c.from(table).insert(row).select('*').single();
+    if(res.error) throw res.error;
+    return res.data;
+  }
+  async function searchOne(table,codeCol,key){
+    var c=sbClient();
+    if(!c) return null;
+    var k=cleanSearch(key);
+    if(!k) return null;
+    var res=await c.from(table)
+      .select('*')
+      .or(codeCol+'.ilike.%'+k+'%,email.ilike.%'+k+'%')
+      .order('created_at',{ascending:false})
+      .limit(1);
+    if(res.error){ console.warn('Supabase lookup failed:',res.error.message); return null; }
+    return res.data && res.data[0] ? res.data[0] : null;
+  }
+
+  window.ghelpSubmitTicket = async function(ev){
+    var btn = ev && ev.currentTarget ? ev.currentTarget : null;
+    var name=val('ghelp-name');
+    var email=val('ghelp-email');
+    var topic=(el('ghelp-topic') && el('ghelp-topic').value) || 'General';
+    var priority=(el('ghelp-priority') && el('ghelp-priority').value) || 'Normal';
+    var message=val('ghelp-msg');
+    var out=el('ghelp-ticket-out');
+
+    if(!email || !message){ toastSafe('Please enter your email and describe your issue','red'); return; }
+    var ticket_code=code('HLP');
+    var row={
+      ticket_code:ticket_code,
+      name:name,
+      email:email,
+      topic:topic,
+      priority:priority,
+      message:message,
+      status:'Open',
+      admin_comment:'',
+      created_by:uuidOrNull(window.currentUser && window.currentUser.id)
+    };
+
+    try{
+      setBusy(btn,true,'Submitting ticket...');
+      await insertSupabase('support_tickets',row);
+      if(out){
+        out.innerHTML='<strong>✓ Ticket has been raised successfully.</strong><br><br>'+
+          '<strong>Ticket ID:</strong> '+esc(ticket_code)+'<br>'+
+          '<strong>Topic:</strong> '+esc(topic)+'<br>'+
+          '<strong>Priority:</strong> '+esc(priority)+'<br>'+
+          '<strong>Status:</strong> Open<br><br>'+
+          'Save this Ticket ID to track your support request.';
+        out.classList.add('on');
+      }
+      ['ghelp-name','ghelp-email','ghelp-msg'].forEach(function(k){ var x=el(k); if(x) x.value=''; });
+      toastSafe('Ticket has been raised successfully.','green');
+    }catch(err){
+      console.error('support_tickets insert failed:',err);
+      if(out){ out.innerHTML='<strong>Ticket was not saved.</strong><br><br>Supabase returned: '+esc(err.message || err.details || err.hint || 'Unknown error')+'<br><br>Please run the SQL table/policy fix and retry.'; out.classList.add('on'); }
+      toastSafe('Ticket was not saved in Supabase. Check table/RLS setup.','red');
+    }finally{ setBusy(btn,false); }
+  };
+
+  window.ghelpTrackTicket = async function(){
+    var key=val('ghelp-track-id');
+    if(!key){ toastSafe('Enter your Ticket ID or registered email','red'); return; }
+    var t=await searchOne('support_tickets','ticket_code',key);
+    var out=el('ghelp-track-out');
+    if(out){
+      out.innerHTML=t ? '<strong>Ticket found</strong><br><br>'+
+        '<strong>ID:</strong> '+esc(t.ticket_code || t.id)+'<br>'+
+        '<strong>Topic:</strong> '+esc(t.topic)+'<br>'+
+        '<strong>Status:</strong> '+esc(t.status)+'<br>'+
+        '<strong>Priority:</strong> '+esc(t.priority || 'Normal')+
+        (t.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(t.admin_comment) : '')
+        : 'No ticket found in Supabase matching that ID or email.';
+      out.classList.add('on');
+    }
+  };
+  window.ghelpCheckTicket = window.ghelpTrackTicket;
+
+  window.gdispSubmit = async function(ev){
+    var btn = ev && ev.currentTarget ? ev.currentTarget : null;
+    var name=val('gdisp-name');
+    var email=val('gdisp-email');
+    var booking_reference=val('gdisp-booking');
+    var consultant_name=val('gdisp-consultant');
+    var issue_type=(el('gdisp-type') && el('gdisp-type').value) || 'Other';
+    var preferred_resolution=(el('gdisp-resolution') && el('gdisp-resolution').value) || 'Review request';
+    var details=val('gdisp-details');
+    var out=el('gdisp-submit-out');
+
+    if(!email || !details){ toastSafe('Please enter your email and describe the dispute','red'); return; }
+    var dispute_code=code('DSP');
+    var row={
+      dispute_code:dispute_code,
+      name:name,
+      email:email,
+      booking_reference:booking_reference,
+      consultant_name:consultant_name,
+      issue_type:issue_type,
+      preferred_resolution:preferred_resolution,
+      details:details,
+      status:'Under Review',
+      admin_comment:'',
+      created_by:uuidOrNull(window.currentUser && window.currentUser.id)
+    };
+
+    try{
+      setBusy(btn,true,'Submitting dispute...');
+      await insertSupabase('disputes',row);
+      if(out){
+        out.innerHTML='<strong>✓ Dispute has been raised successfully.</strong><br><br>'+
+          '<strong>Dispute ID:</strong> '+esc(dispute_code)+'<br>'+
+          '<strong>Issue:</strong> '+esc(issue_type)+'<br>'+
+          '<strong>Preferred resolution:</strong> '+esc(preferred_resolution)+'<br>'+
+          '<strong>Status:</strong> Under Review<br><br>'+
+          'Save this Dispute ID to track your case.';
+        out.classList.add('on');
+      }
+      ['gdisp-name','gdisp-email','gdisp-booking','gdisp-consultant','gdisp-details'].forEach(function(k){ var x=el(k); if(x) x.value=''; });
+      toastSafe('Dispute has been raised successfully.','green');
+    }catch(err){
+      console.error('disputes insert failed:',err);
+      if(out){ out.innerHTML='<strong>Dispute was not saved.</strong><br><br>Supabase returned: '+esc(err.message || err.details || err.hint || 'Unknown error')+'<br><br>Please run the SQL table/policy fix and retry.'; out.classList.add('on'); }
+      toastSafe('Dispute was not saved in Supabase. Check table/RLS setup.','red');
+    }finally{ setBusy(btn,false); }
+  };
+
+  window.gdispTrack = async function(){
+    var key=val('gdisp-track-id');
+    if(!key){ toastSafe('Enter your Dispute ID or registered email','red'); return; }
+    var d=await searchOne('disputes','dispute_code',key);
+    var out=el('gdisp-track-out');
+    if(out){
+      out.innerHTML=d ? '<strong>Dispute found</strong><br><br>'+
+        '<strong>ID:</strong> '+esc(d.dispute_code || d.id)+'<br>'+
+        '<strong>Issue type:</strong> '+esc(d.issue_type)+'<br>'+
+        '<strong>Preferred resolution:</strong> '+esc(d.preferred_resolution)+'<br>'+
+        '<strong>Status:</strong> '+esc(d.status)+
+        (d.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(d.admin_comment) : '')
+        : 'No dispute found in Supabase matching that ID or email.';
+      out.classList.add('on');
+    }
+  };
+
+  window.guidcySubmitHelpTicket = window.ghelpSubmitTicket;
+  window.guidcyCheckTicket = window.ghelpTrackTicket;
+  window.guidcySubmitDispute = window.gdispSubmit;
+  window.guidcyCheckDispute = window.gdispTrack;
+
+  document.addEventListener('click',function(e){
+    var b=e.target && e.target.closest ? e.target.closest('button[onclick]') : null;
+    if(!b) return;
+    var oc=b.getAttribute('onclick') || '';
+    if(oc.indexOf('ghelpSubmitTicket()') !== -1){ e.preventDefault(); window.ghelpSubmitTicket({currentTarget:b}); }
+    if(oc.indexOf('gdispSubmit()') !== -1){ e.preventDefault(); window.gdispSubmit({currentTarget:b}); }
+  },true);
+})();
+</script>
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
