@@ -10143,6 +10143,160 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL FIX: Support ticket admin status must update and track by Ticket ID === -->
 
+
+
+<!-- === GUIDCY HOTFIX: Help Center admin update must read raw element IDs and refresh Ticket ID tracker === -->
+<script id="guidcy-help-ticket-status-raw-id-hotfix">
+(function(){
+  'use strict';
+
+  function byId(v){ return document.getElementById(String(v||'')); }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function toastSafe(msg,type){ try{ if(typeof window.toast==='function') window.toast(msg,type||'green'); else if(typeof window.showToast==='function') window.showToast(msg,type||'green'); else alert(msg); }catch(e){ alert(msg); } }
+  function sbClient(){
+    try{
+      if(window.sb) return window.sb;
+      if(window.supabaseClient) return window.supabaseClient;
+      if(window.supabase && window.CFG && window.CFG.supabase_url && window.CFG.supabase_key){
+        window.sb=window.supabase.createClient(window.CFG.supabase_url,window.CFG.supabase_key);
+        return window.sb;
+      }
+    }catch(e){}
+    return null;
+  }
+  function isUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'')); }
+  function clean(v){ return String(v||'').trim().replace(/[%,()]/g,'').slice(0,150); }
+  function nowISO(){ return new Date().toISOString(); }
+
+  async function getCaseIdentity(table,rowId,type){
+    var c=sbClient();
+    var codeCol=(table==='disputes'||type==='dispute')?'dispute_code':'ticket_code';
+    var key=String(rowId||'').trim();
+    if(!c || !key) return {id:null,code:key,codeCol:codeCol};
+
+    // Admin cards usually pass database UUID. Convert it to public ticket_code too.
+    if(isUuid(key)){
+      var r=await c.from(table).select('id,'+codeCol).eq('id',key).maybeSingle();
+      if(!r.error && r.data) return {id:r.data.id,code:r.data[codeCol],codeCol:codeCol};
+    }
+
+    // Admin cards may also pass public HLP/DSP code.
+    var r2=await c.from(table).select('id,'+codeCol).eq(codeCol,key).maybeSingle();
+    if(!r2.error && r2.data) return {id:r2.data.id,code:r2.data[codeCol],codeCol:codeCol};
+    return {id:isUuid(key)?key:null,code:key,codeCol:codeCol};
+  }
+
+  async function updateCase(table,rowId,type,patch){
+    var c=sbClient();
+    if(!c) return false;
+    var ident=await getCaseIdentity(table,rowId,type);
+    var payload=Object.assign({},patch,{updated_at:nowISO()});
+
+    if(ident.id){
+      var a=await c.from(table).update(payload).eq('id',ident.id).select('id,'+ident.codeCol+',status,admin_comment,updated_at').maybeSingle();
+      if(!a.error && a.data) return a.data;
+      if(a.error) console.error('Admin update by id failed:',a.error.message);
+    }
+
+    if(ident.code){
+      var b=await c.from(table).update(payload).eq(ident.codeCol,ident.code).select('id,'+ident.codeCol+',status,admin_comment,updated_at').maybeSingle();
+      if(!b.error && b.data) return b.data;
+      if(b.error) console.error('Admin update by code failed:',b.error.message);
+    }
+    return false;
+  }
+
+  async function deleteCase(table,rowId,type){
+    var c=sbClient();
+    if(!c) return false;
+    var ident=await getCaseIdentity(table,rowId,type);
+    if(ident.id){
+      var a=await c.from(table).delete().eq('id',ident.id).select('id').maybeSingle();
+      if(!a.error && a.data) return true;
+    }
+    if(ident.code){
+      var b=await c.from(table).delete().eq(ident.codeCol,ident.code).select(ident.codeCol).maybeSingle();
+      if(!b.error && b.data) return true;
+    }
+    return false;
+  }
+
+  async function findSupportTicket(key){
+    var c=sbClient();
+    var k=clean(key);
+    if(!c || !k) return null;
+
+    // Exact code match first. This prevents email/partial lookup from returning another older ticket.
+    var a=await c.from('support_tickets').select('*').eq('ticket_code',k).maybeSingle();
+    if(!a.error && a.data) return a.data;
+
+    // Case-insensitive exact code, then email.
+    var b=await c.from('support_tickets').select('*').ilike('ticket_code',k).limit(1);
+    if(!b.error && b.data && b.data[0]) return b.data[0];
+
+    var e=await c.from('support_tickets').select('*').ilike('email',k).order('updated_at',{ascending:false}).order('created_at',{ascending:false}).limit(1);
+    if(!e.error && e.data && e.data[0]) return e.data[0];
+
+    return null;
+  }
+
+  window.gadminUpdateCase = async function(table,rowId,type){
+    // IMPORTANT: use raw getElementById IDs. Do NOT use CSS.escape here; CSS.escape breaks UUID IDs starting with a number.
+    var stEl=byId('st-'+rowId);
+    var cmEl=byId('cm-'+rowId);
+    var status=(stEl && stEl.value ? stEl.value : 'Open').trim();
+    var comment=(cmEl && cmEl.value ? cmEl.value : '').trim();
+
+    var saved=await updateCase(table,rowId,type,{status:status,admin_comment:comment});
+    if(!saved){ toastSafe('Case was not updated. Check Supabase RLS/update policy.','red'); return; }
+
+    toastSafe('Case updated. Status is now visible through Ticket ID search.','green');
+    try{
+      if(type==='ticket' && typeof window.renderSupportAdmin==='function') await window.renderSupportAdmin();
+      else if(type==='dispute' && typeof window.renderDisputeAdmin==='function') await window.renderDisputeAdmin();
+      else if(typeof window.swAD==='function') await window.swAD(type==='ticket'?'support':'disputes',null);
+    }catch(e){}
+  };
+
+  window.gadminResolveCase = async function(table,rowId,type){
+    var cmEl=byId('cm-'+rowId);
+    var comment=(cmEl && cmEl.value ? cmEl.value : 'Resolved by admin').trim();
+    var saved=await updateCase(table,rowId,type,{status:'Resolved',admin_comment:comment,resolved_at:nowISO()});
+    if(!saved){ toastSafe('Case was not resolved. Check Supabase RLS/update policy.','red'); return; }
+    toastSafe('Marked as resolved.','green');
+    try{ if(typeof window.swAD==='function') await window.swAD(type==='ticket'?'support':'disputes',null); }catch(e){}
+  };
+
+  window.gadminDeleteCase = async function(table,rowId,type){
+    if(!confirm('Delete this case permanently?')) return;
+    var ok=await deleteCase(table,rowId,type);
+    toastSafe(ok?'Case deleted':'Case was not deleted. Check Supabase RLS/delete policy.',ok?'green':'red');
+    try{ if(typeof window.swAD==='function') await window.swAD(type==='ticket'?'support':'disputes',null); }catch(e){}
+  };
+
+  window.ghelpTrackTicket = async function(){
+    var input=byId('ghelp-track-id');
+    var out=byId('ghelp-track-out');
+    var key=input && input.value ? input.value.trim() : '';
+    if(!key){ toastSafe('Enter your Ticket ID or registered email','red'); return; }
+    var t=await findSupportTicket(key);
+    if(out){
+      out.innerHTML=t ? '<strong>Ticket found</strong><br><br>'+ 
+        '<strong>ID:</strong> '+esc(t.ticket_code || t.id)+'<br>'+ 
+        '<strong>Topic:</strong> '+esc(t.topic || 'General')+'<br>'+ 
+        '<strong>Status:</strong> '+esc(t.status || 'Open')+'<br>'+ 
+        '<strong>Priority:</strong> '+esc(t.priority || 'Normal')+ 
+        (t.admin_comment ? '<br><strong>Admin comment:</strong> '+esc(t.admin_comment) : '')+ 
+        (t.updated_at ? '<br><strong>Last updated:</strong> '+esc(new Date(t.updated_at).toLocaleString('en-IN')) : '')
+        : 'No ticket found matching that Ticket ID or email.';
+      out.classList.add('on');
+    }
+  };
+  window.ghelpCheckTicket=window.ghelpTrackTicket;
+  window.guidcyCheckTicket=window.ghelpTrackTicket;
+})();
+</script>
+<!-- === END GUIDCY HOTFIX === -->
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
