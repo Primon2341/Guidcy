@@ -9987,6 +9987,209 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
 
+
+
+<!-- === GUIDCY FINAL PATCH: SAME PAGE AFTER REFRESH - DESKTOP + MOBILE === -->
+<script id="guidcy-refresh-same-page-final-fix">
+(function(){
+  'use strict';
+
+  const STORAGE_KEY = 'guidcy_last_open_page';
+  const SUBVIEW_KEY = 'guidcy_last_dashboard_subview';
+
+  const URLS = {
+    home:'/',
+    browse:'/browse',
+    jobs:'/jobs',
+    login:'/login',
+    signup:'/signup',
+    categories:'/categories',
+    blog:'/blog',
+    become:'/become-a-consultant',
+    webinar:'/webinar',
+    help:'/help-center',
+    dispute:'/dispute-resolution',
+    about:'/about',
+    contact:'/contact',
+    faq:'/faq',
+    terms:'/terms',
+    privacy:'/privacy',
+    refund:'/refund',
+    disclaimer:'/disclaimer',
+    'user-dash':'/dashboard',
+    'cons-dash':'/consultant-dashboard',
+    'admin-dash':'/admin',
+    profile:'/profile',
+    payment:'/payment',
+    confirm:'/confirm',
+    review:'/review',
+    meeting:'/meeting'
+  };
+
+  const PATHS = Object.entries(URLS).reduce(function(acc, pair){
+    const page = pair[0], url = pair[1];
+    acc[url] = page;
+    acc[url + '.html'] = page;
+    return acc;
+  }, {
+    '':'home',
+    '/index.html':'home',
+    '/become':'become',
+    '/support':'help',
+    '/help':'help',
+    '/dispute':'dispute',
+    '/webinars':'webinar',
+    '/confirmation':'confirm',
+    '/consultant':'cons-dash',
+    '/user-dashboard':'user-dash',
+    '/admin-dashboard':'admin-dash'
+  });
+
+  function pageExists(page){
+    return !!document.getElementById('page-' + page);
+  }
+
+  function cleanPath(){
+    let p = window.location.pathname || '/';
+    p = p.replace(/\/$/, '') || '/';
+    return p;
+  }
+
+  function getPageFromCurrentUrl(){
+    const p = cleanPath();
+    if(PATHS[p]) return PATHS[p];
+    const hash = (window.location.hash || '').replace(/^#/, '').trim();
+    if(hash && (pageExists(hash) || URLS[hash])) return hash;
+    return '';
+  }
+
+  function rememberPage(page){
+    if(!page || !URLS[page] && !pageExists(page)) return;
+    try{ localStorage.setItem(STORAGE_KEY, page); }catch(e){}
+  }
+
+  function renderKnownPage(page){
+    if(!page) page = 'home';
+    if(!pageExists(page)){
+      // Some pages like Jobs/Blog are dynamically created by older code. Give the existing renderer a chance.
+      try{
+        if(typeof previousRender === 'function') previousRender(page);
+      }catch(e){}
+      if(!pageExists(page) && page !== 'jobs') page = 'home';
+    }
+
+    try{
+      if(typeof previousRender === 'function'){
+        previousRender(page);
+      }else{
+        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active');});
+        const el = document.getElementById('page-' + page) || document.getElementById('page-home');
+        if(el) el.classList.add('on');
+      }
+    }catch(err){
+      console.warn('Guidcy page render recovered:', err);
+      document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active');});
+      const el = document.getElementById('page-' + page) || document.getElementById('page-home');
+      if(el) el.classList.add('on');
+    }
+
+    // Trigger page-specific refreshers after the page becomes visible.
+    setTimeout(function(){
+      try{ if(page === 'home' && typeof initHome === 'function') initHome(); }catch(e){}
+      try{ if(page === 'browse' && typeof initBrowse === 'function') initBrowse(); }catch(e){}
+      try{ if(page === 'categories' && typeof initCategories === 'function') initCategories(); }catch(e){}
+      try{ if(page === 'blog' && typeof renderGuidcyBlog === 'function') renderGuidcyBlog(); }catch(e){}
+      try{ if(page === 'faq' && typeof initFAQ === 'function') initFAQ(); }catch(e){}
+      try{ if(page === 'webinar' && typeof window.wbnRender === 'function') window.wbnRender(); }catch(e){}
+      try{ if(page === 'help' && typeof window.ghelpRender === 'function') window.ghelpRender(); }catch(e){}
+      try{ if(page === 'dispute' && typeof window.gdispRender === 'function') window.gdispRender(); }catch(e){}
+      try{
+        const sub = JSON.parse(localStorage.getItem(SUBVIEW_KEY) || '{}');
+        if(page === 'user-dash' && typeof swUD === 'function') swUD(sub['user-dash'] || 'upcoming', null);
+        if(page === 'cons-dash' && typeof swCD === 'function') swCD(sub['cons-dash'] || 'overview', null);
+        if(page === 'admin-dash' && typeof swAD === 'function') swAD(sub['admin-dash'] || 'overview', null);
+      }catch(e){}
+    }, 80);
+  }
+
+  const previousRender = window.renderPage;
+  const previousGo = window.go;
+
+  window.PAGE_URLS = Object.assign({}, window.PAGE_URLS || {}, URLS);
+  window.getPageFromPath = function(){
+    return getPageFromCurrentUrl() || (function(){try{return localStorage.getItem(STORAGE_KEY) || 'home';}catch(e){return 'home';}})();
+  };
+
+  window.renderPage = function(page){
+    rememberPage(page);
+    renderKnownPage(page);
+  };
+
+  window.go = function(page, options){
+    page = page || 'home';
+    rememberPage(page);
+    const url = URLS[page] || ('#' + page);
+    const replace = options && options.replace;
+    try{
+      const currentPage = (history.state && history.state.page) || getPageFromCurrentUrl();
+      if(replace){
+        history.replaceState({page:page}, '', url);
+      }else if(currentPage !== page || cleanPath() !== url){
+        history.pushState({page:page}, '', url);
+      }
+    }catch(e){
+      try{ if(typeof previousGo === 'function') return previousGo(page); }catch(_){}
+    }
+    renderKnownPage(page);
+  };
+
+  // Remember dashboard sub-tabs too, so refresh does not always return to Overview.
+  function wrapDashSwitcher(name, pageKey){
+    const fn = window[name];
+    if(typeof fn !== 'function' || fn.__guidcyRefreshWrapped) return;
+    const wrapped = function(view, btn){
+      try{
+        const obj = JSON.parse(localStorage.getItem(SUBVIEW_KEY) || '{}');
+        obj[pageKey] = view || obj[pageKey] || 'overview';
+        localStorage.setItem(SUBVIEW_KEY, JSON.stringify(obj));
+      }catch(e){}
+      return fn.apply(this, arguments);
+    };
+    wrapped.__guidcyRefreshWrapped = true;
+    window[name] = wrapped;
+  }
+
+  function restoreInitialPage(){
+    let page = getPageFromCurrentUrl();
+    if(!page){
+      try{ page = localStorage.getItem(STORAGE_KEY) || 'home'; }catch(e){ page = 'home'; }
+    }
+    if(!URLS[page] && !pageExists(page)) page = 'home';
+    rememberPage(page);
+    try{ history.replaceState({page:page}, '', URLS[page] || ('#' + page)); }catch(e){}
+    renderKnownPage(page);
+  }
+
+  window.addEventListener('popstate', function(e){
+    const page = (e.state && e.state.page) || getPageFromCurrentUrl() || 'home';
+    rememberPage(page);
+    renderKnownPage(page);
+  });
+
+  function init(){
+    wrapDashSwitcher('swUD', 'user-dash');
+    wrapDashSwitcher('swCD', 'cons-dash');
+    wrapDashSwitcher('swAD', 'admin-dash');
+    // Run after older Guidcy patches that still force home on unknown paths.
+    setTimeout(restoreInitialPage, 250);
+    setTimeout(restoreInitialPage, 900);
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
