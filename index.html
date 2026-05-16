@@ -1274,6 +1274,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
           <div class="field"><label>Country</label><select><option selected>India</option><option>USA</option><option>UK</option><option>UAE</option><option>Singapore</option></select></div>
           <div class="field"><label>City</label><input placeholder="Hyderabad"/></div>
         </div>
+        <div class="field"><label>Current Company / College</label><input id="su-company-college" placeholder="Company or college name"/></div>
         <div class="field-row">
           <div class="field"><label>Timezone</label><select><option>IST (UTC+5:30)</option><option>GST (UTC+4)</option><option>EST (UTC-5)</option><option>GMT</option></select></div>
           <div class="field"><label>Preferred language</label><select id="f-lang" onchange="applyFilters()"><option value="">Any language</option><option value="Hindi">Hindi</option><option value="English">English</option></select></div>
@@ -1288,6 +1289,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
           <div class="field"><label>Last name</label><input id="sc-ln" placeholder="Menon"/></div>
         </div>
         <div class="field"><label>Professional title</label><input placeholder="Senior Business Strategy Consultant"/></div>
+        <div class="field"><label>Current Company / College</label><input id="sc-company-college" placeholder="Current company, organization, or college"/></div>
         <div class="field"><label>Email</label><input type="email" id="sc-em" placeholder="you@example.com"/></div>
         <div class="field"><label>Phone</label><input type="tel" id="sc-ph" placeholder="+91 98765 43210"/></div>
         <div class="field-row">
@@ -2559,16 +2561,24 @@ async function doSignup(type){
     const fn=(document.getElementById('su-fn')?.value||'').trim();
     const ln=(document.getElementById('su-ln')?.value||'').trim();
     const email=(document.getElementById('su-em')?.value||'').trim();
+    const currentCompanyCollege=(document.getElementById('su-company-college')?.value||'').trim();
     const pass=document.getElementById('su-pw')?.value||'';
     if(!fn||!email||!pass){toast('Please fill all required fields','red');return;}
     if(pass.length<8){toast('Password must be at least 8 characters','red');return;}
     const btn=document.querySelector('#su-user-form .primary-btn');
     if(btn){btn.disabled=true;btn.textContent='Creating account...';}
     try{
-      const{data,error}=await sb.auth.signUp({email,password:pass,options:{data:{full_name:fn+' '+ln,role:'user'}}});
+      const{data,error}=await sb.auth.signUp({email,password:pass,options:{data:{full_name:fn+' '+ln,role:'user',current_company_college:currentCompanyCollege}}});
       if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Create account';}return;}
       if(data.user){
-        await sb.from('profiles').upsert({id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
+        {
+          const profilePayload={id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege,current_work:currentCompanyCollege};
+          const{error:pErr}=await sb.from('profiles').upsert(profilePayload);
+          if(pErr){
+            console.warn('Profile current company/college save skipped, retrying basic profile:',pErr);
+            await sb.from('profiles').upsert({id:data.user.id,role:'user',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
+          }
+        }
         currentUser=data.user;loggedIn='user';currentProfile={full_name:fn+' '+ln,role:'user',avatar_initials:mkInitials(fn+' '+ln)};
         updateNav();toast('Account created! Welcome to Guidcy 🎉','green');
         setTimeout(()=>go('user-dash'),700);
@@ -2582,6 +2592,7 @@ async function doSignup(type){
     const ln=(document.getElementById('sc-ln')?.value||'').trim();
     const email=(document.getElementById('sc-em')?.value||'').trim();
     const pass=document.getElementById('sc-pw')?.value||'';
+    const currentCompanyCollege=(document.getElementById('sc-company-college')?.value||'').trim();
     const category=document.getElementById('sc-cat')?.value||'Business Strategy';
     const exp=document.getElementById('sc-exp')?.value||'1–3 yrs';
     const rate=parseInt(document.getElementById('sc-rate')?.value)||2000;
@@ -2591,23 +2602,41 @@ async function doSignup(type){
     const btn=document.getElementById('cons-signup-btn');
     if(btn){btn.disabled=true;btn.textContent='Submitting application...';}
     try{
-      const{data,error}=await sb.auth.signUp({email,password:pass,options:{data:{full_name:fn+' '+ln,role:'consultant'}}});
+      const{data,error}=await sb.auth.signUp({email,password:pass,options:{data:{full_name:fn+' '+ln,role:'consultant',current_company_college:currentCompanyCollege}}});
       if(error){toast(error.message,'red');if(btn){btn.disabled=false;btn.textContent='Join as Consultant';}return;}
       if(data.user){
         // Save to profiles
-        await sb.from('profiles').upsert({id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
+        {
+          const profilePayload={id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln),current_company_college:currentCompanyCollege,current_work:currentCompanyCollege};
+          const{error:pErr}=await sb.from('profiles').upsert(profilePayload);
+          if(pErr){
+            console.warn('Profile current company/college save skipped, retrying basic profile:',pErr);
+            await sb.from('profiles').upsert({id:data.user.id,role:'consultant',full_name:fn+' '+ln,email,avatar_initials:mkInitials(fn+' '+ln)});
+          }
+        }
         // Save to consultants table (is_active=false until admin approves)
-        const{error:cErr}=await sb.from('consultants').insert({
-          profile_id:data.user.id,
-          name:fn+' '+ln,
-          avatar_initials:mkInitials(fn+' '+ln),
-          avatar_bg:'#EBF4FF', avatar_color:'#1E72BE',
-          specialty:category, category,
-          bio, experience:exp, rate,
-          badge:'new', is_active:true,
-          session_types:['video'], rating:0, review_count:0
-        });
-        if(cErr)console.warn('Consultant insert error',cErr);
+        {
+          const consultantPayload={
+            profile_id:data.user.id,
+            name:fn+' '+ln,
+            avatar_initials:mkInitials(fn+' '+ln),
+            avatar_bg:'#EBF4FF', avatar_color:'#1E72BE',
+            specialty:category, category,
+            bio, experience:exp, rate,
+            current_work:currentCompanyCollege,
+            current_company_college:currentCompanyCollege,
+            badge:'new', is_active:true,
+            session_types:['video'], rating:0, review_count:0
+          };
+          let{error:cErr}=await sb.from('consultants').insert(consultantPayload);
+          if(cErr){
+            console.warn('Consultant insert with current company/college failed, retrying basic insert:',cErr);
+            delete consultantPayload.current_company_college;
+            delete consultantPayload.current_work;
+            ({error:cErr}=await sb.from('consultants').insert(consultantPayload));
+          }
+          if(cErr)console.warn('Consultant insert error',cErr);
+        }
         currentUser=data.user;
         loggedIn='consultant';
         currentProfile={full_name:fn+' '+ln,role:'consultant',avatar_initials:mkInitials(fn+' '+ln)};
@@ -2704,6 +2733,7 @@ async function fetchConsultants(filters={}){
           bg:c.avatar_bg||'#EBF4FF',color:c.avatar_color||'#1E72BE',
           rating:parseFloat(c.rating)||0,reviews:c.review_count||0,
           price:c.rate||2000,exp:c.experience||'',
+          current_company_college:c.current_company_college||c.current_work||c.company||c.organization||'',
           badge:c.badge||'new',tags:c.tags||[],certs:c.certs||[],
           bio:c.bio||'',avail:c.available_days||[],
           slots:c.slots||['10:00 AM','2:00 PM','4:00 PM'],
@@ -2795,6 +2825,7 @@ function renderGrid(list,containerId){
         ${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}
         <div class="c-name">${c.name}</div>
         <div class="c-role">${c.role}</div>
+        ${c.current_company_college?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🏢 ${c.current_company_college}</div>`:''}
         <div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starsHtml(c.rating)}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div>
       </div>
       <div class="ccard-bot">
@@ -2889,13 +2920,14 @@ async function openProfile(dbId,localId){
         // Education details for the public consultant profile.
         // Keep this inside openProfile so it renders immediately with the profile header,
         // instead of relying on a later patch that may not run on every browser.
-        let profEdu={}, eduDegree=data.highest_education||data.highest_degree||data.education||data.degree||'', eduCollege=data.college||data.university||data.institute||data.college_university||'';
-        if((!eduDegree||!eduCollege) && data.profile_id){
+        let profEdu={}, eduDegree=data.highest_education||data.highest_degree||data.education||data.degree||'', eduCollege=data.college||data.university||data.institute||data.college_university||'', currentCompany=data.current_company_college||data.current_work||data.company||data.organization||'';
+        if((!eduDegree||!eduCollege||!currentCompany) && data.profile_id){
           try{
             const{data:pdata}=await sb.from('profiles').select('*').eq('id',data.profile_id).single();
             profEdu=pdata||{};
             eduDegree=eduDegree||profEdu.highest_education||profEdu.highest_degree||profEdu.education||profEdu.degree||'';
             eduCollege=eduCollege||profEdu.college||profEdu.university||profEdu.institute||profEdu.college_university||'';
+            currentCompany=currentCompany||profEdu.current_company_college||profEdu.current_work||profEdu.company||profEdu.organization||'';
           }catch(_){ }
         }
 
@@ -2903,7 +2935,7 @@ async function openProfile(dbId,localId){
           role:data.specialty||'Consultant',bg:data.avatar_bg||'#EBF4FF',color:data.avatar_color||'#1E72BE',
           rating:parseFloat(data.rating)||0,reviews:data.review_count||0,
           price:data.video_price||data.rate||2000,video_price:data.video_price||data.rate||2000,audio_price:data.audio_price||0,chat_price:data.chat_price||0,exp:data.experience||'',
-          highest_education:eduDegree,college:eduCollege,current_work:data.current_work||profEdu.current_work||'',
+          highest_education:eduDegree,college:eduCollege,current_work:currentCompany,current_company_college:currentCompany,
           tags:data.tags||[],certs:data.certs||[],
           avail:data.available_days||[],slots:data.slots||['10:00 AM','2:00 PM','4:00 PM'],
           availabilityMap:data.availability_map||{},
@@ -2924,7 +2956,7 @@ async function openProfile(dbId,localId){
         ${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:8px">✓ Verified consultant</div>`:''}
         <div class="profile-name">${c.name}</div>
         <div class="profile-role">${c.role}</div>
-        ${(c.highest_education||c.college)?`<div class="profile-meta profile-education-meta" style="margin:6px 0 10px">${c.highest_education?`<div class="meta-item">🎓 ${c.highest_education}</div>`:''}${c.college?`<div class="meta-item">🏫 ${c.college}</div>`:''}</div>`:''}
+        ${(c.highest_education||c.college||c.current_company_college||c.current_work)?`<div class="profile-meta profile-education-meta" style="margin:6px 0 10px">${c.highest_education?`<div class="meta-item">🎓 ${c.highest_education}</div>`:''}${c.college?`<div class="meta-item">🏫 ${c.college}</div>`:''}${(c.current_company_college||c.current_work)?`<div class="meta-item">🏢 ${c.current_company_college||c.current_work}</div>`:''}</div>`:''}
         <div class="profile-meta">
           <div class="meta-item">⭐ ${c.rating>0?c.rating:'-'} · ${c.reviews} reviews</div>
           ${c.exp?`<div class="meta-item">· ${c.exp} experience</div>`:''}
