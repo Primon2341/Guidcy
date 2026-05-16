@@ -10040,30 +10040,32 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
 
-<script id="guidcy-route-refresh-state-fix">
+<script id="guidcy-complete-refresh-page-state-fix">
 (function(){
-  var routeToPage = {
+  /*
+    Complete refresh-state fix for Guidcy single-page website.
+    Purpose:
+    - Refresh on /login stays login.
+    - Refresh on /user-dash stays user dashboard.
+    - Refresh on "/" after navigating internally restores the last active page.
+    - Does not change page content, forms, buttons, or business logic.
+  */
+
+  var aliasToPage = {
     "": "home",
     "home": "home",
     "explore": "home",
 
     "browse": "browse",
-    "categories": "categories",
-    "blog": "blog",
-    "blogs": "blog",
-    "jobs": "jobs",
-    "smart-finder": "smart-finder",
-    "smartfinder": "smart-finder",
-
-    "become": "become",
-    "become-a-consultant": "become",
-    "consultant": "become",
+    "profile": "profile",
     "consultants": "browse",
-
-    "webinar": "webinar",
-    "webinars": "webinar",
+    "consultant-profile": "profile",
 
     "login": "login",
+    "log-in": "login",
+    "signin": "login",
+    "sign-in": "login",
+
     "signup": "signup",
     "sign-up": "signup",
     "get-started": "signup",
@@ -10071,117 +10073,216 @@ body.gmob-open{overflow:hidden}
     "register": "signup",
     "registration": "signup",
 
+    "payment": "payment",
+    "pay": "payment",
+    "confirm": "confirm",
+    "confirmation": "confirm",
+    "meeting": "meeting",
+    "meet": "meeting",
+    "review": "review",
+
+    "user-dash": "user-dash",
+    "user-dashboard": "user-dash",
+    "dashboard": "user-dash",
+
+    "cons-dash": "cons-dash",
+    "consultant-dashboard": "cons-dash",
+    "consultant-dash": "cons-dash",
+
+    "admin-dash": "admin-dash",
+    "admin-dashboard": "admin-dash",
+    "admin": "admin-dash",
+
+    "categories": "categories",
+    "category": "categories",
+
+    "become": "become",
+    "become-a-consultant": "become",
+    "become-consultant": "become",
+
+    "about": "about",
+    "contact": "contact",
+    "faq": "faq",
+    "faqs": "faq",
+
+    "terms": "terms",
+    "terms-and-conditions": "terms",
+    "privacy": "privacy",
+    "privacy-policy": "privacy",
+    "refund": "refund",
+    "refund-policy": "refund",
+    "disclaimer": "disclaimer",
+
+    "blog": "blog",
+    "blogs": "blog",
+    "jobs": "jobs",
+
+    "smart-finder": "smart-finder",
+    "smartfinder": "smart-finder",
+    "ai-finder": "smart-finder",
+
+    "webinar": "webinar",
+    "webinars": "webinar",
+
     "help": "help",
     "help-center": "help",
     "support": "help",
 
     "dispute": "dispute",
-    "dispute-resolution": "dispute",
-
-    "contact": "contact",
-    "about": "about",
-    "privacy": "privacy",
-    "privacy-policy": "privacy",
-    "terms": "terms",
-    "terms-and-conditions": "terms",
-
-    "dashboard": "dashboard",
-    "user-dashboard": "dashboard",
-    "consultant-dashboard": "dashboard",
-    "admin": "dashboard",
-    "admin-dashboard": "dashboard"
+    "dispute-resolution": "dispute"
   };
 
-  function cleanPath(){
-    return (location.pathname || "/")
-      .replace(/^\/+|\/+$/g,"")
-      .split("/")[0]
-      .toLowerCase();
+  function allPageIds(){
+    return Array.from(document.querySelectorAll('[id^="page-"]'))
+      .map(function(el){ return el.id.replace(/^page-/,''); })
+      .filter(Boolean);
   }
 
   function pageExists(page){
-    return !!document.getElementById("page-" + page);
+    return !!document.getElementById('page-' + page);
   }
 
-  function resolvePageFromPath(){
-    var first = cleanPath();
-    var page = routeToPage[first] || first;
-    if(pageExists(page)) return page;
-
-    /* fallback for routes matching page id directly */
-    var direct = first.replace(/[^a-z0-9_-]/g,"");
-    if(pageExists(direct)) return direct;
-
-    return "home";
+  function normalizePath(){
+    return (location.pathname || '/')
+      .replace(/^\/+|\/+$/g,'')
+      .split('/')[0]
+      .toLowerCase();
   }
 
-  function showPageWithoutReset(page){
-    if(!pageExists(page)) page = "home";
-
-    document.querySelectorAll(".page").forEach(function(el){
-      el.classList.remove("on");
-    });
-
-    var target = document.getElementById("page-" + page);
-    if(target) target.classList.add("on");
-
-    document.querySelectorAll(".nav-link").forEach(function(btn){
-      btn.classList.remove("on");
-    });
-
-    try{
-      if(typeof renderAll === "function") renderAll();
-      if(typeof updateNav === "function") updateNav();
-      if(typeof fixFormLogos === "function") fixFormLogos();
-    }catch(e){}
-
-    window.scrollTo(0,0);
+  function currentActivePage(){
+    var active = document.querySelector('.page.on[id^="page-"]');
+    return active ? active.id.replace(/^page-/,'') : '';
   }
 
-  function applyInitialRoute(){
-    var page = resolvePageFromPath();
-    if(page && page !== "home"){
-      setTimeout(function(){ showPageWithoutReset(page); }, 0);
-      setTimeout(function(){ showPageWithoutReset(page); }, 80);
-      setTimeout(function(){ showPageWithoutReset(page); }, 300);
+  function savePage(page){
+    if(page && pageExists(page)){
+      try{ sessionStorage.setItem('guidcy:lastPage', page); }catch(e){}
     }
   }
 
-  /* Patch go() so future navigation updates URL path also */
+  function resolvePage(){
+    var key = normalizePath();
+
+    if(key){
+      if(aliasToPage[key] && pageExists(aliasToPage[key])) return aliasToPage[key];
+      if(pageExists(key)) return key;
+
+      var ids = allPageIds();
+      for(var i=0;i<ids.length;i++){
+        var id = ids[i];
+        var simpleId = id.toLowerCase().replace(/_/g,'-');
+        if(simpleId === key) return id;
+      }
+    }
+
+    /*
+      If URL is "/", restore the last internally opened page.
+      This catches pages where old code did not update the URL before refresh.
+    */
+    try{
+      var last = sessionStorage.getItem('guidcy:lastPage');
+      if(last && pageExists(last)) return last;
+    }catch(e){}
+
+    return 'home';
+  }
+
+  function showResolvedPage(){
+    var page = resolvePage();
+    if(!pageExists(page)) page = 'home';
+
+    document.querySelectorAll('.page').forEach(function(el){
+      el.classList.remove('on');
+    });
+
+    var target = document.getElementById('page-' + page);
+    if(target) target.classList.add('on');
+
+    savePage(page);
+
+    try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+    try{ if(typeof updateNav === 'function') updateNav(); }catch(e){}
+    try{ if(typeof fixFormLogos === 'function') fixFormLogos(); }catch(e){}
+  }
+
+  function pageToPath(page){
+    var reversePreferred = {
+      "home": "/",
+      "signup": "/get-started",
+      "user-dash": "/user-dash",
+      "cons-dash": "/cons-dash",
+      "admin-dash": "/admin-dash",
+      "help": "/help-center",
+      "dispute": "/dispute-resolution"
+    };
+    return reversePreferred[page] || ('/' + page);
+  }
+
   function patchGo(){
     var oldGo = window.go;
-    if(typeof oldGo === "function" && !oldGo.__guidcyRouteRefreshPatched){
+    if(typeof oldGo === 'function' && !oldGo.__guidcyCompleteRefreshPatched){
       var patched = function(page){
         var result = oldGo.apply(this, arguments);
 
-        var urlPage = page || "home";
-        var path = urlPage === "home" ? "/" : "/" + urlPage;
-        if(location.pathname !== path){
-          try{ history.pushState({page:urlPage}, "", path); }catch(e){}
+        if(page && pageExists(page)){
+          savePage(page);
+          var path = pageToPath(page);
+          try{
+            if(location.pathname !== path) history.pushState({page:page}, '', path);
+          }catch(e){}
         }
+
+        setTimeout(function(){
+          var active = currentActivePage();
+          if(active) savePage(active);
+        }, 20);
 
         return result;
       };
-      patched.__guidcyRouteRefreshPatched = true;
+      patched.__guidcyCompleteRefreshPatched = true;
       window.go = patched;
     }
   }
 
-  window.addEventListener("popstate", function(){
-    showPageWithoutReset(resolvePageFromPath());
-  });
+  function observeActivePage(){
+    if(window.__guidcyPageObserverInstalled) return;
+    window.__guidcyPageObserverInstalled = true;
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", function(){
-      patchGo();
-      applyInitialRoute();
+    var obs = new MutationObserver(function(){
+      var active = currentActivePage();
+      if(active) savePage(active);
     });
-  }else{
-    patchGo();
-    applyInitialRoute();
+
+    document.querySelectorAll('.page[id^="page-"]').forEach(function(el){
+      obs.observe(el, {attributes:true, attributeFilter:['class']});
+    });
   }
 
-  setTimeout(function(){ patchGo(); applyInitialRoute(); }, 500);
+  window.addEventListener('popstate', function(){
+    setTimeout(showResolvedPage, 0);
+  });
+
+  function boot(){
+    patchGo();
+    observeActivePage();
+
+    /*
+      Run multiple times because the original page scripts may initialize after DOMContentLoaded
+      and put page-home back on. This re-applies only the correct active page.
+    */
+    [0, 60, 180, 500, 1000, 1800].forEach(function(ms){
+      setTimeout(function(){
+        patchGo();
+        showResolvedPage();
+      }, ms);
+    });
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{
+    boot();
+  }
 })();
 </script>
 </body>
