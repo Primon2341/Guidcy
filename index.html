@@ -965,6 +965,52 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
   .section,.browse-main,.profile-main,.dash-main,.info-page{padding-left:12px!important;padding-right:12px!important}
 }
 
+
+/* === Mobile-only How It Works connector fix === */
+@media (max-width:900px){
+  .how-grid{
+    position:relative !important;
+    display:grid !important;
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    gap:0 !important;
+    align-items:start !important;
+  }
+  .how-grid::before{
+    content:'' !important;
+    display:block !important;
+    position:absolute !important;
+    top:46px !important;
+    left:12.5% !important;
+    width:75% !important;
+    height:2px !important;
+    background:linear-gradient(90deg,var(--blue),var(--green)) !important;
+    z-index:0 !important;
+  }
+  .how-item{
+    position:relative !important;
+    z-index:1 !important;
+    padding:0 8px !important;
+  }
+  .how-num{
+    background:var(--surface) !important;
+    position:relative !important;
+    z-index:2 !important;
+  }
+}
+@media (max-width:560px){
+  .how-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  }
+  .how-grid::before{
+    top:46px !important;
+    left:12.5% !important;
+    width:75% !important;
+  }
+  .how-item{
+    padding:0 5px !important;
+  }
+}
+
 </style>
 
 <!-- Supabase JS -->
