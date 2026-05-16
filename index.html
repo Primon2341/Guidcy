@@ -10240,6 +10240,147 @@ body.gmob-open{overflow:hidden}
   }
 })();
 </script>
+<script id="guidcy-dashboard-current-company-college-update-fix">
+(function(){
+  function q(id){return document.getElementById(id);}
+  function esc(v){
+    return String(v ?? '').replace(/[&<>"']/g,function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+  function currentCompanyValue(){
+    return (currentProfile && (currentProfile.current_company_college || currentProfile.company || currentProfile.organization)) || '';
+  }
+
+  async function getOwnConsultantRecord(){
+    try{
+      if(!sb || !currentUser) return null;
+      var res = await sb.from('consultants').select('*').eq('profile_id', currentUser.id).limit(1);
+      var data = res && res.data;
+      return Array.isArray(data) ? (data[0] || null) : data;
+    }catch(e){
+      console.warn('Could not load own consultant company/college:', e);
+      return null;
+    }
+  }
+
+  function insertUserCompanyField(){
+    if(q('us-company-college')) return;
+    var phone = q('us-phone');
+    if(!phone) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.innerHTML = '<label>Current Company / College</label><input id="us-company-college" placeholder="Example: IOCL, IIT Roorkee, Google" value="'+esc(currentCompanyValue())+'"/>';
+    var field = phone.closest('.field');
+    if(field && field.parentNode) field.parentNode.insertBefore(wrap, field.nextSibling);
+  }
+
+  async function insertConsultantCompanyField(){
+    if(q('cd-company-college')) return;
+    var title = q('cd-title');
+    if(!title) return;
+
+    var c = await getOwnConsultantRecord();
+    var val = (c && (c.current_company_college || c.company || c.organization)) || currentCompanyValue();
+
+    var wrap = document.createElement('div');
+    wrap.className = 'field';
+    wrap.innerHTML = '<label>Current Company / College</label><input id="cd-company-college" placeholder="Example: IOCL, IIT Roorkee, Google" value="'+esc(val)+'"/>';
+    var field = title.closest('.field');
+    if(field && field.parentNode) field.parentNode.insertBefore(wrap, field.nextSibling);
+  }
+
+  async function updateProfileCompany(value){
+    if(!sb || !currentUser) return;
+    try{
+      await sb.from('profiles').update({current_company_college:value}).eq('id', currentUser.id);
+    }catch(e){
+      console.warn('Profile current company/college update skipped:', e);
+    }
+    if(currentProfile) currentProfile.current_company_college = value;
+  }
+
+  async function updateConsultantCompany(consId, value){
+    if(!sb || !currentUser) return;
+    var resolvedId = consId;
+    try{
+      if(!resolvedId){
+        var res = await sb.from('consultants').select('id').eq('profile_id', currentUser.id).limit(1);
+        var data = res && res.data;
+        var row = Array.isArray(data) ? data[0] : data;
+        resolvedId = row && row.id;
+      }
+      if(resolvedId){
+        await sb.from('consultants').update({current_company_college:value}).eq('id', resolvedId);
+      }
+    }catch(e){
+      console.warn('Consultant current company/college update skipped:', e);
+    }
+    await updateProfileCompany(value);
+  }
+
+  /* Inject field into User Dashboard > Settings without changing existing settings layout */
+  if(typeof window.swUD === 'function' && !window.swUD.__guidcyCompanyCollegeSettingsPatched){
+    var oldSwUD = window.swUD;
+    window.swUD = async function(view, btn){
+      var result = await oldSwUD.apply(this, arguments);
+      if(view === 'settings'){
+        setTimeout(insertUserCompanyField, 30);
+        setTimeout(insertUserCompanyField, 250);
+      }
+      return result;
+    };
+    window.swUD.__guidcyCompanyCollegeSettingsPatched = true;
+  }
+
+  /* Inject field into Consultant Dashboard > Settings without changing payout/settings layout */
+  if(typeof window.swCD === 'function' && !window.swCD.__guidcyCompanyCollegeSettingsPatched){
+    var oldSwCD = window.swCD;
+    window.swCD = async function(view, btn){
+      var result = await oldSwCD.apply(this, arguments);
+      if(view === 'settings'){
+        setTimeout(insertConsultantCompanyField, 60);
+        setTimeout(insertConsultantCompanyField, 350);
+      }
+      return result;
+    };
+    window.swCD.__guidcyCompanyCollegeSettingsPatched = true;
+  }
+
+  /* Save user company/college along with existing profile save */
+  if(typeof window.saveUserProfile === 'function' && !window.saveUserProfile.__guidcyCompanyCollegeSavePatched){
+    var oldSaveUserProfile = window.saveUserProfile;
+    window.saveUserProfile = async function(){
+      var result = await oldSaveUserProfile.apply(this, arguments);
+      var val = (q('us-company-college') && q('us-company-college').value || '').trim();
+      await updateProfileCompany(val);
+      try{ toast('Profile saved ✓','green'); }catch(e){}
+      return result;
+    };
+    window.saveUserProfile.__guidcyCompanyCollegeSavePatched = true;
+  }
+
+  /* Save consultant company/college along with existing consultant profile save */
+  if(typeof window.saveConsProfile === 'function' && !window.saveConsProfile.__guidcyCompanyCollegeSavePatched){
+    var oldSaveConsProfile = window.saveConsProfile;
+    window.saveConsProfile = async function(consId){
+      var result = await oldSaveConsProfile.apply(this, arguments);
+      var val = (q('cd-company-college') && q('cd-company-college').value || '').trim();
+      await updateConsultantCompany(consId, val);
+      try{ toast('Profile saved ✓','green'); }catch(e){}
+      return result;
+    };
+    window.saveConsProfile.__guidcyCompanyCollegeSavePatched = true;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){
+      if(q('udash-main') && q('us-phone')) insertUserCompanyField();
+      if(q('cdash-main') && q('cd-title')) insertConsultantCompanyField();
+    }, 500);
+  });
+})();
+</script>
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
