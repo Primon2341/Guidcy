@@ -11635,6 +11635,154 @@ body.gmob-open{overflow:hidden}
 }
 </style>
 
+
+
+<!-- === GUIDCY SUPABASE-ONLY EXPERT RECOMMENDATION PATCH FOR JOBS + CAREER/COLLEGE AI FINDER === -->
+<script id="guidcy-supabase-expert-recommendation-patch">
+(function(){
+  function q(id){return document.getElementById(id)}
+  function esc(v){
+    if(window.safe) return window.safe(v==null?'':String(v));
+    return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]});
+  }
+  function init(name){
+    name=String(name||'Consultant').trim();
+    if(window.mkInit) return window.mkInit(name);
+    return name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'G';
+  }
+  function stars(r){
+    var n=Math.max(0,Math.min(5,Math.round(Number(r)||0)));
+    return '★★★★★'.split('').map(function(ch,i){return '<span style="color:'+(i<n?'#F59E0B':'#D8E8F5')+'">★</span>';}).join('');
+  }
+  function asArray(v){
+    if(Array.isArray(v)) return v;
+    if(!v) return [];
+    if(typeof v==='string') return v.split(/[,|;\n]/).map(function(x){return x.trim();}).filter(Boolean);
+    return [];
+  }
+  function roleOf(c){return c.role||c.specialty||c.category||c.profession||c.current_work||'Consultant'}
+  function priceOf(c){return Number(c.price||c.rate||c.session_price||c.video_price||c.consultation_fee||0)||0}
+  function getId(c){return esc(c.id||c.dbId||c.consultant_id||'')}
+  function consultantSearchText(c){
+    return [
+      c.name,c.role,c.specialty,c.category,c.bio,c.about,c.expertise,c.industry,c.current_work,c.current_company,c.highest_education,c.college,
+      asArray(c.tags).join(' '),asArray(c.skills).join(' '),asArray(c.categories).join(' ')
+    ].filter(Boolean).join(' ').toLowerCase();
+  }
+  var CATEGORY_KWS={
+    marketing:['marketing','digital marketing','seo','sem','social media','brand','branding','content','growth','sales','performance marketing','google ads','meta ads'],
+    career:['career','resume','interview','job','hr','recruitment','placement','salary','linkedin','career coach','counsellor','counselor'],
+    education:['education','college','university','admission','course','exam','jee','neet','mba','btech','study abroad','scholarship','counselling','counseling'],
+    technology:['technology','software','developer','data','ai','machine learning','cloud','python','java','react','engineering'],
+    finance:['finance','banking','investment','tax','accounting','ca','cfa','wealth','insurance'],
+    business:['business','strategy','startup','consulting','management','founder','entrepreneur','operations'],
+    legal:['legal','law','advocate','compliance','contract','company secretary'],
+    healthcare:['health','wellness','medical','doctor','nutrition','therapy','mental health'],
+    design:['design','ui','ux','graphic','creative','figma'],
+    manufacturing:['manufacturing','engineering','quality','production','supply chain','operations','plant','process']
+  };
+  function keywordsFromText(text, extra){
+    text=String(text||'').toLowerCase();
+    var out=[];
+    Object.keys(CATEGORY_KWS).forEach(function(cat){
+      var hit=text.indexOf(cat)>-1 || CATEGORY_KWS[cat].some(function(k){return text.indexOf(k)>-1});
+      if(hit) out=out.concat(CATEGORY_KWS[cat]).concat([cat]);
+    });
+    text.split(/[^a-z0-9.+#]+/i).forEach(function(w){if(w&&w.length>2)out.push(w)});
+    (extra||[]).forEach(function(w){if(w)out.push(String(w).toLowerCase())});
+    var seen={};
+    return out.filter(function(w){w=String(w).trim().toLowerCase(); if(!w||seen[w])return false; seen[w]=1; return true;}).slice(0,80);
+  }
+  async function fetchSupabaseConsultants(){
+    var sb=(typeof getSB==='function')?getSB():null;
+    if(!sb) return [];
+    try{
+      var res=await sb.from('consultants').select('*').eq('is_active',true).limit(250);
+      return (res&&res.data)||[];
+    }catch(e){
+      console.warn('Supabase consultant recommendation fetch failed',e);
+      return [];
+    }
+  }
+  window.fetchCons=fetchSupabaseConsultants;
+  function rankConsultants(cons,kws){
+    kws=(kws||[]).map(function(x){return String(x||'').toLowerCase().trim();}).filter(Boolean);
+    return (cons||[]).map(function(c){
+      var text=consultantSearchText(c);
+      var score=0;
+      kws.forEach(function(k){
+        if(!k)return;
+        if(text.indexOf(k)>-1)score+=1;
+        if(String(c.category||'').toLowerCase().indexOf(k)>-1)score+=3;
+        if(String(c.specialty||c.role||'').toLowerCase().indexOf(k)>-1)score+=2;
+      });
+      score+=(Number(c.rating)||0)*0.15;
+      return {c:c,score:score};
+    }).filter(function(x){return x.score>0}).sort(function(a,b){return b.score-a.score}).map(function(x){return x.c});
+  }
+  function renderExpertCards(container,cons,emptyText){
+    if(!container)return;
+    if(!cons||!cons.length){
+      container.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;color:var(--muted);font-size:13px">'+esc(emptyText||'No matching Supabase consultants found right now.')+' <button class="btn" style="font-size:12px;padding:6px 14px;margin-left:8px" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div>';
+      return;
+    }
+    container.innerHTML='<div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+cons.slice(0,6).map(function(c){
+      var id=getId(c), role=esc(roleOf(c)), name=esc(c.name||'Consultant'), price=priceOf(c), rating=Number(c.rating)||0, reviews=Number(c.reviews||c.review_count||0)||0;
+      var avatar=c.avatar_url||c.photo_url||c.image_url||'';
+      var bg=esc(c.avatar_bg||c.bg||'#EBF4FF'), col=esc(c.avatar_color||c.color||'#1E72BE');
+      var badge=(String(c.badge||'').toLowerCase()==='verified'||c.is_verified||c.verified)?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">New</div>';
+      var edu=c.highest_education&&c.college ? '<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>' : '';
+      var work=c.current_work&&c.current_company ? '<div style="font-size:11px;color:var(--blue);margin-top:4px">'+esc(c.current_work)+', '+esc(c.current_company)+'</div>' : '';
+      var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+col+'22"></div>':'<div class="c-avatar" style="background:'+bg+';color:'+col+';border-color:'+col+'22">'+esc(init(c.name))+'</div>';
+      return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+price.toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>';
+    }).join('')+'</div>';
+  }
+  window.consRecs=function(cons,container,kws){
+    var keywords=Array.isArray(kws)?kws:window._guidcyLastJobConsultantKeywords||[];
+    var ranked=rankConsultants(cons||[],keywords);
+    renderExpertCards(container,ranked,'No matching Supabase consultants found for this keyword yet.');
+  };
+  function renderSmartFinderExperts(mode,data){
+    var results=q('sf-results'); if(!results)return;
+    var boxId='sf-supabase-consultants';
+    var old=q(boxId); if(old) old.remove();
+    var text='';
+    if(mode==='jobs'){
+      text=[q('sf-j-role')&&q('sf-j-role').value,q('sf-j-skills')&&q('sf-j-skills').value,q('sf-j-industry')&&q('sf-j-industry').value,q('sf-j-field')&&q('sf-j-field').value,q('sf-j-goal')&&q('sf-j-goal').value,(data.jobs||[]).map(function(j){return [j.title,j.description,j.company].join(' ')}).join(' ')].join(' ');
+    }else{
+      text=[q('sf-e-qual')&&q('sf-e-qual').value,q('sf-e-stream')&&q('sf-e-stream').value,q('sf-e-field')&&q('sf-e-field').value,q('sf-e-goal')&&q('sf-e-goal').value,(data.programs||[]).map(function(p){return [p.name,p.institution,p.whyFit].join(' ')}).join(' '),'education admission college career counselling'].join(' ');
+    }
+    var kws=keywordsFromText(text,mode==='jobs'?['career','resume','interview','job']:['education','college','admission','career']);
+    var wrap=document.createElement('div');
+    wrap.id=boxId;
+    wrap.style.cssText='margin-top:28px;border-top:1px solid var(--border);padding-top:28px';
+    wrap.innerHTML='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div><div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:500;margin-bottom:4px">Recommended Guidcy Experts</div><div style="font-size:13px;color:var(--muted)">Live Supabase consultants matched with your AI Finder profile.</div></div><button class="btn" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div><div id="sf-supabase-consultants-grid"><div style="font-size:13px;color:var(--muted);padding:12px">Loading matching experts...</div></div>';
+    results.appendChild(wrap);
+    fetchSupabaseConsultants().then(function(cons){renderExpertCards(q('sf-supabase-consultants-grid'),rankConsultants(cons,kws),'No matching Supabase consultants found for this profile yet.');});
+  }
+  var oldJobRender=window._sfRenderJobResults;
+  window._sfRenderJobResults=function(data){
+    if(oldJobRender) oldJobRender(data); else return;
+    setTimeout(function(){renderSmartFinderExperts('jobs',data||{});},80);
+  };
+  var oldEduRender=window._sfRenderEduResults;
+  window._sfRenderEduResults=function(data){
+    if(oldEduRender) oldEduRender(data); else return;
+    setTimeout(function(){renderSmartFinderExperts('education',data||{});},80);
+  };
+  /* Strengthen job-search consultant keywords using exact user search keyword + category/sector filters. */
+  var oldRun=window._runJobSearch;
+  if(oldRun){
+    window._runJobSearch=async function(pageNum){
+      var searchText=[q('jobs-query')&&q('jobs-query').value,q('job-search')&&q('job-search').value,q('job-sector')&&q('job-sector').value].filter(Boolean).join(' ');
+      window._guidcyLastJobConsultantKeywords=keywordsFromText(searchText,['career','resume','interview']);
+      return oldRun.apply(this,arguments);
+    };
+  }
+})();
+</script>
+<!-- === END GUIDCY SUPABASE-ONLY EXPERT RECOMMENDATION PATCH === -->
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
