@@ -1047,7 +1047,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
     <div class="trust-item"><span class="trust-val" id="ts-experts" style="color:var(--blue)">12K+</span><span class="trust-label">Verified experts</span></div>
     <div class="trust-item"><span class="trust-val" id="ts-cats" style="color:var(--green)">8+</span><span class="trust-label">Categories live</span></div>
     <div class="trust-item"><span class="trust-val" id="ts-sessions" style="color:var(--gold-d)">98K+</span><span class="trust-label">Sessions booked</span></div>
-    <div class="trust-item"><span class="trust-val" style="color:#8B5CF6">Video Calls</span><span class="trust-label">Built-in sessions</span></div>
+    <div class="trust-item"><span class="trust-val" id="ts-users" style="color:#8B5CF6">0</span><span class="trust-label">Total users</span></div>
   </div>
 
   <!-- Categories -->
@@ -6013,23 +6013,29 @@ cancelBooking=async function(bookingId,role){
   async function loadHomeStats(){
     const strip=$('home-trust-strip');if(!strip)return;
     // Always show the strip immediately with fallback values
-    const eEl=$('ts-experts'), cEl=$('ts-cats'), sEl=$('ts-sessions');
+    const eEl=$('ts-experts'), cEl=$('ts-cats'), sEl=$('ts-sessions'), uEl=$('ts-users');
     if(eEl) eEl.textContent='0';
     if(cEl) cEl.textContent='0';
     if(sEl) sEl.textContent='0';
+    if(uEl) uEl.textContent='0';
     strip.style.display='';
     // Try to update with real DB counts if Supabase is connected
     const sb=getSB();if(!sb)return;
     try{
-      const[cR,bR]=await Promise.all([sb.from('consultants').select('id,category,specialty',{count:'exact'}).eq('is_active',true),sb.from('bookings').select('id',{count:'exact',head:true})]);
-      const experts=cR?.count||(cR?.data||[]).length||0,sessions=bR?.count||0;
+      const[cR,bR,uR]=await Promise.all([
+        sb.from('consultants').select('id,category,specialty',{count:'exact'}).eq('is_active',true),
+        sb.from('bookings').select('id',{count:'exact',head:true}),
+        sb.from('profiles').select('id',{count:'exact',head:true})
+      ]);
+      const experts=cR?.count||(cR?.data||[]).length||0,sessions=bR?.count||0,totalUsers=uR?.count||0;
       const catSet=new Set();(cR?.data||[]).forEach(c=>{const k=(c.category||c.specialty||'').trim();if(k)catSet.add(k.toLowerCase());});
       // Always show database values only; never show fake marketing numbers
       if(eEl)eEl.textContent=experts.toLocaleString();
       if(cEl)cEl.textContent=catSet.size.toString();
       if(sEl)sEl.textContent=sessions.toLocaleString();
+      if(uEl)uEl.textContent=totalUsers.toLocaleString();
       strip.style.display='';
-    }catch(e){ if(eEl)eEl.textContent='0'; if(cEl)cEl.textContent='0'; if(sEl)sEl.textContent='0'; }
+    }catch(e){ if(eEl)eEl.textContent='0'; if(cEl)cEl.textContent='0'; if(sEl)sEl.textContent='0'; if(uEl)uEl.textContent='0'; }
   }
   const _prevInitHome=window.initHome;
   window.initHome=async function(){try{if(_prevInitHome)await _prevInitHome();}catch(e){}loadHomeStats();};
