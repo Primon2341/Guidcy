@@ -6536,8 +6536,25 @@ cancelBooking=async function(bookingId,role){
 
   function renderConsRecs(cons,container){
     if(!container)return;
-    if(!cons||!cons.length){container.innerHTML=`<div style="font-size:13px;color:var(--muted)">No matching consultants yet. <button class="btn" style="font-size:12px;padding:5px 14px;margin-left:8px" onclick="window.go&&go('browse')">Browse all experts →</button></div>`;return;}
-    container.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr));gap:12px">`+cons.slice(0,4).map(c=>{const bg=c.avatar_bg||'#EBF4FF',col=c.avatar_color||'#1E72BE',init=c.avatar_initials||mkInit(c.name||'?'),stars='★'.repeat(Math.min(5,Math.round(c.rating||0))),price=c.price||c.rate||2000,cid=safe(c.id||'');return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer" onclick="window.openProfile&&openProfile('${cid}')"><div style="width:44px;height:44px;border-radius:50%;background:${safe(bg)};color:${safe(col)};display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;margin-bottom:10px;border:2px solid ${safe(col)}33">${safe(init)}</div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${safe(c.name||'')}</div><div style="font-size:11px;color:var(--muted);margin-bottom:8px">${safe(c.specialty||c.category||'')}</div>${stars?`<div style="color:#C9A96E;font-size:12px;margin-bottom:8px">${stars}</div>`:''}<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:500">₹${Number(price).toLocaleString()}</div><button style="background:#C9A96E;color:#fff;border:none;border-radius:100px;font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}')">Book</button></div></div>`;}).join('')+'</div>';}
+    if(!cons||!cons.length){container.innerHTML=`<div style="font-size:13px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px">No matching consultants yet. <button class="btn" style="font-size:12px;padding:5px 14px;margin-left:8px" onclick="window.go&&go('browse')">Browse all experts →</button></div>`;return;}
+    container.innerHTML=`<div class="grid browse-grid guidcy-recommended-expert-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">`+cons.slice(0,6).map(c=>{
+      const bg=c.avatar_bg||c.bg||'#EBF4FF', col=c.avatar_color||c.color||'#1E72BE';
+      const initials=c.avatar_initials||c.initials||mkInit(c.name||'Consultant');
+      const avatar=c.avatar_url||c.photo_url||c.image_url||'';
+      const name=safe(c.name||'Consultant');
+      const role=safe(c.role||c.specialty||c.category||'Consultant');
+      const rating=Number(c.rating||0), reviews=Number(c.reviews||c.review_count||0)||0;
+      const price=Number(c.video_price||c.price||c.rate||2000)||2000;
+      const cid=safe(c.id||c.dbId||'');
+      const exp=c.exp||c.experience||'';
+      const badge=(String(c.badge||'').toLowerCase()==='verified'||c.is_verified||c.verified)?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">New</div>`;
+      const work=(c.current_work&&c.current_company)?`<div style="font-size:11px;color:var(--blue);margin-top:4px">${safe(c.current_work)}, ${safe(c.current_company)}</div>`:'';
+      const edu=(c.highest_education&&c.college)?`<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 ${safe(c.highest_education)}, ${safe(c.college)}</div>`:'';
+      const av=avatar?`<div class="c-avatar" style="background:url('${safe(avatar)}') center/cover no-repeat;border-color:${safe(col)}22"></div>`:`<div class="c-avatar" style="background:${safe(bg)};color:${safe(col)};border-color:${safe(col)}22">${safe(initials)}</div>`;
+      const starHtml=(typeof starsHtml==='function'?starsHtml(rating):(typeof stars==='function'?stars(rating):'★★★★★'));
+      return `<div class="ccard" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}${badge}<div class="c-name">${name}</div><div class="c-role">${role}</div>${work}${edu}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starHtml}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating.toFixed(1))+' ('+safe(reviews)+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${price.toLocaleString('en-IN')}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
+    }).join('')+'</div>';
+  }
 
   async function fetchJobsPage(q,loc,page){
     const r=await fetch(`/api/jobs?q=${encodeURIComponent(q)}&location=${encodeURIComponent(loc)}&page=${page}`);
@@ -6629,7 +6646,27 @@ cancelBooking=async function(bookingId,role){
       consRecs(allCons.filter(c=>consFits(c,recKws)),$('cons-rec-grid'));
     };
   }
-  function consRecs(cons,container){if(!container)return;if(!cons||!cons.length){container.innerHTML=`<div style="font-size:13px;color:var(--muted)">No matching consultants yet. <button class="btn" style="font-size:12px;padding:5px 14px;margin-left:8px" onclick="window.go&&go('browse')">Browse all →</button></div>`;return;}container.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr));gap:12px">`+cons.slice(0,4).map(c=>{const bg=c.avatar_bg||'#EBF4FF',col=c.avatar_color||'#1E72BE',init=c.avatar_initials||mkInit(c.name||'?'),stars='★'.repeat(Math.min(5,Math.round(c.rating||0))),price=c.price||c.rate||2000,cid=safe(c.id||'');return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer" onclick="window.openProfile&&openProfile('${cid}')"><div style="width:44px;height:44px;border-radius:50%;background:${safe(bg)};color:${safe(col)};display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;margin-bottom:10px;border:2px solid ${safe(col)}33">${safe(init)}</div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${safe(c.name||'')}</div><div style="font-size:11px;color:var(--muted);margin-bottom:8px">${safe(c.specialty||c.category||'')}</div>${stars?`<div style="color:#C9A96E;font-size:12px;margin-bottom:8px">${stars}</div>`:''}<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:500">₹${Number(price).toLocaleString()}</div><button style="background:#C9A96E;color:#fff;border:none;border-radius:100px;font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}')">Book</button></div></div>`;}).join('')+'</div>';}
+  function consRecs(cons,container){
+    if(!container)return;
+    if(!cons||!cons.length){container.innerHTML=`<div style="font-size:13px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px">No matching consultants yet. <button class="btn" style="font-size:12px;padding:5px 14px;margin-left:8px" onclick="window.go&&go('browse')">Browse all experts →</button></div>`;return;}
+    container.innerHTML=`<div class="grid browse-grid guidcy-recommended-expert-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">`+cons.slice(0,6).map(c=>{
+      const bg=c.avatar_bg||c.bg||'#EBF4FF', col=c.avatar_color||c.color||'#1E72BE';
+      const initials=c.avatar_initials||c.initials||mkInit(c.name||'Consultant');
+      const avatar=c.avatar_url||c.photo_url||c.image_url||'';
+      const name=safe(c.name||'Consultant');
+      const role=safe(c.role||c.specialty||c.category||'Consultant');
+      const rating=Number(c.rating||0), reviews=Number(c.reviews||c.review_count||0)||0;
+      const price=Number(c.video_price||c.price||c.rate||2000)||2000;
+      const cid=safe(c.id||c.dbId||'');
+      const exp=c.exp||c.experience||'';
+      const badge=(String(c.badge||'').toLowerCase()==='verified'||c.is_verified||c.verified)?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">New</div>`;
+      const work=(c.current_work&&c.current_company)?`<div style="font-size:11px;color:var(--blue);margin-top:4px">${safe(c.current_work)}, ${safe(c.current_company)}</div>`:'';
+      const edu=(c.highest_education&&c.college)?`<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 ${safe(c.highest_education)}, ${safe(c.college)}</div>`:'';
+      const av=avatar?`<div class="c-avatar" style="background:url('${safe(avatar)}') center/cover no-repeat;border-color:${safe(col)}22"></div>`:`<div class="c-avatar" style="background:${safe(bg)};color:${safe(col)};border-color:${safe(col)}22">${safe(initials)}</div>`;
+      const starHtml=(typeof starsHtml==='function'?starsHtml(rating):(typeof stars==='function'?stars(rating):'★★★★★'));
+      return `<div class="ccard" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}${badge}<div class="c-name">${name}</div><div class="c-role">${role}</div>${work}${edu}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starHtml}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating.toFixed(1))+' ('+safe(reviews)+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${price.toLocaleString('en-IN')}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
+    }).join('')+'</div>';
+  }
 
   const _prevRenderPage=window.renderPage;
   window.renderPage=function(page){
@@ -11782,6 +11819,22 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY SUPABASE-ONLY EXPERT RECOMMENDATION PATCH === -->
+
+
+<!-- === GUIDCY RECOMMENDED EXPERT CARD STYLE FIX === -->
+<style id="guidcy-recommended-expert-card-style-fix">
+  .guidcy-recommended-expert-grid .ccard{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:var(--r)!important;overflow:hidden!important;cursor:pointer!important;transition:all .2s!important;position:relative!important;box-shadow:none!important;padding:0!important}
+  .guidcy-recommended-expert-grid .ccard:hover{border-color:var(--blue-d)!important;transform:translateY(-3px)!important;box-shadow:var(--shadow-lg)!important}
+  .guidcy-recommended-expert-grid .ccard-top{padding:24px 20px 14px!important;display:flex!important;flex-direction:column!important;align-items:center!important;text-align:center!important;border-bottom:1px solid var(--border)!important}
+  .guidcy-recommended-expert-grid .c-avatar{width:68px!important;height:68px!important;border-radius:50%!important;display:flex!important;align-items:center!important;justify-content:center!important;font-family:'Cormorant Garamond',serif!important;font-size:24px!important;font-weight:600!important;margin:0 auto 10px!important;border:2.5px solid transparent!important}
+  .guidcy-recommended-expert-grid .c-name{font-size:14px!important;font-weight:600!important;margin-bottom:1px!important;color:var(--ink)!important}
+  .guidcy-recommended-expert-grid .c-role{font-size:11px!important;color:var(--muted)!important;margin-bottom:8px!important}
+  .guidcy-recommended-expert-grid .ccard-bot{padding:12px 20px!important;display:flex!important;justify-content:space-between!important;align-items:center!important}
+  .guidcy-recommended-expert-grid .c-price{font-size:16px!important;font-weight:600!important;color:var(--ink)!important}
+  .guidcy-recommended-expert-grid .c-price-label{font-size:11px!important;color:var(--muted)!important}
+  @media(max-width:900px){.guidcy-recommended-expert-grid{grid-template-columns:1fr!important}.guidcy-recommended-expert-grid .ccard{width:100%!important}}
+</style>
+<!-- === END GUIDCY RECOMMENDED EXPERT CARD STYLE FIX === -->
 
 </body>
 </html>
