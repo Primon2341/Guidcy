@@ -1332,6 +1332,11 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
 }
 </style>
 <!-- === END GUIDCY MOBILE ANIMATED SECTION DIMENSION FIX === -->
+
+<style id="guidcy-jobs-advanced-filter-mobile-fix">
+@media(max-width:900px){.job-advanced-filters{grid-template-columns:1fr 1fr!important}.job-advanced-filters .btn{width:100%!important}}
+@media(max-width:560px){.job-advanced-filters{grid-template-columns:1fr!important}.job-advanced-filters select,.job-advanced-filters input,.job-advanced-filters button{width:100%!important}}
+</style>
 </head>
 <body>
 
@@ -6409,12 +6414,113 @@ cancelBooking=async function(bookingId,role){
   async function fetchCons(){if(_allCons.length>0)return _allCons;const sb=getSB();if(!sb)return[];try{const{data}=await sb.from('consultants').select('*').eq('is_active',true).limit(50);_allCons=data||[];}catch(e){_allCons=[];}return _allCons;}
   function consFits(c,kws){const h=[c.name||'',c.specialty||'',c.category||'',c.bio||'',(c.tags||[]).join(' ')].join(' ').toLowerCase();return kws.some(k=>h.includes(k.toLowerCase()));}
   function timeAgo(d){if(!d)return'';try{const diff=Math.floor((Date.now()-new Date(d).getTime())/86400000);if(diff<=0)return'Today';if(diff===1)return'1d ago';if(diff<30)return diff+'d ago';return Math.floor(diff/30)+'mo ago';}catch(_){return'';}}
+  const JOB_SOURCE_OPTIONS=[['','All job sites'],['linkedin','LinkedIn'],['naukri','Naukri'],['indeed','Indeed'],['glassdoor','Glassdoor'],['foundit','Foundit'],['timesjobs','TimesJobs'],['internshala','Internshala'],['wellfound','Wellfound'],['google','Google Jobs'],['company','Company career page'],['other','Other sites']];
+  function jobSourceText(job){
+    const raw=[job.source,job.publisher,job.job_publisher,job.provider,job.site,job.platform,job.via,job.applySource,job.apply_source,job.applyLink,job.url,job.link].filter(Boolean).join(' ').toLowerCase();
+    if(/linkedin|lnkd\.in/.test(raw))return 'linkedin';
+    if(/naukri/.test(raw))return 'naukri';
+    if(/indeed/.test(raw))return 'indeed';
+    if(/glassdoor/.test(raw))return 'glassdoor';
+    if(/foundit|monsterindia|monster/.test(raw))return 'foundit';
+    if(/timesjobs/.test(raw))return 'timesjobs';
+    if(/internshala/.test(raw))return 'internshala';
+    if(/wellfound|angel\.co|angelist/.test(raw))return 'wellfound';
+    if(/google/.test(raw))return 'google';
+    if(/greenhouse|lever|workday|smartrecruiters|ashbyhq|bamboohr|careers\.|jobs\./.test(raw))return 'company';
+    return raw?'other':'';
+  }
+  function jobSourceLabel(job){
+    const key=jobSourceText(job);
+    const found=JOB_SOURCE_OPTIONS.find(x=>x[0]===key);
+    return found?found[1]:(job.publisher||job.source||job.job_publisher||'Job site');
+  }
+  const JOB_SECTOR_OPTIONS=[['','All fields / sectors'],['technology','Technology / IT'],['data-ai','Data / AI'],['business','Business / Consulting'],['finance','Finance / Banking'],['marketing','Marketing / Sales'],['hr','HR / Recruitment'],['legal','Legal / Compliance'],['healthcare','Healthcare'],['education','Education'],['operations','Operations / Supply Chain'],['design','Design / Creative'],['manufacturing','Manufacturing / Engineering'],['startup','Startup']];
+  const JOB_EXP_OPTIONS=[['','Any experience'],['fresher','Fresher / Internship'],['0-2','0–2 years'],['2-5','2–5 years'],['5-10','5–10 years'],['10+','10+ years']];
+  const JOB_SALARY_OPTIONS=[['','Any salary'],['0-3','₹0–3 LPA'],['3-6','₹3–6 LPA'],['6-10','₹6–10 LPA'],['10-15','₹10–15 LPA'],['15-25','₹15–25 LPA'],['25+','₹25+ LPA']];
+  function jobText(job){return [job.title,job.company,job.location,job.description,job.employmentType,job.salary,job.publisher,job.source].filter(Boolean).join(' ').toLowerCase();}
+  function jobSalaryLpa(job){
+    const raw=String(job.salary||job.description||'').toLowerCase();
+    if(!raw)return null;
+    let nums=[];
+    raw.replace(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(?:-|to|–)?\s*(\d+(?:\.\d+)?)?\s*(lpa|lakhs?|lakh|lac|pa|per annum|annum|year|yr)?/g,function(_,a,b,u){
+      let n=parseFloat(b||a); if(!isFinite(n))return '';
+      if(u&&/(pa|annum|year|yr)/.test(u)&&n>1000)n=n/100000;
+      if(n>=0.5&&n<300)nums.push(n);
+      return '';
+    });
+    return nums.length?Math.max.apply(null,nums):null;
+  }
+  function jobExperienceYears(job){
+    const raw=jobText(job);
+    if(/fresher|freshers|internship|intern|entry level|graduate trainee|campus/.test(raw))return 0;
+    let vals=[];
+    raw.replace(/(\d+(?:\.\d+)?)\s*(?:-|to|–)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?|yr|y)/g,function(_,a,b){vals.push(parseFloat(b));return '';});
+    raw.replace(/(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?|yr)\s*(?:of)?\s*(?:experience|exp)/g,function(_,a){vals.push(parseFloat(a));return '';});
+    raw.replace(/experience\s*(?:of)?\s*(\d+(?:\.\d+)?)\+?/g,function(_,a){vals.push(parseFloat(a));return '';});
+    return vals.length?Math.max.apply(null,vals):null;
+  }
+  function inRange(val,range,type){
+    if(!range)return true;
+    if(val===null||val===undefined||Number.isNaN(val))return true; // keep unknown jobs visible instead of hiding good results
+    if(range.endsWith('+'))return val>=parseFloat(range);
+    const parts=range.split('-').map(Number);
+    if(parts.length===2)return val>=parts[0]&&val<=parts[1];
+    return true;
+  }
+  function sectorMatch(job,sector){
+    if(!sector)return true;
+    const t=jobText(job);
+    const map={
+      'technology':['software','developer','engineer','frontend','backend','full stack','cloud','devops','technology','it ','java','python','react','node'],
+      'data-ai':['data','analyst','analytics','machine learning','ml','ai ','artificial intelligence','scientist','power bi','tableau'],
+      'business':['business','strategy','consultant','consulting','manager','product manager','growth','operations analyst'],
+      'finance':['finance','bank','account','investment','equity','tax','audit','ca ','cfa','risk','insurance'],
+      'marketing':['marketing','sales','seo','brand','content','social media','digital marketing','bdm','business development'],
+      'hr':['human resource','hr ','recruiter','recruitment','talent acquisition','people operations'],
+      'legal':['legal','law','lawyer','advocate','compliance','contract','company secretary'],
+      'healthcare':['health','doctor','medical','clinical','pharma','nurse','hospital','wellness'],
+      'education':['teacher','faculty','professor','tutor','education','academic','trainer','counsellor'],
+      'operations':['operations','supply chain','logistics','procurement','warehouse','production','quality'],
+      'design':['designer','ui/ux','ux','graphic','creative','product design','figma'],
+      'manufacturing':['manufacturing','mechanical','electrical','polymer','chemical','process','plant','qa','qc','quality engineer'],
+      'startup':['startup','founder','entrepreneur','venture','chief of staff','growth']
+    };
+    return (map[sector]||[]).some(k=>t.includes(k));
+  }
+  function filterJobsAdvanced(jobs){
+    const src=($('job-source')?.value||'').trim();
+    const salary=($('job-salary')?.value||'').trim();
+    const exp=($('job-exp')?.value||'').trim();
+    const loc=($('job-filter-loc')?.value||'').trim().toLowerCase();
+    const sector=($('job-sector')?.value||'').trim();
+    return (jobs||[]).filter(j=>{
+      if(src&&jobSourceText(j)!==src)return false;
+      if(loc&&!String(j.location||'').toLowerCase().includes(loc))return false;
+      if(!sectorMatch(j,sector))return false;
+      if(!inRange(jobSalaryLpa(j),salary,'salary'))return false;
+      if(!inRange(jobExperienceYears(j),exp,'experience'))return false;
+      return true;
+    });
+  }
+  function clearJobFilters(){['job-source','job-salary','job-exp','job-filter-loc','job-sector'].forEach(id=>{const el=$(id);if(el)el.value='';});window._renderFilteredJobs&&window._renderFilteredJobs();}
+  function activeJobFilterText(){
+    const bits=[];
+    const source=($('job-source')?.value||''), salary=($('job-salary')?.value||''), exp=($('job-exp')?.value||''), loc=($('job-filter-loc')?.value||''), sector=($('job-sector')?.value||'');
+    const find=(arr,v)=>(arr.find(x=>x[0]===v)||['',''])[1];
+    if(source)bits.push(find(JOB_SOURCE_OPTIONS,source));
+    if(salary)bits.push(find(JOB_SALARY_OPTIONS,salary));
+    if(exp)bits.push(find(JOB_EXP_OPTIONS,exp));
+    if(loc)bits.push('Preferred Location: '+loc);
+    if(sector)bits.push(find(JOB_SECTOR_OPTIONS,sector));
+    return bits;
+  }
 
   function renderJobCards(jobs){
     if(!jobs||!jobs.length)return`<div style="text-align:center;padding:60px 20px;background:var(--surface2);border-radius:16px"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:18px;font-weight:600;margin-bottom:8px">No jobs found</div><p style="color:var(--muted);font-size:13px">Try different keywords.</p></div>`;
     return jobs.map(job=>{
       const typeTag=job.employmentType?`<span style="background:#EBF4FF;color:#0C447C;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.employmentType)}</span>`:'';
       const salTag=job.salary?`<span style="background:#EEFBF4;color:#0A6640;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.salary)}</span>`:'';
+      const sourceTag=`<span style="background:#F8FAFC;color:#475569;border:1px solid var(--border);border-radius:100px;padding:2px 9px;font-size:11px;font-weight:600">${safe(jobSourceLabel(job))}</span>`;
       const link=safe(job.applyLink||'#');
       return`<div onclick="window.open('${link}','_blank')" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:10px" onmouseenter="this.style.borderColor='#3B82F6';this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor='var(--border)';this.style.transform=''">
         <div style="display:flex;gap:12px;align-items:flex-start">
@@ -6422,7 +6528,7 @@ cancelBooking=async function(bookingId,role){
           <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px;line-height:1.3">${safe(job.title)}</div><div style="font-size:12px;color:var(--muted)">${safe(job.company)} · ${safe(job.location)}</div></div>
         </div>
         <div style="font-size:12px;color:var(--ink2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${safe((job.description||'').slice(0,200))}</div>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${typeTag}${salTag}<span style="font-size:11px;color:var(--muted);margin-left:auto">${timeAgo(job.postedAt)}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${sourceTag}${typeTag}${salTag}<span style="font-size:11px;color:var(--muted);margin-left:auto">${timeAgo(job.postedAt)}</span></div>
         <button onclick="event.stopPropagation();window.open('${link}','_blank')" style="width:100%;padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Apply Now →</button>
       </div>`;
     }).join('');
@@ -6454,6 +6560,15 @@ cancelBooking=async function(bookingId,role){
         </select>
         <button id="job-search-btn" onclick="window._runJobSearch&&window._runJobSearch(1)" style="background:var(--ink);color:#fff;border:none;border-radius:12px;padding:10px 20px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">Search</button>
       </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:repeat(5,minmax(145px,1fr)) auto;gap:10px;align-items:center" class="job-advanced-filters">
+        <select id="job-source" onchange="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface)">${JOB_SOURCE_OPTIONS.map(([v,l])=>`<option value="${safe(v)}">${safe(l)}</option>`).join('')}</select>
+        <select id="job-salary" onchange="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface)">${JOB_SALARY_OPTIONS.map(([v,l])=>`<option value="${safe(v)}">${safe(l)}</option>`).join('')}</select>
+        <select id="job-exp" onchange="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface)">${JOB_EXP_OPTIONS.map(([v,l])=>`<option value="${safe(v)}">${safe(l)}</option>`).join('')}</select>
+        <input id="job-filter-loc" placeholder="Preferred Location" oninput="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface);min-width:0"/>
+        <select id="job-sector" onchange="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface)">${JOB_SECTOR_OPTIONS.map(([v,l])=>`<option value="${safe(v)}">${safe(l)}</option>`).join('')}</select>
+        <button class="btn" onclick="clearJobFilters()" style="height:40px;padding:0 14px;font-size:12px;white-space:nowrap">Clear filters</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:-4px 0 20px">Filters work on loaded results. Use <b>Load more jobs</b> to bring more listings from the selected search.</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:26px">
         ${['Software Engineer','Product Manager','Marketing','Finance','Data Analyst','HR','Sales','Legal','Healthcare','Business Analyst','DevOps','UI/UX Designer','Content Writer','Teacher'].map(t=>`<button onclick="document.getElementById('job-q').value='${safe(t)}';window._runJobSearch&&window._runJobSearch(1)" style="padding:5px 12px;border-radius:100px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-family:inherit;cursor:pointer;color:var(--ink2);white-space:nowrap">${safe(t)}</button>`).join('')}
       </div>
@@ -6486,24 +6601,30 @@ cancelBooking=async function(bookingId,role){
       _jobsCache.jobs=[..._jobsCache.jobs,...newJobs];
       _jobsCache.page=pageNum;
       _jobsCache.hasMore=newJobs.length>=8; // if we got a full page, likely more exist
-      const allJobs=_jobsCache.jobs;
       const qLower=q.toLowerCase();
       let recKws=q.split(/\s+/).filter(w=>w.length>2);
       Object.entries(JOB_CAT_MAP).forEach(([cat,kws])=>{if(kws.some(k=>qLower.includes(k.toLowerCase()))||qLower.includes(cat.toLowerCase())){recKws=[...recKws,...kws];}});
       const consPromise=fetchCons();
-      if(area)area.innerHTML=`
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
-          <div style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">${allJobs.length} job${allJobs.length!==1?'s':''}</b> for <b style="color:var(--ink)">"${safe(q)}"</b> in <b style="color:var(--ink)">${safe(loc)}</b></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px;margin-bottom:20px">
-          ${renderJobCards(allJobs)}
-        </div>
-        ${_jobsCache.hasMore?`<div style="text-align:center;margin-bottom:40px"><button id="jobs-load-more" onclick="window._runJobSearch&&window._runJobSearch(${pageNum+1})" style="padding:12px 32px;border:1.5px solid var(--border);background:var(--surface);border-radius:14px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;color:var(--ink)">Load more jobs ↓</button></div>`:'<div style="text-align:center;margin-bottom:40px;font-size:13px;color:var(--muted)">All available results shown</div>'}
-        <div style="border-top:1px solid var(--border);padding-top:32px">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,4vw,26px);font-weight:500;margin-bottom:6px">Need help landing this role?</div>
-          <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Book a Guidcy expert — resume review, interview prep, salary negotiation</div>
-          <div id="cons-rec-grid"></div>
-        </div>`;
+      window._renderFilteredJobs=function(){
+        const allJobs=_jobsCache.jobs;
+        const filteredJobs=filterJobsAdvanced(allJobs);
+        const activeFilters=activeJobFilterText();
+        if(area)area.innerHTML=`
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+            <div style="font-size:14px;color:var(--muted)"><b style="color:var(--ink)">${filteredJobs.length} job${filteredJobs.length!==1?'s':''}</b> for <b style="color:var(--ink)">"${safe(q)}"</b> in <b style="color:var(--ink)">${safe(loc)}</b>${activeFilters.length?` · Filters: <b style="color:var(--ink)">${safe(activeFilters.join(' · '))}</b>`:''}</div>
+            ${activeFilters.length?`<button class="btn" style="font-size:12px;padding:5px 12px" onclick="clearJobFilters()">Clear filters</button>`:''}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px;margin-bottom:20px">
+            ${renderJobCards(filteredJobs)}
+          </div>
+          ${_jobsCache.hasMore?`<div style="text-align:center;margin-bottom:40px"><button id="jobs-load-more" onclick="window._runJobSearch&&window._runJobSearch(${pageNum+1})" style="padding:12px 32px;border:1.5px solid var(--border);background:var(--surface);border-radius:14px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;color:var(--ink)">Load more jobs ↓</button><div style="font-size:11px;color:var(--muted);margin-top:8px">Use Load more if the selected site has fewer visible results.</div></div>`:'<div style="text-align:center;margin-bottom:40px;font-size:13px;color:var(--muted)">All available results shown</div>'}
+          <div style="border-top:1px solid var(--border);padding-top:32px">
+            <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,4vw,26px);font-weight:500;margin-bottom:6px">Need help landing this role?</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Book a Guidcy expert — resume review, interview prep, salary negotiation</div>
+            <div id="cons-rec-grid"></div>
+          </div>`;
+      };
+      window._renderFilteredJobs();
       const allCons=await consPromise;
       consRecs(allCons.filter(c=>consFits(c,recKws)),$('cons-rec-grid'));
     };
@@ -11506,6 +11627,14 @@ body.gmob-open{overflow:hidden}
   #sf-resume-preview{display:none!important}
 </style>
 <!-- === END GUIDCY FINAL RESUME AUTOFILL PRIVACY + COLLEGE FIX === -->
+
+<style id="guidcy-job-source-filter-mobile-fix">
+@media(max-width:900px){
+  #job-source,#job-loc,#job-search-btn{width:100%!important;min-width:0!important;min-height:44px!important;}
+  #job-q{width:100%!important;flex:1 1 100%!important;min-height:42px!important;}
+}
+</style>
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
