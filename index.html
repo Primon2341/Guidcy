@@ -1455,7 +1455,7 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
       <div style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;margin-bottom:16px;line-height:1.15">
         Share your expertise.<br><em style="color:#60A5FA">Earn on your schedule.</em>
       </div>
-      <p style="font-size:15px;color:#94A3B8;margin-bottom:12px;line-height:1.7">Join Guidcy as a founding consultant and enjoy exclusive early-access perks.</p>
+      <p style="font-size:15px;color:#94A3B8;margin-bottom:12px;line-height:1.7">Stop Scrolling the Internet, Star Finding On Guidcy</p>
       <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px">
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Set your own rates</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Featured profile placement</div>
@@ -16164,7 +16164,7 @@ document.addEventListener('DOMContentLoaded',function(){
         '<button class="guidcy-home-opp-mainbtn" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Explore Opportunities →</button>'+
       '</div>'+
       '<div class="guidcy-live-opp-card">'+
-        '<div class="guidcy-live-opp-head"><div class="guidcy-live-opp-head-title">🔍 Recently Found Opportunities</div><button class="guidcy-live-opp-link" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">View all →</button></div>'+
+        '<div class="guidcy-live-opp-head"><div class="guidcy-live-opp-head-title">🔍 Current Available Opportunities</div><button class="guidcy-live-opp-link" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">View all →</button></div>'+
         '<div id="guidcy-live-opp-list" class="guidcy-live-opp-list"><div class="guidcy-live-opp-loading"><div class="guidcy-live-opp-spinner"></div>Finding latest opportunities from the web...</div></div>'+
         '<div class="guidcy-live-opp-foot"><span>✨ Live opportunities — refreshed from search</span><button class="guidcy-live-opp-browse" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Browse All →</button></div>'+
       '</div>'+
@@ -16467,14 +16467,14 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!items.length){list.innerHTML='<div class="guidcy-live-opp-empty">Daily opportunities cache is empty.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Open Opportunities Page</button></div>';return;}
     list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-live-opp-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-live-opp-icon">'+esc(iconFor(o))+'</div><div><div class="guidcy-live-opp-title">'+esc(o.title)+'</div><div class="guidcy-live-opp-meta">'+esc(meta)+'</div></div><div class="guidcy-live-opp-side"><div class="guidcy-live-opp-badge '+esc(b[1])+'">'+esc(b[0])+'</div><div class="guidcy-live-opp-prize">'+esc(prizeFor(o))+'</div></div></div>'}).join('');
     list.querySelectorAll('.guidcy-live-opp-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
-    var foot=document.querySelector('.guidcy-live-opp-foot span'); if(foot)foot.textContent='✨ Daily opportunities — refreshed once every 24 hours';
+    var foot=document.querySelector('.guidcy-live-opp-foot span'); if(foot)foot.textContent='✨ Current Opportunities';
   }
   function renderStartup(items,stamp){
     var list=document.getElementById('guidcy-startup-live-list'); if(!list)return;
     if(!items.length){list.innerHTML='<div class="guidcy-startup-live-empty">Daily startup opportunities cache is empty.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoStartupOpportunities&&window.guidcyGoStartupOpportunities()">Open Startup Opportunities</button></div>';return;}
     list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.prize||o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-startup-live-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-startup-live-ico">'+esc(iconFor(o))+'</div><div><div class="guidcy-startup-live-name">'+esc(o.title)+'</div><div class="guidcy-startup-live-meta">'+esc(meta)+'</div></div><div class="guidcy-startup-live-badge '+esc(b[1])+'">'+esc(b[0]).replace('Closes Soon','Closing!')+'</div></div>'}).join('');
     list.querySelectorAll('.guidcy-startup-live-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
-    var foot=document.querySelector('.guidcy-startup-live-foot'); if(foot)foot.textContent='✨ Daily startup opportunities — same for all users and refreshed once every 24 hours.';
+    var foot=document.querySelector('.guidcy-startup-live-foot'); if(foot)foot.textContent='✨ Current startup opportunities';
   }
   async function getDaily(k,q,type){
     var cached=await readShared(k);
