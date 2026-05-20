@@ -1196,6 +1196,137 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
 </style>
 <!-- === END GUIDCY SMALL ANIMATED PANEL LOGO PATCH === -->
 
+
+
+<!-- === GUIDCY MOBILE ANIMATED SECTION DIMENSION FIX === -->
+<style id="guidcy-mobile-animated-section-dimension-fix">
+/* Mobile-only fix for the animated growth/opportunity panel overflow */
+@media (max-width: 900px){
+  #guidcy-growth-paths-section,
+  .guidcy-growth-section{
+    width:100%!important;
+    max-width:100vw!important;
+    overflow:hidden!important;
+    padding-left:16px!important;
+    padding-right:16px!important;
+  }
+  .guidcy-growth-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:28px!important;
+    overflow:hidden!important;
+  }
+  .guidcy-growth-visual{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    min-height:0!important;
+    display:block!important;
+    position:relative!important;
+    padding:8px 0 0!important;
+    overflow:hidden!important;
+  }
+  .guidcy-mix-board{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    margin:0 auto!important;
+    border-radius:22px!important;
+    padding:56px 14px 20px!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;
+  }
+  .guidcy-growth-logo-chip{
+    position:relative!important;
+    left:auto!important;
+    right:auto!important;
+    top:auto!important;
+    bottom:auto!important;
+    transform:none!important;
+    margin:0 auto 14px!important;
+    width:112px!important;
+    min-width:112px!important;
+    height:44px!important;
+    padding:5px 11px!important;
+    z-index:5!important;
+  }
+  .guidcy-growth-logo-chip img{
+    max-height:30px!important;
+    width:100%!important;
+    object-fit:contain!important;
+  }
+  .guidcy-mix-chip{
+    display:none!important;
+  }
+  .guidcy-mix-orb{
+    width:74px!important;
+    height:74px!important;
+    right:-24px!important;
+    top:78px!important;
+    opacity:.38!important;
+    pointer-events:none!important;
+  }
+  .guidcy-mix-orb.green{
+    width:64px!important;
+    height:64px!important;
+    left:-22px!important;
+    bottom:58px!important;
+    opacity:.34!important;
+  }
+  .guidcy-growth-visual::before{
+    left:50%!important;
+    right:auto!important;
+    width:130px!important;
+    height:130px!important;
+    top:0!important;
+    transform:translateX(-50%)!important;
+    opacity:.55!important;
+  }
+  .guidcy-mix-row{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    display:grid!important;
+    grid-template-columns:38px minmax(0,1fr)!important;
+    gap:10px!important;
+    padding:12px!important;
+    border-radius:15px!important;
+    box-sizing:border-box!important;
+  }
+  .guidcy-mix-ico{
+    width:36px!important;
+    height:36px!important;
+  }
+  .guidcy-mix-name,
+  .guidcy-mix-meta{
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  .guidcy-mix-name{font-size:12.7px!important;line-height:1.25!important;}
+  .guidcy-mix-meta{font-size:11px!important;line-height:1.35!important;}
+  .guidcy-mix-badge{
+    grid-column:2!important;
+    justify-self:start!important;
+    margin-top:4px!important;
+    font-size:10px!important;
+    padding:4px 9px!important;
+  }
+}
+@media (max-width: 420px){
+  .guidcy-growth-section{padding-left:12px!important;padding-right:12px!important;}
+  .guidcy-mix-board{padding-left:12px!important;padding-right:12px!important;border-radius:20px!important;}
+  .guidcy-mix-row{grid-template-columns:34px minmax(0,1fr)!important;gap:9px!important;padding:11px!important;}
+  .guidcy-mix-ico{width:33px!important;height:33px!important;font-size:16px!important;}
+  .guidcy-mix-name{font-size:12.2px!important;}
+  .guidcy-mix-meta{font-size:10.6px!important;}
+}
+</style>
+<!-- === END GUIDCY MOBILE ANIMATED SECTION DIMENSION FIX === -->
 </head>
 <body>
 
