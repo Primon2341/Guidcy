@@ -10181,6 +10181,336 @@ body.gmob-open{overflow:hidden}
   };
 })();
 </script>
+
+<script>
+/* GUIDCY CATEGORY-ONLY FINAL PATCH
+   Scope: Home Popular Categories + All Categories page + consultant category options/filtering only.
+*/
+(function(){
+  const CATEGORY_MASTER = [
+    {icon:'💼',name:'Business Strategy',desc:'Business planning, growth strategy, market entry, operations, and founder-level decision support.'},
+    {icon:'💻',name:'Technology',desc:'Software, product development, cloud, IT systems, engineering strategy, and technical career guidance.'},
+    {icon:'⚖️',name:'Legal',desc:'Legal awareness, contracts, compliance, startup documentation, IP basics, and professional legal direction.'},
+    {icon:'💰',name:'Finance',desc:'Financial planning, investments, funding, budgeting, valuation, and business finance guidance.'},
+    {icon:'🎯',name:'Career Coaching',desc:'Resume building, interview preparation, career switching, salary negotiation, and professional growth planning.'},
+    {icon:'🧘',name:'Wellness',desc:'Mental wellness, stress management, lifestyle guidance, motivation, and healthy work-life balance support.'},
+    {icon:'📣',name:'Marketing',desc:'Brand building, digital marketing, growth campaigns, SEO, paid ads, and customer acquisition strategy.'},
+    {icon:'🎓',name:'Education',desc:'Academic guidance, tutoring, exams, admissions, study planning, and learning roadmap support.'},
+    {icon:'🩺',name:'Medical',desc:'General healthcare guidance, health awareness, nutrition, therapy, and medical-domain consultation support.'},
+    {icon:'🎬',name:'Entertainment',desc:'Media, acting, film, events, content, production, and entertainment-industry career guidance.'},
+    {icon:'📱',name:'Social Media',desc:'Social media strategy, influencer growth, audience building, monetization, and platform-specific content planning.'},
+    {icon:'🌾',name:'Agriculture',desc:'Farming practices, agri-business, crop planning, farm technology, and rural enterprise guidance.'},
+    {icon:'👗',name:'Fashion',desc:'Fashion design, styling, apparel business, merchandising, branding, and fashion career direction.'},
+    {icon:'🚀',name:'Startup',desc:'Idea validation, MVP planning, fundraising preparation, pitch decks, go-to-market, and early-stage growth.'},
+    {icon:'🎵',name:'Music',desc:'Music learning, performance, production, industry guidance, and creative career planning.'},
+    {icon:'🧑‍💻',name:'Freelancing',desc:'Freelance profile building, pricing, client acquisition, portfolio creation, and independent work strategy.'},
+    {icon:'🏭',name:'Manufacturing',desc:'Production, operations, quality, process improvement, supply chain, and manufacturing business guidance.'},
+    {icon:'🔬',name:'R&D',desc:'Research planning, product development, experimentation, innovation strategy, and technical problem solving.'},
+    {icon:'🏠',name:'Real Estate',desc:'Property investment, buying decisions, rental strategy, commercial spaces, and real-estate planning.'},
+    {icon:'✈️',name:'Travel',desc:'Travel planning, itineraries, budget trips, destination advice, and travel business guidance.'},
+    {icon:'🏋️',name:'Fitness',desc:'Workout planning, strength training, general fitness, habit building, and performance improvement guidance.'},
+    {icon:'👨‍👩‍👧',name:'Parenting',desc:'Parenting decisions, child development, education planning, behaviour guidance, and family support.'},
+    {icon:'🏛️',name:'Government Exam',desc:'Government exam preparation, study plans, strategy, subject guidance, and motivation for competitive exams.'},
+    {icon:'🌍',name:'Study Abroad',desc:'University shortlisting, applications, SOP guidance, scholarships, visas, and international education planning.'},
+    {icon:'🤖',name:'Artificial Intelligence',desc:'AI learning, AI tools, machine learning strategy, use-cases, automation, and AI career guidance.'},
+    {icon:'📊',name:'Data Science',desc:'Data analytics, machine learning, statistics, portfolios, tools, and data career guidance.'},
+    {icon:'🛒',name:'E-Commerce',desc:'Online store setup, marketplace selling, product listing, operations, ads, and e-commerce growth.'},
+    {icon:'🌱',name:'Sustainability & ESG',desc:'ESG strategy, sustainability reporting, carbon footprint, green business, and impact-focused planning.'},
+    {icon:'👥',name:'HR & Recruitment',desc:'Hiring strategy, interviews, HR policies, talent acquisition, workplace culture, and recruitment guidance.'},
+    {icon:'💳',name:'Personal Finance',desc:'Budgeting, savings, insurance awareness, investment basics, and personal money management guidance.'},
+    {icon:'🧾',name:'Taxation',desc:'Tax planning awareness, filing direction, business tax basics, compliance support, and documentation guidance.'},
+    {icon:'🎨',name:'Design',desc:'UI/UX, graphic design, product design, brand identity, portfolio review, and creative direction.'},
+    {icon:'✍️',name:'Content Creation',desc:'Writing, video content, creator strategy, storytelling, monetization, and audience growth guidance.'}
+  ];
+
+  const HOME_CATEGORIES = [
+    'Business Strategy','Technology','Finance','Legal','Career Coaching','Wellness',
+    'Marketing','Education','Medical','Startup','Artificial Intelligence','View All'
+  ];
+
+  const LEGACY_MAP = {
+    'business':'Business Strategy',
+    'business strategy':'Business Strategy',
+    'technology & engineering':'Technology',
+    'technology':'Technology',
+    'tech':'Technology',
+    'legal & compliance':'Legal',
+    'legal':'Legal',
+    'finance & wealth':'Finance',
+    'finance':'Finance',
+    'career':'Career Coaching',
+    'career coaching':'Career Coaching',
+    'mental health & wellness':'Wellness',
+    'health & wellness':'Wellness',
+    'wellness':'Wellness',
+    'marketing & growth':'Marketing',
+    'marketing':'Marketing',
+    'education & tutoring':'Education',
+    'education':'Education',
+    'health & medicine':'Medical',
+    'medical':'Medical',
+    'creative & design':'Design',
+    'design':'Design',
+    'data science':'Data Science',
+    'ecommerce':'E-Commerce',
+    'e-commerce':'E-Commerce',
+    'ai':'Artificial Intelligence',
+    'ai/ml':'Artificial Intelligence',
+    'artificial intelligence':'Artificial Intelligence',
+    'sustainability':'Sustainability & ESG',
+    'sustainability & esg':'Sustainability & ESG',
+    'hr':'HR & Recruitment',
+    'hr & recruitment':'HR & Recruitment',
+    'personal finance':'Personal Finance',
+    'government exams':'Government Exam',
+    'government exam':'Government Exam',
+    'r and d':'R&D',
+    'r&d':'R&D'
+  };
+
+  function esc(v){
+    return String(v==null?'':v).replace(/[&<>"']/g,function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+
+  function normText(v){
+    return String(v||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
+  }
+
+  function canonCategory(v){
+    const raw = String(v||'').trim();
+    if(!raw) return '';
+    const low = raw.toLowerCase().trim();
+    if(LEGACY_MAP[low]) return LEGACY_MAP[low];
+    const nt = normText(raw);
+    if(LEGACY_MAP[nt]) return LEGACY_MAP[nt];
+    const exact = CATEGORY_MASTER.find(c=>normText(c.name)===nt);
+    if(exact) return exact.name;
+    const partial = CATEGORY_MASTER.find(c=>nt.includes(normText(c.name)) || normText(c.name).includes(nt));
+    return partial ? partial.name : raw;
+  }
+
+  function consultantCategory(c){
+    const direct = c?.category || c?.consultant_category || c?.primary_category || c?.expertise_category || '';
+    const directCanon = canonCategory(direct);
+    if(CATEGORY_MASTER.some(x=>x.name===directCanon)) return directCanon;
+
+    const role = c?.role || c?.specialty || c?.title || '';
+    const roleCanon = canonCategory(role);
+    if(CATEGORY_MASTER.some(x=>x.name===roleCanon)) return roleCanon;
+
+    return directCanon || roleCanon || '';
+  }
+
+  function categoryMatches(c, selected){
+    const selectedCanon = canonCategory(selected);
+    return consultantCategory(c) === selectedCanon;
+  }
+
+  function iconFor(name){
+    return (CATEGORY_MASTER.find(c=>c.name===name)||{}).icon || '✨';
+  }
+
+  function descFor(name){
+    return (CATEGORY_MASTER.find(c=>c.name===name)||{}).desc || 'Connect with relevant experts in this category.';
+  }
+
+  function updateCategoryOptions(){
+    const optionHtml = '<option value="">All Categories</option>' + CATEGORY_MASTER.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+    const signupHtml = CATEGORY_MASTER.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+
+    const hero = document.getElementById('cat-select');
+    if(hero) hero.innerHTML = optionHtml;
+
+    const signup = document.getElementById('sc-cat');
+    if(signup) signup.innerHTML = signupHtml;
+
+    if(Array.isArray(window.CATEGORIES_FULL)){
+      window.CATEGORIES_FULL.splice(0, window.CATEGORIES_FULL.length, ...CATEGORY_MASTER.map(c=>({
+        icon:c.icon,
+        name:c.name,
+        count:0,
+        desc:c.desc,
+        subs:[c.name]
+      })));
+    }
+  }
+
+  function renderHomePopularCategories(){
+    const grid = document.querySelector('.home-cats-grid');
+    if(!grid) return;
+    grid.innerHTML = HOME_CATEGORIES.map(name=>{
+      if(name==='View All'){
+        return `<div class="home-cat-card" onclick="go('categories')">
+          <div class="home-cat-icon" style="background:#F0FDFA;font-size:26px">•••</div>
+          <div class="home-cat-name">View All</div>
+          <div class="home-cat-count">All categories →</div>
+        </div>`;
+      }
+      return `<div class="home-cat-card" onclick="filterAndBrowse('${esc(name)}')">
+        <div class="home-cat-icon" style="background:#EBF4FF;font-size:26px">${iconFor(name)}</div>
+        <div class="home-cat-name">${esc(name)}</div>
+        <div class="home-cat-count">Explore experts →</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function fetchCategoryCounts(){
+    const counts = {};
+    CATEGORY_MASTER.forEach(c=>counts[c.name]=0);
+    if(!window.sb) return counts;
+    try{
+      const {data,error} = await window.sb.from('consultants').select('category,specialty,role,title,is_active').eq('is_active',true);
+      if(error) throw error;
+      (data||[]).forEach(c=>{
+        const cat = consultantCategory(c);
+        if(Object.prototype.hasOwnProperty.call(counts, cat)) counts[cat] += 1;
+      });
+    }catch(e){
+      console.warn('Category count fetch failed:', e);
+    }
+    return counts;
+  }
+
+  window.initCategories = async function(){
+    const el = document.getElementById('cats-full-grid');
+    if(!el) return;
+    el.innerHTML = CATEGORY_MASTER.map(()=>`<div style="height:110px;background:var(--surface2);border-radius:14px;margin-bottom:14px;animation:pulse2 1.2s infinite"></div>`).join('');
+    const counts = await fetchCategoryCounts();
+
+    el.innerHTML = CATEGORY_MASTER.map(cat=>{
+      const n = counts[cat.name] || 0;
+      const countText = n === 0 ? 'Be the first to register' : (n === 1 ? '1 consultant registered' : `${n} consultants registered`);
+      return `<div class="guidcy-category-row" style="display:flex;align-items:center;gap:18px;padding:24px 0;border-bottom:1px solid var(--border)">
+        <div style="width:44px;height:44px;border-radius:14px;background:var(--blue-l);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${cat.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--ink);line-height:1.2">${esc(cat.name)}</div>
+          <div style="font-size:13px;color:var(--ink2);line-height:1.65;margin-top:6px;max-width:720px">${esc(cat.desc)}</div>
+          <div style="font-size:12px;color:${n===0?'var(--green-d)':'var(--blue)'};font-weight:600;margin-top:8px">${esc(countText)}</div>
+        </div>
+        <button class="btn btn-blue" style="font-size:12px;padding:7px 18px;flex-shrink:0" onclick="filterAndBrowse('${esc(cat.name)}')">Browse →</button>
+      </div>`;
+    }).join('');
+  };
+
+  const originalFetchConsultants = window.fetchConsultants;
+  async function fetchForBrowse(filters){
+    if(typeof originalFetchConsultants === 'function'){
+      const withoutCategory = Object.assign({}, filters || {}, {categories:[]});
+      return await originalFetchConsultants(withoutCategory);
+    }
+    return [];
+  }
+
+  window.initBrowse = async function(){
+    const catList = document.getElementById('filter-cat-list');
+    if(catList){
+      const selected = new Set((window.browseFilters?.categories || []).map(canonCategory));
+      catList.innerHTML = CATEGORY_MASTER.map(c=>{
+        const checked = selected.has(c.name) ? 'checked' : '';
+        return `<label class="filter-check"><input type="checkbox" value="${esc(c.name)}" ${checked} onchange="applyFilters()"/> ${c.icon} ${esc(c.name)}</label>`;
+      }).join('');
+    }
+    if(typeof window.applyFilters === 'function') await window.applyFilters();
+  };
+
+  window.applyFilters = async function(){
+    const panel = document.querySelector('#page-browse .filter-panel');
+    const cats=[], stypes=[], langs=[], exp=[];
+    if(panel){
+      panel.querySelectorAll('.filter-section').forEach(sec=>{
+        const title=(sec.querySelector('.filter-title')?.textContent||'').toLowerCase();
+        sec.querySelectorAll('input[type=checkbox]:checked').forEach(cb=>{
+          if(title.includes('categor')) cats.push(canonCategory(cb.value));
+          else if(title.includes('session')) stypes.push(cb.value);
+          else if(title.includes('language')) langs.push(cb.value);
+          else if(title.includes('experience')) exp.push(cb.value);
+        });
+      });
+    }
+
+    const ratingChecked = panel?.querySelector('input[name="rating-f"]:checked');
+    const priceRange = document.getElementById('price-range');
+    const q = (document.getElementById('browse-search')?.value || window.browseFilters?.search || '').trim();
+
+    window.browseFilters = {
+      categories: cats,
+      sessionTypes: stypes,
+      languages: langs,
+      experience: exp,
+      minRating: ratingChecked ? Number(ratingChecked.value)||0 : 0,
+      minPrice: 0,
+      maxPrice: priceRange ? Number(priceRange.value)||99999 : 99999,
+      search: q
+    };
+
+    const g = document.getElementById('browse-grid');
+    if(g) g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Filtering experts...</div>';
+
+    let list = await fetchForBrowse(window.browseFilters);
+
+    if(cats.length){
+      list = list.filter(c=>cats.some(cat=>categoryMatches(c, cat)));
+    }
+    if(exp.length){
+      list = list.filter(c=>{
+        const txt=String(c.experience||c.exp||'').toLowerCase();
+        const num=parseFloat(txt.match(/\d+/)?.[0]||'0');
+        return exp.some(e=>e==='10+'?num>=10:e==='5+'?num>=5:true);
+      });
+    }
+
+    if(typeof window.renderGrid === 'function') window.renderGrid(list,'browse-grid');
+
+    const active = document.getElementById('active-filters');
+    if(active){
+      const pills = [...cats, ...stypes, ...langs, ...exp, window.browseFilters.minRating?`${window.browseFilters.minRating}+ rating`:null, q?`Search: ${q}`:null].filter(Boolean);
+      active.innerHTML = pills.map(p=>`<span class="filter-pill">${esc(p)}</span>`).join('');
+    }
+  };
+
+  window.filterAndBrowse = function(category){
+    const cat = canonCategory(category);
+    window.browseFilters = {categories:[cat],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:'',sort:''};
+    if(typeof window.go === 'function') window.go('browse');
+    setTimeout(function(){
+      updateCategoryOptions();
+      const input = document.getElementById('browse-search') || document.getElementById('browse-srch');
+      if(input) input.value = '';
+      document.querySelectorAll('#page-browse .filter-section input[type=checkbox]').forEach(cb=>{
+        cb.checked = canonCategory(cb.value) === cat;
+      });
+      if(typeof window.applyFilters === 'function') window.applyFilters();
+    },180);
+  };
+
+  function runCategoryPatch(){
+    updateCategoryOptions();
+    renderHomePopularCategories();
+    if(document.getElementById('page-categories')?.classList.contains('on')) window.initCategories();
+    if(document.getElementById('page-browse')?.classList.contains('on')) window.initBrowse();
+  }
+
+  window.guidcyRunCategoryPatch = runCategoryPatch;
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runCategoryPatch);
+  else runCategoryPatch();
+
+  setTimeout(runCategoryPatch, 250);
+})();
+</script>
+<style>
+/* Category-only visual correction */
+@media(min-width:901px){
+  .home-cats-grid{grid-template-columns:repeat(6,1fr)!important;max-width:1100px!important}
+}
+#cats-full-grid .skill-tag{display:none!important}
+@media(max-width:700px){
+  .guidcy-category-row{align-items:flex-start!important;flex-direction:column!important}
+  .guidcy-category-row .btn{margin-left:0!important}
+}
+</style>
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
