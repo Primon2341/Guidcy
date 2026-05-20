@@ -1342,11 +1342,11 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
     <span></span><span></span><span></span>
   </button>
   <div class="nav-links" id="nav-links">
-    <button class="nav-link" onclick="go('home');closeMobileMenu()">Explore</button>
-    <button class="nav-link" onclick="go('browse');closeMobileMenu()">Browse</button>
+    <button class="nav-link" onclick="go('home');closeMobileMenu()">Home</button>
+    <button class="nav-link" onclick="go('browse');closeMobileMenu()">Find the Expert</button>
     <button class="nav-link" onclick="window.location.href='/jobs'">Jobs</button>
     <button class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</button><button class="nav-link" onclick="go('blog');closeMobileMenu()">Blog</button>
-    <button class="nav-link" onclick="go('become');closeMobileMenu()">Become a Consultant</button><button class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</button><button class="nav-link" onclick="go('opportunities');closeMobileMenu()">Opportunities</button>
+    <button class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</button><button class="nav-link" onclick="go('opportunities');closeMobileMenu()">Funds &amp; Grants Finder</button>
   </div>
   <div class="nav-right" id="nav-right">
     <button class="btn" onclick="go('login')">Log in</button>
@@ -1995,12 +1995,17 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
       <li><strong>Outcome-driven</strong> — We measure success by real impact on our users' lives and businesses.</li>
       <li><strong>Accessible expertise</strong> — Sessions from ₹500 make quality guidance reachable for everyone.</li>
     </ul>
-    <h2>Meet the Founder</h2>
-    <div style="display:flex;justify-content:center;margin-top:24px">
+    <h2>Meet the Founding Team</h2>
+    <div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin-top:24px">
       <div class="team-card" style="max-width:240px;padding:28px 24px">
         <div class="team-av" style="background:linear-gradient(135deg,var(--blue-l),var(--green-l));color:var(--blue);font-size:22px;width:72px;height:72px;border:2px solid var(--blue-m)">PT</div>
         <div class="team-name" style="font-size:16px;margin-top:4px">Prakhar Tripathi</div>
-        <div class="team-role" style="margin-top:4px">Founder & CEO</div>
+        <div class="team-role" style="margin-top:4px">Founder &amp; CEO</div>
+      </div>
+      <div class="team-card" style="max-width:240px;padding:28px 24px">
+        <div class="team-av" style="background:linear-gradient(135deg,var(--blue-l),var(--green-l));color:var(--green-d);font-size:22px;width:72px;height:72px;border:2px solid #B7F0BE">SS</div>
+        <div class="team-name" style="font-size:16px;margin-top:4px">Sankalp Selot</div>
+        <div class="team-role" style="margin-top:4px">Co-Founder</div>
       </div>
     </div>
     <div style="margin-top:36px;padding:24px;background:var(--blue-l);border-radius:var(--r);text-align:center;border:1px solid var(--blue-m)">
@@ -5482,7 +5487,7 @@ cancelBooking=async function(bookingId,role){
     if(typeof toggleMobileMenu==='function') window.toggleMobileMenu=toggleMobileMenu;
   }catch(_){ }
   document.addEventListener('DOMContentLoaded',function(){
-    const pairs=[['Log in','login'],['Get started','signup'],['Explore','home'],['Browse','browse'],['Categories','categories'],['Become a Consultant','become'],['About','about'],['My bookings','user-dash'],['Book session','browse']];
+    const pairs=[['Log in','login'],['Get started','signup'],['Home','home'],['Find the Expert','browse'],['Categories','categories'],['About','about'],['My bookings','user-dash'],['Book session','browse']];
     document.querySelectorAll('button').forEach(btn=>{
       const text=(btn.textContent||'').trim();
       const found=pairs.find(p=>p[0]===text);
@@ -7014,7 +7019,7 @@ body{overflow-x:hidden}
       if(navLinks&&!navLinks.querySelector('[data-sf-link]')){
         const btn=document.createElement('button');
         btn.className='nav-link';btn.setAttribute('data-sf-link','1');
-        btn.textContent='Smart Finder';
+        btn.textContent='Career & College AI Finder';
         btn.onclick=()=>{try{window.go&&go('smart-finder');closeMobileMenu&&closeMobileMenu();}catch(_){}};
         navLinks.appendChild(btn);
       }
@@ -7145,14 +7150,13 @@ body{overflow-x:hidden}
     drawer.id = 'guidcy-mob-drawer';
 
     const navItems = [
-      { icon:'🔍', label:'Explore',            action:"window.go&&go('home')"           },
-      { icon:'👥', label:'Browse Experts',      action:"window.go&&go('browse')"         },
+      { icon:'🏠', label:'Home',               action:"window.go&&go('home')"           },
+      { icon:'👥', label:'Find the Expert',    action:"window.go&&go('browse')"         },
       { icon:'📂', label:'Categories',          action:"window.go&&go('categories')"     },
       { icon:'💼', label:'Find Jobs',           action:"window.go&&go('jobs')"           },
-      { icon:'✨', label:'Smart Finder (AI)',   action:"window.go&&go('smart-finder')"   },
+      { icon:'✨', label:'Career & College AI Finder', action:"window.go&&go('smart-finder')"   },
       { icon:'📝', label:'Blog',                action:"window.go&&go('blog')"           },
       { icon:'🎓', label:'Webinars',            action:"window.go&&go('webinar')"        },
-      { icon:'🚀', label:'Become a Consultant', action:"window.go&&go('become')"         },
     ];
 
     // Get logo src
@@ -7341,10 +7345,10 @@ body.gmob-open{overflow:hidden}
   <div class="gmob-body">
     <div class="gmob-section-lbl">Navigation</div>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('home')},80)">
-      <div class="gmob-icon">🔍</div><span class="gmob-label">Explore</span><span class="gmob-arrow">›</span>
+      <div class="gmob-icon">🏠</div><span class="gmob-label">Home</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('browse')},80)">
-      <div class="gmob-icon">👥</div><span class="gmob-label">Browse Experts</span><span class="gmob-arrow">›</span>
+      <div class="gmob-icon">👥</div><span class="gmob-label">Find the Expert</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('categories')},80)">
       <div class="gmob-icon">📂</div><span class="gmob-label">Categories</span><span class="gmob-arrow">›</span>
@@ -7353,19 +7357,16 @@ body.gmob-open{overflow:hidden}
       <div class="gmob-icon">💼</div><span class="gmob-label">Find Jobs</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('smart-finder')},80)">
-      <div class="gmob-icon">✨</div><span class="gmob-label">Smart Finder (AI)</span><span class="gmob-arrow">›</span>
+      <div class="gmob-icon">✨</div><span class="gmob-label">Career &amp; College AI Finder</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('blog')},80)">
       <div class="gmob-icon">📝</div><span class="gmob-label">Blog</span><span class="gmob-arrow">›</span>
-    </button>
-    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('become')},80)">
-      <div class="gmob-icon">🚀</div><span class="gmob-label">Become a Consultant</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('webinar')},80)">
       <div class="gmob-icon">🎓</div><span class="gmob-label">Webinars</span><span class="gmob-arrow">›</span>
     </button>
     <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('opportunities')},80)">
-      <div class="gmob-icon">🎯</div><span class="gmob-label">Opportunities Finder</span><span class="gmob-arrow">›</span>
+      <div class="gmob-icon">🎯</div><span class="gmob-label">Funds &amp; Grants Finder</span><span class="gmob-arrow">›</span>
     </button>
 
     <div id="gmob-auth-btns" style="padding:14px 20px 4px;display:flex;flex-direction:column;gap:8px"></div>
@@ -11248,6 +11249,69 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 
+
+
+<!-- === GUIDCY FINAL MENU + POPULAR CATEGORIES FIX === -->
+<style id="guidcy-final-menu-popular-fix">
+  .nav-links{gap:0!important;}
+  .nav-link{padding:6px 9px!important;font-size:12.5px!important;white-space:nowrap!important;}
+  @media(max-width:1180px){.nav-link{font-size:11.5px!important;padding:6px 6px!important}.nav{padding-left:22px!important;padding-right:22px!important}}
+  @media(max-width:900px){.nav-link{font-size:15px!important;padding:14px 16px!important}}
+</style>
+<script id="guidcy-final-menu-popular-fix-script">
+(function(){
+  const LABELS = new Map([
+    ['Explore','Home'],
+    ['Browse','Find the Expert'],
+    ['Browse Experts','Find the Expert'],
+    ['Opportunities','Funds & Grants Finder'],
+    ['Opportunities Finder','Funds & Grants Finder'],
+    ['Smart Finder','Career & College AI Finder'],
+    ['Smart Finder (AI)','Career & College AI Finder']
+  ]);
+  function textOf(el){return (el.textContent||'').replace(/\s+/g,' ').trim();}
+  function relabelMenus(){
+    document.querySelectorAll('.nav-link,.gmob-label,.gmob-item-label,button,a').forEach(el=>{
+      const t=textOf(el);
+      if(t==='Become a Consultant'){
+        const btn=el.closest('button,a')||el;
+        if(btn && (btn.classList.contains('nav-link')||btn.classList.contains('gmob-item')||btn.closest('#nav-links')||btn.closest('#gmob-drawer')||btn.closest('#guidcy-mob-drawer'))){btn.remove();}
+        return;
+      }
+      if(LABELS.has(t)) el.textContent=LABELS.get(t);
+    });
+  }
+  function capPopularCategoriesToTwoRows(){
+    const grid=document.querySelector('#page-home .home-cats-grid');
+    if(!grid) return;
+    const cards=[...grid.querySelectorAll('.home-cat-card')];
+    if(!cards.length) return;
+    cards.forEach(c=>c.style.display='');
+    let viewAll=cards.find(c=>/view all/i.test(c.textContent||'')) || cards[cards.length-1];
+    if(viewAll && viewAll!==grid.lastElementChild) grid.appendChild(viewAll);
+    const colsRaw=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
+    const cols=Math.max(1,colsRaw||6);
+    const maxCards=Math.max(2,cols*2);
+    const current=[...grid.querySelectorAll('.home-cat-card')];
+    if(current.length>maxCards){
+      const visibleBeforeViewAll=maxCards-1;
+      let shown=0;
+      current.forEach(card=>{
+        if(card===viewAll){card.style.display='';return;}
+        shown++;
+        if(shown>visibleBeforeViewAll) card.style.display='none';
+      });
+      if(viewAll) viewAll.style.display='';
+    }
+  }
+  function runFixes(){relabelMenus();capPopularCategoriesToTwoRows();}
+  document.addEventListener('DOMContentLoaded',()=>{runFixes();[100,400,1000,2500,5000].forEach(t=>setTimeout(runFixes,t));});
+  window.addEventListener('load',()=>{runFixes();[500,1500,3500].forEach(t=>setTimeout(runFixes,t));});
+  window.addEventListener('resize',()=>setTimeout(capPopularCategoriesToTwoRows,120));
+  try{new MutationObserver(()=>setTimeout(runFixes,40)).observe(document.body,{childList:true,subtree:true,characterData:true});}catch(e){}
+})();
+</script>
+<!-- === END GUIDCY FINAL MENU + POPULAR CATEGORIES FIX === -->
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
