@@ -15745,3 +15745,234 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 <!-- === END GUIDCY FINAL CATEGORY DISPLAY FIX === -->
+
+
+<!-- === GUIDCY HOME LIVE OPPORTUNITIES SECTION === -->
+<style id="guidcy-home-opportunities-style">
+.guidcy-home-opp-section{background:#fff;padding:64px 32px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.guidcy-home-opp-wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,1fr);gap:56px;align-items:center}
+.guidcy-home-opp-kicker{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);margin-bottom:18px}
+.guidcy-home-opp-title{font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:600;line-height:1.15;letter-spacing:-.8px;color:var(--ink);margin-bottom:20px}
+.guidcy-home-opp-sub{font-size:16px;color:var(--muted);line-height:1.8;max-width:560px;margin-bottom:28px}
+.guidcy-home-opp-points{display:grid;gap:18px;margin-bottom:34px}
+.guidcy-home-opp-point{display:flex;gap:14px;align-items:flex-start;font-size:15px;color:var(--ink2);line-height:1.55}
+.guidcy-home-opp-check{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--green);color:var(--green-d);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;background:#F0FDF4}
+.guidcy-home-opp-point b{color:var(--ink)}
+.guidcy-home-opp-mainbtn{display:inline-flex;align-items:center;gap:8px;border:none;background:var(--blue);color:#fff;border-radius:999px;padding:15px 30px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px rgba(30,114,190,.20);transition:all .18s}
+.guidcy-home-opp-mainbtn:hover{background:var(--blue-d);transform:translateY(-1px)}
+.guidcy-live-opp-card{background:#fff;border:1px solid var(--border);border-radius:22px;overflow:hidden;box-shadow:0 18px 46px rgba(30,114,190,.12)}
+.guidcy-live-opp-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;background:#F3F8FF;border-bottom:1px solid var(--border)}
+.guidcy-live-opp-head-title{font-size:17px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px}
+.guidcy-live-opp-link{border:none;background:none;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.guidcy-live-opp-list{min-height:340px}
+.guidcy-live-opp-row{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:14px;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);cursor:pointer;background:#fff;transition:background .14s,transform .14s}
+.guidcy-live-opp-row:hover{background:#F8FBFF}
+.guidcy-live-opp-row:last-child{border-bottom:none}
+.guidcy-live-opp-icon{width:42px;height:42px;border-radius:14px;background:#F4F8FF;display:flex;align-items:center;justify-content:center;font-size:20px}
+.guidcy-live-opp-title{font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.guidcy-live-opp-meta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guidcy-live-opp-side{text-align:right;min-width:92px}
+.guidcy-live-opp-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;font-size:11px;font-weight:800;background:#EAF7EF;color:#167A2E;margin-bottom:6px}
+.guidcy-live-opp-badge.soon{background:#FFF1F1;color:#D23232}
+.guidcy-live-opp-badge.new{background:#EBF4FF;color:var(--blue)}
+.guidcy-live-opp-prize{font-size:12px;color:#167A2E;font-weight:800;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.guidcy-live-opp-foot{display:flex;justify-content:space-between;align-items:center;background:#F3F8FF;border-top:1px solid var(--border);padding:16px 24px;color:var(--blue);font-size:14px;font-weight:800}
+.guidcy-live-opp-browse{border:none;background:var(--blue);color:#fff;border-radius:999px;padding:10px 22px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+.guidcy-live-opp-loading,.guidcy-live-opp-empty{padding:46px 24px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7}
+.guidcy-live-opp-spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;margin:0 auto 12px;animation:guidcySpin .8s linear infinite}
+@keyframes guidcySpin{to{transform:rotate(360deg)}}
+@media(max-width:900px){.guidcy-home-opp-section{padding:42px 16px}.guidcy-home-opp-wrap{grid-template-columns:1fr;gap:28px}.guidcy-home-opp-title{font-size:34px}.guidcy-home-opp-sub{font-size:14px}.guidcy-live-opp-row{grid-template-columns:40px minmax(0,1fr);padding:15px 16px}.guidcy-live-opp-side{grid-column:2;text-align:left;display:flex;gap:8px;align-items:center;margin-top:6px}.guidcy-live-opp-head,.guidcy-live-opp-foot{padding:15px 16px}.guidcy-live-opp-list{min-height:260px}}
+</style>
+<script id="guidcy-home-live-opportunities-section">
+(function(){
+  'use strict';
+  var SECTION_ID='guidcy-home-opportunities-section';
+  var didFetch=false;
+  function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function clean(v,limit){
+    var t=String(v||'').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,' ').replace(/[*_`#>|~]+/g,' ').replace(/\s+/g,' ').trim();
+    if(limit&&t.length>limit)t=t.slice(0,limit).replace(/\s+\S*$/,'')+'…';
+    return t;
+  }
+  function validUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
+  function goOpp(){try{if(typeof window.go==='function')window.go('opportunities');else location.href='/opportunities'}catch(e){location.href='/opportunities'}}
+  function iconFor(cat,title){var t=(cat+' '+title).toLowerCase();if(t.includes('scholar'))return '🎓';if(t.includes('hack'))return '🏆';if(t.includes('grant')||t.includes('fund'))return '💰';if(t.includes('fellow'))return '🌱';if(t.includes('intern'))return '🧪';if(t.includes('case'))return '📋';if(t.includes('startup'))return '🚀';return '✨'}
+  function badgeFor(o){var d=(o.deadline||'').toLowerCase();if(d.includes('soon')||d.includes('closing'))return ['Closes Soon','soon'];if(d.includes('check')||d.includes('ongoing')||d.includes('open'))return ['Open',''];return ['New','new']}
+  function normalize(raw,i){
+    raw=raw||{};
+    var title=clean(raw.title||raw.name||raw.heading||'Opportunity',100);
+    var desc=clean(raw.desc||raw.description||raw.content||raw.snippet||'',120);
+    var cat=clean(raw.category||raw.type||raw.segment||'Opportunity',40);
+    var country=clean(raw.country||raw.location||'Global',40);
+    var deadline=clean(raw.deadline||raw.last_date||raw.close_date||raw.closes||'Open',44);
+    var url=validUrl(raw.url||raw.link||raw.apply_url||raw.website||raw.source_url);
+    var prize=clean(raw.fundingType||raw.funding_type||raw.funding||raw.prize||raw.reward||raw.benefit||'',44);
+    return {id:String(raw.id||url||('home_opp_'+i)),title:title,desc:desc,category:cat,country:country,deadline:deadline,url:url,prize:prize,source:clean(raw.source||'Live Search',30)};
+  }
+  function sectionHTML(){return '<div id="'+SECTION_ID+'" class="guidcy-home-opp-section">'+
+    '<div class="guidcy-home-opp-wrap">'+
+      '<div class="guidcy-home-opp-left">'+
+        '<div class="guidcy-home-opp-kicker">OPPORTUNITIES HUB</div>'+
+        '<h2 class="guidcy-home-opp-title">Hackathons, Scholarships &<br>Competitions — All Live</h2>'+
+        '<p class="guidcy-home-opp-sub">Guidcy brings fresh opportunities from across the web so students, founders, and professionals can discover deadlines, eligibility, and application links faster.</p>'+
+        '<div class="guidcy-home-opp-points">'+
+          '<div class="guidcy-home-opp-point"><span class="guidcy-home-opp-check">✓</span><div><b>Real-time updates</b> — recently found opportunities with official application links.</div></div>'+
+          '<div class="guidcy-home-opp-point"><span class="guidcy-home-opp-check">✓</span><div><b>Smart filters</b> — search by type, country, domain, prize, and eligibility.</div></div>'+
+          '<div class="guidcy-home-opp-point"><span class="guidcy-home-opp-check">✓</span><div><b>One-tap save</b> — bookmark opportunities and track application progress from dashboard.</div></div>'+
+          '<div class="guidcy-home-opp-point"><span class="guidcy-home-opp-check">✓</span><div><b>Deadline awareness</b> — identify open and closing-soon opportunities quickly.</div></div>'+
+        '</div>'+
+        '<button class="guidcy-home-opp-mainbtn" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Explore Opportunities →</button>'+
+      '</div>'+
+      '<div class="guidcy-live-opp-card">'+
+        '<div class="guidcy-live-opp-head"><div class="guidcy-live-opp-head-title">🔍 Recently Found Opportunities</div><button class="guidcy-live-opp-link" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">View all →</button></div>'+
+        '<div id="guidcy-live-opp-list" class="guidcy-live-opp-list"><div class="guidcy-live-opp-loading"><div class="guidcy-live-opp-spinner"></div>Finding latest opportunities from the web...</div></div>'+
+        '<div class="guidcy-live-opp-foot"><span>✨ Live opportunities — refreshed from search</span><button class="guidcy-live-opp-browse" type="button" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Browse All →</button></div>'+
+      '</div>'+
+    '</div>'+
+  '</div>'}
+  function ensureSection(){
+    var home=document.getElementById('page-home'); if(!home)return;
+    var existing=document.getElementById(SECTION_ID); if(existing)return existing;
+    var cats=home.querySelector('.home-categories-section');
+    var wrap=document.createElement('div'); wrap.innerHTML=sectionHTML(); var section=wrap.firstElementChild;
+    if(cats&&cats.parentNode)cats.insertAdjacentElement('afterend',section); else home.appendChild(section);
+    return section;
+  }
+  async function fetchLive(){
+    var q='latest active hackathons scholarships competitions fellowships grants internships startup funding student opportunities apply official deadline 2026 India Global';
+    var rows=[];
+    try{
+      var params=new URLSearchParams({q:q,query:q,user_query:'latest opportunities',type:'student',category:'',country:'',limit:'6'});
+      var res=await fetch('/api/opportunities?'+params.toString(),{method:'GET',headers:{Accept:'application/json'},cache:'no-store'});
+      if(res.ok){var json=await res.json(); rows=Array.isArray(json)?json:(json.results||json.data||json.opportunities||[]);}
+    }catch(e){console.warn('Home opportunities backend fetch failed',e)}
+    if((!rows||!rows.length)&&typeof window.tavilySearch==='function'){
+      try{var tv=await window.tavilySearch(q); rows=(tv&&tv.results)||[]}catch(e){}
+    }
+    return (rows||[]).map(normalize).filter(function(o){return o.title&&o.url&&o.url!=='#'}).slice(0,5);
+  }
+  function renderRows(items){
+    var list=document.getElementById('guidcy-live-opp-list'); if(!list)return;
+    if(!items.length){list.innerHTML='<div class="guidcy-live-opp-empty">Live opportunities could not be loaded right now.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Open Opportunities Page</button></div>';return;}
+    list.innerHTML=items.map(function(o){var b=badgeFor(o);var meta=[o.category,o.country,o.desc].filter(Boolean).join(' · ');var prize=o.prize||'Apply online';return '<div class="guidcy-live-opp-row" role="button" tabindex="0" data-url="'+esc(o.url)+'">'+
+      '<div class="guidcy-live-opp-icon">'+esc(iconFor(o.category,o.title))+'</div>'+
+      '<div><div class="guidcy-live-opp-title">'+esc(o.title)+'</div><div class="guidcy-live-opp-meta">'+esc(meta)+'</div></div>'+
+      '<div class="guidcy-live-opp-side"><div class="guidcy-live-opp-badge '+esc(b[1])+'">'+esc(b[0])+'</div><div class="guidcy-live-opp-prize">'+esc(prize)+'</div></div>'+
+    '</div>'}).join('');
+    list.querySelectorAll('.guidcy-live-opp-row').forEach(function(row){
+      function open(){var u=row.getAttribute('data-url'); if(u&&u!=='#')window.open(u,'_blank','noopener');}
+      row.addEventListener('click',open); row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}});
+    });
+  }
+  async function init(){ensureSection(); if(didFetch)return; didFetch=true; renderRows(await fetchLive());}
+  window.guidcyGoOpportunitiesHome=goOpp;
+  window.guidcyInitHomeLiveOpportunities=init;
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(init,250);setTimeout(ensureSection,900);});
+  setTimeout(init,1000); setTimeout(ensureSection,2200);
+})();
+</script>
+<!-- === END GUIDCY HOME LIVE OPPORTUNITIES SECTION === -->
+
+<!-- === GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
+<style id="guidcy-home-startup-style">
+.guidcy-home-startup-section{background:#fff;padding:66px 32px;border-bottom:1px solid var(--border)}
+.guidcy-home-startup-wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(460px,1fr);gap:58px;align-items:center}
+.guidcy-home-startup-kicker{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);margin-bottom:18px}
+.guidcy-home-startup-title{font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:600;line-height:1.14;letter-spacing:-.8px;color:var(--ink);margin-bottom:20px}
+.guidcy-home-startup-sub{font-size:15.5px;color:var(--muted);line-height:1.8;max-width:570px;margin-bottom:30px}
+.guidcy-home-startup-tools{display:grid;gap:16px;margin-bottom:34px;max-width:580px}
+.guidcy-home-startup-tool{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;align-items:center;background:#F3F8FF;border:1px solid var(--border);border-radius:14px;padding:18px 20px;transition:all .15s}
+.guidcy-home-startup-tool:hover{border-color:var(--blue-m);box-shadow:0 8px 24px rgba(30,114,190,.10);transform:translateY(-1px)}
+.guidcy-home-startup-tool-ico{width:38px;height:38px;border-radius:13px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 10px rgba(30,114,190,.08)}
+.guidcy-home-startup-tool h3{font-size:15px;font-weight:800;color:var(--ink);margin:0 0 4px}
+.guidcy-home-startup-tool p{font-size:13px;color:var(--muted);line-height:1.55;margin:0}
+.guidcy-home-startup-btn{display:inline-flex;align-items:center;gap:8px;border:none;background:var(--blue);color:#fff;border-radius:999px;padding:15px 30px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(30,114,190,.20);transition:all .18s}
+.guidcy-home-startup-btn:hover{background:var(--blue-d);transform:translateY(-1px)}
+.guidcy-startup-live-card{background:#0B1828;border-radius:22px;padding:22px;color:#fff;box-shadow:0 24px 60px rgba(12,24,37,.24);border:1px solid rgba(255,255,255,.08)}
+.guidcy-startup-live-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.guidcy-startup-live-title{font-size:15px;font-weight:900;color:#fff;display:flex;align-items:center;gap:8px}
+.guidcy-startup-live-add{border:1px solid rgba(96,165,250,.36);background:#0F2B49;color:#BFE0FF;border-radius:999px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit}
+.guidcy-startup-live-list{display:grid;gap:0;min-height:330px}
+.guidcy-startup-live-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer;transition:opacity .14s}
+.guidcy-startup-live-row:hover{opacity:.82}
+.guidcy-startup-live-ico{width:38px;height:38px;border-radius:11px;background:#112B44;display:flex;align-items:center;justify-content:center;font-size:18px}
+.guidcy-startup-live-name{font-size:14px;font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.guidcy-startup-live-meta{font-size:12px;color:#93A8BE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guidcy-startup-live-badge{border-radius:999px;padding:5px 12px;font-size:11px;font-weight:900;background:#103B60;color:#7CC7FF;white-space:nowrap}
+.guidcy-startup-live-badge.closing{background:#5C2331;color:#FFB6C2}.guidcy-startup-live-badge.new{background:#16492B;color:#52E587}
+.guidcy-startup-live-foot{margin-top:18px;background:#0F2B49;border:1px solid rgba(96,165,250,.20);border-radius:12px;padding:14px 16px;color:#C7D8EA;font-size:13px;line-height:1.5}
+.guidcy-startup-live-loading,.guidcy-startup-live-empty{padding:55px 16px;text-align:center;color:#93A8BE;font-size:14px;line-height:1.7;border:1px dashed rgba(255,255,255,.14);border-radius:14px}
+.guidcy-startup-live-spinner{width:26px;height:26px;border:3px solid rgba(255,255,255,.16);border-top-color:#60A5FA;border-radius:50%;margin:0 auto 12px;animation:guidcySpin .8s linear infinite}
+@media(max-width:900px){.guidcy-home-startup-section{padding:42px 16px}.guidcy-home-startup-wrap{grid-template-columns:1fr;gap:28px}.guidcy-home-startup-title{font-size:34px}.guidcy-home-startup-sub{font-size:14px}.guidcy-home-startup-tool{padding:15px}.guidcy-startup-live-card{padding:18px}.guidcy-startup-live-row{grid-template-columns:40px minmax(0,1fr);gap:12px}.guidcy-startup-live-badge{grid-column:2;width:max-content;margin-top:4px}.guidcy-startup-live-list{min-height:260px}}
+</style>
+<script id="guidcy-home-startup-live-section">
+(function(){
+  'use strict';
+  var SECTION_ID='guidcy-home-startup-section';
+  var didFetch=false;
+  function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function clean(v,limit){var t=String(v||'').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,' ').replace(/[*_`#>|~]+/g,' ').replace(/\s+/g,' ').trim();if(limit&&t.length>limit)t=t.slice(0,limit).replace(/\s+\S*$/,'')+'…';return t}
+  function validUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
+  function goStartupOpp(){
+    try{if(typeof window.go==='function')window.go('opportunities');else location.href='/opportunities'}catch(e){location.href='/opportunities'}
+    setTimeout(function(){
+      try{if(typeof window.oppSetTab==='function')window.oppSetTab('startup');var inp=document.getElementById('opp-search-input');if(inp)inp.value='startup funding accelerator grants investor events incubation';if(typeof window.oppDoSearch==='function')window.oppDoSearch();}catch(e){}
+    },220);
+  }
+  function iconFor(o){var t=(o.title+' '+o.category+' '+o.desc).toLowerCase();if(t.includes('angel')||t.includes('investor'))return '📍';if(t.includes('accelerator'))return '🚀';if(t.includes('grant'))return '💡';if(t.includes('seed')||t.includes('fund'))return '🏆';if(t.includes('incubat'))return '🌱';return '✨'}
+  function badgeFor(o){var t=(o.deadline+' '+o.desc+' '+o.title).toLowerCase();if(t.includes('closing')||t.includes('soon')||t.includes('deadline'))return ['Closing!','closing'];if(t.includes('new'))return ['New','new'];return ['Open','']}
+  function normalize(raw,i){raw=raw||{};var title=clean(raw.title||raw.name||raw.heading||'Startup opportunity',100);var desc=clean(raw.desc||raw.description||raw.content||raw.snippet||'',115);var cat=clean(raw.category||raw.type||raw.segment||'Startup',36);var country=clean(raw.country||raw.location||'Global',38);var deadline=clean(raw.deadline||raw.last_date||raw.close_date||raw.closes||'Open',44);var url=validUrl(raw.url||raw.link||raw.apply_url||raw.website||raw.source_url);var funding=clean(raw.fundingType||raw.funding_type||raw.funding||raw.prize||raw.reward||raw.benefit||'',44);return {id:String(raw.id||url||('startup_home_'+i)),title:title,desc:desc,category:cat,country:country,deadline:deadline,url:url,funding:funding}}
+  function sectionHTML(){return '<div id="'+SECTION_ID+'" class="guidcy-home-startup-section">'+
+    '<div class="guidcy-home-startup-wrap">'+
+      '<div class="guidcy-home-startup-left">'+
+        '<div class="guidcy-home-startup-kicker">BUILT FOR FOUNDERS</div>'+
+        '<h2 class="guidcy-home-startup-title">Your Startup Command Centre<br>for Opportunities</h2>'+
+        '<p class="guidcy-home-startup-sub">Whether you are pre-seed or Series A, Guidcy helps you discover grants, competitions, investor events, incubation programs, and accelerators — and track them for future action.</p>'+ 
+        '<div class="guidcy-home-startup-tools">'+
+          '<div class="guidcy-home-startup-tool"><div class="guidcy-home-startup-tool-ico">🔍</div><div><h3>Search Opportunities Instantly</h3><p>Search across grants, investor events, accelerators, incubation programs, and government schemes with smart filters.</p></div></div>'+ 
+          '<div class="guidcy-home-startup-tool"><div class="guidcy-home-startup-tool-ico">📌</div><div><h3>Save for Later — Never Miss Out</h3><p>Bookmark any opportunity to your founder dashboard and track deadlines in one view.</p></div></div>'+ 
+          '<div class="guidcy-home-startup-tool"><div class="guidcy-home-startup-tool-ico">🤝</div><div><h3>Connect with Startup Mentors</h3><p>Book 1-on-1 sessions with founders, IIT/IIM alumni, operators, and investors on Guidcy.</p></div></div>'+ 
+        '</div>'+ 
+        '<button class="guidcy-home-startup-btn" type="button" onclick="window.guidcyGoStartupOpportunities&&window.guidcyGoStartupOpportunities()">Explore Founder Tools →</button>'+ 
+      '</div>'+ 
+      '<div class="guidcy-startup-live-card">'+
+        '<div class="guidcy-startup-live-head"><div class="guidcy-startup-live-title">🚀 Startup Opportunities</div><button class="guidcy-startup-live-add" type="button" onclick="window.guidcyGoStartupOpportunities&&window.guidcyGoStartupOpportunities()">+ Explore</button></div>'+ 
+        '<div id="guidcy-startup-live-list" class="guidcy-startup-live-list"><div class="guidcy-startup-live-loading"><div class="guidcy-startup-live-spinner"></div>Finding latest startup opportunities from the web...</div></div>'+ 
+        '<div class="guidcy-startup-live-foot">✨ Live startup opportunities matching founders, grants, accelerators, and investor events.</div>'+ 
+      '</div>'+ 
+    '</div>'+ 
+  '</div>'}
+  function ensureSection(){
+    var home=document.getElementById('page-home'); if(!home)return null;
+    var existing=document.getElementById(SECTION_ID); if(existing)return existing;
+    var wrap=document.createElement('div'); wrap.innerHTML=sectionHTML(); var section=wrap.firstElementChild;
+    var opp=document.getElementById('guidcy-home-opportunities-section');
+    if(opp&&opp.parentNode)opp.insertAdjacentElement('afterend',section); else {var cats=home.querySelector('.home-categories-section'); if(cats&&cats.parentNode)cats.insertAdjacentElement('afterend',section); else home.appendChild(section)}
+    return section;
+  }
+  async function fetchLive(){
+    var q='latest startup funding grants accelerators incubators investor events pitch competitions government schemes equity free startup opportunities India global apply official deadline 2026';
+    var rows=[];
+    try{var params=new URLSearchParams({q:q,query:q,user_query:'startup funding accelerator opportunities',type:'startup',category:'Startup Funding',country:'',limit:'6'});var res=await fetch('/api/opportunities?'+params.toString(),{method:'GET',headers:{Accept:'application/json'},cache:'no-store'});if(res.ok){var json=await res.json();rows=Array.isArray(json)?json:(json.results||json.data||json.opportunities||[])}}catch(e){console.warn('Home startup opportunities backend fetch failed',e)}
+    if((!rows||!rows.length)&&typeof window.tavilySearch==='function'){try{var tv=await window.tavilySearch(q);rows=(tv&&tv.results)||[]}catch(e){}}
+    return (rows||[]).map(normalize).filter(function(o){return o.title&&o.url&&o.url!=='#'}).slice(0,5);
+  }
+  function renderRows(items){
+    var list=document.getElementById('guidcy-startup-live-list'); if(!list)return;
+    if(!items.length){list.innerHTML='<div class="guidcy-startup-live-empty">Live startup opportunities could not be loaded right now.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoStartupOpportunities&&window.guidcyGoStartupOpportunities()">Open Startup Opportunities</button></div>';return;}
+    list.innerHTML=items.map(function(o){var b=badgeFor(o);var meta=[o.category,o.country,o.funding||o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-startup-live-row" role="button" tabindex="0" data-url="'+esc(o.url)+'">'+
+      '<div class="guidcy-startup-live-ico">'+esc(iconFor(o))+'</div>'+ 
+      '<div><div class="guidcy-startup-live-name">'+esc(o.title)+'</div><div class="guidcy-startup-live-meta">'+esc(meta)+'</div></div>'+ 
+      '<div class="guidcy-startup-live-badge '+esc(b[1])+'">'+esc(b[0])+'</div>'+ 
+    '</div>'}).join('');
+    list.querySelectorAll('.guidcy-startup-live-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.addEventListener('click',open);row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})});
+  }
+  async function init(){ensureSection(); if(didFetch)return; didFetch=true; renderRows(await fetchLive())}
+  window.guidcyGoStartupOpportunities=goStartupOpp;
+  window.guidcyInitHomeStartupOpportunities=init;
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(init,400);setTimeout(ensureSection,1200)});
+  setTimeout(init,1300);setTimeout(ensureSection,2600);
+})();
+</script>
+<!-- === END GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
+
