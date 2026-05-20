@@ -15976,3 +15976,139 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 <!-- === END GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
 
+
+<!-- === GUIDCY HOME INTERNET OPPORTUNITY AUTO-LOAD FIX === -->
+<script id="guidcy-home-internet-opportunity-autoload-fix">
+(function(){
+  'use strict';
+  var TAVILY_FALLBACK_KEY='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';
+  function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function clean(v,limit){
+    var t=String(v||'')
+      .replace(/<!\[CDATA\[|\]\]>/g,' ')
+      .replace(/<[^>]*>/g,' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+      .replace(/https?:\/\/\S+/g,' ')
+      .replace(/[*_`#>|~]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+    if(limit&&t.length>limit)t=t.slice(0,limit).replace(/\s+\S*$/,'')+'…';
+    return t;
+  }
+  function safeUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
+  function getKey(){
+    try{if(typeof CFG!=='undefined'&&CFG.tavily_key&&String(CFG.tavily_key).startsWith('tvly-'))return CFG.tavily_key}catch(e){}
+    try{var raw=localStorage.getItem('guidcy_tavily_key');if(raw){if(raw.startsWith('tvly-'))return raw;var parsed=JSON.parse(raw);if(typeof parsed==='string'&&parsed.startsWith('tvly-'))return parsed;}}catch(e){}
+    return TAVILY_FALLBACK_KEY;
+  }
+  function detectCat(t){
+    t=String(t||'').toLowerCase();
+    if(t.includes('scholar'))return 'Scholarship';
+    if(t.includes('hackathon'))return 'Hackathon';
+    if(t.includes('fellow'))return 'Fellowship';
+    if(t.includes('grant'))return 'Grant';
+    if(t.includes('accelerator'))return 'Accelerator';
+    if(t.includes('incubat'))return 'Incubation';
+    if(t.includes('pitch')||t.includes('startup'))return 'Startup Funding';
+    if(t.includes('intern'))return 'Internship';
+    if(t.includes('competition')||t.includes('challenge'))return 'Competition';
+    return 'Opportunity';
+  }
+  function detectCountry(t){
+    t=String(t||'').toLowerCase();
+    if(t.includes('singapore'))return 'Singapore';
+    if(t.includes('united states')||t.includes('usa')||t.includes('u.s.'))return 'USA';
+    if(t.includes('united kingdom')||t.includes(' uk '))return 'UK';
+    if(t.includes('india'))return 'India';
+    if(t.includes('global')||t.includes('international'))return 'Global';
+    return 'Global';
+  }
+  function statusFor(o){var t=(o.title+' '+o.desc+' '+o.deadline).toLowerCase();if(t.includes('closing')||t.includes('deadline')||t.includes('last date'))return ['Closes Soon','soon'];if(t.includes('new'))return ['New','new'];return ['Open','']}
+  function prizeFor(o){var t=(o.desc+' '+o.title).toLowerCase();if(t.includes('cash'))return 'Cash Prize';if(t.includes('grant'))return 'Grant';if(t.includes('funding'))return 'Funding';if(t.includes('scholarship'))return 'Scholarship';if(t.includes('stipend'))return 'Stipend';if(t.includes('accelerator'))return 'Accelerator';return o.prize||'Apply online'}
+  function iconFor(o){var t=(o.category+' '+o.title).toLowerCase();if(t.includes('scholar'))return '🎓';if(t.includes('hack')||t.includes('competition')||t.includes('challenge'))return '🏆';if(t.includes('grant')||t.includes('fund'))return '💰';if(t.includes('fellow'))return '🌱';if(t.includes('accelerator')||t.includes('startup'))return '🚀';if(t.includes('intern'))return '🧪';return '✨'}
+  function normalize(raw,i,type){
+    raw=raw||{};
+    var title=clean(raw.title||raw.name||raw.heading||'Opportunity',100);
+    var desc=clean(raw.desc||raw.description||raw.content||raw.snippet||raw.summary||'',130);
+    var text=title+' '+desc;
+    var url=safeUrl(raw.url||raw.link||raw.apply_url||raw.website||raw.source_url);
+    return {id:String(raw.id||url||('live_'+type+'_'+i)),title:title,desc:desc,category:clean(raw.category||raw.type||detectCat(text),38),country:clean(raw.country||raw.location||detectCountry(text),30),deadline:clean(raw.deadline||raw.last_date||raw.close_date||raw.closes||'Open',36),url:url,prize:clean(raw.fundingType||raw.funding_type||raw.funding||raw.prize||raw.reward||raw.benefit||'',42)};
+  }
+  async function fetchBackend(q,type){
+    try{
+      var params=new URLSearchParams({q:q,query:q,user_query:q,type:type||'student',category:'',country:'',limit:'8'});
+      var res=await fetch('/api/opportunities?'+params.toString(),{method:'GET',headers:{Accept:'application/json'},cache:'no-store'});
+      if(!res.ok)return [];
+      var json=await res.json();
+      return Array.isArray(json)?json:(json.results||json.data||json.opportunities||[]);
+    }catch(e){return []}
+  }
+  async function fetchTavily(q,type){
+    var key=getKey(); if(!key)return [];
+    try{
+      var res=await fetch('https://api.tavily.com/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key,query:q,search_depth:'basic',include_answer:false,include_raw_content:false,max_results:8})});
+      if(!res.ok)return [];
+      var json=await res.json();
+      return (json.results||[]).map(function(r){return {title:r.title,desc:r.content,url:r.url,source:'Web Search'}});
+    }catch(e){return []}
+  }
+  async function fetchNewsRSS(q,type){
+    var rss='https://news.google.com/rss/search?q='+encodeURIComponent(q)+'&hl=en-IN&gl=IN&ceid=IN:en';
+    var urls=[
+      'https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rss),
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(rss)
+    ];
+    for(var i=0;i<urls.length;i++){
+      try{
+        var res=await fetch(urls[i],{cache:'no-store'}); if(!res.ok)continue;
+        var txt=await res.text(); var rows=[];
+        if(txt.trim().charAt(0)==='{'){
+          var json=JSON.parse(txt); rows=(json.items||[]).map(function(it){return {title:it.title,desc:it.description||it.content,url:it.link,source:'Live Web RSS'}});
+        }else{
+          var doc=new DOMParser().parseFromString(txt,'text/xml');
+          rows=Array.prototype.slice.call(doc.querySelectorAll('item')).map(function(it){return {title:it.querySelector('title')?.textContent||'',desc:it.querySelector('description')?.textContent||'',url:it.querySelector('link')?.textContent||'',source:'Live Web RSS'}});
+        }
+        if(rows.length)return rows;
+      }catch(e){}
+    }
+    return [];
+  }
+  async function liveInternet(q,type){
+    var rows=await fetchBackend(q,type);
+    if(!rows.length)rows=await fetchTavily(q,type);
+    if(!rows.length)rows=await fetchNewsRSS(q,type);
+    var seen={};
+    return rows.map(function(r,i){return normalize(r,i,type)}).filter(function(o){
+      var k=(o.url||o.title).toLowerCase();
+      if(!o.title||!o.url||o.url==='#'||seen[k])return false; seen[k]=1; return true;
+    }).slice(0,5);
+  }
+  function renderHomeOpp(items){
+    var list=document.getElementById('guidcy-live-opp-list'); if(!list)return;
+    if(!items.length){list.innerHTML='<div class="guidcy-live-opp-empty">Live opportunities are being refreshed from the web.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyRefreshHomeInternetOpportunities&&window.guidcyRefreshHomeInternetOpportunities()">Refresh now</button></div>';return;}
+    list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-live-opp-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-live-opp-icon">'+esc(iconFor(o))+'</div><div><div class="guidcy-live-opp-title">'+esc(o.title)+'</div><div class="guidcy-live-opp-meta">'+esc(meta)+'</div></div><div class="guidcy-live-opp-side"><div class="guidcy-live-opp-badge '+esc(b[1])+'">'+esc(b[0])+'</div><div class="guidcy-live-opp-prize">'+esc(prizeFor(o))+'</div></div></div>'}).join('');
+    list.querySelectorAll('.guidcy-live-opp-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
+    var foot=document.querySelector('.guidcy-live-opp-foot span'); if(foot)foot.textContent='✨ Live opportunities — auto-loaded from the web';
+  }
+  function renderStartup(items){
+    var list=document.getElementById('guidcy-startup-live-list'); if(!list)return;
+    if(!items.length){list.innerHTML='<div class="guidcy-startup-live-empty">Live startup opportunities are being refreshed from the web.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyRefreshHomeInternetOpportunities&&window.guidcyRefreshHomeInternetOpportunities()">Refresh now</button></div>';return;}
+    list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.prize||o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-startup-live-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-startup-live-ico">'+esc(iconFor(o))+'</div><div><div class="guidcy-startup-live-name">'+esc(o.title)+'</div><div class="guidcy-startup-live-meta">'+esc(meta)+'</div></div><div class="guidcy-startup-live-badge '+esc(b[1])+'">'+esc(b[0]).replace('Closes Soon','Closing!')+'</div></div>'}).join('');
+    list.querySelectorAll('.guidcy-startup-live-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
+    var foot=document.querySelector('.guidcy-startup-live-foot'); if(foot)foot.textContent='✨ Live startup opportunities auto-loaded from the web for founders, grants, accelerators, and investor events.';
+  }
+  async function refresh(){
+    try{if(typeof window.guidcyInitHomeLiveOpportunities==='function')window.guidcyInitHomeLiveOpportunities();if(typeof window.guidcyInitHomeStartupOpportunities==='function')window.guidcyInitHomeStartupOpportunities();}catch(e){}
+    var homeQ='latest active hackathons scholarships competitions fellowships grants internships student opportunities official application deadline 2026 India global';
+    var startupQ='latest startup grants accelerators incubators pitch competitions investor demo day funding opportunities official application deadline 2026 India global';
+    var both=await Promise.all([liveInternet(homeQ,'student'),liveInternet(startupQ,'startup')]);
+    renderHomeOpp(both[0]);
+    renderStartup(both[1]);
+  }
+  window.guidcyRefreshHomeInternetOpportunities=refresh;
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(refresh,1800);setTimeout(refresh,4500)});
+  setTimeout(refresh,2600);
+})();
+</script>
+<!-- === END GUIDCY HOME INTERNET OPPORTUNITY AUTO-LOAD FIX === -->
