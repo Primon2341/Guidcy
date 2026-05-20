@@ -16163,3 +16163,209 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 <!-- === END GUIDCY HOME DAILY SHARED OPPORTUNITY CACHE FIX === -->
+
+
+<!-- === GUIDCY HOME GROWTH PATHS + DAILY MIXED OPPORTUNITIES SECTION === -->
+<style>
+.guidcy-growth-section{background:var(--surface);padding:64px 32px 58px;border-bottom:1px solid var(--border);overflow:hidden}
+.guidcy-growth-wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);gap:56px;align-items:center}
+.guidcy-growth-kicker{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:100px;background:var(--blue-l);border:1px solid var(--blue-m);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--blue-d);margin-bottom:22px}
+.guidcy-growth-title{font-family:'Cormorant Garamond',serif;font-size:46px;line-height:1.12;font-weight:600;letter-spacing:-.8px;color:var(--ink);margin-bottom:18px}
+.guidcy-growth-title span{color:var(--blue)}
+.guidcy-growth-copy{font-size:15px;color:var(--muted);line-height:1.8;max-width:610px;margin-bottom:26px}
+.guidcy-growth-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+.guidcy-growth-card{background:#fff;border:1.5px solid var(--border);border-radius:18px;padding:20px 20px 18px;cursor:pointer;transition:all .18s;min-height:132px;display:flex;gap:16px;align-items:flex-start}
+.guidcy-growth-card:hover{border-color:var(--blue);box-shadow:0 12px 28px rgba(30,114,190,.12);transform:translateY(-3px)}
+.guidcy-growth-ico{width:40px;height:40px;border-radius:14px;background:var(--blue-l);border:1px solid var(--blue-m);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px}
+.guidcy-growth-card h3{font-size:15px;font-weight:800;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
+.guidcy-growth-card p{font-size:13px;color:var(--muted);line-height:1.6}
+.guidcy-growth-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.guidcy-growth-actions .btn{padding:12px 22px;font-size:14px;font-weight:700}
+.guidcy-growth-visual{position:relative;min-height:450px;display:flex;align-items:center;justify-content:center}
+.guidcy-mix-board{width:100%;max-width:560px;border:1px solid var(--border);border-radius:26px;background:linear-gradient(145deg,#eef8ff 0%,#f5fff7 62%,#fff 100%);box-shadow:0 28px 70px rgba(15,40,70,.13);padding:58px 28px 34px;position:relative;overflow:hidden}
+.guidcy-mix-board::before{content:'';position:absolute;left:0;right:0;top:0;height:54px;background:rgba(255,255,255,.65);border-bottom:1px solid var(--border)}
+.guidcy-mix-dot{position:absolute;top:24px;width:11px;height:11px;border-radius:50%;background:#b9d1e6;z-index:2}.guidcy-mix-dot.d1{left:32px}.guidcy-mix-dot.d2{left:52px;background:#8fbce9}.guidcy-mix-dot.d3{left:72px;background:#71d79a}
+.guidcy-mix-row{position:relative;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:rgba(255,255,255,.92);border:1px solid rgba(216,232,245,.95);border-radius:16px;padding:14px 16px;margin-bottom:14px;cursor:pointer;transition:all .18s;animation:guidcyFloatRow 4.2s ease-in-out infinite;box-shadow:0 8px 22px rgba(30,114,190,.06)}
+.guidcy-mix-row:nth-child(2n){animation-delay:.55s}.guidcy-mix-row:nth-child(3n){animation-delay:1.1s}
+.guidcy-mix-row:hover{transform:translateY(-3px) scale(1.01);border-color:var(--blue);box-shadow:0 14px 32px rgba(30,114,190,.15)}
+.guidcy-mix-ico{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#eef6ff;font-size:18px;border:1px solid var(--border)}
+.guidcy-mix-name{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.guidcy-mix-meta{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;margin-top:2px}
+.guidcy-mix-badge{font-size:10.5px;font-weight:800;border-radius:100px;padding:5px 10px;background:var(--green-l);color:var(--green-d);white-space:nowrap}
+.guidcy-mix-badge.soon{background:#FEF2F2;color:#DC2626}.guidcy-mix-badge.new{background:var(--blue-l);color:var(--blue)}
+.guidcy-mix-chip{position:absolute;z-index:4;border:1px solid var(--border);background:#fff;border-radius:100px;padding:10px 18px;font-size:13px;font-weight:800;color:var(--ink2);box-shadow:0 10px 26px rgba(15,40,70,.10);animation:guidcyFloatChip 5s ease-in-out infinite}
+.guidcy-mix-chip.c1{left:-22px;top:10px}.guidcy-mix-chip.c2{right:-8px;top:96px;animation-delay:.7s}.guidcy-mix-chip.c3{left:-34px;bottom:92px;animation-delay:1.2s}.guidcy-mix-chip.c4{right:14px;bottom:28px;animation-delay:.25s}
+.guidcy-mix-orb{position:absolute;width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#b8d7ff,#7fb4f4);right:70px;top:4px;animation:guidcyOrb 7s ease-in-out infinite;opacity:.9}.guidcy-mix-orb.green{width:76px;height:76px;background:linear-gradient(135deg,#c8f7d7,#3db84a);left:42px;bottom:70px;top:auto;right:auto;animation-delay:1s;opacity:.75}
+.guidcy-mix-empty{padding:38px 14px;text-align:center;color:var(--muted);font-size:13px;line-height:1.7}
+@keyframes guidcyFloatRow{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes guidcyFloatChip{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes guidcyOrb{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(10px,-12px) scale(1.06)}}
+@media(max-width:980px){.guidcy-growth-wrap{grid-template-columns:1fr;gap:34px}.guidcy-growth-visual{min-height:auto}.guidcy-growth-title{font-size:38px}.guidcy-mix-board{max-width:100%}}
+@media(max-width:620px){.guidcy-growth-section{padding:44px 16px}.guidcy-growth-grid{grid-template-columns:1fr}.guidcy-growth-title{font-size:32px}.guidcy-growth-actions .btn{width:100%;text-align:center}.guidcy-mix-chip{display:none}.guidcy-mix-row{grid-template-columns:38px 1fr;padding:12px}.guidcy-mix-badge{grid-column:2;justify-self:start}.guidcy-mix-name,.guidcy-mix-meta{max-width:210px}.guidcy-mix-board{padding:58px 14px 20px;border-radius:20px}}
+</style>
+<script>
+(function(){
+  'use strict';
+  var SECTION_ID='guidcy-growth-paths-section';
+  var CACHE_TABLE='home_opportunities_cache';
+  var HOME_KEY='home_general';
+  var STARTUP_KEY='home_startup';
+  var TTL_MS=24*60*60*1000;
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function goPage(page){try{if(typeof window.go==='function'){window.go(page);return}}catch(e){} window.location.href='/' + page;}
+  function goOpp(){try{localStorage.setItem('guidcy_opp_prefill_query','opportunities hackathons scholarships competitions startup grants accelerators');}catch(e){} goPage('opportunities')}
+  function goStartup(){try{localStorage.setItem('guidcy_opp_prefill_query','startup grants accelerators pitch competitions funding incubators');}catch(e){} goPage('opportunities')}
+  function getClient(){try{return window.sb || window.supabaseClient || (window.supabase&&window.CFG&&window.CFG.supabase_url&&window.CFG.supabase_key ? window.supabase.createClient(window.CFG.supabase_url,window.CFG.supabase_key) : null)}catch(e){return null}}
+  function isFresh(ts){return ts && (Date.now()-new Date(ts).getTime())<TTL_MS}
+  function localKey(k){return 'guidcy_daily_home_opp_cache_'+k}
+  function readLocal(k){try{var raw=localStorage.getItem(localKey(k));if(!raw)return null;var obj=JSON.parse(raw);return obj&&isFresh(obj.refreshed_at)?(obj.payload||[]):null}catch(e){return null}}
+  async function readShared(k){
+    var c=getClient();
+    if(c){try{var r=await c.from(CACHE_TABLE).select('payload,refreshed_at').eq('cache_key',k).maybeSingle();if(r&&r.data&&isFresh(r.data.refreshed_at))return Array.isArray(r.data.payload)?r.data.payload:[]}catch(e){}}
+    return readLocal(k)||[];
+  }
+  function clean(t,n){t=String(t||'').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,' ').replace(/<[^>]*>/g,' ').replace(/[*_`#>|~]+/g,' ').replace(/\s+/g,' ').trim();return n&&t.length>n?t.slice(0,n).replace(/\s+\S*$/,'')+'…':t}
+  function icon(o){var s=((o&&o.category)||''+' '+((o&&o.title)||'')).toLowerCase();if(s.includes('scholar'))return '🎓';if(s.includes('hack'))return '🏆';if(s.includes('competition')||s.includes('challenge'))return '🏅';if(s.includes('startup')||s.includes('seed')||s.includes('fund'))return '🚀';if(s.includes('grant'))return '💡';if(s.includes('accelerator')||s.includes('incubat'))return '🌱';return '✨'}
+  function badge(o,i){var s=((o&&o.deadline)||' '+((o&&o.status)||'')+' '+((o&&o.title)||'')).toLowerCase();if(s.includes('close')||s.includes('deadline'))return ['Closes Soon','soon'];if(i%3===0)return ['New','new'];return ['Open','open']}
+  function url(o){try{var u=o&& (o.url||o.link||o.apply_url||o.source_url); if(!u)return '#'; var x=new URL(String(u),location.origin); return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
+  function uniq(list){var seen={};return (list||[]).filter(function(o){var key=(String((o&&o.title)||'').toLowerCase().trim()+'|'+url(o));if(!key||seen[key])return false;seen[key]=1;return true})}
+  function insertSection(){
+    if(document.getElementById(SECTION_ID))return;
+    var strip=document.getElementById('home-trust-strip'); if(!strip)return;
+    var el=document.createElement('section'); el.id=SECTION_ID; el.className='guidcy-growth-section';
+    el.innerHTML='<div class="guidcy-growth-wrap"><div><div class="guidcy-growth-kicker">✨ Everything in one place</div><h2 class="guidcy-growth-title">One profile. <span>Many growth paths.</span></h2><p class="guidcy-growth-copy">Guidcy helps users discover jobs, colleges, webinars, scholarships, hackathons, competitions, startup opportunities and AI-based recommendations without randomly scrolling across the internet.</p><div class="guidcy-growth-grid"><div class="guidcy-growth-card" data-page="webinar"><div class="guidcy-growth-ico">🎙️</div><div><h3>Publish & join webinars</h3><p>Consultants can publish webinars, while learners can discover sessions that match their interests.</p></div></div><div class="guidcy-growth-card" data-page="jobs"><div class="guidcy-growth-ico">💼</div><div><h3>Search jobs & colleges</h3><p>Explore career and education options from the same platform without switching tabs.</p></div></div><div class="guidcy-growth-card" data-page="smart-finder"><div class="guidcy-growth-ico">🤖</div><div><h3>AI Smart Finder</h3><p>Get profile-based suggestions for jobs, colleges and growth opportunities.</p></div></div><div class="guidcy-growth-card" data-page="opportunities"><div class="guidcy-growth-ico">🏆</div><div><h3>Opportunities</h3><p>Find hackathons, scholarships, grants, competitions and startup programs, then save them for later.</p></div></div></div><div class="guidcy-growth-actions"><button class="btn btn-blue" id="guidcy-growth-smart-btn">Try Smart Finder →</button><button class="btn" id="guidcy-growth-webinar-btn">Explore Webinars</button><button class="btn" id="guidcy-growth-jobs-btn">Search Jobs</button><button class="btn" id="guidcy-growth-opp-btn">Opportunities →</button></div></div><div class="guidcy-growth-visual"><div class="guidcy-mix-chip c1">🏆 Hackathons</div><div class="guidcy-mix-chip c2">🎓 Scholarships</div><div class="guidcy-mix-chip c3">🚀 Startup grants</div><div class="guidcy-mix-chip c4">💾 Saved list</div><div class="guidcy-mix-orb"></div><div class="guidcy-mix-orb green"></div><div class="guidcy-mix-board"><span class="guidcy-mix-dot d1"></span><span class="guidcy-mix-dot d2"></span><span class="guidcy-mix-dot d3"></span><div id="guidcy-mixed-home-opps"><div class="guidcy-mix-empty">Loading daily opportunities…</div></div></div></div></div>';
+    strip.insertAdjacentElement('afterend',el);
+    el.querySelectorAll('.guidcy-growth-card').forEach(function(card){card.addEventListener('click',function(){var p=card.getAttribute('data-page'); if(p==='opportunities')goOpp(); else if(p==='jobs')window.location.href='/jobs'; else goPage(p);});});
+    var sb=document.getElementById('guidcy-growth-smart-btn'); if(sb)sb.onclick=function(){goPage('smart-finder')};
+    var wb=document.getElementById('guidcy-growth-webinar-btn'); if(wb)wb.onclick=function(){goPage('webinar')};
+    var jb=document.getElementById('guidcy-growth-jobs-btn'); if(jb)jb.onclick=function(){window.location.href='/jobs'};
+    var ob=document.getElementById('guidcy-growth-opp-btn'); if(ob)ob.onclick=goOpp;
+  }
+  function render(items){
+    var box=document.getElementById('guidcy-mixed-home-opps'); if(!box)return;
+    items=uniq(items).filter(function(o){return o&&clean(o.title,90)&&url(o)!=='#'}).slice(0,5);
+    if(!items.length){box.innerHTML='<div class="guidcy-mix-empty">Daily mixed opportunities are not loaded yet.<br><button class="btn btn-blue" style="margin-top:12px" onclick="location.href=\'/opportunities\'">Open Opportunities</button></div>';return;}
+    box.innerHTML=items.map(function(o,i){var b=badge(o,i);var meta=[o.category,o.country,clean(o.desc||o.snippet||o.description,62)].filter(Boolean).join(' · ');return '<div class="guidcy-mix-row" role="button" tabindex="0" data-url="'+esc(url(o))+'"><div class="guidcy-mix-ico">'+esc(icon(o))+'</div><div><div class="guidcy-mix-name">'+esc(clean(o.title,70))+'</div><div class="guidcy-mix-meta">'+esc(meta)+'</div></div><div class="guidcy-mix-badge '+esc(b[1])+'">'+esc(b[0])+'</div></div>'}).join('');
+    box.querySelectorAll('.guidcy-mix-row').forEach(function(row){function open(){var u=row.getAttribute('data-url'); if(u&&u!=='#')window.open(u,'_blank','noopener')} row.onclick=open; row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}});
+  }
+  async function loadMixed(){
+    insertSection();
+    var home=await readShared(HOME_KEY), startup=await readShared(STARTUP_KEY);
+    var mixed=[];
+    for(var i=0;i<Math.max(home.length,startup.length);i++){if(home[i])mixed.push(home[i]); if(startup[i])mixed.push(startup[i]);}
+    if(!mixed.length && typeof window.guidcyRefreshHomeInternetOpportunities==='function'){
+      try{await window.guidcyRefreshHomeInternetOpportunities();}catch(e){}
+      home=await readShared(HOME_KEY); startup=await readShared(STARTUP_KEY); for(var j=0;j<Math.max(home.length,startup.length);j++){if(home[j])mixed.push(home[j]); if(startup[j])mixed.push(startup[j]);}
+    }
+    render(mixed);
+  }
+  window.guidcyInitGrowthPathsMixedOpportunities=loadMixed;
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(loadMixed,350);setTimeout(loadMixed,1800);setTimeout(loadMixed,4200)});
+  setTimeout(loadMixed,900);
+})();
+</script>
+<!-- === END GUIDCY HOME GROWTH PATHS + DAILY MIXED OPPORTUNITIES SECTION === -->
+
+
+<!-- === GUIDCY HOME ORDER + GROWTH VISUAL + STARTUP TITLE FINAL PATCH === -->
+<style id="guidcy-home-order-logo-startup-final-style">
+/* Keep growth-path action buttons in one desktop row */
+.guidcy-growth-actions{
+  flex-wrap:nowrap!important;
+  gap:9px!important;
+}
+.guidcy-growth-actions .btn{
+  padding:10px 14px!important;
+  font-size:12px!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  min-width:auto!important;
+}
+/* Animated Guidcy logo inside the mixed opportunity visual */
+.guidcy-growth-logo-float{
+  position:absolute;
+  z-index:5;
+  left:50%;
+  top:50%;
+  width:118px;
+  max-width:30%;
+  transform:translate(-50%,-50%);
+  border-radius:18px;
+  background:rgba(255,255,255,.84);
+  border:1px solid rgba(216,232,245,.95);
+  box-shadow:0 14px 38px rgba(15,40,70,.13);
+  padding:8px 14px;
+  animation:guidcyLogoFloatAround 9s ease-in-out infinite;
+  pointer-events:none;
+}
+.guidcy-growth-logo-float img{
+  display:block;
+  width:100%;
+  height:auto;
+  object-fit:contain;
+}
+@keyframes guidcyLogoFloatAround{
+  0%,100%{transform:translate(-50%,-50%) translate(0,0) rotate(0deg)}
+  25%{transform:translate(-50%,-50%) translate(42px,-34px) rotate(2deg)}
+  50%{transform:translate(-50%,-50%) translate(-44px,36px) rotate(-2deg)}
+  75%{transform:translate(-50%,-50%) translate(36px,42px) rotate(1deg)}
+}
+/* Keep startup heading on one line on desktop */
+.guidcy-home-startup-title{
+  font-size:34px!important;
+  line-height:1.12!important;
+  white-space:nowrap!important;
+  letter-spacing:-.35px!important;
+}
+@media(max-width:980px){
+  .guidcy-growth-actions{flex-wrap:wrap!important}
+  .guidcy-growth-actions .btn{font-size:12px!important;padding:10px 13px!important}
+  .guidcy-home-startup-title{white-space:normal!important;font-size:34px!important}
+}
+@media(max-width:620px){
+  .guidcy-growth-actions .btn{width:auto!important;flex:1 1 calc(50% - 8px);font-size:11px!important;padding:10px 8px!important}
+  .guidcy-growth-logo-float{width:92px;max-width:42%;top:48%}
+  .guidcy-home-startup-title{font-size:29px!important}
+}
+</style>
+<script id="guidcy-home-order-logo-startup-final-patch">
+(function(){
+  'use strict';
+  function movePopularCategoriesBelowStartup(){
+    var home=document.getElementById('page-home');
+    if(!home)return;
+    var cats=home.querySelector('.home-categories-section');
+    var startup=document.getElementById('guidcy-home-startup-section');
+    if(cats&&startup&&startup.nextElementSibling!==cats){
+      startup.insertAdjacentElement('afterend',cats);
+    }
+  }
+  function addMovingLogoToGrowthVisual(){
+    var visual=document.querySelector('#guidcy-growth-paths-section .guidcy-growth-visual');
+    if(!visual || visual.querySelector('.guidcy-growth-logo-float'))return;
+    var logo=document.createElement('div');
+    logo.className='guidcy-growth-logo-float';
+    logo.innerHTML='<img src="/logo.png" alt="Guidcy">';
+    visual.appendChild(logo);
+  }
+  function fixStartupTitleLine(){
+    var title=document.querySelector('#guidcy-home-startup-section .guidcy-home-startup-title');
+    if(title){title.innerHTML='Your Startup Command Centre for Opportunities';}
+  }
+  function applyHomeLayoutFix(){
+    movePopularCategoriesBelowStartup();
+    addMovingLogoToGrowthVisual();
+    fixStartupTitleLine();
+  }
+  window.guidcyApplyHomeOrderLogoStartupFix=applyHomeLayoutFix;
+  document.addEventListener('DOMContentLoaded',function(){
+    [200,700,1500,3000,5500].forEach(function(t){setTimeout(applyHomeLayoutFix,t);});
+  });
+  [500,1300,2800,6000].forEach(function(t){setTimeout(applyHomeLayoutFix,t);});
+  try{
+    var obs=new MutationObserver(function(){applyHomeLayoutFix();});
+    obs.observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
+})();
+</script>
+<!-- === END GUIDCY HOME ORDER + GROWTH VISUAL + STARTUP TITLE FINAL PATCH === -->
