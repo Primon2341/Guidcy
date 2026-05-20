@@ -967,6 +967,11 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
 
 </style>
 
+
+<!-- Resume parsing for Career & College AI Finder -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+
 <!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <!-- Razorpay -->
@@ -6716,6 +6721,24 @@ body{overflow-x:hidden}
         </div>
       </div>
 
+      <!-- Resume Upload AI Extractor -->
+      <div style="background:linear-gradient(135deg,#F8FBFF,#FFFFFF);border:1px solid var(--border);border-radius:20px;padding:20px 22px;margin-bottom:24px;box-shadow:0 8px 28px rgba(30,114,190,.08)">
+        <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div style="width:48px;height:48px;border-radius:16px;background:#EBF4FF;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">📄</div>
+          <div style="flex:1;min-width:240px">
+            <div style="font-size:15px;font-weight:800;color:var(--ink);margin-bottom:4px">Upload Resume for AI-Based Suggestions</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.6">Upload PDF, DOCX, or TXT. The AI will read your resume, identify skills, education, experience, gaps, and then suggest suitable jobs, career paths, courses, colleges, and improvement actions.</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
+              <input id="sf-resume-file" type="file" accept=".pdf,.doc,.docx,.txt,.rtf,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onchange="window._sfHandleResumeUpload(event)" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"/>
+              <label for="sf-resume-file" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;background:#1E72BE;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-height:42px">Upload Resume</label>
+              <button id="sf-clear-resume" type="button" onclick="window._sfClearResume()" style="display:none;padding:10px 14px;background:#fff;color:#B91C1C;border:1px solid #FCA5A5;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Remove</button>
+              <span id="sf-resume-status" style="font-size:12px;color:var(--muted)">No resume uploaded</span>
+            </div>
+          </div>
+        </div>
+        <div id="sf-resume-preview" style="display:none;margin-top:16px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:14px;padding:14px;font-size:12px;color:#334155;line-height:1.6;max-height:150px;overflow:auto"></div>
+      </div>
+
       <!-- Forms -->
       <div id="sf-form-area" style="background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden">
         <div id="sf-form-jobs" style="padding:28px 24px">
@@ -6759,7 +6782,7 @@ body{overflow-x:hidden}
           <button id="sf-submit-btn" onclick="window._sfSubmit()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.02em">
             ✨ Find My Best Matches
           </button>
-          <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">AI analyses your profile, searches the web, and ranks results just for you</p>
+          <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">AI analyses your profile + resume, searches the web, and ranks results just for you</p>
         </div>
       </div>
 
@@ -6794,7 +6817,7 @@ body{overflow-x:hidden}
 
       results.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center">
         <div style="font-size:36px;margin-bottom:16px;animation:pulse2 1.5s infinite">🤖</div>
-        <div style="font-size:16px;font-weight:600;margin-bottom:8px">AI is analysing your profile...</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px">AI is analysing your profile and resume...</div>
         <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Generating best-fit recommendations and ranking them by fit with your profile.</div>
         <div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
           ${Array(5).fill(0).map((_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:var(--blue,#3B82F6);animation:pulse2 1.2s ${i*0.2}s infinite"></div>`).join('')}
@@ -6816,7 +6839,8 @@ body{overflow-x:hidden}
           salary:$('sf-j-salary')?.value||'',
           certifications:$('sf-j-certs')?.value||'',
           languages:$('sf-j-langs')?.value||'',
-          careerGoal:$('sf-j-goal')?.value||''
+          careerGoal:$('sf-j-goal')?.value||'',
+          resume:window._sfResumeData||{}
         };
       }else{
         profile={
@@ -6831,7 +6855,8 @@ body{overflow-x:hidden}
           extracurriculars:$('sf-e-extra')?.value||'',
           workExperience:$('sf-e-work')?.value||'',
           financialAid:$('sf-e-aid')?.value||'No',
-          careerGoal:$('sf-e-goal')?.value||''
+          careerGoal:$('sf-e-goal')?.value||'',
+          resume:window._sfResumeData||{}
         };
       }
 
@@ -11312,6 +11337,175 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY FINAL MENU + POPULAR CATEGORIES FIX === -->
+
+
+<!-- === GUIDCY RESUME UPLOAD VISIBILITY + PARSING FIX === -->
+<style id="guidcy-resume-upload-mobile-fix">
+  #page-smart-finder #sf-resume-file{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+  #page-smart-finder label[for="sf-resume-file"],
+  #page-smart-finder button[onclick*="sf-resume-file"]{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:42px!important;touch-action:manipulation!important;pointer-events:auto!important;z-index:5!important;position:relative!important}
+  #sf-resume-preview.on{display:block!important}
+  @media(max-width:900px){
+    #page-smart-finder{display:none;min-height:calc(100vh - 60px)!important;overflow-x:hidden!important;background:var(--bg)}
+    #page-smart-finder.on,#page-smart-finder.active{display:block!important}
+    #page-smart-finder>div{max-width:100%!important;width:100%!important;padding:24px 14px 64px!important;box-sizing:border-box!important}
+    #page-smart-finder [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+    #page-smart-finder [style*="grid-column:1/-1"]{grid-column:auto!important}
+    #page-smart-finder .field input,#page-smart-finder .field select,#page-smart-finder .field textarea{font-size:16px!important;width:100%!important;max-width:100%!important}
+    #page-smart-finder label[for="sf-resume-file"],#sf-clear-resume{width:100%!important;min-height:46px!important;text-align:center!important}
+    #sf-resume-status{display:block!important;width:100%!important;text-align:center!important;margin-top:4px!important}
+    #sf-resume-preview{max-height:180px!important;font-size:12px!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important}
+  }
+</style>
+<script id="guidcy-resume-upload-parser-fix">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function setStatus(msg,color){var el=$('sf-resume-status');if(el){el.textContent=msg; if(color)el.style.color=color;}}
+  function setPreview(text){var el=$('sf-resume-preview');if(!el)return; if(text){el.style.display='block';el.classList.add('on');el.textContent=text.slice(0,2500)+(text.length>2500?'...':'');}else{el.style.display='none';el.classList.remove('on');el.textContent='';}}
+  function guessFields(text){
+    var t=(text||'').replace(/\s+/g,' ').trim();
+    var low=t.toLowerCase();
+    var skills=[];['python','java','javascript','react','node','sql','excel','power bi','tableau','machine learning','data analysis','marketing','seo','sales','finance','accounting','autocad','solidworks','comsol','polymer','optical fiber','project management'].forEach(function(k){if(low.indexOf(k)>-1)skills.push(k.replace(/\b\w/g,function(c){return c.toUpperCase()}));});
+    var exp=''; var m=low.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)\s+(?:of\s+)?experience/); if(m) exp=m[1];
+    var degree=''; ['phd','m.tech','mtech','m.e.','mba','pgdm','mca','m.sc','msc','b.tech','btech','b.e.','bca','b.sc','bsc','b.com','bba','ba','llb','mbbs','diploma'].some(function(d){if(low.indexOf(d)>-1){degree=d;return true;}return false;});
+    var role=''; var rm=t.match(/(?:title|role|position)\s*[:\-]\s*([^\n\|,]{3,60})/i); if(rm) role=rm[1].trim();
+    return {skills:skills.join(', '),exp:exp,degree:degree,role:role};
+  }
+  function applyAutoFill(text){
+    var g=guessFields(text);
+    if(g.skills){['sf-j-skills','sf-e-interests'].forEach(function(id){var e=$(id); if(e&&!e.value)e.value=g.skills;});}
+    if(g.exp){var e=$('sf-j-exp'); if(e){var n=parseFloat(g.exp); var val=n>=12?'12':n>=8?'8':n>=5?'5':n>=3?'3':n>=2?'2':n>=1?'1':'0'; e.value=val;}}
+    if(g.role){var e=$('sf-j-role'); if(e&&!e.value)e.value=g.role;}
+    if(g.degree){var map={'phd':'PhD','m.tech':'M.Tech / ME','mtech':'M.Tech / ME','m.e.':'M.Tech / ME','mba':'MBA / PGDM','pgdm':'MBA / PGDM','mca':'MCA / MSc','m.sc':'MCA / MSc','msc':'MCA / MSc','b.tech':'B.Tech / B.E.','btech':'B.Tech / B.E.','b.e.':'B.Tech / B.E.','bca':'BCA / BSc CS','b.sc':'BCA / BSc CS','bsc':'BCA / BSc CS','b.com':'BBA / B.Com / BA','bba':'BBA / B.Com / BA','ba':'BBA / B.Com / BA','llb':'LLB','mbbs':'MBBS / BDS','diploma':'Diploma'}; ['sf-j-degree','sf-e-current'].forEach(function(id){var e=$(id); if(e&&!e.value)e.value=map[g.degree]||e.value;});}
+  }
+  async function extractPdf(file){
+    if(!window.pdfjsLib) throw new Error('PDF reader not loaded. Please check internet connection or upload DOCX/TXT.');
+    try{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){}
+    var buf=await file.arrayBuffer(); var pdf=await window.pdfjsLib.getDocument({data:buf}).promise; var out=[]; var max=Math.min(pdf.numPages,8);
+    for(var i=1;i<=max;i++){var page=await pdf.getPage(i); var c=await page.getTextContent(); out.push(c.items.map(function(it){return it.str||''}).join(' '));}
+    return out.join('\n');
+  }
+  async function extractDocx(file){
+    if(!window.mammoth) throw new Error('DOCX reader not loaded. Please check internet connection or upload PDF/TXT.');
+    var buf=await file.arrayBuffer(); var res=await window.mammoth.extractRawText({arrayBuffer:buf}); return res.value||'';
+  }
+  async function extractText(file){return await file.text();}
+  window._sfClearResume=function(){window._sfResumeData={}; var inp=$('sf-resume-file'); if(inp)inp.value=''; var b=$('sf-clear-resume'); if(b)b.style.display='none'; setStatus('No resume uploaded','var(--muted)'); setPreview('');};
+  window._sfHandleResumeUpload=async function(ev){
+    try{
+      var file=ev&&ev.target&&ev.target.files&&ev.target.files[0]; if(!file)return;
+      if(file.size>8*1024*1024){setStatus('File too large. Upload below 8 MB.','#B91C1C');return;}
+      setStatus('Reading resume...','#1E72BE');
+      var name=file.name||'resume'; var ext=(name.split('.').pop()||'').toLowerCase(); var text='';
+      if(ext==='pdf'||file.type==='application/pdf') text=await extractPdf(file);
+      else if(ext==='docx') text=await extractDocx(file);
+      else if(['txt','rtf','doc'].indexOf(ext)>-1) text=await extractText(file).catch(function(){return ''});
+      else text=await extractText(file).catch(function(){return ''});
+      text=(text||'').replace(/\u0000/g,' ').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+      if(!text || text.length<40){throw new Error('Resume text could not be read. Try PDF with selectable text, DOCX, or TXT.');}
+      window._sfResumeData={fileName:name,fileType:file.type||ext,fileSize:file.size,text:text,summary:text.slice(0,5000),uploadedAt:new Date().toISOString()};
+      setStatus('Uploaded: '+name,'#059669'); setPreview(text); var b=$('sf-clear-resume'); if(b)b.style.display='inline-flex'; applyAutoFill(text);
+      try{toast&&toast('Resume uploaded and analysed.','green');}catch(_){ }
+    }catch(err){console.error('Resume upload failed',err); window._sfResumeData={}; setStatus(err.message||'Resume upload failed. Try PDF, DOCX, or TXT.','#B91C1C'); setPreview('');}
+  };
+})();
+</script>
+<!-- === END GUIDCY RESUME UPLOAD VISIBILITY + PARSING FIX === -->
+
+
+<!-- === GUIDCY ADVANCED RESUME AUTO-FILL ENGINE === -->
+<style id="guidcy-advanced-resume-autofill-style">
+  #sf-resume-autofill-summary{display:none;margin-top:12px;background:#ECFDF5;border:1px solid #BBF7D0;border-radius:14px;padding:12px 14px;color:#166534;font-size:12px;line-height:1.55}
+  #sf-resume-autofill-summary.on{display:block!important}
+</style>
+<script id="guidcy-advanced-resume-autofill-engine">
+(function(){
+  function $(id){return document.getElementById(id)}
+  function clean(s){return String(s||'').replace(/\u0000/g,' ').replace(/[\t ]+/g,' ').replace(/\n{3,}/g,'\n\n').trim()}
+  function setVal(id,val,force){var e=$(id); if(!e||val==null||String(val).trim()==='')return false; if(force||!String(e.value||'').trim()){e.value=String(val).trim(); try{e.dispatchEvent(new Event('input',{bubbles:true})); e.dispatchEvent(new Event('change',{bubbles:true}));}catch(_){ } return true;} return false;}
+  function setSelect(id,val){var e=$(id); if(!e||!val)return false; var v=String(val).toLowerCase(); var best=''; Array.from(e.options||[]).some(function(o){var t=(o.textContent||o.value||'').toLowerCase(); if(t===v||t.indexOf(v)>-1||v.indexOf(t)>-1){best=o.value;return true;} return false;}); if(best!==''||Array.from(e.options||[]).some(o=>o.value==='')){if(best!==''){e.value=best; try{e.dispatchEvent(new Event('change',{bubbles:true}));}catch(_){ } return true;}} return false;}
+  function uniq(arr){var out=[],seen={}; (arr||[]).forEach(function(x){x=String(x||'').trim(); if(!x)return; var k=x.toLowerCase(); if(!seen[k]){seen[k]=1;out.push(x);}}); return out;}
+  function lineText(text){return clean(text).split(/\n+/).map(function(x){return x.trim();}).filter(Boolean)}
+  function extractEmail(t){var m=t.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i); return m?m[0]:''}
+  function extractPhone(t){var m=t.match(/(?:\+?91[-\s]?)?[6-9]\d{9}\b|(?:\+?\d{1,3}[-\s]?)?(?:\(?\d{3,5}\)?[-\s]?)?\d{3,4}[-\s]?\d{4}/); return m?m[0].trim():''}
+  function extractName(lines,email){
+    var bad=/resume|curriculum|vitae|email|phone|mobile|linkedin|github|portfolio|address|objective|summary/i;
+    for(var i=0;i<Math.min(lines.length,8);i++){var l=lines[i].replace(/[|•·].*$/,'').trim(); if(l.length>=3&&l.length<=45&&!bad.test(l)&&!/\d|@/.test(l)&&l.split(/\s+/).length<=4)return l;}
+    if(email){return email.split('@')[0].replace(/[._-]+/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()});}
+    return '';
+  }
+  function extractLinks(t){return uniq((t.match(/https?:\/\/[^\s)]+|(?:linkedin\.com|github\.com)\/[^\s)]+/ig)||[]));}
+  var SKILLS=['Python','Java','C','C++','C#','JavaScript','TypeScript','React','Angular','Vue','Node.js','Express','Next.js','HTML','CSS','Tailwind','Bootstrap','SQL','MySQL','PostgreSQL','MongoDB','Firebase','Supabase','AWS','Azure','GCP','Docker','Kubernetes','Git','GitHub','Linux','Excel','Advanced Excel','Power BI','Tableau','Looker','Data Analysis','Data Visualization','Machine Learning','Deep Learning','NLP','Computer Vision','TensorFlow','PyTorch','Scikit-learn','Pandas','NumPy','Matplotlib','Statistics','R','SAS','SPSS','Minitab','MATLAB','COMSOL','AutoCAD','SolidWorks','Ansys','CATIA','PLC','IoT','Cybersecurity','Networking','UI/UX','Figma','Canva','SEO','SEM','Google Ads','Meta Ads','Content Marketing','Digital Marketing','Social Media Marketing','Branding','Sales','Business Development','Market Research','Financial Modelling','Accounting','Taxation','GST','Tally','SAP','ERP','PMP','Agile','Scrum','Jira','Project Management','Product Management','Operations','Supply Chain','Logistics','HR','Recruitment','Talent Acquisition','Legal Research','Contract Drafting','Compliance','Polymer','Polymer Science','Optical Fiber','Fiber Drawing','UV Curing','Coating','DSC','TGA','DMA','FTIR','Rheology','UTM','Six Sigma','Lean Manufacturing','Quality Control','Quality Assurance'];
+  function extractSkills(low,t){var found=[]; SKILLS.forEach(function(s){var k=s.toLowerCase().replace(/[.+#]/g,function(m){return '\\'+m}); var re=new RegExp('(^|[^a-z0-9])'+k+'([^a-z0-9]|$)','i'); if(re.test(t))found.push(s);});
+    var sec=t.match(/(?:skills|technical skills|core competencies|tools|technologies)\s*[:\-]?\s*([\s\S]{0,800}?)(?:\n\s*(?:experience|education|projects|certifications|achievements|summary|objective)\b|$)/i); if(sec){sec[1].split(/[,;|•\n]/).forEach(function(x){x=x.replace(/^[\-–—]+/,'').trim(); if(x.length>=2&&x.length<=35&&!/^(and|or|the|with)$/i.test(x))found.push(x);});}
+    return uniq(found).slice(0,28);
+  }
+  function extractExperience(t,low){var nums=[]; var re=/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)\s+(?:of\s+)?(?:professional\s+)?experience/ig,m; while((m=re.exec(t)))nums.push(parseFloat(m[1])); var re2=/(?:experience|work history|employment)[\s\S]{0,250}?(?:20\d{2}|19\d{2})\s*(?:-|–|to)\s*(?:present|current|20\d{2})/ig; if(!nums.length&&re2.test(t))nums.push(1); return nums.length?Math.max.apply(null,nums):'';}
+  function mapExp(n){n=parseFloat(n||0); return n>=12?'12':n>=8?'8':n>=5?'5':n>=3?'3':n>=2?'2':n>=1?'1':'0'}
+  function extractRole(lines,t){var role=''; var patterns=[/(?:current|last|job)?\s*(?:title|role|position|designation)\s*[:\-]\s*([^\n|,]{3,70})/i,/(?:working as|worked as|experience as|role as)\s+([^\n,.]{3,70})/i]; patterns.some(function(r){var m=t.match(r); if(m){role=m[1].trim(); return true;}return false;});
+    if(!role){var roleWords=/(engineer|developer|analyst|manager|consultant|designer|executive|officer|intern|scientist|researcher|associate|lead|architect|specialist|coordinator|accountant|teacher|professor|lawyer|advocate)/i; for(var i=0;i<Math.min(lines.length,12);i++){var l=lines[i]; if(roleWords.test(l)&&l.length<80&&!/@|\d{10}/.test(l)){role=l.replace(/^[\-–—•]+/,'').trim(); break;}}}
+    return role.replace(/\s{2,}/g,' ').slice(0,70);
+  }
+  function extractDegree(t,low){var pairs=[['PhD',/\b(ph\.?d|doctor of philosophy|doctoral)\b/i],['M.Tech / ME',/\b(m\.?\s?tech|m\.?\s?e\.?|master of technology|master of engineering)\b/i],['MBA / PGDM',/\b(mba|pgdm|post graduate diploma in management)\b/i],['MCA / MSc',/\b(mca|m\.?\s?sc|msc|master of science|master of computer applications)\b/i],['B.Tech / B.E.',/\b(b\.?\s?tech|b\.?\s?e\.?|bachelor of technology|bachelor of engineering)\b/i],['BCA / BSc CS',/\b(bca|b\.?\s?sc|bsc|bachelor of science)\b/i],['BBA / B.Com / BA',/\b(bba|b\.?\s?com|bcom|b\.?\s?a\.?|bachelor of commerce|bachelor of arts)\b/i],['MBBS / BDS',/\b(mbbs|bds)\b/i],['LLB',/\b(llb|l\.l\.b|bachelor of law)\b/i],['Diploma',/\bdiploma\b/i],['12th Pass',/\b(class|grade)?\s*12(th)?|higher secondary|senior secondary\b/i],['10th Pass',/\b(class|grade)?\s*10(th)?|matriculation\b/i]]; for(var i=0;i<pairs.length;i++){if(pairs[i][1].test(t))return pairs[i][0];} return '';}
+  function extractField(t){var fields=[['Computer Science / AI / Data Science',/(computer science|cse|information technology|data science|artificial intelligence|machine learning|ai\/ml|software)/i],['Engineering / Technology',/(mechanical|electrical|electronics|civil|chemical|engineering|technology|metallurgy|polymer)/i],['Business / Management (MBA)',/(business administration|management|marketing|strategy|operations|hr|human resource)/i],['Finance / Chartered Accountancy',/(finance|accounting|commerce|economics|ca|chartered accountant|banking)/i],['Medicine / Healthcare',/(medicine|medical|mbbs|bds|pharmacy|nursing|healthcare)/i],['Law',/(law|llb|legal)/i],['Design / Architecture',/(design|architecture|ui\/ux|fashion)/i],['Science (Pure)',/(physics|chemistry|mathematics|biology|biotechnology|science)/i],['Mass Communication / Journalism',/(journalism|mass communication|media)/i]]; for(var i=0;i<fields.length;i++){if(fields[i][1].test(t))return fields[i][0];} return '';}
+  function extractCollege(lines,t){
+    function tidy(x){return String(x||'').replace(/^[\-–—•\s]+/,'').replace(/\b(education|academic|academics|qualification|qualifications|degree|institution|institute|university|college)\b\s*[:\-]?/ig,'').replace(/\b(CGPA|GPA|Percentage|Percent|Score|Marks)\b.*$/ig,'').replace(/\b(20\d{2}|19\d{2})\s*(?:-|–|to)?\s*(?:20\d{2}|present|current)?/ig,'').replace(/\s{2,}/g,' ').replace(/[|,;]+$/,'').trim();}
+    var strong=/(indian institute of technology|national institute of technology|indian institute of management|international institute of information technology|birla institute|institute of chemical technology|delhi university|university of delhi|mumbai university|anna university|savitribai phule|dr\.?\s*a\.?p\.?j|iit\s|iim\s|nit\s|iiit\s|bits\s|vit\s|srm\s|manipal|amity|college of|university of|institute of|school of)/i;
+    var generic=/(university|college|institute|vidyapeeth|academy|school|campus)/i;
+    var eduIdx=-1;
+    for(var e=0;e<lines.length;e++){if(/^\s*(education|academic background|academics|qualification|qualifications)\s*[:\-]?\s*$/i.test(lines[e])||/\b(education|academic background|academics|qualification|qualifications)\b/i.test(lines[e])){eduIdx=e;break;}}
+    var candidates=[];
+    function add(line,score){line=tidy(line); if(line&&line.length>=3&&line.length<=120&&!/^(education|experience|skills|projects|certifications|summary|objective)$/i.test(line)&&!/\b(cgpa|gpa|percentage|percent|marks|grade|semester)\b/i.test(line))candidates.push({v:line,s:score});}
+    for(var i=0;i<lines.length;i++){var l=lines[i]; if(strong.test(l))add(l,100-(eduIdx>=0?Math.abs(i-eduIdx):0)); else if(generic.test(l))add(l,70-(eduIdx>=0?Math.abs(i-eduIdx):0));}
+    var patterns=[
+      /(?:from|at)\s+([A-Z][A-Za-z&.,'()\- ]{2,90}?(?:University|College|Institute|School)[A-Za-z&.,'()\- ]{0,40})/g,
+      /([A-Z][A-Za-z&.,'()\- ]{2,90}?(?:University|College|Institute|School)[A-Za-z&.,'()\- ]{0,40})/g,
+      /\b((?:IIT|IIM|NIT|IIIT|BITS|VIT|SRM)\s+[A-Z][A-Za-z ]{2,35})\b/g
+    ];
+    patterns.forEach(function(re){var m; while((m=re.exec(t))){add(m[1],85);}});
+    candidates=uniq(candidates.map(function(c){return c.v+'@@'+c.s;})).map(function(x){var a=x.split('@@');return {v:a[0],s:+a[1]||0};});
+    candidates.sort(function(a,b){return b.s-a.s||b.v.length-a.v.length;});
+    return candidates.length?candidates[0].v:'';
+  }
+  function extractScore(t){var m=t.match(/(?:cgpa|gpa)\s*[:\-]?\s*(\d+(?:\.\d+)?\s*(?:\/\s*10)?)/i)||t.match(/(\d{1,3}(?:\.\d+)?)\s*%/); return m?m[0].replace(/^cgpa\s*[:\-]?\s*/i,'').trim():'';}
+  function extractCerts(t){var found=[]; var sec=t.match(/(?:certifications?|licenses?)\s*[:\-]?\s*([\s\S]{0,650}?)(?:\n\s*(?:experience|education|projects|skills|achievements|summary)\b|$)/i); if(sec){sec[1].split(/[;|•\n]/).forEach(function(x){x=x.replace(/^[\-–—]+/,'').trim(); if(x.length>=3&&x.length<=80)found.push(x);});}
+    ['AWS','Azure','GCP','PMP','CFA','FRM','Six Sigma','Google Analytics','Google Ads','Meta Blueprint','CCNA','IELTS','TOEFL','GRE','CAT','JEE','NEET','GATE'].forEach(function(c){if(new RegExp('\\b'+c.replace(/ /g,'\\s+')+'\\b','i').test(t))found.push(c);}); return uniq(found).slice(0,8).join(', ');}
+  function extractLanguages(t){var sec=t.match(/(?:languages?|known languages?)\s*[:\-]?\s*([^\n]{3,140})/i); if(sec)return sec[1].replace(/[•|]/g,',').trim(); var found=[]; ['English','Hindi','Bengali','Tamil','Telugu','Marathi','Gujarati','Kannada','Malayalam','Punjabi','Urdu','French','German','Spanish','Japanese'].forEach(function(l){if(new RegExp('\\b'+l+'\\b','i').test(t))found.push(l);}); return uniq(found).slice(0,6).join(', ');}
+  function extractLocation(t){var cities=['Remote','Bangalore','Bengaluru','Mumbai','Delhi','New Delhi','Noida','Gurgaon','Gurugram','Hyderabad','Pune','Chennai','Kolkata','Ahmedabad','Jaipur','Lucknow','Indore','Chandigarh','Kochi','Coimbatore','Nagpur','Surat','Vadodara','Roorkee','Dehradun']; for(var i=0;i<cities.length;i++){if(new RegExp('\\b'+cities[i]+'\\b','i').test(t))return cities[i];} return '';}
+  function inferIndustry(t){var opts=[['IT / Software',/(software|developer|python|java|react|data science|ai|machine learning|cloud|aws|sql|it\b)/i],['Finance / Banking',/(finance|banking|investment|accounting|tax|audit|cfa|frm)/i],['Manufacturing',/(manufacturing|production|quality|lean|six sigma|plant|polymer|fiber|mechanical|process)/i],['Media & Marketing',/(marketing|seo|content|brand|social media|ads|campaign)/i],['Healthcare',/(medical|healthcare|doctor|nurse|pharma|clinical)/i],['Consulting',/(consultant|consulting|strategy|business analyst)/i],['Legal',/(legal|law|contract|compliance|advocate)/i],['Education',/(teacher|education|professor|tutor|academic)/i],['Startup',/(startup|founder|entrepreneur|venture)/i]]; for(var i=0;i<opts.length;i++){if(opts[i][1].test(t))return opts[i][0];} return '';}
+  function inferJobType(t){if(/intern(ship)?/i.test(t))return 'Internship'; if(/freelance|contract/i.test(t))return 'Freelance / Contract'; if(/remote/i.test(t))return 'Remote'; if(/hybrid/i.test(t))return 'Hybrid'; if(/part[ -]?time/i.test(t))return 'Part-time'; return '';}
+  function extractAchievements(t){var sec=t.match(/(?:achievements?|awards?|honou?rs|projects?)\s*[:\-]?\s*([\s\S]{0,900}?)(?:\n\s*(?:experience|education|skills|certifications|summary)\b|$)/i); if(!sec)return ''; return sec[1].split(/\n|•/).map(function(x){return x.replace(/^[\-–—]+/,'').trim();}).filter(function(x){return x.length>5&&x.length<140;}).slice(0,4).join('; ');}
+  function extractExams(t){var found=[]; ['JEE','NEET','CAT','MAT','XAT','GMAT','GRE','GATE','IELTS','TOEFL','CUET','CLAT'].forEach(function(e){var r=new RegExp('\\b'+e+'\\b[^\\n,;]{0,50}','i'); var m=t.match(r); if(m)found.push(m[0].trim());}); return uniq(found).join(', ');}
+  function parseResume(text){var t=clean(text), low=t.toLowerCase(), lines=lineText(text), email=extractEmail(t); var p={}; p.name=extractName(lines,email); p.email=email; p.phone=extractPhone(t); p.links=extractLinks(t); p.skills=extractSkills(low,t); p.exp=extractExperience(t,low); p.role=extractRole(lines,t); p.degree=extractDegree(t,low); p.field=extractField(t); p.college=extractCollege(lines,t); p.score=extractScore(t); p.certs=extractCerts(t); p.languages=extractLanguages(t); p.location=extractLocation(t); p.industry=inferIndustry(t); p.jobType=inferJobType(t); p.achievements=extractAchievements(t); p.exams=extractExams(t); return p;}
+  function autoFillResume(text){var p=parseResume(text); var count=0; function inc(x){if(x)count++;}
+    inc(setVal('sf-j-role',p.role)); inc(setSelect('sf-j-exp',mapExp(p.exp))); inc(setVal('sf-j-skills',p.skills.join(', '))); inc(setSelect('sf-j-degree',p.degree)); inc(setVal('sf-j-field',p.field.replace('Computer Science / AI / Data Science','Computer Science / AI / Data Science').replace('Engineering / Technology','Engineering / Technology'))); inc(setVal('sf-j-college',p.college)); inc(setSelect('sf-j-industry',p.industry)); inc(setSelect('sf-j-type',p.jobType)); inc(setVal('sf-j-loc',p.location)); inc(setVal('sf-j-certs',p.certs)); inc(setVal('sf-j-langs',p.languages));
+    var goal=[]; if(p.role)goal.push('Current profile: '+p.role); if(p.skills.length)goal.push('Strong skills: '+p.skills.slice(0,8).join(', ')); if(p.industry)goal.push('Preferred direction: '+p.industry); inc(setVal('sf-j-goal',goal.join('. ')));
+    var qual=p.exp?'Working Professional':(p.degree&&/M\.Tech|MBA|MCA|MSc|PhD/.test(p.degree)?'Completed Graduation':(p.degree?'Completed Graduation':'')); inc(setSelect('sf-e-qual',qual)); inc(setVal('sf-e-score',p.score)); inc(setVal('sf-e-stream',p.field)); inc(setSelect('sf-e-field',p.field)); inc(setVal('sf-e-exams',p.exams)); inc(setVal('sf-e-extra',p.achievements)); inc(setVal('sf-e-work',p.exp?(p.exp+' years'+(p.role?' as '+p.role:'')):'')); inc(setVal('sf-e-goal',goal.join('. ')));
+    window._sfResumeData=Object.assign({},window._sfResumeData||{},{parsed:p,autoFilledFields:count});
+    var prev=$('sf-resume-preview'); if(prev){prev.style.display='none'; prev.classList.remove('on'); prev.textContent='';}
+    var sum=$('sf-resume-autofill-summary'); if(sum){sum.className=''; sum.style.display='none'; sum.innerHTML='';}
+    try{if(window.toast)toast('Resume analysed. '+count+' fields auto-filled.','green');}catch(_){ }
+    return p;
+  }
+  async function extractPdf(file){if(!window.pdfjsLib)throw new Error('PDF reader not loaded. Please check internet connection or upload DOCX/TXT.'); try{window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}catch(e){} var buf=await file.arrayBuffer(); var pdf=await window.pdfjsLib.getDocument({data:buf}).promise; var out=[]; var max=Math.min(pdf.numPages,12); for(var i=1;i<=max;i++){var page=await pdf.getPage(i); var c=await page.getTextContent(); out.push(c.items.map(function(it){return it.str||''}).join(' '));} return out.join('\n');}
+  async function extractDocx(file){if(!window.mammoth)throw new Error('DOCX reader not loaded. Please check internet connection or upload PDF/TXT.'); var buf=await file.arrayBuffer(); var res=await window.mammoth.extractRawText({arrayBuffer:buf}); return res.value||'';}
+  async function extractText(file){return await file.text();}
+  window._sfAdvancedAutoFillResume=autoFillResume;
+  window._sfHandleResumeUpload=async function(ev){
+    var setStatus=function(msg,color){var el=$('sf-resume-status');if(el){el.textContent=msg;if(color)el.style.color=color;}};
+    var setPreview=function(text){var el=$('sf-resume-preview');if(!el)return;el.style.display='none';el.classList.remove('on');el.textContent='';};
+    try{var file=ev&&ev.target&&ev.target.files&&ev.target.files[0]; if(!file)return; if(file.size>10*1024*1024){setStatus('File too large. Upload below 10 MB.','#B91C1C');return;} setStatus('Reading and analysing resume...','#1E72BE'); var name=file.name||'resume'; var ext=(name.split('.').pop()||'').toLowerCase(); var text=''; if(ext==='pdf'||file.type==='application/pdf')text=await extractPdf(file); else if(ext==='docx')text=await extractDocx(file); else text=await extractText(file).catch(function(){return ''}); text=clean(text); if(!text||text.length<40)throw new Error('Resume text could not be read. Try selectable PDF, DOCX, or TXT.'); window._sfResumeData={fileName:name,fileType:file.type||ext,fileSize:file.size,text:text,summary:text.slice(0,7000),uploadedAt:new Date().toISOString()}; setStatus('Uploaded and analysed: '+name,'#059669'); setPreview(text); var b=$('sf-clear-resume'); if(b)b.style.display='inline-flex'; autoFillResume(text);}catch(err){console.error('Resume upload failed',err); window._sfResumeData={}; setStatus(err.message||'Resume upload failed. Try PDF, DOCX, or TXT.','#B91C1C'); setPreview('');}}
+})();
+</script>
+<!-- === END GUIDCY ADVANCED RESUME AUTO-FILL ENGINE === -->
+
+
+<!-- === GUIDCY FINAL RESUME AUTOFILL PRIVACY + COLLEGE FIX === -->
+<style id="guidcy-final-resume-background-autofill-fix">
+  #sf-resume-autofill-summary{display:none!important}
+  #sf-resume-preview{display:none!important}
+</style>
+<!-- === END GUIDCY FINAL RESUME AUTOFILL PRIVACY + COLLEGE FIX === -->
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
