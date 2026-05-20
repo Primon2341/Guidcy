@@ -15864,7 +15864,7 @@ document.addEventListener('DOMContentLoaded',function(){
       row.addEventListener('click',open); row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}});
     });
   }
-  async function init(){ensureSection(); if(didFetch)return; didFetch=true; renderRows(await fetchLive());}
+  async function init(){ensureSection(); if(didFetch)return; didFetch=true; /* daily shared cache loader fills rows below */ if(window.guidcyRefreshHomeInternetOpportunities)window.guidcyRefreshHomeInternetOpportunities();}
   window.guidcyGoOpportunitiesHome=goOpp;
   window.guidcyInitHomeLiveOpportunities=init;
   document.addEventListener('DOMContentLoaded',function(){setTimeout(init,250);setTimeout(ensureSection,900);});
@@ -15967,7 +15967,7 @@ document.addEventListener('DOMContentLoaded',function(){
     '</div>'}).join('');
     list.querySelectorAll('.guidcy-startup-live-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.addEventListener('click',open);row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})});
   }
-  async function init(){ensureSection(); if(didFetch)return; didFetch=true; renderRows(await fetchLive())}
+  async function init(){ensureSection(); if(didFetch)return; didFetch=true; /* daily shared cache loader fills rows below */ if(window.guidcyRefreshHomeInternetOpportunities)window.guidcyRefreshHomeInternetOpportunities();}
   window.guidcyGoStartupOpportunities=goStartupOpp;
   window.guidcyInitHomeStartupOpportunities=init;
   document.addEventListener('DOMContentLoaded',function(){setTimeout(init,400);setTimeout(ensureSection,1200)});
@@ -15977,19 +15977,24 @@ document.addEventListener('DOMContentLoaded',function(){
 <!-- === END GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
 
 
-<!-- === GUIDCY HOME INTERNET OPPORTUNITY AUTO-LOAD FIX === -->
-<script id="guidcy-home-internet-opportunity-autoload-fix">
+<!-- === GUIDCY HOME DAILY SHARED OPPORTUNITY CACHE FIX === -->
+<script id="guidcy-home-daily-shared-opportunity-cache">
 (function(){
   'use strict';
+  var CACHE_TABLE='home_opportunities_cache';
+  var HOME_KEY='home_general';
+  var STARTUP_KEY='home_startup';
+  var TTL_MS=24*60*60*1000;
   var TAVILY_FALLBACK_KEY='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';
+  var refreshRunning=false;
+
   function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function clean(v,limit){
     var t=String(v||'')
-      .replace(/<!\[CDATA\[|\]\]>/g,' ')
-      .replace(/<[^>]*>/g,' ')
       .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')
       .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
       .replace(/https?:\/\/\S+/g,' ')
+      .replace(/<[^>]*>/g,' ')
       .replace(/[*_`#>|~]+/g,' ')
       .replace(/\s+/g,' ')
       .trim();
@@ -15997,20 +16002,48 @@ document.addEventListener('DOMContentLoaded',function(){
     return t;
   }
   function safeUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
+  function sbClient(){try{return window.sb || window.supabaseClient || (window.supabase&&window.CFG&&window.CFG.supabase_url&&window.CFG.supabase_key ? window.supabase.createClient(window.CFG.supabase_url,window.CFG.supabase_key) : null)}catch(e){return null}}
   function getKey(){
     try{if(typeof CFG!=='undefined'&&CFG.tavily_key&&String(CFG.tavily_key).startsWith('tvly-'))return CFG.tavily_key}catch(e){}
     try{var raw=localStorage.getItem('guidcy_tavily_key');if(raw){if(raw.startsWith('tvly-'))return raw;var parsed=JSON.parse(raw);if(typeof parsed==='string'&&parsed.startsWith('tvly-'))return parsed;}}catch(e){}
     return TAVILY_FALLBACK_KEY;
   }
+  function isFresh(ts){return ts && (Date.now()-new Date(ts).getTime())<TTL_MS}
+  function localKey(k){return 'guidcy_daily_home_opp_cache_'+k}
+  function readLocal(k){try{var raw=localStorage.getItem(localKey(k));if(!raw)return null;var obj=JSON.parse(raw);return obj&&isFresh(obj.refreshed_at)?obj:null}catch(e){return null}}
+  function writeLocal(k,items){try{localStorage.setItem(localKey(k),JSON.stringify({cache_key:k,payload:items||[],refreshed_at:new Date().toISOString()}))}catch(e){}}
+
+  async function readShared(k){
+    var c=sbClient();
+    if(c){
+      try{
+        var r=await c.from(CACHE_TABLE).select('cache_key,payload,refreshed_at').eq('cache_key',k).maybeSingle();
+        if(r && r.data && isFresh(r.data.refreshed_at))return {items:Array.isArray(r.data.payload)?r.data.payload:[],refreshed_at:r.data.refreshed_at,source:'supabase'};
+      }catch(e){console.warn('Daily opportunity cache read failed:',e.message||e)}
+    }
+    var l=readLocal(k); if(l)return {items:l.payload||[],refreshed_at:l.refreshed_at,source:'local'};
+    return null;
+  }
+  async function writeShared(k,items){
+    var now=new Date().toISOString();
+    var c=sbClient();
+    if(c){
+      try{
+        await c.from(CACHE_TABLE).upsert({cache_key:k,payload:items||[],refreshed_at:now},{onConflict:'cache_key'});
+      }catch(e){console.warn('Daily opportunity cache write failed:',e.message||e)}
+    }
+    writeLocal(k,items||[]);
+  }
+
   function detectCat(t){
     t=String(t||'').toLowerCase();
     if(t.includes('scholar'))return 'Scholarship';
-    if(t.includes('hackathon'))return 'Hackathon';
+    if(t.includes('hackathon')||t.includes('hack'))return 'Hackathon';
     if(t.includes('fellow'))return 'Fellowship';
     if(t.includes('grant'))return 'Grant';
     if(t.includes('accelerator'))return 'Accelerator';
     if(t.includes('incubat'))return 'Incubation';
-    if(t.includes('pitch')||t.includes('startup'))return 'Startup Funding';
+    if(t.includes('pitch')||t.includes('startup')||t.includes('seed'))return 'Startup Funding';
     if(t.includes('intern'))return 'Internship';
     if(t.includes('competition')||t.includes('challenge'))return 'Competition';
     return 'Opportunity';
@@ -16024,27 +16057,37 @@ document.addEventListener('DOMContentLoaded',function(){
     if(t.includes('global')||t.includes('international'))return 'Global';
     return 'Global';
   }
-  function statusFor(o){var t=(o.title+' '+o.desc+' '+o.deadline).toLowerCase();if(t.includes('closing')||t.includes('deadline')||t.includes('last date'))return ['Closes Soon','soon'];if(t.includes('new'))return ['New','new'];return ['Open','']}
-  function prizeFor(o){var t=(o.desc+' '+o.title).toLowerCase();if(t.includes('cash'))return 'Cash Prize';if(t.includes('grant'))return 'Grant';if(t.includes('funding'))return 'Funding';if(t.includes('scholarship'))return 'Scholarship';if(t.includes('stipend'))return 'Stipend';if(t.includes('accelerator'))return 'Accelerator';return o.prize||'Apply online'}
-  function iconFor(o){var t=(o.category+' '+o.title).toLowerCase();if(t.includes('scholar'))return '🎓';if(t.includes('hack')||t.includes('competition')||t.includes('challenge'))return '🏆';if(t.includes('grant')||t.includes('fund'))return '💰';if(t.includes('fellow'))return '🌱';if(t.includes('accelerator')||t.includes('startup'))return '🚀';if(t.includes('intern'))return '🧪';return '✨'}
   function normalize(raw,i,type){
     raw=raw||{};
     var title=clean(raw.title||raw.name||raw.heading||'Opportunity',100);
     var desc=clean(raw.desc||raw.description||raw.content||raw.snippet||raw.summary||'',130);
     var text=title+' '+desc;
     var url=safeUrl(raw.url||raw.link||raw.apply_url||raw.website||raw.source_url);
-    return {id:String(raw.id||url||('live_'+type+'_'+i)),title:title,desc:desc,category:clean(raw.category||raw.type||detectCat(text),38),country:clean(raw.country||raw.location||detectCountry(text),30),deadline:clean(raw.deadline||raw.last_date||raw.close_date||raw.closes||'Open',36),url:url,prize:clean(raw.fundingType||raw.funding_type||raw.funding||raw.prize||raw.reward||raw.benefit||'',42)};
+    return {
+      id:String(raw.id||url||('daily_'+type+'_'+i)),
+      title:title,
+      desc:desc,
+      category:clean(raw.category||raw.type||detectCat(text),38),
+      country:clean(raw.country||raw.location||detectCountry(text),30),
+      deadline:clean(raw.deadline||raw.last_date||raw.close_date||raw.closes||'Open',36),
+      url:url,
+      prize:clean(raw.fundingType||raw.funding_type||raw.funding||raw.prize||raw.reward||raw.benefit||'',42)
+    };
   }
+  function statusFor(o){var t=(o.title+' '+o.desc+' '+o.deadline).toLowerCase();if(t.includes('closing')||t.includes('deadline')||t.includes('last date')||t.includes('soon'))return ['Closes Soon','soon'];if(t.includes('new'))return ['New','new'];return ['Open','']}
+  function prizeFor(o){var t=(o.desc+' '+o.title+' '+(o.prize||'')).toLowerCase();if(o.prize)return o.prize;if(t.includes('cash'))return 'Cash Prize';if(t.includes('grant'))return 'Grant';if(t.includes('funding'))return 'Funding';if(t.includes('scholarship'))return 'Scholarship';if(t.includes('stipend'))return 'Stipend';if(t.includes('accelerator'))return 'Accelerator';return 'Apply online'}
+  function iconFor(o){var t=(o.category+' '+o.title).toLowerCase();if(t.includes('scholar'))return '🎓';if(t.includes('hack')||t.includes('competition')||t.includes('challenge'))return '🏆';if(t.includes('grant')||t.includes('fund'))return '💰';if(t.includes('fellow'))return '🌱';if(t.includes('accelerator')||t.includes('startup'))return '🚀';if(t.includes('intern'))return '🧪';return '✨'}
+
   async function fetchBackend(q,type){
     try{
       var params=new URLSearchParams({q:q,query:q,user_query:q,type:type||'student',category:'',country:'',limit:'8'});
-      var res=await fetch('/api/opportunities?'+params.toString(),{method:'GET',headers:{Accept:'application/json'},cache:'no-store'});
+      var res=await fetch('/api/opportunities?'+params.toString(),{method:'GET',headers:{Accept:'application/json'},cache:'default'});
       if(!res.ok)return [];
       var json=await res.json();
       return Array.isArray(json)?json:(json.results||json.data||json.opportunities||[]);
     }catch(e){return []}
   }
-  async function fetchTavily(q,type){
+  async function fetchTavily(q){
     var key=getKey(); if(!key)return [];
     try{
       var res=await fetch('https://api.tavily.com/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key,query:q,search_depth:'basic',include_answer:false,include_raw_content:false,max_results:8})});
@@ -16053,15 +16096,12 @@ document.addEventListener('DOMContentLoaded',function(){
       return (json.results||[]).map(function(r){return {title:r.title,desc:r.content,url:r.url,source:'Web Search'}});
     }catch(e){return []}
   }
-  async function fetchNewsRSS(q,type){
+  async function fetchNewsRSS(q){
     var rss='https://news.google.com/rss/search?q='+encodeURIComponent(q)+'&hl=en-IN&gl=IN&ceid=IN:en';
-    var urls=[
-      'https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rss),
-      'https://api.allorigins.win/raw?url='+encodeURIComponent(rss)
-    ];
+    var urls=['https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rss),'https://api.allorigins.win/raw?url='+encodeURIComponent(rss)];
     for(var i=0;i<urls.length;i++){
       try{
-        var res=await fetch(urls[i],{cache:'no-store'}); if(!res.ok)continue;
+        var res=await fetch(urls[i],{cache:'default'}); if(!res.ok)continue;
         var txt=await res.text(); var rows=[];
         if(txt.trim().charAt(0)==='{'){
           var json=JSON.parse(txt); rows=(json.items||[]).map(function(it){return {title:it.title,desc:it.description||it.content,url:it.link,source:'Live Web RSS'}});
@@ -16074,41 +16114,52 @@ document.addEventListener('DOMContentLoaded',function(){
     }
     return [];
   }
-  async function liveInternet(q,type){
+  async function fetchLiveOnce(q,type){
     var rows=await fetchBackend(q,type);
-    if(!rows.length)rows=await fetchTavily(q,type);
-    if(!rows.length)rows=await fetchNewsRSS(q,type);
+    if(!rows.length)rows=await fetchTavily(q);
+    if(!rows.length)rows=await fetchNewsRSS(q);
     var seen={};
-    return rows.map(function(r,i){return normalize(r,i,type)}).filter(function(o){
-      var k=(o.url||o.title).toLowerCase();
-      if(!o.title||!o.url||o.url==='#'||seen[k])return false; seen[k]=1; return true;
-    }).slice(0,5);
+    return rows.map(function(r,i){return normalize(r,i,type)}).filter(function(o){var k=(o.url||o.title).toLowerCase();if(!o.title||!o.url||o.url==='#'||seen[k])return false;seen[k]=1;return true;}).slice(0,5);
   }
-  function renderHomeOpp(items){
+
+  function renderHomeOpp(items,stamp){
     var list=document.getElementById('guidcy-live-opp-list'); if(!list)return;
-    if(!items.length){list.innerHTML='<div class="guidcy-live-opp-empty">Live opportunities are being refreshed from the web.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyRefreshHomeInternetOpportunities&&window.guidcyRefreshHomeInternetOpportunities()">Refresh now</button></div>';return;}
+    if(!items.length){list.innerHTML='<div class="guidcy-live-opp-empty">Daily opportunities cache is empty.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoOpportunitiesHome&&window.guidcyGoOpportunitiesHome()">Open Opportunities Page</button></div>';return;}
     list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-live-opp-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-live-opp-icon">'+esc(iconFor(o))+'</div><div><div class="guidcy-live-opp-title">'+esc(o.title)+'</div><div class="guidcy-live-opp-meta">'+esc(meta)+'</div></div><div class="guidcy-live-opp-side"><div class="guidcy-live-opp-badge '+esc(b[1])+'">'+esc(b[0])+'</div><div class="guidcy-live-opp-prize">'+esc(prizeFor(o))+'</div></div></div>'}).join('');
     list.querySelectorAll('.guidcy-live-opp-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
-    var foot=document.querySelector('.guidcy-live-opp-foot span'); if(foot)foot.textContent='✨ Live opportunities — auto-loaded from the web';
+    var foot=document.querySelector('.guidcy-live-opp-foot span'); if(foot)foot.textContent='✨ Daily opportunities — refreshed once every 24 hours';
   }
-  function renderStartup(items){
+  function renderStartup(items,stamp){
     var list=document.getElementById('guidcy-startup-live-list'); if(!list)return;
-    if(!items.length){list.innerHTML='<div class="guidcy-startup-live-empty">Live startup opportunities are being refreshed from the web.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyRefreshHomeInternetOpportunities&&window.guidcyRefreshHomeInternetOpportunities()">Refresh now</button></div>';return;}
+    if(!items.length){list.innerHTML='<div class="guidcy-startup-live-empty">Daily startup opportunities cache is empty.<br><button class="btn btn-blue" style="margin-top:12px" onclick="window.guidcyGoStartupOpportunities&&window.guidcyGoStartupOpportunities()">Open Startup Opportunities</button></div>';return;}
     list.innerHTML=items.map(function(o){var b=statusFor(o);var meta=[o.category,o.country,o.prize||o.desc].filter(Boolean).join(' · ');return '<div class="guidcy-startup-live-row" role="button" tabindex="0" data-url="'+esc(o.url)+'"><div class="guidcy-startup-live-ico">'+esc(iconFor(o))+'</div><div><div class="guidcy-startup-live-name">'+esc(o.title)+'</div><div class="guidcy-startup-live-meta">'+esc(meta)+'</div></div><div class="guidcy-startup-live-badge '+esc(b[1])+'">'+esc(b[0]).replace('Closes Soon','Closing!')+'</div></div>'}).join('');
     list.querySelectorAll('.guidcy-startup-live-row').forEach(function(row){function open(){var u=row.getAttribute('data-url');if(u&&u!=='#')window.open(u,'_blank','noopener')}row.onclick=open;row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}});
-    var foot=document.querySelector('.guidcy-startup-live-foot'); if(foot)foot.textContent='✨ Live startup opportunities auto-loaded from the web for founders, grants, accelerators, and investor events.';
+    var foot=document.querySelector('.guidcy-startup-live-foot'); if(foot)foot.textContent='✨ Daily startup opportunities — same for all users and refreshed once every 24 hours.';
+  }
+  async function getDaily(k,q,type){
+    var cached=await readShared(k);
+    if(cached)return cached;
+    var items=await fetchLiveOnce(q,type);
+    await writeShared(k,items);
+    return {items:items,refreshed_at:new Date().toISOString(),source:'fresh'};
   }
   async function refresh(){
-    try{if(typeof window.guidcyInitHomeLiveOpportunities==='function')window.guidcyInitHomeLiveOpportunities();if(typeof window.guidcyInitHomeStartupOpportunities==='function')window.guidcyInitHomeStartupOpportunities();}catch(e){}
+    if(refreshRunning)return; refreshRunning=true;
+    try{
+      if(typeof window.guidcyInitHomeLiveOpportunities==='function')window.guidcyInitHomeLiveOpportunities();
+      if(typeof window.guidcyInitHomeStartupOpportunities==='function')window.guidcyInitHomeStartupOpportunities();
+    }catch(e){}
     var homeQ='latest active hackathons scholarships competitions fellowships grants internships student opportunities official application deadline 2026 India global';
     var startupQ='latest startup grants accelerators incubators pitch competitions investor demo day funding opportunities official application deadline 2026 India global';
-    var both=await Promise.all([liveInternet(homeQ,'student'),liveInternet(startupQ,'startup')]);
-    renderHomeOpp(both[0]);
-    renderStartup(both[1]);
+    try{
+      var both=await Promise.all([getDaily(HOME_KEY,homeQ,'student'),getDaily(STARTUP_KEY,startupQ,'startup')]);
+      renderHomeOpp(both[0].items,both[0].refreshed_at);
+      renderStartup(both[1].items,both[1].refreshed_at);
+    }finally{refreshRunning=false;}
   }
   window.guidcyRefreshHomeInternetOpportunities=refresh;
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(refresh,1800);setTimeout(refresh,4500)});
-  setTimeout(refresh,2600);
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(refresh,600);setTimeout(refresh,2600);setTimeout(refresh,5200)});
+  setTimeout(refresh,1200);
 })();
 </script>
-<!-- === END GUIDCY HOME INTERNET OPPORTUNITY AUTO-LOAD FIX === -->
+<!-- === END GUIDCY HOME DAILY SHARED OPPORTUNITY CACHE FIX === -->
