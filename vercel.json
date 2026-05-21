@@ -12,6 +12,18 @@
       "handle": "filesystem"
     },
     {
+      "src": "/find-work/?",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/work/?",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/guidcy-work/?",
+      "dest": "/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
