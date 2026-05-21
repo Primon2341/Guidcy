@@ -12367,7 +12367,7 @@ body.gmob-open{overflow:hidden}
     const html=`<section class="guidcy-personal-section" id="guidcy-personalization-section">
       <div class="guidcy-personal-shell">
         <div class="guidcy-personal-head">
-          <div><div class="guidcy-personal-kicker">AI-powered personalization</div><h2 class="guidcy-personal-title">Made for your next step</h2><p class="guidcy-personal-sub">Personalized consultants, webinars, field trends and roadmap progress are generated from your latest searches, profile signals and live data.</p></div>
+          <div><div class="guidcy-personal-kicker">AI-powered personalization</div><h2 class="guidcy-personal-title">Made for your next step</h2><p class="guidcy-personal-sub">Personalized consultants, webinars, field trends and roadmap progress are generated from your latest searches, profile signals and live Supabase data.</p></div>
           <div class="guidcy-personal-refresh"><button class="btn btn-blue" onclick="guidcyRefreshPersonalization()">Refresh recommendations</button><button class="btn" onclick="go('browse')">Find the Expert</button></div>
         </div>
         <div class="guidcy-personal-tabs" id="guidcy-personal-tabs">
@@ -12669,6 +12669,143 @@ body.gmob-open{overflow:hidden}
 })();
 </script>
 <!-- === END GUIDCY MENU CORRECTION PATCH === -->
+
+
+
+<!-- === GUIDCY WORK SEARCH/FILTER UI FIX === -->
+<style id="guidcy-work-filter-ui-fix">
+/* Fix overlapping safety/search boxes and modernize Guidcy Work filters */
+#page-work .gw-wrap > .gw-safety{
+  margin:30px 0 18px!important;
+  border-radius:18px!important;
+  padding:16px 20px!important;
+  background:linear-gradient(135deg,#FFF7ED,#FFFDF8)!important;
+  border:1px solid #FDBA74!important;
+  box-shadow:0 8px 24px rgba(154,52,18,.06)!important;
+  position:relative!important;
+  z-index:1!important;
+}
+#page-work .gw-search-panel{
+  margin-top:0!important;
+  padding:22px!important;
+  border-radius:24px!important;
+  border:1px solid #D8E8F5!important;
+  box-shadow:0 18px 48px rgba(30,114,190,.13)!important;
+  position:relative!important;
+  z-index:2!important;
+}
+#page-work .gw-search-row{
+  grid-template-columns:minmax(260px,1.45fr) repeat(3,minmax(170px,1fr)) 120px!important;
+  gap:14px!important;
+  align-items:stretch!important;
+}
+#page-work .gw-filter-grid{
+  grid-template-columns:repeat(4,minmax(170px,1fr))!important;
+  gap:14px!important;
+  margin-top:16px!important;
+  align-items:stretch!important;
+}
+#page-work .gw-search-row input,
+#page-work .gw-search-row select,
+#page-work .gw-filter-grid select{
+  height:54px!important;
+  border:1.5px solid #D6E6F7!important;
+  border-radius:16px!important;
+  padding:0 46px 0 16px!important;
+  font-size:14.5px!important;
+  font-weight:600!important;
+  color:#102033!important;
+  background:#fff!important;
+  box-shadow:0 2px 10px rgba(30,114,190,.04)!important;
+  appearance:auto!important;
+}
+#page-work .gw-search-row input{
+  padding-right:16px!important;
+  font-weight:500!important;
+}
+#page-work .gw-search-row input::placeholder{
+  color:#7A90A6!important;
+  font-weight:500!important;
+}
+#page-work .gw-search-row input:focus,
+#page-work .gw-search-row select:focus,
+#page-work .gw-filter-grid select:focus{
+  border-color:var(--blue)!important;
+  box-shadow:0 0 0 4px rgba(30,114,190,.10)!important;
+}
+#page-work .gw-search-row .btn,
+#page-work .gw-filter-grid .btn{
+  height:54px!important;
+  border-radius:16px!important;
+  font-size:14.5px!important;
+  font-weight:800!important;
+  padding:0 22px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-shadow:0 10px 22px rgba(30,114,190,.12)!important;
+}
+#page-work .gw-filter-grid .btn:not(.btn-blue):not(.btn-green){
+  background:#F8FBFF!important;
+  border-color:#D6E6F7!important;
+  color:#1E3A5F!important;
+  box-shadow:none!important;
+}
+#page-work .gw-filter-grid .btn:not(.btn-blue):not(.btn-green):hover{
+  background:#EBF4FF!important;
+  border-color:#B8D4EC!important;
+}
+#page-work .gw-checkbox{
+  min-height:54px!important;
+  border-radius:16px!important;
+  padding:0 16px!important;
+  font-size:14px!important;
+  font-weight:700!important;
+  color:#1E3A5F!important;
+  background:#F8FBFF!important;
+  border:1.5px solid #D6E6F7!important;
+  box-shadow:0 2px 10px rgba(30,114,190,.04)!important;
+}
+#page-work .gw-checkbox input{
+  width:18px!important;
+  height:18px!important;
+  accent-color:var(--blue)!important;
+}
+@media(max-width:1180px){
+  #page-work .gw-search-row{grid-template-columns:1fr 1fr!important}
+  #page-work .gw-filter-grid{grid-template-columns:1fr 1fr!important}
+  #page-work .gw-search-row .btn{grid-column:1/-1!important}
+}
+@media(max-width:900px){
+  #page-work .gw-wrap > .gw-safety{
+    margin:22px 16px 14px!important;
+    padding:14px 16px!important;
+    font-size:13px!important;
+  }
+  #page-work .gw-search-panel{
+    margin:0 16px!important;
+    padding:16px!important;
+    border-radius:20px!important;
+  }
+  #page-work .gw-search-row,
+  #page-work .gw-filter-grid{
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+  }
+  #page-work .gw-search-row input,
+  #page-work .gw-search-row select,
+  #page-work .gw-filter-grid select,
+  #page-work .gw-search-row .btn,
+  #page-work .gw-filter-grid .btn,
+  #page-work .gw-checkbox{
+    width:100%!important;
+    min-height:52px!important;
+    height:52px!important;
+    font-size:16px!important;
+  }
+}
+</style>
+<!-- === END GUIDCY WORK SEARCH/FILTER UI FIX === -->
 
 </body>
 </html>
