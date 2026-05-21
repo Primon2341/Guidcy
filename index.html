@@ -18660,3 +18660,45 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 <!-- === END GUIDCY DEBUG FIX PACK === -->
+
+<!-- === GUIDCY PATCH: Keep Find Work visible after browser refresh === -->
+<script id="guidcy-find-work-refresh-same-page-fix">
+(function(){
+  function isFindWorkRoute(){
+    var hash = String(location.hash || '').replace(/^#/, '').toLowerCase();
+    var path = String(location.pathname || '/').replace(/\/+$/, '') || '/';
+    return hash === 'find-work' || hash === 'work' || hash === 'guidcy-work' ||
+           path === '/find-work' || path === '/work' || path === '/guidcy-work';
+  }
+  function openFindWorkNoHome(attempt){
+    attempt = attempt || 0;
+    if(!isFindWorkRoute()) return;
+    try{
+      if(typeof window.go === 'function'){
+        window.go('work');
+      }
+      var page = document.getElementById('page-work');
+      if(page){
+        document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); });
+        page.classList.add('on');
+        if(window.GuidcyWork && typeof window.GuidcyWork.render === 'function'){
+          window.GuidcyWork.render();
+        }else if(typeof window.guidcyWorkRender === 'function'){
+          window.guidcyWorkRender();
+        }
+        try{ history.replaceState({page:'work'}, '', '/#find-work'); }catch(e){}
+        return;
+      }
+    }catch(e){ console.warn('Find Work refresh route retry', e); }
+    if(attempt < 25){
+      setTimeout(function(){ openFindWorkNoHome(attempt + 1); }, 120);
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){ openFindWorkNoHome(0); });
+  window.addEventListener('load', function(){ openFindWorkNoHome(0); setTimeout(function(){openFindWorkNoHome(0);}, 600); });
+  window.addEventListener('hashchange', function(){ openFindWorkNoHome(0); });
+  window.addEventListener('popstate', function(){ openFindWorkNoHome(0); });
+})();
+</script>
+<!-- === END GUIDCY PATCH === -->
+
