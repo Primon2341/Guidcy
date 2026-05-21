@@ -2563,13 +2563,16 @@ function getPageFromPath(){
     '/admin-dash':'admin-dash','/admin-dash.html':'admin-dash'
   };
   if(map[p]) return map[p];
-  const h=(window.location.hash||'').replace('#','');
+  const h=(window.location.hash||'').replace('#','').trim().toLowerCase();
+  if(h==='find-work'||h==='work'||h==='guidcy-work') return 'work';
   return h || 'home';
 }
 const PAGE_URLS={
   home:'/',
   browse:'/browse',
   jobs:'/jobs',
+  work:'/#find-work',
+  'find-work':'/#find-work',
   categories:'/categories',
   blog:'/blog',
   become:'/become',
@@ -2601,12 +2604,18 @@ function renderPage(page){
   /* Create dynamic pages before checking for page element */
   try{
     if(page==='jobs' && !document.getElementById('page-jobs') && typeof ensureJobs==='function') ensureJobs();
+    if((page==='work'||page==='find-work'||page==='guidcy-work') && !document.getElementById('page-work')){
+      if(window.GuidcyWork && typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage();
+      else if(typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage();
+    }
     if(page==='smart-finder' && !document.getElementById('page-smart-finder') && typeof buildSmartFinderPage==='function') buildSmartFinderPage();
   }catch(e){}
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  const el=document.getElementById('page-'+page); if(!el)return;
+  const targetPage=(page==='find-work'||page==='guidcy-work')?'work':page;
+  const el=document.getElementById('page-'+targetPage); if(!el)return;
   el.classList.add('on'); window.scrollTo(0,0);
+  page=targetPage;
 
   ({
     home:initHome,
@@ -2615,6 +2624,7 @@ function renderPage(page){
     blog:renderGuidcyBlog,
     faq:initFAQ,
     jobs:()=>{try{ if(typeof renderJobsList==='function') renderJobsList(); }catch(e){}},
+    work:()=>{try{ if(window.GuidcyWork && typeof window.GuidcyWork.render==='function') window.GuidcyWork.render(); else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender(); }catch(e){}},
     'smart-finder':()=>{try{ if(typeof buildSmartFinderPage==='function') buildSmartFinderPage(); }catch(e){}},
     'opportunities':()=>{try{ if(typeof initOpportunitiesFinder==='function') initOpportunitiesFinder(); }catch(e){}},
     'user-dash':()=>swUD('upcoming',null),
@@ -13028,6 +13038,69 @@ body.gmob-open{overflow:hidden}
 </script>
 <!-- === END GUIDCY ULTIMATE FIND WORK HASH ROUTE PATCH === -->
 
+
+
+<!-- === GUIDCY ROUTING ROOT-CAUSE FIX: Find Work hash/state route guard === -->
+<script id="guidcy-find-work-root-cause-route-guard">
+(function(){
+  var WORK_PAGE='work';
+  var WORK_URL='/#find-work';
+  function cleanPath(){return String(location.pathname||'/').split('?')[0].replace(/\/+$/,'')||'/';}
+  function cleanHash(){return String(location.hash||'').replace(/^#/,'').trim().toLowerCase();}
+  function isFindWorkIntent(){
+    var h=cleanHash(), p=cleanPath();
+    return h==='find-work'||h==='work'||h==='guidcy-work'||p==='/find-work'||p==='/work'||p==='/guidcy-work'||(history.state&&history.state.page===WORK_PAGE);
+  }
+  function ensureWorkPageNow(){
+    try{ if(window.GuidcyWork&&typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage(); }catch(e){}
+    try{ if(!document.getElementById('page-work')&&typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage(); }catch(e){}
+  }
+  function showWork(replaceOnly){
+    if(!isFindWorkIntent()) return false;
+    try{ (replaceOnly?history.replaceState:history.pushState).call(history,{page:WORK_PAGE},'',WORK_URL); }catch(e){}
+    ensureWorkPageNow();
+    try{ if(window.GuidcyWork&&typeof window.GuidcyWork.render==='function') window.GuidcyWork.render(); else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender(); }catch(e){console.warn('Find Work render failed',e)}
+    var pg=document.getElementById('page-work');
+    if(!pg) return false;
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active');});
+    pg.classList.add('on');
+    try{document.querySelectorAll('.nav-link').forEach(function(b){b.classList.toggle('on',(b.textContent||'').replace(/\s+/g,' ').trim().toLowerCase()==='find work');});}catch(e){}
+    return true;
+  }
+  var oldGo=window.go;
+  window.go=function(page){
+    if(page===WORK_PAGE||page==='find-work'||page==='guidcy-work') return showWork(false);
+    if((page==='home'||!page)&&isFindWorkIntent()) return showWork(true);
+    return typeof oldGo==='function'?oldGo.apply(this,arguments):undefined;
+  };
+  var oldRender=window.renderPage;
+  if(typeof oldRender==='function'){
+    window.renderPage=function(page){
+      if(page===WORK_PAGE||page==='find-work'||page==='guidcy-work') return showWork(true);
+      if((page==='home'||!page)&&isFindWorkIntent()) return showWork(true);
+      return oldRender.apply(this,arguments);
+    };
+  }
+  function wire(){
+    try{document.querySelectorAll('button,a').forEach(function(el){
+      var t=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      var h=(el.getAttribute&&String(el.getAttribute('href')||'').toLowerCase())||'';
+      var oc=(el.getAttribute&&String(el.getAttribute('onclick')||''))||'';
+      if(t==='find work'||h==='/find-work'||h==='#find-work'||oc.indexOf("go('work")>-1||oc.indexOf('go("work')>-1){
+        if(el.tagName&&el.tagName.toLowerCase()==='a') el.setAttribute('href',WORK_URL);
+        el.onclick=function(e){if(e)e.preventDefault();try{closeMobileMenu()}catch(_){}try{closeMobDrawer()}catch(_){}showWork(false);return false;};
+      }
+    });}catch(e){}
+  }
+  function boot(){wire(); if(isFindWorkIntent()){showWork(true); var n=0,t=setInterval(function(){n++; if(!isFindWorkIntent()||n>80){clearInterval(t);return;} var w=document.getElementById('page-work'), h=document.getElementById('page-home'); if(!w||!w.classList.contains('on')||(h&&h.classList.contains('on'))) showWork(true);},100);}}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  window.addEventListener('load',function(){boot();setTimeout(boot,300);setTimeout(boot,1200);});
+  window.addEventListener('hashchange',function(){setTimeout(function(){if(isFindWorkIntent())showWork(true);},0);});
+  window.addEventListener('popstate',function(){setTimeout(function(){if(isFindWorkIntent())showWork(true);},0);});
+})();
+</script>
+<!-- === END GUIDCY ROUTING ROOT-CAUSE FIX === -->
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
@@ -18516,7 +18589,9 @@ document.addEventListener('DOMContentLoaded',function(){
   function sendWorkEmail(event,payload){try{if(typeof emailjs==='undefined'||typeof CFG==='undefined'||!CFG.emailjs_service_id)return; const params={event, to_email:payload.employer_email||payload.applicant_email||CFG.admin_email, message:JSON.stringify(payload).slice(0,1000)}; emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user, params).catch(e=>console.warn('Work email skipped',e));}catch(e){console.warn('Work email skipped',e)}}
   function searchHook(){if(window.__gwSearchHooked)return; window.__gwSearchHooked=true; const old=window.doHeroSearch|| (typeof doHeroSearch==='function'?doHeroSearch:null); if(old)window.doHeroSearch=function(){try{const q=norm($('srch')?.value); if(WORK_KEYWORDS.some(k=>q.includes(k))){go('work'); setTimeout(()=>{if($('gw-search')){$('gw-search').value=$('srch').value;renderWork()}},180); return}}catch(e){} return old.apply(this,arguments)}}
   function wrapGo(){if(window.__gwGoWrapped)return; const old=window.go|| (typeof go==='function'?go:null); if(!old)return; window.__gwGoWrapped=true; window.go=function(page){if(page==='work'){ensurePage(); try{history.pushState({page:'work'},'','/#find-work')}catch(e){} document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); $('page-work').classList.add('on'); window.scrollTo(0,0); renderWork(); ensureNav(); hookDash(); return} return old.apply(this,arguments)}; try{if(typeof PAGE_URLS!=='undefined')PAGE_URLS.work='/#find-work'}catch(e){} }
-  function pathBoot(){const p=location.pathname.replace(/\/$/,''); if(p==='/find-work'||p==='/work'||p==='/guidcy-work'){setTimeout(()=>go('work'),200)}}
+  function pathBoot(){const p=location.pathname.replace(/\/$/,''); const h=String(location.hash||'').replace('#',''); if(p==='/find-work'||p==='/work'||p==='/guidcy-work'||h==='find-work'||h==='work'||h==='guidcy-work'){setTimeout(()=>go('work'),200)}}
+  window.guidcyEnsureWorkPage=ensurePage;
+  window.GuidcyWork=Object.assign(window.GuidcyWork||{},{ensurePage:ensurePage});
   function init(){injectCSS(); ensureNav(); ensurePage(); wrapGo(); wrapDash(); hookDash(); searchHook(); pathBoot(); setTimeout(()=>{ensureNav();hookDash()},500); setTimeout(()=>{ensureNav();hookDash()},1600)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
   window.GuidcyWork={render:renderWork,post:()=>window.guidcyWorkPost(),categories:GW_CATEGORIES};
@@ -18704,6 +18779,9 @@ document.addEventListener('DOMContentLoaded',function(){
   window.guidcyWorkPost=function(){ if(!isLogged()){toast('Please login to post a work opportunity.','blue');try{go('login')}catch(e){}return} if(!canPost()){toast('Please register as a consultant or employer to post work opportunities.','blue');return} ensureModal(); const email=userEmail(); const name=fullName(); $('gw-modal-content').innerHTML=`<div class="gw-modal-head"><div class="gw-job-title" style="font-size:24px">Post Work Opportunity</div><div class="gw-company">Hire verified students, freelancers, creators, and part-time professionals for remote work, startup tasks, content creation, and business support.</div></div><div class="gw-modal-body"><form id="gw-post-work-form" class="gw-form" onsubmit="guidcyWorkSubmitPost(event)"><h3>Basic Information</h3><div class="gw-form-grid"><div><label>Job title</label><input id="gwp-title" required></div><div><label>Category</label><select id="gwp-category" required>${fieldOptions(GW_CATEGORIES)}</select></div><div><label>Work type</label><select id="gwp-type" required>${fieldOptions(GW_TYPES)}</select></div><div><label>Work mode</label><select id="gwp-mode" required>${fieldOptions(GW_MODES)}</select></div><div><label>Employer name / company name</label><input id="gwp-employer" required value="${esc(name)}"></div><div><label>Employer email</label><input id="gwp-email" type="email" required value="${esc(email)}"></div><div><label>Employer phone optional</label><input id="gwp-phone"></div><div><label>Company/brand website optional</label><input id="gwp-website"></div><div class="full"><label>LinkedIn/company profile link optional</label><input id="gwp-linkedin"></div></div><h3>Work Details</h3><div class="gw-form-grid"><div class="full"><label>Job description</label><textarea id="gwp-desc" rows="4" required></textarea></div><div class="full"><label>Key responsibilities</label><textarea id="gwp-resp" rows="4" required></textarea></div><div class="full"><label>Required skills</label><input id="gwp-skills" placeholder="Video editing, Canva, Instagram, research" required></div><div><label>Experience level</label><select id="gwp-exp">${fieldOptions(GW_EXP)}</select></div><div><label>Expected working hours</label><input id="gwp-hours" placeholder="2 hours/day"></div><div><label>Duration</label><select id="gwp-duration">${fieldOptions(GW_DUR)}</select></div><div><label>Number of openings</label><input id="gwp-openings" type="number" min="1" value="1"></div><div><label>Application deadline</label><input id="gwp-deadline" type="date"></div><div><label>Start date</label><input id="gwp-start" type="date"></div></div><h3>Payment Details</h3><div class="gw-form-grid"><div><label>Pay type</label><select id="gwp-paytype">${fieldOptions(GW_PAY_TYPES)}</select></div><div><label>Minimum budget</label><input id="gwp-min" type="number" min="0"></div><div><label>Maximum budget</label><input id="gwp-max" type="number" min="0"></div><div><label>Currency</label><input id="gwp-cur" value="₹"></div><div><label>Payment frequency</label><select id="gwp-freq">${fieldOptions(GW_FREQ)}</select></div></div><h3>Application Requirements</h3><div class="gw-form-grid"><div><label>Resume required</label><select id="gwp-resume"><option value="true">Yes</option><option value="false">No</option></select></div><div><label>Portfolio required</label><select id="gwp-portfolio"><option value="false">No</option><option value="true">Yes</option></select></div><div><label>Cover letter/proposal required</label><select id="gwp-proposal"><option value="true">Yes</option><option value="false">No</option></select></div><div class="full"><label>Additional question</label><input id="gwp-question" placeholder="Why are you suitable for this role?"></div></div><button type="submit" class="primary-btn" style="margin-top:18px">Submit for Admin Approval</button></form></div>`; $('gw-modal').classList.add('on')};
   window.guidcyWorkSubmitPost=async function(ev){ev.preventDefault(); const client=sbc(); if(!client){toast('Something went wrong. Please try again.','red');return} const btn=ev.submitter||ev.target.querySelector('button[type="submit"]'); try{if(btn){btn.disabled=true;btn.textContent='Submitting...'} const payload={posted_by:uid(),posted_by_role:role()||'consultant',employer_name:$('gwp-employer').value.trim(),employer_email:$('gwp-email').value.trim(),employer_phone:$('gwp-phone').value.trim(),company_name:$('gwp-employer').value.trim(),company_website:$('gwp-website').value.trim(),linkedin_url:$('gwp-linkedin').value.trim(),title:$('gwp-title').value.trim(),category:$('gwp-category').value,work_type:$('gwp-type').value,work_mode:$('gwp-mode').value,description:$('gwp-desc').value.trim(),responsibilities:$('gwp-resp').value.trim(),required_skills:$('gwp-skills').value.trim(),experience_level:$('gwp-exp').value,expected_hours:$('gwp-hours').value.trim(),duration:$('gwp-duration').value,openings:Number($('gwp-openings').value||1),application_deadline:$('gwp-deadline').value||null,start_date:$('gwp-start').value||null,pay_type:$('gwp-paytype').value,min_budget:Number($('gwp-min').value||0),max_budget:Number($('gwp-max').value||0),currency:$('gwp-cur').value||'₹',payment_frequency:$('gwp-freq').value,resume_required:$('gwp-resume').value==='true',portfolio_required:$('gwp-portfolio').value==='true',proposal_required:$('gwp-proposal').value==='true',additional_question:$('gwp-question').value.trim(),status:'pending',verification_status:'unverified',is_featured:false,is_urgent:false,applicants_count:0}; const {error}=await client.from('job_posts').insert(payload); if(error)throw error; await sendWorkEmail('job_posted_for_approval',Object.assign({},payload,{message:`Your work opportunity "${payload.title}" was submitted for admin approval.`})); toast('Work opportunity submitted successfully. It will appear after admin approval.','green'); guidcyWorkClose()}catch(e){console.warn(e);toast('Something went wrong. Please try again.','red')}finally{if(btn){btn.disabled=false;btn.textContent='Submit for Admin Approval'}}};
 
+  window.guidcyEnsureWorkPage=ensureWorkPage;
+  window.GuidcyWork=Object.assign(window.GuidcyWork||{},{ensurePage:ensureWorkPage});
+
   // Force SPA-safe Find Work routing and back/forward support. Server fallback still needs vercel.json rewrite.
   const previousGo=window.go;
   window.go=function(page){
@@ -18785,6 +18863,8 @@ document.addEventListener('DOMContentLoaded',function(){
     try{
       if(pushUrl) setUrl(true); else setUrl(false);
       try{
+        if(window.GuidcyWork && typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage();
+        else if(typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage();
         if(window.GuidcyWork && typeof window.GuidcyWork.render==='function') window.GuidcyWork.render();
         else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender();
       }catch(e){console.warn('Guidcy Work render retry:', e);}
