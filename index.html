@@ -12897,63 +12897,75 @@ body.gmob-open{overflow:hidden}
 
 
 
-<!-- === GUIDCY FIND WORK HARD REFRESH / DIRECT ROUTE FIX === -->
-<script id="guidcy-find-work-direct-route-fix">
+<!-- === GUIDCY FINAL FIX: Find Work refresh-safe routing inside index only === -->
+<script id="guidcy-find-work-hash-route-final-fix">
 (function(){
-  'use strict';
+  function isFindWorkHash(){
+    var h=String(location.hash||'').replace(/^#/, '').toLowerCase();
+    return h==='find-work'||h==='work'||h==='guidcy-work';
+  }
   function isFindWorkPath(){
-    var p=(window.location.pathname||'/').replace(/\/$/,'') || '/';
-    return p==='/find-work' || p==='/work' || p==='/guidcy-work';
+    var p=String(location.pathname||'/').replace(/\/+$/,'')||'/';
+    return p==='/find-work'||p==='/work'||p==='/guidcy-work';
   }
-  function openFindWork(pushMode){
+  function safeHashUrl(){ return '/#find-work'; }
+  function normalizeFindWorkUrl(){
     try{
-      if(typeof window.PAGE_URLS==='object') window.PAGE_URLS.work='/find-work';
-      if(window.location.pathname.replace(/\/$/,'')==='/work' || window.location.pathname.replace(/\/$/,'')==='/guidcy-work'){
-        history.replaceState({page:'work'},'', '/find-work');
-      }
+      if(location.pathname !== '/' || !isFindWorkHash()) history.replaceState({page:'work'},'',safeHashUrl());
     }catch(e){}
-    try{
-      if(typeof window.go==='function'){
-        if(pushMode===false){
-          var originalPush=history.pushState;
-          history.pushState=function(state,title,url){
-            try{return history.replaceState(state,title,url||'/find-work')}catch(e){return originalPush.apply(history,arguments)}
-          };
-          try{window.go('work')}finally{history.pushState=originalPush; try{history.replaceState({page:'work'},'', '/find-work')}catch(e){}}
-        }else{
-          window.go('work');
-        }
-        return true;
-      }
-    }catch(e){console.warn('Find Work route boot failed',e)}
-    try{
-      var page=document.getElementById('page-work');
-      if(page){
-        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on','active')});
-        page.classList.add('on');
-        if(typeof window.renderWork==='function') window.renderWork();
-        window.scrollTo(0,0);
-        return true;
-      }
-    }catch(e){}
-    return false;
   }
-  function bootFindWork(){
-    if(!isFindWorkPath()) return;
-    var tries=0;
-    (function tick(){
-      tries++;
-      if(openFindWork(false) || tries>30) return;
-      setTimeout(tick,100);
-    })();
+  function showFindWork(){
+    try{
+      if(typeof window.go==='function' && !window.__guidcyFindWorkRoutingNow){
+        window.__guidcyFindWorkRoutingNow=true;
+        try{ window.__guidcyFindWorkOldGo && window.__guidcyFindWorkOldGo('work'); }
+        catch(e){ try{ window.go('work'); }catch(_){} }
+        window.__guidcyFindWorkRoutingNow=false;
+      }
+      normalizeFindWorkUrl();
+      if(window.GuidcyWork && typeof window.GuidcyWork.render==='function'){
+        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on')});
+        var pg=document.getElementById('page-work');
+        if(pg) pg.classList.add('on');
+        window.GuidcyWork.render();
+      }
+    }catch(e){ console.warn('Find Work route render failed',e); }
   }
-  window.addEventListener('popstate',function(){setTimeout(function(){if(isFindWorkPath())openFindWork(false)},60)});
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(bootFindWork,30);setTimeout(bootFindWork,400);setTimeout(bootFindWork,1200)});
-  window.addEventListener('load',function(){setTimeout(bootFindWork,100);setTimeout(bootFindWork,900)});
-  if(isFindWorkPath()) setTimeout(bootFindWork,10);
+  function wireFindWorkButtons(){
+    document.querySelectorAll('button,a').forEach(function(el){
+      var txt=(el.textContent||'').trim().toLowerCase();
+      var href=(el.getAttribute&&el.getAttribute('href')||'').toLowerCase();
+      if(txt==='find work' || href==='/find-work' || href==='/work' || href==='/guidcy-work'){
+        if(el.tagName==='A') el.setAttribute('href','#find-work');
+        el.onclick=function(ev){
+          if(ev){ev.preventDefault();ev.stopPropagation();}
+          showFindWork();
+          try{ if(typeof closeMobileMenu==='function') closeMobileMenu(); }catch(e){}
+          return false;
+        };
+      }
+    });
+  }
+  function install(){
+    if(!window.__guidcyFindWorkOldGo && typeof window.go==='function') window.__guidcyFindWorkOldGo=window.go;
+    window.go=function(page){
+      if(page==='work'||page==='find-work'||page==='guidcy-work'){
+        showFindWork();
+        return;
+      }
+      return window.__guidcyFindWorkOldGo ? window.__guidcyFindWorkOldGo.apply(this,arguments) : undefined;
+    };
+    try{ if(typeof PAGE_URLS!=='undefined') PAGE_URLS.work='#find-work'; }catch(e){}
+    wireFindWorkButtons();
+    if(isFindWorkPath() || isFindWorkHash()) setTimeout(showFindWork,60);
+  }
+  document.addEventListener('DOMContentLoaded',function(){ install(); setTimeout(install,300); setTimeout(install,1200); });
+  window.addEventListener('load',function(){ install(); setTimeout(install,800); });
+  window.addEventListener('hashchange',function(){ if(isFindWorkHash()) showFindWork(); });
+  window.addEventListener('popstate',function(){ if(isFindWorkHash()||isFindWorkPath()) setTimeout(showFindWork,30); });
 })();
 </script>
-<!-- === END GUIDCY FIND WORK HARD REFRESH / DIRECT ROUTE FIX === -->
+<!-- === END GUIDCY FINAL FIX: Find Work refresh-safe routing inside index only === -->
 
 </body>
 </html>
@@ -18442,7 +18454,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function sendWorkEmail(event,payload){try{if(typeof emailjs==='undefined'||typeof CFG==='undefined'||!CFG.emailjs_service_id)return; const params={event, to_email:payload.employer_email||payload.applicant_email||CFG.admin_email, message:JSON.stringify(payload).slice(0,1000)}; emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user, params).catch(e=>console.warn('Work email skipped',e));}catch(e){console.warn('Work email skipped',e)}}
   function searchHook(){if(window.__gwSearchHooked)return; window.__gwSearchHooked=true; const old=window.doHeroSearch|| (typeof doHeroSearch==='function'?doHeroSearch:null); if(old)window.doHeroSearch=function(){try{const q=norm($('srch')?.value); if(WORK_KEYWORDS.some(k=>q.includes(k))){go('work'); setTimeout(()=>{if($('gw-search')){$('gw-search').value=$('srch').value;renderWork()}},180); return}}catch(e){} return old.apply(this,arguments)}}
-  function wrapGo(){if(window.__gwGoWrapped)return; const old=window.go|| (typeof go==='function'?go:null); if(!old)return; window.__gwGoWrapped=true; window.go=function(page){if(page==='work'){ensurePage(); try{history.pushState({page:'work'},'','/find-work')}catch(e){} document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); $('page-work').classList.add('on'); window.scrollTo(0,0); renderWork(); ensureNav(); hookDash(); return} return old.apply(this,arguments)}; try{if(typeof PAGE_URLS!=='undefined')PAGE_URLS.work='/find-work'}catch(e){} }
+  function wrapGo(){if(window.__gwGoWrapped)return; const old=window.go|| (typeof go==='function'?go:null); if(!old)return; window.__gwGoWrapped=true; window.go=function(page){if(page==='work'){ensurePage(); try{history.pushState({page:'work'},'','/#find-work')}catch(e){} document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); $('page-work').classList.add('on'); window.scrollTo(0,0); renderWork(); ensureNav(); hookDash(); return} return old.apply(this,arguments)}; try{if(typeof PAGE_URLS!=='undefined')PAGE_URLS.work='/find-work'}catch(e){} }
   function pathBoot(){const p=location.pathname.replace(/\/$/,''); if(p==='/find-work'||p==='/work'||p==='/guidcy-work'){setTimeout(()=>go('work'),200)}}
   function init(){injectCSS(); ensureNav(); ensurePage(); wrapGo(); wrapDash(); hookDash(); searchHook(); pathBoot(); setTimeout(()=>{ensureNav();hookDash()},500); setTimeout(()=>{ensureNav();hookDash()},1600)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
@@ -18635,7 +18647,7 @@ document.addEventListener('DOMContentLoaded',function(){
   const previousGo=window.go;
   window.go=function(page){
     if(page==='work'||page==='find-work'){
-      ensureWorkPage(); try{history.pushState({page:'work'},'','/find-work')}catch(e){}
+      ensureWorkPage(); try{history.pushState({page:'work'},'','/#find-work')}catch(e){}
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
       $('page-work')?.classList.add('on'); window.scrollTo(0,0); renderWork(); return;
     }
