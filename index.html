@@ -2560,7 +2560,10 @@ function getPageFromPath(){
 
     '/admin':'admin-dash','/admin.html':'admin-dash',
     '/admin-dashboard':'admin-dash','/admin-dashboard.html':'admin-dash',
-    '/admin-dash':'admin-dash','/admin-dash.html':'admin-dash'
+    '/admin-dash':'admin-dash','/admin-dash.html':'admin-dash',
+
+    '/find-work':'work','/find-work.html':'work',
+    '/work':'work','/work.html':'work'
   };
   if(map[p]) return map[p];
   const h=(window.location.hash||'').replace('#','').trim().toLowerCase();
@@ -2571,8 +2574,8 @@ const PAGE_URLS={
   home:'/',
   browse:'/browse',
   jobs:'/jobs',
-  work:'/#find-work',
-  'find-work':'/#find-work',
+  work:'/find-work',
+  'find-work':'/find-work',
   categories:'/categories',
   blog:'/blog',
   become:'/become',
@@ -6362,9 +6365,10 @@ cancelBooking=async function(bookingId,role){
   window.CATEGORIES_FULL=MAIN_CATEGORIES;
   function gid(id){return document.getElementById(id)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/webinar':'webinar','/webinars':'webinar','/smart-finder':'smart-finder','/opportunities':'opportunities','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash'};return map[p]||'home'}
+  function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/webinar':'webinar','/webinars':'webinar','/smart-finder':'smart-finder','/opportunities':'opportunities','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash','/find-work':'work','/work':'work'};return map[p]||'home'}
   window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {
   home:'/',browse:'/browse',jobs:'/jobs',categories:'/categories',blog:'/blog',
+  work:'/find-work','find-work':'/find-work',
   become:'/become',webinar:'/webinar','smart-finder':'/smart-finder',opportunities:'/opportunities',
   login:'/login',signup:'/get-started',
   about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',
@@ -12907,199 +12911,19 @@ body.gmob-open{overflow:hidden}
 
 
 
-<!-- === GUIDCY FINAL FIX: Find Work refresh-safe routing inside index only === -->
-<script id="guidcy-find-work-hash-route-final-fix">
-(function(){
-  function isFindWorkHash(){
-    var h=String(location.hash||'').replace(/^#/, '').toLowerCase();
-    return h==='find-work'||h==='work'||h==='guidcy-work';
-  }
-  function isFindWorkPath(){
-    var p=String(location.pathname||'/').replace(/\/+$/,'')||'/';
-    return p==='/find-work'||p==='/work'||p==='/guidcy-work';
-  }
-  function safeHashUrl(){ return '/#find-work'; }
-  function normalizeFindWorkUrl(){
-    try{
-      if(location.pathname !== '/' || !isFindWorkHash()) history.replaceState({page:'work'},'',safeHashUrl());
-    }catch(e){}
-  }
-  function showFindWork(){
-    try{
-      if(typeof window.go==='function' && !window.__guidcyFindWorkRoutingNow){
-        window.__guidcyFindWorkRoutingNow=true;
-        try{ window.__guidcyFindWorkOldGo && window.__guidcyFindWorkOldGo('work'); }
-        catch(e){ try{ window.go('work'); }catch(_){} }
-        window.__guidcyFindWorkRoutingNow=false;
-      }
-      normalizeFindWorkUrl();
-      if(window.GuidcyWork && typeof window.GuidcyWork.render==='function'){
-        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on')});
-        var pg=document.getElementById('page-work');
-        if(pg) pg.classList.add('on');
-        window.GuidcyWork.render();
-      }
-    }catch(e){ console.warn('Find Work route render failed',e); }
-  }
-  function wireFindWorkButtons(){
-    document.querySelectorAll('button,a').forEach(function(el){
-      var txt=(el.textContent||'').trim().toLowerCase();
-      var href=(el.getAttribute&&el.getAttribute('href')||'').toLowerCase();
-      if(txt==='find work' || href==='/find-work' || href==='/work' || href==='/guidcy-work'){
-        if(el.tagName==='A') el.setAttribute('href','#find-work');
-        el.onclick=function(ev){
-          if(ev){ev.preventDefault();ev.stopPropagation();}
-          showFindWork();
-          try{ if(typeof closeMobileMenu==='function') closeMobileMenu(); }catch(e){}
-          return false;
-        };
-      }
-    });
-  }
-  function install(){
-    if(!window.__guidcyFindWorkOldGo && typeof window.go==='function') window.__guidcyFindWorkOldGo=window.go;
-    window.go=function(page){
-      if(page==='work'||page==='find-work'||page==='guidcy-work'){
-        showFindWork();
-        return;
-      }
-      return window.__guidcyFindWorkOldGo ? window.__guidcyFindWorkOldGo.apply(this,arguments) : undefined;
-    };
-    try{ if(typeof PAGE_URLS!=='undefined') PAGE_URLS.work='#find-work'; }catch(e){}
-    wireFindWorkButtons();
-    if(isFindWorkPath() || isFindWorkHash()) setTimeout(showFindWork,60);
-  }
-  document.addEventListener('DOMContentLoaded',function(){ install(); setTimeout(install,300); setTimeout(install,1200); });
-  window.addEventListener('load',function(){ install(); setTimeout(install,800); });
-  window.addEventListener('hashchange',function(){ if(isFindWorkHash()) showFindWork(); });
-  window.addEventListener('popstate',function(){ if(isFindWorkHash()||isFindWorkPath()) setTimeout(showFindWork,30); });
-})();
-</script>
-<!-- === END GUIDCY FINAL FIX: Find Work refresh-safe routing inside index only === -->
+<!-- Find Work intermediate routing patches removed — core SPA router handles /find-work clean path -->
 
 
 
-<!-- === GUIDCY ULTIMATE PATCH: Find Work uses hash route to avoid Vercel 404 and stay on same page === -->
-<script id="guidcy-ultimate-find-work-hash-route-patch">
-(function(){
-  var WORK_HASH_URL = '/#find-work';
-  var guard = false;
-  function isWork(){
-    var h = String(location.hash||'').replace(/^#/,'').toLowerCase();
-    var p = String(location.pathname||'/').replace(/\/+$/,'') || '/';
-    return h==='find-work' || h==='work' || h==='guidcy-work' || p==='/find-work' || p==='/work' || p==='/guidcy-work' || (history.state&&history.state.page==='work');
-  }
-  function ensureWorkPageExists(){
-    try{ if(!document.getElementById('page-work') && window.GuidcyWork && typeof window.GuidcyWork.render==='function'){ window.GuidcyWork.render(); } }catch(e){}
-    try{ if(!document.getElementById('page-work') && typeof window.guidcyWorkRender==='function'){ window.guidcyWorkRender(); } }catch(e){}
-  }
-  function showWork(replace){
-    if(guard) return;
-    guard = true;
-    try{
-      if(String(location.pathname||'/') !== '/' || String(location.hash||'') !== '#find-work'){
-        (replace?history.replaceState:history.pushState).call(history,{page:'work'},'',WORK_HASH_URL);
-      }
-      ensureWorkPageExists();
-      var page = document.getElementById('page-work');
-      if(page){
-        document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); p.classList.remove('active'); });
-        page.classList.add('on');
-        try{ if(window.GuidcyWork && typeof window.GuidcyWork.render==='function') window.GuidcyWork.render(); else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender(); }catch(e){}
-        try{document.querySelectorAll('.nav-link').forEach(function(b){ b.classList.toggle('on',(b.textContent||'').trim().toLowerCase()==='find work'); });}catch(e){}
-      }
-    }catch(e){console.warn('Find Work hash route patch failed',e);}
-    finally{ guard = false; }
-  }
-  var previousGo = window.go;
-  window.go = function(page){
-    if(page==='work' || page==='find-work' || page==='guidcy-work') { showWork(false); return; }
-    if(page==='home' && isWork()) { showWork(true); return; }
-    return typeof previousGo==='function' ? previousGo.apply(this,arguments) : undefined;
-  };
-  try{ window.PAGE_URLS = window.PAGE_URLS || {}; window.PAGE_URLS.work = WORK_HASH_URL; window.PAGE_URLS['find-work'] = WORK_HASH_URL; }catch(e){}
-  function wire(){
-    document.querySelectorAll('button,a').forEach(function(el){
-      var t=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      var href=(el.getAttribute&&String(el.getAttribute('href')||'').toLowerCase())||'';
-      var oc=String(el.getAttribute&&el.getAttribute('onclick')||'').toLowerCase();
-      if(t==='find work' || href==='/find-work' || href==='#find-work' || href==='/'+'#find-work' || oc.indexOf("go('work")>=0 || oc.indexOf('go(\"work')>=0){
-        if(el.tagName.toLowerCase()==='a') el.setAttribute('href',WORK_HASH_URL);
-        el.onclick=function(e){ if(e)e.preventDefault(); try{closeMobileMenu&&closeMobileMenu();}catch(_){} try{closeMobDrawer&&closeMobDrawer();}catch(_){} showWork(false); return false; };
-      }
-    });
-  }
-  function boot(){ wire(); if(isWork()) showWork(true); }
-  document.addEventListener('DOMContentLoaded',function(){boot(); setTimeout(boot,250); setTimeout(boot,900); setTimeout(boot,1800);});
-  window.addEventListener('load',function(){boot(); setTimeout(boot,500); setTimeout(boot,1500);});
-  window.addEventListener('hashchange',function(){ if(isWork()) showWork(true); });
-  window.addEventListener('popstate',function(){ setTimeout(function(){ if(isWork()) showWork(true); },0); });
-})();
-</script>
-<!-- === END GUIDCY ULTIMATE FIND WORK HASH ROUTE PATCH === -->
+<!-- Find Work intermediate routing patches removed — core SPA router handles /find-work clean path -->
 
 
 
-<!-- === GUIDCY ROUTING ROOT-CAUSE FIX: Find Work hash/state route guard === -->
-<script id="guidcy-find-work-root-cause-route-guard">
-(function(){
-  var WORK_PAGE='work';
-  var WORK_URL='/#find-work';
-  function cleanPath(){return String(location.pathname||'/').split('?')[0].replace(/\/+$/,'')||'/';}
-  function cleanHash(){return String(location.hash||'').replace(/^#/,'').trim().toLowerCase();}
-  function isFindWorkIntent(){
-    var h=cleanHash(), p=cleanPath();
-    return h==='find-work'||h==='work'||h==='guidcy-work'||p==='/find-work'||p==='/work'||p==='/guidcy-work'||(history.state&&history.state.page===WORK_PAGE);
-  }
-  function ensureWorkPageNow(){
-    try{ if(window.GuidcyWork&&typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage(); }catch(e){}
-    try{ if(!document.getElementById('page-work')&&typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage(); }catch(e){}
-  }
-  function showWork(replaceOnly){
-    if(!isFindWorkIntent()) return false;
-    try{ (replaceOnly?history.replaceState:history.pushState).call(history,{page:WORK_PAGE},'',WORK_URL); }catch(e){}
-    ensureWorkPageNow();
-    try{ if(window.GuidcyWork&&typeof window.GuidcyWork.render==='function') window.GuidcyWork.render(); else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender(); }catch(e){console.warn('Find Work render failed',e)}
-    var pg=document.getElementById('page-work');
-    if(!pg) return false;
-    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active');});
-    pg.classList.add('on');
-    try{document.querySelectorAll('.nav-link').forEach(function(b){b.classList.toggle('on',(b.textContent||'').replace(/\s+/g,' ').trim().toLowerCase()==='find work');});}catch(e){}
-    return true;
-  }
-  var oldGo=window.go;
-  window.go=function(page){
-    if(page===WORK_PAGE||page==='find-work'||page==='guidcy-work') return showWork(false);
-    if((page==='home'||!page)&&isFindWorkIntent()) return showWork(true);
-    return typeof oldGo==='function'?oldGo.apply(this,arguments):undefined;
-  };
-  var oldRender=window.renderPage;
-  if(typeof oldRender==='function'){
-    window.renderPage=function(page){
-      if(page===WORK_PAGE||page==='find-work'||page==='guidcy-work') return showWork(true);
-      if((page==='home'||!page)&&isFindWorkIntent()) return showWork(true);
-      return oldRender.apply(this,arguments);
-    };
-  }
-  function wire(){
-    try{document.querySelectorAll('button,a').forEach(function(el){
-      var t=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      var h=(el.getAttribute&&String(el.getAttribute('href')||'').toLowerCase())||'';
-      var oc=(el.getAttribute&&String(el.getAttribute('onclick')||''))||'';
-      if(t==='find work'||h==='/find-work'||h==='#find-work'||oc.indexOf("go('work")>-1||oc.indexOf('go("work')>-1){
-        if(el.tagName&&el.tagName.toLowerCase()==='a') el.setAttribute('href',WORK_URL);
-        el.onclick=function(e){if(e)e.preventDefault();try{closeMobileMenu()}catch(_){}try{closeMobDrawer()}catch(_){}showWork(false);return false;};
-      }
-    });}catch(e){}
-  }
-  function boot(){wire(); if(isFindWorkIntent()){showWork(true); var n=0,t=setInterval(function(){n++; if(!isFindWorkIntent()||n>80){clearInterval(t);return;} var w=document.getElementById('page-work'), h=document.getElementById('page-home'); if(!w||!w.classList.contains('on')||(h&&h.classList.contains('on'))) showWork(true);},100);}}
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-  window.addEventListener('load',function(){boot();setTimeout(boot,300);setTimeout(boot,1200);});
-  window.addEventListener('hashchange',function(){setTimeout(function(){if(isFindWorkIntent())showWork(true);},0);});
-  window.addEventListener('popstate',function(){setTimeout(function(){if(isFindWorkIntent())showWork(true);},0);});
-})();
-</script>
-<!-- === END GUIDCY ROUTING ROOT-CAUSE FIX === -->
+<!-- Find Work intermediate routing patches removed — core SPA router handles /find-work clean path -->
+
+
+
+<!-- Find Work intermediate routing patches removed — core SPA router handles /find-work clean path -->
 
 </body>
 </html>
@@ -18588,7 +18412,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function sendWorkEmail(event,payload){try{if(typeof emailjs==='undefined'||typeof CFG==='undefined'||!CFG.emailjs_service_id)return; const params={event, to_email:payload.employer_email||payload.applicant_email||CFG.admin_email, message:JSON.stringify(payload).slice(0,1000)}; emailjs.send(CFG.emailjs_service_id, CFG.emailjs_template_user, params).catch(e=>console.warn('Work email skipped',e));}catch(e){console.warn('Work email skipped',e)}}
   function searchHook(){if(window.__gwSearchHooked)return; window.__gwSearchHooked=true; const old=window.doHeroSearch|| (typeof doHeroSearch==='function'?doHeroSearch:null); if(old)window.doHeroSearch=function(){try{const q=norm($('srch')?.value); if(WORK_KEYWORDS.some(k=>q.includes(k))){go('work'); setTimeout(()=>{if($('gw-search')){$('gw-search').value=$('srch').value;renderWork()}},180); return}}catch(e){} return old.apply(this,arguments)}}
-  function wrapGo(){if(window.__gwGoWrapped)return; const old=window.go|| (typeof go==='function'?go:null); if(!old)return; window.__gwGoWrapped=true; window.go=function(page){if(page==='work'){ensurePage(); try{history.pushState({page:'work'},'','/#find-work')}catch(e){} document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); $('page-work').classList.add('on'); window.scrollTo(0,0); renderWork(); ensureNav(); hookDash(); return} return old.apply(this,arguments)}; try{if(typeof PAGE_URLS!=='undefined')PAGE_URLS.work='/#find-work'}catch(e){} }
+  function wrapGo(){if(window.__gwGoWrapped)return; const old=window.go|| (typeof go==='function'?go:null); if(!old)return; window.__gwGoWrapped=true; window.go=function(page){if(page==='work'){ensurePage(); try{history.pushState({page:'work'},'','/find-work')}catch(e){} document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); $('page-work').classList.add('on'); window.scrollTo(0,0); renderWork(); ensureNav(); hookDash(); return} return old.apply(this,arguments)}; try{if(typeof PAGE_URLS!=='undefined')PAGE_URLS.work='/find-work'}catch(e){} }
   function pathBoot(){const p=location.pathname.replace(/\/$/,''); const h=String(location.hash||'').replace('#',''); if(p==='/find-work'||p==='/work'||p==='/guidcy-work'||h==='find-work'||h==='work'||h==='guidcy-work'){setTimeout(()=>go('work'),200)}}
   window.guidcyEnsureWorkPage=ensurePage;
   window.GuidcyWork=Object.assign(window.GuidcyWork||{},{ensurePage:ensurePage});
@@ -18786,7 +18610,7 @@ document.addEventListener('DOMContentLoaded',function(){
   const previousGo=window.go;
   window.go=function(page){
     if(page==='work'||page==='find-work'){
-      ensureWorkPage(); try{history.pushState({page:'work'},'','/#find-work')}catch(e){}
+      ensureWorkPage(); try{history.pushState({page:'work'},'','/find-work')}catch(e){}
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
       $('page-work')?.classList.add('on'); window.scrollTo(0,0); renderWork(); return;
     }
@@ -18800,144 +18624,8 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 <!-- === END GUIDCY DEBUG FIX PACK === -->
 
-<!-- === GUIDCY PATCH: Keep Find Work visible after browser refresh === -->
-<script id="guidcy-find-work-refresh-same-page-fix">
-(function(){
-  function isFindWorkRoute(){
-    var hash = String(location.hash || '').replace(/^#/, '').toLowerCase();
-    var path = String(location.pathname || '/').replace(/\/+$/, '') || '/';
-    return hash === 'find-work' || hash === 'work' || hash === 'guidcy-work' ||
-           path === '/find-work' || path === '/work' || path === '/guidcy-work';
-  }
-  function openFindWorkNoHome(attempt){
-    attempt = attempt || 0;
-    if(!isFindWorkRoute()) return;
-    try{
-      if(typeof window.go === 'function'){
-        window.go('work');
-      }
-      var page = document.getElementById('page-work');
-      if(page){
-        document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); });
-        page.classList.add('on');
-        if(window.GuidcyWork && typeof window.GuidcyWork.render === 'function'){
-          window.GuidcyWork.render();
-        }else if(typeof window.guidcyWorkRender === 'function'){
-          window.guidcyWorkRender();
-        }
-        try{ history.replaceState({page:'work'}, '', '/#find-work'); }catch(e){}
-        return;
-      }
-    }catch(e){ console.warn('Find Work refresh route retry', e); }
-    if(attempt < 25){
-      setTimeout(function(){ openFindWorkNoHome(attempt + 1); }, 120);
-    }
-  }
-  document.addEventListener('DOMContentLoaded', function(){ openFindWorkNoHome(0); });
-  window.addEventListener('load', function(){ openFindWorkNoHome(0); setTimeout(function(){openFindWorkNoHome(0);}, 600); });
-  window.addEventListener('hashchange', function(){ openFindWorkNoHome(0); });
-  window.addEventListener('popstate', function(){ openFindWorkNoHome(0); });
-})();
-</script>
-<!-- === END GUIDCY PATCH === -->
+<!-- Find Work page uses /find-work clean path — same as all other SPA pages. No extra patch needed. -->
 
 
 
-<!-- === GUIDCY FINAL OVERRIDE: Find Work refresh/back-forward same-page fix === -->
-<script id="guidcy-final-find-work-refresh-same-page-override">
-(function(){
-  var WORK_PAGE='work';
-  var WORK_URL='/#find-work';
-  var ROUTES={'/find-work':1,'/work':1,'/guidcy-work':1};
-  var HASHES={'find-work':1,'work':1,'guidcy-work':1};
-  var inside=false;
-
-  function path(){return String(location.pathname||'/').split('?')[0].replace(/\/+$/,'')||'/';}
-  function hash(){return String(location.hash||'').replace(/^#/,'').trim().toLowerCase();}
-  function isWorkRoute(){return !!ROUTES[path()] || !!HASHES[hash()] || !!(history.state&&history.state.page===WORK_PAGE);}
-  function setUrl(push){try{(push?history.pushState:history.replaceState).call(history,{page:WORK_PAGE},'',WORK_URL);}catch(e){}}
-
-  function renderWorkPage(pushUrl){
-    if(inside) return true;
-    inside=true;
-    try{
-      if(pushUrl) setUrl(true); else setUrl(false);
-      try{
-        if(window.GuidcyWork && typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage();
-        else if(typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage();
-        if(window.GuidcyWork && typeof window.GuidcyWork.render==='function') window.GuidcyWork.render();
-        else if(typeof window.guidcyWorkRender==='function') window.guidcyWorkRender();
-      }catch(e){console.warn('Guidcy Work render retry:', e);}
-      var page=document.getElementById('page-work');
-      if(page){
-        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active');});
-        page.classList.add('on');
-        try{window.scrollTo(0,0);}catch(_){ }
-        try{document.querySelectorAll('.nav-link').forEach(function(b){
-          b.classList.toggle('on',(b.textContent||'').trim().toLowerCase()==='find work');
-        });}catch(_){ }
-        return true;
-      }
-      return false;
-    }finally{inside=false;}
-  }
-
-  // Make Find Work a first-class SPA route like Find the Expert/Categories.
-  try{window.PAGE_URLS=window.PAGE_URLS||{}; window.PAGE_URLS.work=WORK_URL; window.PAGE_URLS['find-work']=WORK_URL;}catch(_){ }
-
-  var oldGo=window.go;
-  window.go=function(page){
-    if(page===WORK_PAGE || page==='find-work' || page==='guidcy-work') return renderWorkPage(true);
-    // During /find-work refresh, some older startup code calls go('home') or renderPage('home'). Block that.
-    if(page==='home' && isWorkRoute()) return renderWorkPage(false);
-    return typeof oldGo==='function' ? oldGo.apply(this,arguments) : undefined;
-  };
-
-  // Also patch renderPage because older init code sometimes bypasses go().
-  var oldRender=window.renderPage;
-  if(typeof oldRender==='function'){
-    window.renderPage=function(page){
-      if((page==='home' || !page) && isWorkRoute()) return renderWorkPage(false);
-      if(page===WORK_PAGE || page==='find-work' || page==='guidcy-work') return renderWorkPage(false);
-      return oldRender.apply(this,arguments);
-    };
-  }
-
-  function wireNav(){
-    try{document.querySelectorAll('button,a').forEach(function(el){
-      var txt=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      var href=(el.getAttribute&&String(el.getAttribute('href')||'').toLowerCase())||'';
-      if(txt==='find work' || href==='/find-work' || href==='#find-work'){
-        if(el.tagName.toLowerCase()==='a') el.setAttribute('href',WORK_URL);
-        el.onclick=function(e){
-          if(e)e.preventDefault();
-          try{if(typeof closeMobileMenu==='function')closeMobileMenu();}catch(_){ }
-          try{if(typeof closeMobDrawer==='function')closeMobDrawer();}catch(_){ }
-          renderWorkPage(true);
-          return false;
-        };
-      }
-    });}catch(e){console.warn('Find Work nav wiring failed:',e);}
-  }
-
-  function boot(){
-    wireNav();
-    if(isWorkRoute()){
-      renderWorkPage(false);
-      var count=0;
-      var timer=setInterval(function(){
-        count++;
-        if(!isWorkRoute() || count>100){clearInterval(timer);return;}
-        var work=document.getElementById('page-work');
-        var home=document.getElementById('page-home');
-        if(!work || !work.classList.contains('on') || (home&&home.classList.contains('on'))) renderWorkPage(false);
-      },80);
-    }
-  }
-  document.addEventListener('DOMContentLoaded',boot);
-  window.addEventListener('load',function(){boot();setTimeout(boot,250);setTimeout(boot,900);setTimeout(boot,1800);});
-  window.addEventListener('popstate',function(){setTimeout(function(){if(isWorkRoute())renderWorkPage(false);},0);});
-  window.addEventListener('hashchange',function(){if(isWorkRoute())renderWorkPage(false);});
-})();
-</script>
-<!-- === END GUIDCY FINAL FIND WORK ROUTING OVERRIDE === -->
+<!-- Find Work routing is handled by the core SPA router via /find-work clean path. -->
