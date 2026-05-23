@@ -16,10 +16,17 @@
 <meta property="og:image" content="https://www.guidcy.com/logo.png">
 <meta name="twitter:card" content="summary_large_image">
 
-<title>Guidcy - Expert Guidance On Demand</title>
-<meta name="description" content="Guidcy is an expert consultation marketplace where users can browse verified consultants, book sessions, pay online, and join through Google Meet."/>
+<title>Guidcy - Guidance Made Simple | Experts, Jobs, Work, Webinars & Opportunities</title>
+<meta name="description" content="Guidcy helps students, professionals, startups, and businesses find expert guidance, discover jobs, explore Guidcy-listed work, attend webinars, and access growth opportunities in one platform."/>
+<meta name="keywords" content="Guidcy, guidance, experts, consultants, find experts, find jobs, find work, freelance projects, remote gigs, funds, grants, scholarships, hackathons, webinars, career guidance, college finder"/>
 <meta name="robots" content="index, follow"/>
 <link rel="canonical" href="https://www.guidcy.com/"/>
+<meta property="og:title" content="Guidcy - Guidance Made Simple"/>
+<meta property="og:description" content="Find experts, jobs, Guidcy-listed work, webinars, AI career guidance, and growth opportunities in one platform."/>
+<meta property="og:url" content="https://www.guidcy.com/"/>
+<meta name="twitter:title" content="Guidcy - Guidance Made Simple"/>
+<meta name="twitter:description" content="Find experts, jobs, Guidcy-listed work, webinars, AI career guidance, and growth opportunities in one platform."/>
+<meta name="twitter:image" content="https://www.guidcy.com/logo.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -2400,7 +2407,7 @@ async function sendBookingEmails(bk,consEmail){
         <div style="background:#ffffff;border:1px solid #D8E8F5;border-radius:16px;overflow:hidden">
           <div style="background:linear-gradient(135deg,#1E72BE,#3DB84A);padding:24px;color:#ffffff">
             <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">Guidcy</div>
-            <div style="font-size:13px;opacity:0.9;margin-top:4px">Expert Guidance on Demand</div>
+            <div style="font-size:13px;opacity:0.9;margin-top:4px">Guidance Made Simple</div>
           </div>
           <div style="padding:26px">
             <h2 style="margin:0 0 8px;font-size:24px;color:#0F172A">${headline}</h2>
@@ -2516,21 +2523,19 @@ function getPageFromPath(){
   const map={
     '/':'home','/index.html':'home',
 
-    '/browse':'browse','/browse.html':'browse',
-    '/jobs':'jobs','/jobs.html':'jobs',
+    '/find-experts':'browse','/find-experts.html':'browse','/browse':'browse','/browse.html':'browse',
+    '/find-jobs':'jobs','/find-jobs.html':'jobs','/jobs':'jobs','/jobs.html':'jobs','/find-job':'jobs','/find-job.html':'jobs',
     '/categories':'categories','/categories.html':'categories',
     '/blog':'blog','/blog.html':'blog',
 
     '/become':'become','/become.html':'become',
     '/become-a-consultant':'become','/become-a-consultant.html':'become',
 
-    '/webinar':'webinar','/webinar.html':'webinar',
-    '/webinars':'webinar','/webinars.html':'webinar',
+    '/webinars':'webinar','/webinars.html':'webinar','/webinar':'webinar','/webinar.html':'webinar',
 
-    '/smart-finder':'smart-finder','/smart-finder.html':'smart-finder',
-    '/smartfinder':'smart-finder','/smartfinder.html':'smart-finder',
+    '/career-college-ai-finder':'smart-finder','/career-college-ai-finder.html':'smart-finder','/smart-finder':'smart-finder','/smart-finder.html':'smart-finder','/smartfinder':'smart-finder','/smartfinder.html':'smart-finder',
 
-    '/opportunities':'opportunities','/opportunities.html':'opportunities',
+    '/funds-grants-finder':'opportunities','/funds-grants-finder.html':'opportunities','/opportunities':'opportunities','/opportunities.html':'opportunities',
 
     '/login':'login','/login.html':'login',
     '/signup':'signup','/signup.html':'signup',
@@ -2562,8 +2567,7 @@ function getPageFromPath(){
     '/admin-dashboard':'admin-dash','/admin-dashboard.html':'admin-dash',
     '/admin-dash':'admin-dash','/admin-dash.html':'admin-dash',
 
-    '/find-work':'work','/find-work.html':'work',
-    '/work':'work','/work.html':'work'
+    '/find-work':'work','/find-work.html':'work','/work':'work','/work.html':'work'
   };
   if(map[p]) return map[p];
   const h=(window.location.hash||'').replace('#','').trim().toLowerCase();
@@ -2572,19 +2576,19 @@ function getPageFromPath(){
 }
 const PAGE_URLS={
   home:'/',
-  browse:'/browse',
-  jobs:'/jobs',
+  browse:'/find-experts',
+  jobs:'/find-jobs',
   work:'/find-work',
   'find-work':'/find-work',
   categories:'/categories',
   blog:'/blog',
-  become:'/become',
-  webinar:'/webinar',
-  'smart-finder':'/smart-finder',
-  'opportunities':'/opportunities',
+  become:'/become-a-consultant',
+  webinar:'/webinars',
+  'smart-finder':'/career-college-ai-finder',
+  'opportunities':'/funds-grants-finder',
 
   login:'/login',
-  signup:'/get-started',
+  signup:'/signup',
 
   about:'/about',
   contact:'/contact',
@@ -6367,10 +6371,10 @@ cancelBooking=async function(bookingId,role){
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
   function pageForPath(){const p=location.pathname.replace(/\/$/,'');const map={'':'home','/':'home','/browse':'browse','/jobs':'jobs','/login':'login','/signup':'signup','/categories':'categories','/become':'become','/become-a-consultant':'become','/blog':'blog','/webinar':'webinar','/webinars':'webinar','/smart-finder':'smart-finder','/opportunities':'opportunities','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash','/find-work':'work','/work':'work'};return map[p]||'home'}
   window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {
-  home:'/',browse:'/browse',jobs:'/jobs',categories:'/categories',blog:'/blog',
+  home:'/',browse:'/find-experts',jobs:'/find-jobs',categories:'/categories',blog:'/blog',
   work:'/find-work','find-work':'/find-work',
-  become:'/become',webinar:'/webinar','smart-finder':'/smart-finder',opportunities:'/opportunities',
-  login:'/login',signup:'/get-started',
+  become:'/become-a-consultant',webinar:'/webinars','smart-finder':'/career-college-ai-finder',opportunities:'/funds-grants-finder',
+  login:'/login',signup:'/signup',
   about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',
   help:'/help-center',dispute:'/dispute-resolution',
   'user-dash':'/user-dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard'
@@ -12925,6 +12929,133 @@ body.gmob-open{overflow:hidden}
 
 <!-- Find Work intermediate routing patches removed — core SPA router handles /find-work clean path -->
 
+
+
+<!-- === GUIDCY SEO + CANONICAL ROUTE MANAGER === -->
+<script id="guidcy-seo-route-manager">
+(function(){
+  var SITE='https://www.guidcy.com';
+  var LOGO=SITE+'/logo.png';
+  var SEO={
+    home:{path:'/',label:'Home',title:'Guidcy - Guidance Made Simple | Experts, Jobs, Work, Webinars & Opportunities',desc:'Guidcy helps students, professionals, startups, and businesses find expert guidance, discover jobs, explore Guidcy-listed work, attend webinars, and access growth opportunities in one platform.',keys:'Guidcy, guidance made simple, expert guidance, jobs, work, webinars, opportunities, consultants'},
+    browse:{path:'/find-experts',label:'Find the Expert',title:'Find Experts & Consultants Online | Guidcy',desc:'Book one-to-one sessions with verified experts, consultants, mentors, and professionals across career, business, finance, legal, education, startup, technology, and personal growth categories.',keys:'find experts, consultants online, mentors, book consultation, verified experts, Guidcy'},
+    jobs:{path:'/find-jobs',label:'Find Jobs',title:'Find Jobs Online from the Internet | Guidcy',desc:'Search jobs listed across the internet including full-time jobs, internships, remote jobs, part-time roles, and career opportunities from external job sources in one place.',keys:'find jobs, internet jobs, external jobs, internships, remote jobs, full-time jobs, part-time roles'},
+    work:{path:'/find-work',label:'Find Work',title:'Find Work, Freelance Projects & Remote Gigs on Guidcy',desc:'Discover work opportunities, freelance projects, part-time tasks, remote gigs, internships, and hiring posts listed directly by users, startups, and businesses on Guidcy.',keys:'find work, freelance projects, remote gigs, Guidcy work, hiring posts, internships, part-time tasks'},
+    opportunities:{path:'/funds-grants-finder',label:'Funds & Grants Finder',title:'Funds, Grants, Scholarships & Hackathons Finder | Guidcy',desc:'Discover funds, grants, scholarships, hackathons, competitions, fellowships, startup programs, innovation challenges, and growth opportunities in one place.',keys:'funds, grants, scholarships, hackathons, competitions, fellowships, startup programs, innovation challenges'},
+    'smart-finder':{path:'/career-college-ai-finder',label:'Career & College AI Finder',title:'Career & College AI Finder | Guidcy',desc:'Use Guidcy’s AI-powered career and college finder to discover suitable career paths, colleges, courses, scholarships, and growth options based on your profile.',keys:'career AI finder, college AI finder, career guidance, college guidance, courses, scholarships'},
+    webinar:{path:'/webinars',label:'Webinars',title:'Webinars, Online Sessions & Learning Events | Guidcy',desc:'Attend and publish webinars, online sessions, workshops, and learning events hosted by consultants, mentors, professionals, and domain experts.',keys:'webinars, online sessions, workshops, learning events, mentors, consultants'},
+    categories:{path:'/categories',label:'Categories',title:'Expert Categories for Guidance & Consultation | Guidcy',desc:'Explore expert categories on Guidcy including business, technology, finance, legal, career coaching, wellness, marketing, education, startup, and professional guidance.',keys:'expert categories, business guidance, technology guidance, finance, legal, career coaching, education, startup'},
+    blog:{path:'/blog',label:'Blog',title:'Guidance, Career, Startup & Opportunity Blog | Guidcy',desc:'Read practical blogs on career guidance, expert advice, startups, funding, jobs, webinars, education, professional growth, and opportunities.',keys:'guidance blog, career blog, startup blog, funding blog, jobs, webinars, education'},
+    become:{path:'/become-a-consultant',label:'Become a Consultant',title:'Become a Consultant on Guidcy | Share Your Knowledge',desc:'Register as a consultant on Guidcy, publish webinars, offer paid guidance sessions, build your expert profile, and help students, professionals, and startups grow.',keys:'become consultant, share knowledge, paid guidance, expert profile, publish webinars'},
+    help:{path:'/help-center',label:'Help Center',title:'Help Center | Guidcy Support',desc:'Contact Guidcy support, raise help tickets, track queries, and get assistance for bookings, payments, webinars, consultant profiles, jobs, work posts, and opportunities.',keys:'Guidcy support, help center, support ticket, bookings, payments, webinars'},
+    dispute:{path:'/dispute-resolution',label:'Dispute Resolution',title:'Dispute Resolution | Guidcy',desc:'Raise and track disputes related to bookings, payments, consultations, webinars, work opportunities, platform usage, or other Guidcy-related concerns.',keys:'dispute resolution, Guidcy disputes, payment dispute, booking dispute, consultation concern'},
+    login:{path:'/login',label:'Login',title:'Login | Guidcy',desc:'Login to Guidcy to manage bookings, consultations, webinars, jobs, work posts, support tickets, and dashboard activity.',keys:'Guidcy login, user login, consultant login'},
+    signup:{path:'/signup',label:'Signup',title:'Signup | Guidcy',desc:'Create your Guidcy account to find experts, discover jobs and work, attend webinars, and access career, college, funding, and startup opportunities.',keys:'Guidcy signup, create account, expert guidance'}
+  };
+  var ALIASES={
+    '/browse':'/find-experts','/browse.html':'/find-experts',
+    '/jobs':'/find-jobs','/jobs.html':'/find-jobs','/find-job':'/find-jobs','/find-job.html':'/find-jobs',
+    '/work':'/find-work','/work.html':'/find-work',
+    '/opportunities':'/funds-grants-finder','/opportunities.html':'/funds-grants-finder',
+    '/smart-finder':'/career-college-ai-finder','/smart-finder.html':'/career-college-ai-finder','/smartfinder':'/career-college-ai-finder','/smartfinder.html':'/career-college-ai-finder',
+    '/webinar':'/webinars','/webinar.html':'/webinars','/become':'/become-a-consultant','/become.html':'/become-a-consultant','/get-started':'/signup','/get-started.html':'/signup'
+  };
+  var PATH_PAGE={}; Object.keys(SEO).forEach(function(k){PATH_PAGE[SEO[k].path]=k;});
+  Object.keys(ALIASES).forEach(function(k){PATH_PAGE[k]=PATH_PAGE[ALIASES[k]];});
+  PATH_PAGE['/']='home'; PATH_PAGE['/index.html']='home';
+  function cleanPath(){return (location.pathname||'/').replace(/\/+$|\/+$/g,'')||'/';}
+  function pageFromPath(){var p=cleanPath(); return PATH_PAGE[p] || ((location.hash||'').replace(/^#/,'').trim()) || 'home';}
+  function ensureMeta(sel, attrName, attrValue){var el=document.querySelector(sel); if(!el){el=document.createElement('meta'); el.setAttribute(attrName,attrValue); document.head.appendChild(el);} return el;}
+  function ensureLink(rel){var el=document.querySelector('link[rel="'+rel+'"]'); if(!el){el=document.createElement('link'); el.rel=rel; document.head.appendChild(el);} return el;}
+  function setJsonLd(id,obj){var el=document.getElementById(id); if(!el){el=document.createElement('script'); el.type='application/ld+json'; el.id=id; document.head.appendChild(el);} el.textContent=JSON.stringify(obj);}
+  function crumbs(page,d){return {'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'Home',item:SITE+'/'},{'@type':'ListItem',position:2,name:d.label,item:SITE+d.path}]};}
+  function applySEO(page){var d=SEO[page]||SEO.home; var url=SITE+d.path; document.title=d.title; ensureMeta('meta[name="description"]','name','description').content=d.desc; ensureMeta('meta[name="keywords"]','name','keywords').content=d.keys; ensureMeta('meta[name="robots"]','name','robots').content=(/dash|admin/.test(page)?'noindex, nofollow':'index, follow'); ensureLink('canonical').href=url; ensureMeta('meta[property="og:title"]','property','og:title').content=d.title; ensureMeta('meta[property="og:description"]','property','og:description').content=d.desc; ensureMeta('meta[property="og:url"]','property','og:url').content=url; ensureMeta('meta[property="og:image"]','property','og:image').content=LOGO; ensureMeta('meta[property="og:type"]','property','og:type').content='website'; ensureMeta('meta[property="og:site_name"]','property','og:site_name').content='Guidcy'; ensureMeta('meta[name="twitter:card"]','name','twitter:card').content='summary_large_image'; ensureMeta('meta[name="twitter:title"]','name','twitter:title').content=d.title; ensureMeta('meta[name="twitter:description"]','name','twitter:description').content=d.desc; ensureMeta('meta[name="twitter:image"]','name','twitter:image').content=LOGO;
+    setJsonLd('guidcy-jsonld-org',{'@context':'https://schema.org','@type':'Organization',name:'Guidcy',url:SITE,logo:LOGO,slogan:'Guidance Made Simple'});
+    setJsonLd('guidcy-jsonld-website',{'@context':'https://schema.org','@type':'WebSite',name:'Guidcy',url:SITE,potentialAction:{'@type':'SearchAction',target:SITE+'/?q={search_term_string}','query-input':'required name=search_term_string'}});
+    setJsonLd('guidcy-jsonld-webpage',{'@context':'https://schema.org','@type':'WebPage',name:d.title,description:d.desc,url:url,isPartOf:{'@type':'WebSite',name:'Guidcy',url:SITE}});
+    setJsonLd('guidcy-jsonld-breadcrumb',crumbs(page,d));
+    var extra=document.getElementById('guidcy-jsonld-extra'); if(extra) extra.remove();
+    if(page==='webinar') setJsonLd('guidcy-jsonld-extra',{'@context':'https://schema.org','@type':'Event',name:'Guidcy Webinars and Online Learning Events',eventAttendanceMode:'https://schema.org/OnlineEventAttendanceMode',eventStatus:'https://schema.org/EventScheduled',url:url,organizer:{'@type':'Organization',name:'Guidcy',url:SITE},description:d.desc});
+    if(page==='help') setJsonLd('guidcy-jsonld-extra',{'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'How can I raise a support ticket on Guidcy?',acceptedAnswer:{'@type':'Answer',text:'Visit the Help Center, fill the support form, submit your issue, and track the ticket status.'}},{'@type':'Question',name:'Can I get help with bookings, payments, webinars, jobs, work posts, and opportunities?',acceptedAnswer:{'@type':'Answer',text:'Yes, Guidcy support can assist with platform-related bookings, payments, webinars, consultant profiles, jobs, work posts, and opportunities.'}}]});
+  }
+  function canonicalForPage(page){return (SEO[page]&&SEO[page].path)||null;}
+  function normalizeAlias(){var p=cleanPath(), dest=ALIASES[p]; if(dest){try{history.replaceState({page:PATH_PAGE[dest]||'home'},'',dest+(location.search||'')+(location.hash||''));}catch(e){}}}
+  window.GuidcySEO={apply:applySEO,map:SEO,aliases:ALIASES,pageFromPath:pageFromPath};
+  try{window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {home:'/',browse:'/find-experts',jobs:'/find-jobs',work:'/find-work','find-work':'/find-work',categories:'/categories',blog:'/blog',become:'/become-a-consultant',webinar:'/webinars','smart-finder':'/career-college-ai-finder',opportunities:'/funds-grants-finder',help:'/help-center',dispute:'/dispute-resolution',login:'/login',signup:'/signup'});}catch(e){}
+  var oldGet=window.getPageFromPath; window.getPageFromPath=function(){return pageFromPath() || (oldGet?oldGet.apply(this,arguments):'home');};
+  var oldGo=window.go; window.go=function(page){var canonical=canonicalForPage(page); var r=oldGo?oldGo.apply(this,arguments):undefined; if(canonical){try{history.replaceState({page:page},'',canonical);}catch(e){} applySEO(page);} return r;};
+  window.addEventListener('popstate',function(){setTimeout(function(){applySEO(pageFromPath());},0);});
+  function boot(){normalizeAlias(); var page=pageFromPath(); applySEO(page); try{if(typeof window.renderPage==='function') window.renderPage(page);}catch(e){} setTimeout(function(){applySEO(pageFromPath());},250); setTimeout(function(){applySEO(pageFromPath());},1000);}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
+<!-- === END GUIDCY SEO + CANONICAL ROUTE MANAGER === -->
+
+
+
+<!-- === GUIDCY ROUTE BOOT HOTFIX — keep after all scripts === -->
+<script id="guidcy-route-boot-hotfix-final">
+(function(){
+  var alias={
+    '/browse':'/find-experts','/browse.html':'/find-experts',
+    '/jobs':'/find-jobs','/jobs.html':'/find-jobs','/find-job':'/find-jobs','/find-job.html':'/find-jobs',
+    '/work':'/find-work','/work.html':'/find-work',
+    '/opportunities':'/funds-grants-finder','/opportunities.html':'/funds-grants-finder',
+    '/smart-finder':'/career-college-ai-finder','/smart-finder.html':'/career-college-ai-finder','/smartfinder':'/career-college-ai-finder','/smartfinder.html':'/career-college-ai-finder',
+    '/webinar':'/webinars','/webinar.html':'/webinars',
+    '/become':'/become-a-consultant','/become.html':'/become-a-consultant',
+    '/get-started':'/signup','/get-started.html':'/signup'
+  };
+  var map={
+    '/':'home','/index.html':'home',
+    '/find-experts':'browse','/find-experts.html':'browse',
+    '/find-jobs':'jobs','/find-jobs.html':'jobs',
+    '/find-work':'work','/find-work.html':'work',
+    '/funds-grants-finder':'opportunities','/funds-grants-finder.html':'opportunities',
+    '/career-college-ai-finder':'smart-finder','/career-college-ai-finder.html':'smart-finder',
+    '/categories':'categories','/categories.html':'categories',
+    '/blog':'blog','/blog.html':'blog',
+    '/webinars':'webinar','/webinars.html':'webinar',
+    '/become-a-consultant':'become','/become-a-consultant.html':'become',
+    '/help-center':'help','/help-center.html':'help',
+    '/dispute-resolution':'dispute','/dispute-resolution.html':'dispute',
+    '/login':'login','/login.html':'login',
+    '/signup':'signup','/signup.html':'signup',
+    '/dashboard':'user-dash','/user-dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin':'admin-dash','/admin-dashboard':'admin-dash'
+  };
+  Object.keys(alias).forEach(function(k){ map[k]=map[alias[k]]; });
+  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {
+    home:'/',browse:'/find-experts',jobs:'/find-jobs',work:'/find-work','find-work':'/find-work',
+    opportunities:'/funds-grants-finder','smart-finder':'/career-college-ai-finder',
+    webinar:'/webinars',categories:'/categories',blog:'/blog',become:'/become-a-consultant',
+    help:'/help-center',dispute:'/dispute-resolution',login:'/login',signup:'/signup',
+    'user-dash':'/user-dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard'
+  });
+  function cleanPath(){ return (location.pathname||'/').replace(/\/+$/,'') || '/'; }
+  function targetPage(){ return map[cleanPath()] || ((location.hash||'').replace(/^#/,'').trim()) || 'home'; }
+  function ensureDynamic(pg){
+    try{ if(pg==='jobs' && typeof window.ensureJobs==='function') window.ensureJobs(); }catch(e){}
+    try{ if(pg==='smart-finder' && typeof window.buildSmartFinderPage==='function') window.buildSmartFinderPage(); }catch(e){}
+    try{ if(pg==='work' && window.GuidcyWork && typeof window.GuidcyWork.ensurePage==='function') window.GuidcyWork.ensurePage(); }catch(e){}
+    try{ if(pg==='work' && typeof window.guidcyEnsureWorkPage==='function') window.guidcyEnsureWorkPage(); }catch(e){}
+  }
+  function forceRoute(){
+    var p=cleanPath(), dest=alias[p];
+    if(dest){ try{ history.replaceState({page:map[dest]},'',dest+(location.search||'')+(location.hash||'')); }catch(e){} }
+    var pg=targetPage();
+    ensureDynamic(pg);
+    try{ if(window.renderPage) window.renderPage(pg); }catch(e){}
+    try{ if(window.GuidcySEO && window.GuidcySEO.apply) window.GuidcySEO.apply(pg); }catch(e){}
+  }
+  window.GuidcyRouteHotfix={forceRoute:forceRoute,targetPage:targetPage,map:map,alias:alias};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',forceRoute); else forceRoute();
+  window.addEventListener('load',forceRoute);
+  window.addEventListener('popstate',function(){setTimeout(forceRoute,0)});
+  [80,250,600,1200,2200].forEach(function(t){setTimeout(forceRoute,t)});
+})();
+</script>
+<!-- === END GUIDCY ROUTE BOOT HOTFIX === -->
+
 </body>
 </html>
 <!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
@@ -18629,3 +18760,26 @@ document.addEventListener('DOMContentLoaded',function(){
 
 
 <!-- Find Work routing is handled by the core SPA router via /find-work clean path. -->
+
+
+<!-- === GUIDCY FINAL SEO + ROUTE OVERRIDE (must stay last) === -->
+<script id="guidcy-seo-route-manager-final">
+(function(){
+  var SITE='https://www.guidcy.com', LOGO=SITE+'/logo.png';
+  var SEO={home:['/','Home','Guidcy - Guidance Made Simple | Experts, Jobs, Work, Webinars & Opportunities','Guidcy helps students, professionals, startups, and businesses find expert guidance, discover jobs, explore Guidcy-listed work, attend webinars, and access growth opportunities in one platform.','Guidcy, Guidance Made Simple, experts, jobs, work, webinars, opportunities'],browse:['/find-experts','Find the Expert','Find Experts & Consultants Online | Guidcy','Book one-to-one sessions with verified experts, consultants, mentors, and professionals across career, business, finance, legal, education, startup, technology, and personal growth categories.','find experts, consultants, mentors, consultation'],jobs:['/find-jobs','Find Jobs','Find Jobs Online from the Internet | Guidcy','Search jobs listed across the internet including full-time jobs, internships, remote jobs, part-time roles, and career opportunities from external job sources in one place.','find jobs, internet jobs, internships, remote jobs'],work:['/find-work','Find Work','Find Work, Freelance Projects & Remote Gigs on Guidcy','Discover work opportunities, freelance projects, part-time tasks, remote gigs, internships, and hiring posts listed directly by users, startups, and businesses on Guidcy.','find work, freelance projects, remote gigs, Guidcy work'],opportunities:['/funds-grants-finder','Funds & Grants Finder','Funds, Grants, Scholarships & Hackathons Finder | Guidcy','Discover funds, grants, scholarships, hackathons, competitions, fellowships, startup programs, innovation challenges, and growth opportunities in one place.','funds, grants, scholarships, hackathons, competitions'], 'smart-finder':['/career-college-ai-finder','Career & College AI Finder','Career & College AI Finder | Guidcy','Use Guidcy’s AI-powered career and college finder to discover suitable career paths, colleges, courses, scholarships, and growth options based on your profile.','career finder, college finder, AI guidance'],webinar:['/webinars','Webinars','Webinars, Online Sessions & Learning Events | Guidcy','Attend and publish webinars, online sessions, workshops, and learning events hosted by consultants, mentors, professionals, and domain experts.','webinars, online sessions, workshops'],categories:['/categories','Categories','Expert Categories for Guidance & Consultation | Guidcy','Explore expert categories on Guidcy including business, technology, finance, legal, career coaching, wellness, marketing, education, startup, and professional guidance.','expert categories, guidance, consultation'],blog:['/blog','Blog','Guidance, Career, Startup & Opportunity Blog | Guidcy','Read practical blogs on career guidance, expert advice, startups, funding, jobs, webinars, education, professional growth, and opportunities.','career blog, startup blog, guidance'],become:['/become-a-consultant','Become a Consultant','Become a Consultant on Guidcy | Share Your Knowledge','Register as a consultant on Guidcy, publish webinars, offer paid guidance sessions, build your expert profile, and help students, professionals, and startups grow.','become consultant, expert profile'],help:['/help-center','Help Center','Help Center | Guidcy Support','Contact Guidcy support, raise help tickets, track queries, and get assistance for bookings, payments, webinars, consultant profiles, jobs, work posts, and opportunities.','Guidcy support, help tickets'],dispute:['/dispute-resolution','Dispute Resolution','Dispute Resolution | Guidcy','Raise and track disputes related to bookings, payments, consultations, webinars, work opportunities, platform usage, or other Guidcy-related concerns.','dispute resolution, support'],login:['/login','Login','Login | Guidcy','Login to Guidcy to manage bookings, consultations, webinars, jobs, work posts, support tickets, and dashboard activity.','Guidcy login'],signup:['/signup','Signup','Signup | Guidcy','Create your Guidcy account to find experts, discover jobs and work, attend webinars, and access career, college, funding, and startup opportunities.','Guidcy signup']};
+  var pathToPage={}, aliases={'/browse':'/find-experts','/browse.html':'/find-experts','/jobs':'/find-jobs','/jobs.html':'/find-jobs','/find-job':'/find-jobs','/find-job.html':'/find-jobs','/work':'/find-work','/work.html':'/find-work','/opportunities':'/funds-grants-finder','/opportunities.html':'/funds-grants-finder','/smart-finder':'/career-college-ai-finder','/smart-finder.html':'/career-college-ai-finder','/smartfinder':'/career-college-ai-finder','/smartfinder.html':'/career-college-ai-finder','/webinar':'/webinars','/webinar.html':'/webinars','/become':'/become-a-consultant','/become.html':'/become-a-consultant','/get-started':'/signup','/get-started.html':'/signup'};
+  Object.keys(SEO).forEach(function(k){pathToPage[SEO[k][0]]=k}); pathToPage['/']='home'; pathToPage['/index.html']='home'; Object.keys(aliases).forEach(function(k){pathToPage[k]=pathToPage[aliases[k]]});
+  function path(){return (location.pathname||'/').replace(/\/+$/,'')||'/'}
+  function page(){return pathToPage[path()] || ((location.hash||'').replace(/^#/,'').trim()) || 'home'}
+  function meta(sel,a,v){var e=document.querySelector(sel); if(!e){e=document.createElement('meta'); e.setAttribute(a,v); document.head.appendChild(e)} return e}
+  function link(rel){var e=document.querySelector('link[rel="'+rel+'"]'); if(!e){e=document.createElement('link'); e.rel=rel; document.head.appendChild(e)} return e}
+  function ld(id,obj){var e=document.getElementById(id); if(!e){e=document.createElement('script'); e.type='application/ld+json'; e.id=id; document.head.appendChild(e)} e.textContent=JSON.stringify(obj)}
+  function apply(pg){var d=SEO[pg]||SEO.home, url=SITE+d[0]; document.title=d[2]; meta('meta[name="description"]','name','description').content=d[3]; meta('meta[name="keywords"]','name','keywords').content=d[4]; meta('meta[name="robots"]','name','robots').content=(/dash|admin/.test(pg)?'noindex, nofollow':'index, follow'); link('canonical').href=url; meta('meta[property="og:title"]','property','og:title').content=d[2]; meta('meta[property="og:description"]','property','og:description').content=d[3]; meta('meta[property="og:url"]','property','og:url').content=url; meta('meta[property="og:image"]','property','og:image').content=LOGO; meta('meta[property="og:type"]','property','og:type').content='website'; meta('meta[name="twitter:card"]','name','twitter:card').content='summary_large_image'; meta('meta[name="twitter:title"]','name','twitter:title').content=d[2]; meta('meta[name="twitter:description"]','name','twitter:description').content=d[3]; meta('meta[name="twitter:image"]','name','twitter:image').content=LOGO; ld('guidcy-jsonld-org',{'@context':'https://schema.org','@type':'Organization',name:'Guidcy',url:SITE,logo:LOGO,slogan:'Guidance Made Simple'}); ld('guidcy-jsonld-website',{'@context':'https://schema.org','@type':'WebSite',name:'Guidcy',url:SITE,potentialAction:{'@type':'SearchAction',target:SITE+'/?q={search_term_string}','query-input':'required name=search_term_string'}}); ld('guidcy-jsonld-webpage',{'@context':'https://schema.org','@type':'WebPage',name:d[2],description:d[3],url:url,isPartOf:{'@type':'WebSite',name:'Guidcy',url:SITE}}); ld('guidcy-jsonld-breadcrumb',{'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'Home',item:SITE+'/'},{'@type':'ListItem',position:2,name:d[1],item:url}]}); var ex=document.getElementById('guidcy-jsonld-extra'); if(ex)ex.remove(); if(pg==='webinar')ld('guidcy-jsonld-extra',{'@context':'https://schema.org','@type':'Event',name:'Guidcy Webinars and Online Learning Events',eventAttendanceMode:'https://schema.org/OnlineEventAttendanceMode',eventStatus:'https://schema.org/EventScheduled',url:url,organizer:{'@type':'Organization',name:'Guidcy',url:SITE},description:d[3]}); if(pg==='help')ld('guidcy-jsonld-extra',{'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'How can I raise a support ticket on Guidcy?',acceptedAnswer:{'@type':'Answer',text:'Visit the Help Center, fill the support form, submit your issue, and track the ticket status.'}},{'@type':'Question',name:'Can Guidcy help with bookings, payments, webinars, jobs, work posts, and opportunities?',acceptedAnswer:{'@type':'Answer',text:'Yes. Guidcy support can assist with platform-related bookings, payments, webinars, consultant profiles, jobs, work posts, and opportunities.'}}]}); }
+  window.PAGE_URLS=Object.assign(window.PAGE_URLS||{},{home:'/',browse:'/find-experts',jobs:'/find-jobs',work:'/find-work','find-work':'/find-work',opportunities:'/funds-grants-finder','smart-finder':'/career-college-ai-finder',webinar:'/webinars',become:'/become-a-consultant',categories:'/categories',blog:'/blog',help:'/help-center',dispute:'/dispute-resolution',login:'/login',signup:'/signup'});
+  window.GuidcySEO={apply:apply,pageFromPath:page,map:SEO,aliases:aliases};
+  var oldGo=window.go; window.go=function(pg){var r=oldGo?oldGo.apply(this,arguments):undefined; var d=SEO[pg]; if(d){try{history.replaceState({page:pg},'',d[0])}catch(e){} apply(pg)} return r};
+  function boot(){var p=path(), dest=aliases[p]; if(dest){try{history.replaceState({page:pathToPage[dest]},'',dest+(location.search||'')+(location.hash||''))}catch(e){}} var pg=page(); apply(pg); try{if(typeof window.renderPage==='function') window.renderPage(pg)}catch(e){} }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot); else boot(); window.addEventListener('popstate',function(){setTimeout(function(){apply(page())},0)}); setTimeout(boot,300); setTimeout(function(){apply(page())},1200);
+})();
+</script>
+<!-- === END GUIDCY FINAL SEO + ROUTE OVERRIDE === -->
