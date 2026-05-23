@@ -84,12 +84,12 @@ if(!exists(indexPath)){
 const indexHtml = fs.readFileSync(indexPath,"utf8");
 
 const routes = new Set([
-  "browse","jobs","categories","blog",
-  "become","become-a-consultant",
-  "webinar","webinars",
-  "smart-finder","smartfinder",
+  "find-experts","browse","find-jobs","jobs","find-job","find-work","work",
+  "funds-grants-finder","opportunities","career-college-ai-finder","smart-finder","smartfinder",
+  "categories","blog","become-a-consultant","become",
+  "webinars","webinar",
   "login","signup","get-started",
-  "help","help-center","dispute","dispute-resolution",
+  "help-center","help","dispute-resolution","dispute",
   "about","contact","faq","terms","privacy","refund","disclaimer",
   "dashboard","user-dashboard","consultant-dashboard","admin","admin-dashboard"
 ]);
