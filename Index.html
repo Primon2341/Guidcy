@@ -12285,7 +12285,7 @@ body.gmob-open{overflow:hidden}
   async function run(prefix,home){
     var d=formData(prefix); if(!d.goal.trim()){var q=document.getElementById('srch')&&document.getElementById('srch').value; if(q)d.goal=q}
     if(!d.goal.trim()){alert('Please enter your goal first.');return}
-    var target=home?'guidcy-home-match-results':'guidcy-browse-match-results'; var el=document.getElementById(target); if(el)el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-match-loading">Finding live Supabase experts and related free resources...</div></div>';
+    var target=home?'guidcy-home-match-results':'guidcy-browse-match-results'; var el=document.getElementById(target); if(el)el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-match-loading">Finding live experts and related free resources...</div></div>';
     var cons=await fetchConsultantsOnlySupabase(); var ranked=rank(cons,d); var webs=await fetchFreeWebinars(d); renderResults(target,d,ranked,webs,home);
     if(!home){try{var bs=document.getElementById('browse-search'); if(bs)bs.value=d.goal; if(window.browseFilters){window.browseFilters.search=d.goal} if(typeof window.applyFilters==='function')window.applyFilters()}catch(e){}}
   }
