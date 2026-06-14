@@ -1,0 +1,395 @@
+
+<!-- === GUIDCY FINAL ROOT QA FIX: SINGLE DASHBOARD BUTTON + LIVE WEBINAR RERENDER + FIND WORK AUTH MODAL === -->
+<style id="guidcy-final-root-qa-fix-css">
+  #guidcy-findwork-login-required-modal.guidcy-fw-auth-overlay,
+  #guidcy-final-findwork-auth-modal.guidcy-fw-auth-overlay{
+    position:fixed!important;inset:0!important;z-index:2147483647!important;
+    display:none;align-items:center!important;justify-content:center!important;
+    background:rgba(15,23,42,.64)!important;backdrop-filter:blur(5px)!important;
+    padding:18px!important;box-sizing:border-box!important;
+  }
+  #guidcy-final-findwork-auth-modal.is-open,
+  #guidcy-findwork-login-required-modal.is-open{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+  #guidcy-final-findwork-auth-modal .guidcy-fw-auth-card{
+    width:min(520px,94vw);max-height:92vh;overflow:auto;background:#fff;border-radius:24px;
+    box-shadow:0 28px 90px rgba(15,23,42,.34);border:1px solid #DBEAFE;
+    padding:28px;text-align:center;position:relative;box-sizing:border-box;
+  }
+  #guidcy-final-findwork-auth-modal .guidcy-fw-auth-close{position:absolute;right:18px;top:14px;border:0;background:transparent;font-size:22px;color:#64748B;cursor:pointer;line-height:1;padding:4px;}
+  #guidcy-final-findwork-auth-modal .guidcy-fw-auth-icon{width:74px;height:74px;border-radius:50%;background:#EFF6FF;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:34px;}
+  #guidcy-final-findwork-auth-modal h3{font-family:'Cormorant Garamond',serif;font-size:31px;line-height:1.22;font-weight:600;color:#0F172A;margin:0 0 12px;}
+  #guidcy-final-findwork-auth-modal p{font-size:15px;line-height:1.65;color:#64748B;margin:0 auto 22px;max-width:390px;}
+  #guidcy-final-findwork-auth-modal .guidcy-fw-auth-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  #guidcy-final-findwork-auth-modal .guidcy-fw-auth-actions .btn{border-radius:999px;min-height:46px;padding:11px 24px;cursor:pointer;}
+  #gw-modal{z-index:12000!important;}
+  body.guidcy-final-auth-open{overflow:hidden!important;}
+  #nav-right #guidcy-dashboard-btn{white-space:nowrap;}
+  @media(max-width:640px){#guidcy-final-findwork-auth-modal .guidcy-fw-auth-card{padding:24px 18px}#guidcy-final-findwork-auth-modal h3{font-size:26px}#guidcy-final-findwork-auth-modal .guidcy-fw-auth-actions{flex-direction:column}#guidcy-final-findwork-auth-modal .guidcy-fw-auth-actions .btn{width:100%}}
+</style>
+<script id="guidcy-final-root-qa-fix-js">
+(function(){
+  'use strict';
+  if(window.__GUIDCY_FINAL_ROOT_QA_FIX__) return;
+  window.__GUIDCY_FINAL_ROOT_QA_FIX__ = true;
+
+  const $ = id => document.getElementById(id);
+  const clean = v => String(v == null ? '' : v).trim();
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const toastSafe = (msg,type) => { try { (window.toast || window.showToast || function(m){ alert(m); })(msg,type || 'blue'); } catch(_) { alert(msg); } };
+  const supa = () => window.sb || window.supabaseClient || null;
+  const val = id => { const el=$(id); return el && 'value' in el ? clean(el.value) : ''; };
+  const setVal = (id,v) => { const el=$(id); if(el && 'value' in el) el.value = v == null ? '' : String(v); };
+
+  function getGlobalProfile(){
+    try { if(window.currentProfile) return window.currentProfile; } catch(_){ }
+    try { if(typeof currentProfile !== 'undefined' && currentProfile) return currentProfile; } catch(_){ }
+    try { if(window.loggedInUser) return window.loggedInUser; } catch(_){ }
+    return null;
+  }
+  function getGlobalUser(){
+    try { if(window.currentUser) return window.currentUser; } catch(_){ }
+    try { if(typeof currentUser !== 'undefined' && currentUser) return currentUser; } catch(_){ }
+    try { if(window.loggedInUser) return window.loggedInUser; } catch(_){ }
+    return null;
+  }
+  function getRole(){
+    const p=getGlobalProfile();
+    let r='';
+    try { r = clean(p?.role || window.loggedInUser?.role || window.loggedIn || ''); } catch(_){ }
+    try { if(!r && typeof loggedIn !== 'undefined') r = clean(loggedIn); } catch(_){ }
+    return r.toLowerCase();
+  }
+  function initials(name){
+    return clean(name || 'G').split(/\s+/).map(x=>x[0]||'').join('').slice(0,2).toUpperCase() || 'G';
+  }
+  function dashboardRouteForRole(role){
+    role=clean(role).toLowerCase();
+    if(role==='admin') return 'admin-dash';
+    if(role==='consultant') return 'cons-dash';
+    return 'user-dash';
+  }
+  function isLoggedSync(){
+    const u=getGlobalUser(), p=getGlobalProfile();
+    if(u && (u.id || u.email)) return true;
+    if(p && (p.id || p.email || p.user_id || p.profile_id)) return true;
+    try { if(window.loggedIn === true || ['admin','consultant','user'].includes(clean(window.loggedIn).toLowerCase())) return true; } catch(_){ }
+    return false;
+  }
+  async function getAuthUser(){
+    const u=getGlobalUser();
+    if(u && (u.id || u.email)) return u;
+    const c=supa();
+    try { const r=await c?.auth?.getUser?.(); if(r?.data?.user) return r.data.user; } catch(_){ }
+    try { const s=await c?.auth?.getSession?.(); if(s?.data?.session?.user) return s.data.session.user; } catch(_){ }
+    return null;
+  }
+
+  /* 1) Single source of truth for the top Dashboard button. */
+  function renderSingleDashboardButton(){
+    const nr=$('nav-right');
+    if(!nr) return;
+    const role=getRole();
+    const p=getGlobalProfile() || {};
+    const u=getGlobalUser() || {};
+    const logged=!!(role || isLoggedSync());
+    if(!logged){
+      nr.innerHTML = '<button class="btn" onclick="go(\'login\')">Log in</button><button class="btn btn-blue" onclick="go(\'signup\');setTimeout(()=>{try{swType(\'consultant\')}catch(e){}},50)">Get started</button>';
+      syncMobileAuthArea();
+      return;
+    }
+    const route=dashboardRouteForRole(role);
+    const name=clean(p.full_name || p.name || u.user_metadata?.full_name || u.email || (role==='admin'?'Admin':role==='consultant'?'Consultant':'User'));
+    const ini=clean(p.avatar_initials || initials(name));
+    const avatarStyle = role==='admin' ? 'background:#FFF0F0;color:#7f1d1d;border-color:#f87171' : role==='consultant' ? 'background:#F7F0E6;color:#8B6E3F;border-color:#C9A96E' : 'background:#EBF4FF;color:#1E72BE;border-color:#1E72BE33';
+    nr.innerHTML = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button><div class="avatar-chip" onclick="go(\''+route+'\')" style="'+avatarStyle+'" title="'+esc(name)+'">'+esc(ini)+'</div>';
+    syncMobileAuthArea();
+  }
+  function syncMobileAuthArea(){
+    try{
+      const nr=$('nav-right');
+      ['gmob-auth-area','gmob-auth-btns'].forEach(id=>{const area=$(id); if(area && nr) area.innerHTML = nr.innerHTML;});
+    }catch(_){ }
+  }
+  window.guidcyRenderSingleDashboardButton = renderSingleDashboardButton;
+  window.updateNav = renderSingleDashboardButton;
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(renderSingleDashboardButton,80));
+  window.addEventListener('load',()=>setTimeout(renderSingleDashboardButton,160));
+  setInterval(function(){
+    const nr=$('nav-right');
+    if(!nr) return;
+    const dashBtns=nr.querySelectorAll('button');
+    const labels=Array.from(dashBtns).map(b=>clean(b.textContent).toLowerCase());
+    const dashboardLike=labels.filter(t=>['dashboard','admin panel','my bookings'].includes(t)).length;
+    if((isLoggedSync() && dashboardLike!==1) || nr.querySelectorAll('#guidcy-dashboard-btn').length>1) renderSingleDashboardButton();
+  },1200);
+
+  /* 2) Webinar update: preserve real id, update Supabase, local cache and visible DOM immediately. */
+  function normalizeWebinar(row){
+    row=row||{};
+    const start=clean(row.start_time || row.starts_at || '');
+    const date=clean(row.date || row.webinar_date || row.session_date || (start ? start.slice(0,10) : ''));
+    const time=clean(row.time || row.webinar_time || row.session_time || (start ? start.slice(11,16) : ''));
+    const priceAmount=Number(row.price_amount ?? row.priceAmount ?? row.price ?? row.amount ?? 0) || 0;
+    const priceType=clean(row.price_type || row.priceType || (row.is_paid || priceAmount>0 ? 'paid' : 'free')).toLowerCase()==='paid' ? 'paid' : 'free';
+    return {
+      id:clean(row.id || row.webinar_id),
+      title:clean(row.title || row.webinar_title || row.name),
+      cat:clean(row.category || row.cat || row.webinar_category) || 'General',
+      desc:clean(row.description || row.desc || row.summary || row.details),
+      date,time,
+      dur:clean(row.duration || row.dur || row.duration_minutes) || '60 minutes',
+      seats:Number(row.seats || row.max_seats || row.capacity || row.registration_limit || 100) || 100,
+      speaker:clean(row.speaker || row.speaker_name || row.host_name || row.host || row.consultant_name || row.presenter || row.publisher_name),
+      speakerRole:clean(row.speaker_role || row.speakerRole || row.host_role || row.designation || row.role),
+      link:clean(row.meet_link || row.meeting_link || row.webinar_link || row.link || row.join_link || row.zoom_link),
+      priceType,priceAmount,isPaid:priceType==='paid',
+      status:clean(row.status || row.publish_status || 'published') || 'published',
+      raw:row
+    };
+  }
+  async function fetchWebinarById(id){
+    id=clean(id); if(!id) return null;
+    const c=supa();
+    try{ const r=await c?.from?.('webinars')?.select('*')?.eq('id',id)?.maybeSingle?.(); if(r && !r.error && r.data) return r.data; }catch(_){ }
+    try{ const arr=JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[]; return arr.find(w=>clean(w.id||w.webinar_id)===id)||null; }catch(_){ return null; }
+  }
+  function buildWebinarPayload(existing){
+    const priceType=(val('wbn-pub-price-type')||'free').toLowerCase()==='paid'?'paid':'free';
+    const priceAmount=priceType==='paid' ? (Number(val('wbn-pub-price')||0)||0) : 0;
+    const payload={
+      title:val('wbn-pub-title'),
+      category:val('wbn-pub-cat') || existing?.category || existing?.cat || 'General',
+      description:val('wbn-pub-desc'),
+      date:val('wbn-pub-date'),
+      time:val('wbn-pub-time'),
+      duration:val('wbn-pub-dur') || existing?.duration || existing?.dur || '60 minutes',
+      seats:Number(val('wbn-pub-seats') || existing?.seats || existing?.capacity || 100) || 100,
+      speaker:val('wbn-pub-speaker'),
+      speaker_role:val('wbn-pub-speaker-role'),
+      meet_link:val('wbn-pub-link'),
+      price_type:priceType,
+      price_amount:priceAmount,
+      is_paid:priceType==='paid',
+      status:clean(existing?.status || existing?.publish_status || 'published') || 'published',
+      updated_at:new Date().toISOString()
+    };
+    if(existing?.created_by) payload.created_by=existing.created_by;
+    if(existing?.publisher_id) payload.publisher_id=existing.publisher_id;
+    return payload;
+  }
+  function mergeLocalWebinar(id,row){
+    try{
+      const n=normalizeWebinar(Object.assign({},row,{id:id,webinar_id:id}));
+      let arr=JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[];
+      let done=false;
+      arr=arr.map(w=>{ if(clean(w.id||w.webinar_id)===id){ done=true; return Object.assign({},w,row,n,{id:id,webinar_id:id}); } return w; });
+      if(!done) arr.unshift(Object.assign({},row,n,{id:id,webinar_id:id}));
+      const seen={}; arr=arr.filter(w=>{const k=clean(w.id||w.webinar_id); if(!k || seen[k]) return false; seen[k]=1; return true;});
+      localStorage.setItem('guidcy_webinars',JSON.stringify(arr));
+    }catch(_){ }
+  }
+  function patchVisibleWebinarCard(row){
+    const w=normalizeWebinar(row); if(!w.id) return;
+    const cards=document.querySelectorAll('[data-wbn-id="'+CSS.escape(w.id)+'"], [data-webinar-id="'+CSS.escape(w.id)+'"]');
+    cards.forEach(card=>{
+      const cat=card.querySelector('.wbn-card-cat'); if(cat) cat.textContent=w.cat;
+      const title=card.querySelector('.wbn-card-title'); if(title){ const badge=title.querySelector('.wbn-status-badge')?.outerHTML || ''; title.innerHTML=esc(w.title)+' '+badge; }
+      const desc=card.querySelector('.wbn-card-desc'); if(desc) desc.textContent=w.desc;
+      const meta=card.querySelectorAll('.wbn-meta-item');
+      if(meta[0]) meta[0].innerHTML='<span class="wbn-meta-icon">📅</span>'+esc(formatDateSafe(w.date));
+      if(meta[1]) meta[1].innerHTML='<span class="wbn-meta-icon">🕐</span>'+esc(formatTimeSafe(w.time));
+      if(meta[2]) meta[2].innerHTML='<span class="wbn-meta-icon">⏱</span>'+esc(w.dur);
+      const sp=card.querySelector('.wbn-speaker-name'); if(sp) sp.textContent=w.speaker;
+      const sr=card.querySelector('.wbn-speaker-role'); if(sr) sr.textContent=w.speakerRole;
+      const priceEl=Array.from(card.querySelectorAll('div,span')).find(el=>/^(Free|₹)/.test(clean(el.textContent)) && (el.style.borderRadius||'').includes('999'));
+      if(priceEl) priceEl.textContent=w.isPaid ? '₹'+Number(w.priceAmount||0).toLocaleString('en-IN') : 'Free';
+    });
+    document.querySelectorAll('select option, #wbn-admin-reg-webinar option').forEach(opt=>{ if(clean(opt.value)===w.id) opt.textContent=w.title; });
+  }
+  function formatDateSafe(d){ try{ if(window.fmtDate) return window.fmtDate(d); }catch(_){ } if(!d) return '—'; try{return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});}catch(_){return d;} }
+  function formatTimeSafe(t){ try{ if(window.fmtTime) return window.fmtTime(t); }catch(_){ } return t || '—'; }
+  function resetWebinarEditForm(){
+    ['wbn-pub-title','wbn-pub-date','wbn-pub-time','wbn-pub-desc','wbn-pub-speaker','wbn-pub-speaker-role','wbn-pub-link','wbn-pub-price'].forEach(id=>setVal(id,''));
+    setVal('wbn-pub-price-type','free');
+    window.__guidcyEditingWebinarId=''; window.__guidcyEditingWebinarRowId=''; window.editingWebinarId='';
+    const h=$('wbn-edit-id'); if(h) h.value='';
+    const panel=$('wbn-admin-panel'); if(panel) panel.removeAttribute('data-final-editing');
+    const btn=document.querySelector('#wbn-admin-panel button[onclick="wbnPublish()"],#wbn-admin-panel button.btn-blue'); if(btn) btn.textContent='Publish webinar';
+    try{window.wbnTogglePriceBox&&window.wbnTogglePriceBox();}catch(_){ }
+  }
+  window.guidcyForceWebinarRefresh = async function(row){
+    if(row && (row.id||row.webinar_id)) { mergeLocalWebinar(clean(row.id||row.webinar_id),row); patchVisibleWebinarCard(row); }
+    try{ await window.wbnLoad?.(); }catch(_){ }
+    try{ await window.syncWebinars?.(); }catch(_){ }
+    try{ window.wbnRender?.(); }catch(_){ }
+    try{ window.wbnRenderRegs?.(); }catch(_){ }
+    if(row && (row.id||row.webinar_id)) setTimeout(()=>patchVisibleWebinarCard(row),250);
+  };
+  const previousEdit=window.guidcyOpenWebinarEditForm || window.openWebinarEditForm;
+  window.guidcyOpenWebinarEditForm = window.openWebinarEditForm = async function(id){
+    const ok = typeof previousEdit === 'function' ? await previousEdit.apply(this,arguments) : false;
+    const realId=clean(id || window.__guidcyEditingWebinarId || window.editingWebinarId || $('wbn-edit-id')?.value);
+    if(realId){ window.__guidcyEditingWebinarId=realId; window.__guidcyEditingWebinarRowId=realId; window.editingWebinarId=realId; let h=$('wbn-edit-id'); if(!h){h=document.createElement('input');h.type='hidden';h.id='wbn-edit-id';$('wbn-admin-panel')?.appendChild(h);} h.value=realId; }
+    return ok;
+  };
+  window.wbnEditSession=function(id){ try{ if(window.event?.stopPropagation) window.event.stopPropagation(); }catch(_){ } window.guidcyOpenWebinarEditForm(id); return false; };
+  const previousPublish=window.wbnPublish;
+  window.wbnPublish = async function(){
+    const editId=clean(window.__guidcyEditingWebinarRowId || window.__guidcyEditingWebinarId || window.editingWebinarId || $('wbn-edit-id')?.value);
+    if(!editId) return typeof previousPublish==='function' ? previousPublish.apply(this,arguments) : undefined;
+    const title=val('wbn-pub-title'), date=val('wbn-pub-date'), time=val('wbn-pub-time'), speaker=val('wbn-pub-speaker');
+    if(!title || !date || !time || !speaker){ toastSafe('Please fill in title, date, time and speaker name.','red'); return false; }
+    const priceType=(val('wbn-pub-price-type')||'free').toLowerCase()==='paid'?'paid':'free';
+    if(priceType==='paid' && (Number(val('wbn-pub-price')||0)||0)<=0){ toastSafe('Please enter valid webinar fees for paid webinar.','red'); return false; }
+    const btn=document.querySelector('#wbn-admin-panel button[onclick="wbnPublish()"],#wbn-admin-panel button.btn-blue');
+    try{
+      if(btn){ btn.disabled=true; btn.textContent='Updating...'; }
+      const existing=await fetchWebinarById(editId) || {};
+      const payload=buildWebinarPayload(existing);
+      const c=supa();
+      let updated=null, err=null;
+      try{
+        const r=await c?.from?.('webinars')?.update(payload)?.eq('id',editId)?.select?.('*')?.single?.();
+        if(r?.error) err=r.error; else updated=r?.data || Object.assign({},existing,payload,{id:editId});
+      }catch(e){ err=e; }
+      if(!updated){
+        try{ const r2=await c?.from?.('webinars')?.update(payload)?.eq('id',editId); if(r2?.error) err=r2.error; else updated=Object.assign({},existing,payload,{id:editId}); }catch(e){ err=e; }
+      }
+      if(!updated){ console.warn('Webinar update failed',err); throw err || new Error('update_failed'); }
+      updated=Object.assign({},existing,updated,payload,{id:editId,webinar_id:editId});
+      mergeLocalWebinar(editId,updated);
+      patchVisibleWebinarCard(updated);
+      resetWebinarEditForm();
+      const st=$('wbn-pub-status'); if(st){ st.textContent='✓ Webinar updated successfully.'; st.style.display='block'; setTimeout(()=>{st.style.display='none';},3000); }
+      toastSafe('Webinar updated successfully.','green');
+      await window.guidcyForceWebinarRefresh(updated);
+      return true;
+    }catch(e){
+      console.warn('Unable to update webinar',e);
+      toastSafe('Unable to update webinar. Please try again.','red');
+      const st=$('wbn-pub-status'); if(st){ st.textContent='Unable to update webinar. Please try again.'; st.style.display='block'; setTimeout(()=>{st.style.display='none';},3000); }
+      return false;
+    }finally{
+      if(btn){ btn.disabled=false; btn.textContent=clean(window.__guidcyEditingWebinarId || $('wbn-edit-id')?.value) ? 'Update Webinar' : 'Publish webinar'; }
+    }
+  };
+
+  /* 3) Find Work Apply Now inside View Details: auth check, modal stacking, pending restoration. */
+  function savePendingWorkApply(id){
+    id=clean(id || window.__guidcySelectedWorkId || window.selectedWorkId || window.currentWorkId || window.guidcySelectedWorkId);
+    const obj={type:'find_work_apply',action:'apply_work',workId:id,jobId:id,work_id:id,returnRoute:'/find-work',returnUrl:'/find-work',openedFrom:'work_details',createdAt:Date.now()};
+    try{ sessionStorage.setItem('guidcy_pending_action',JSON.stringify(obj)); sessionStorage.setItem('guidcyPendingAction',JSON.stringify(obj)); localStorage.setItem('guidcy_pending_action',JSON.stringify(obj)); }catch(_){ }
+    return obj;
+  }
+  function readPendingWorkApply(){
+    let raw=''; try{ raw=sessionStorage.getItem('guidcy_pending_action') || sessionStorage.getItem('guidcyPendingAction') || localStorage.getItem('guidcy_pending_action') || ''; }catch(_){ }
+    if(!raw) return null;
+    try{ const obj=JSON.parse(raw); const id=clean(obj?.workId || obj?.jobId || obj?.work_id); const type=clean(obj?.type || obj?.action); if(id && /(find_work_apply|apply_work)/.test(type)) return Object.assign({},obj,{workId:id,jobId:id}); }catch(_){ }
+    return null;
+  }
+  function clearPendingWorkApply(){ try{ sessionStorage.removeItem('guidcy_pending_action'); sessionStorage.removeItem('guidcyPendingAction'); localStorage.removeItem('guidcy_pending_action'); }catch(_){ } }
+  function closeWorkDetailsModal(){
+    try{
+      document.querySelectorAll('#gw-modal,#guidcy-work-detail-modal,#work-detail-modal,#find-work-details-modal,.gw-modal,.work-details-modal,.find-work-details-modal,[data-work-details-modal]').forEach(el=>{
+        el.classList.remove('on','active','show','open','is-open'); el.setAttribute('aria-hidden','true'); el.style.display='none'; el.style.pointerEvents='none';
+      });
+    }catch(_){ }
+    try{ document.body.style.overflow=''; document.documentElement.style.overflow=''; }catch(_){ }
+  }
+  function ensureFindWorkAuthModal(){
+    let modal=$('guidcy-final-findwork-auth-modal') || $('guidcy-findwork-login-required-modal');
+    if(modal) return modal;
+    modal=document.createElement('div');
+    modal.id='guidcy-final-findwork-auth-modal';
+    modal.className='guidcy-fw-auth-overlay';
+    modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true');
+    modal.innerHTML='<div class="guidcy-fw-auth-card"><button type="button" class="guidcy-fw-auth-close" aria-label="Close">×</button><div class="guidcy-fw-auth-icon">💼</div><h3>Please login or register to apply</h3><p>Please login or register to apply for this opportunity. Your selected opportunity will be saved, and you can continue after login.</p><div class="guidcy-fw-auth-actions"><button type="button" class="btn btn-blue" data-fw-auth-action="login">Login</button><button type="button" class="btn btn-green" data-fw-auth-action="signup">Register</button><button type="button" class="btn" data-fw-auth-action="cancel">Cancel</button></div></div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click',e=>{ if(e.target===modal) closeFindWorkAuthModal(); });
+    modal.querySelector('.guidcy-fw-auth-close')?.addEventListener('click',closeFindWorkAuthModal);
+    modal.querySelector('[data-fw-auth-action="cancel"]')?.addEventListener('click',closeFindWorkAuthModal);
+    modal.querySelector('[data-fw-auth-action="login"]')?.addEventListener('click',e=>{ e.preventDefault(); closeFindWorkAuthModal(); try{ window.go ? go('login') : location.assign('/login'); }catch(_){ location.href='/login'; } });
+    modal.querySelector('[data-fw-auth-action="signup"]')?.addEventListener('click',e=>{ e.preventDefault(); closeFindWorkAuthModal(); try{ window.go ? go('signup') : location.assign('/signup'); }catch(_){ location.href='/signup'; } });
+    return modal;
+  }
+  function closeFindWorkAuthModal(){
+    const modal=$('guidcy-final-findwork-auth-modal') || $('guidcy-findwork-login-required-modal');
+    if(modal){ modal.classList.remove('is-open','on','open'); modal.style.display='none'; }
+    document.body.classList.remove('guidcy-final-auth-open','guidcy-modal-open');
+    try{ document.body.style.overflow=''; document.documentElement.style.overflow=''; }catch(_){ }
+  }
+  function openFindWorkAuthModal(id){
+    const pending=savePendingWorkApply(id);
+    window.__guidcySelectedWorkId=pending.workId;
+    closeWorkDetailsModal();
+    toastSafe('Please login or register to apply for this opportunity.','blue');
+    setTimeout(()=>{
+      const modal=ensureFindWorkAuthModal();
+      modal.style.display='flex'; modal.classList.add('is-open','on'); modal.style.pointerEvents='auto'; modal.style.visibility='visible';
+      document.body.classList.add('guidcy-final-auth-open'); document.body.style.overflow='hidden';
+      modal.querySelector('[data-fw-auth-action="login"]')?.focus();
+    },40);
+    return false;
+  }
+  function findWorkIdFromElement(el){
+    let n=el;
+    while(n && n!==document.body){
+      for(const attr of ['data-work-id','data-job-id','data-id','data-opp-id','data-opportunity-id']){ const v=n.getAttribute && n.getAttribute(attr); if(v) return clean(v); }
+      const oc=n.getAttribute && n.getAttribute('onclick');
+      if(oc){ const m=oc.match(/(?:guidcyWorkApply|applyForWork|submitWorkApplication|openWorkApplication)\(['"]?([^'"\)]+)['"]?\)/i); if(m&&m[1]) return clean(m[1]); }
+      n=n.parentElement;
+    }
+    return clean(window.__guidcySelectedWorkId || window.selectedWorkId || window.currentWorkId || window.guidcySelectedWorkId);
+  }
+  const previousWorkOpen=window.guidcyWorkOpen;
+  if(typeof previousWorkOpen==='function'){
+    window.guidcyWorkOpen=function(id){ window.__guidcySelectedWorkId=clean(id); return previousWorkOpen.apply(this,arguments); };
+  }
+  async function hasAlreadyAppliedFinal(workId,user){
+    try{ if(typeof window.hasAlreadyApplied==='function') return await window.hasAlreadyApplied(workId); }catch(_){ }
+    const uid=clean(user?.id || getGlobalUser()?.id || getGlobalProfile()?.id);
+    const email=clean(user?.email || getGlobalUser()?.email || getGlobalProfile()?.email);
+    const c=supa();
+    try{
+      let q=c?.from?.('work_applications')?.select('id')?.eq('work_id',workId)?.limit(1);
+      if(q && uid) q=q.eq('user_id',uid); else if(q && email) q=q.eq('email',email);
+      const r=await q; if(r && !r.error && Array.isArray(r.data) && r.data.length) return true;
+    }catch(_){ }
+    return false;
+  }
+  const previousApply=window.guidcyWorkApply;
+  window.guidcyWorkApply=async function(id){
+    const workId=clean(id || window.__guidcySelectedWorkId || window.selectedWorkId || window.currentWorkId || window.guidcySelectedWorkId);
+    const user=await getAuthUser();
+    if(!user && !isLoggedSync()) return openFindWorkAuthModal(workId);
+    if(workId && await hasAlreadyAppliedFinal(workId,user)){ toastSafe('You have already applied for this opportunity.','blue'); return false; }
+    if(typeof previousApply==='function') return previousApply.apply(this,arguments);
+    return true;
+  };
+  document.addEventListener('click',function(e){
+    const btn=e.target && e.target.closest && e.target.closest('button,a,.btn,[role="button"]'); if(!btn) return;
+    const label=clean(btn.textContent || btn.value || btn.getAttribute('aria-label') || '').toLowerCase();
+    const oc=clean(btn.getAttribute('onclick')||'').toLowerCase();
+    const inside=!!btn.closest('#gw-modal,#guidcy-work-detail-modal,#work-detail-modal,#find-work-details-modal,.gw-modal,.work-details-modal,.find-work-details-modal,[data-work-details-modal]');
+    const isApply=label.includes('apply now') || oc.includes('guidcyworkapply') || oc.includes('applyforwork') || oc.includes('openworkapplication');
+    if(inside && isApply && !isLoggedSync()){
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      openFindWorkAuthModal(findWorkIdFromElement(btn));
+      return false;
+    }
+  },true);
+  async function restorePendingWorkApply(){
+    const pending=readPendingWorkApply(); if(!pending) return false;
+    const user=await getAuthUser(); if(!user && !isLoggedSync()) return false;
+    clearPendingWorkApply();
+    try{ window.go ? go('work') : history.pushState(null,'','/find-work'); }catch(_){ }
+    setTimeout(()=>{ try{ window.guidcyWorkOpen?.(pending.workId); setTimeout(()=>{ try{ window.guidcyWorkApply?.(pending.workId); }catch(_){ } },500); }catch(e){ console.warn('Pending Find Work apply restore failed',e); } },650);
+    return true;
+  }
+  const previousRestore=window.restorePendingAction;
+  window.restorePendingAction=function(){ restorePendingWorkApply(); return typeof previousRestore==='function' ? previousRestore.apply(this,arguments) : false; };
+  ['DOMContentLoaded','load'].forEach(evt=>window.addEventListener(evt,()=>setTimeout(restorePendingWorkApply,1200)));
+  try{ supa()?.auth?.onAuthStateChange?.(()=>setTimeout(()=>{ renderSingleDashboardButton(); restorePendingWorkApply(); },450)); }catch(_){ }
+})();
+</script>
+<!-- === END GUIDCY FINAL ROOT QA FIX === -->

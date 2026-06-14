@@ -1,0 +1,30 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "functions": {
+    "api/rag-chat.js": {
+      "maxDuration": 60
+    },
+    "api/rag-search.js": {
+      "maxDuration": 60
+    },
+    "api/rag-ingest.js": {
+      "maxDuration": 300
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
