@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin-dashboard
+Disallow: /dashboard
+Disallow: /user-dashboard
+Disallow: /consultant-dashboard
+Disallow: /payment
+Disallow: /confirm
+Disallow: /meeting
+Disallow: /review
+
+Sitemap: https://www.guidcy.com/sitemap.xml
