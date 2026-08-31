@@ -1,0 +1,7 @@
+node_modules/
+public/
+dist/
+.vercel/
+.DS_Store
+.vercel
+.env*

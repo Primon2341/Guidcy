@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script defer src="/assets/js/core.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#1E72BE">
+<meta property="og:site_name" content="Guidcy">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://www.guidcy.com/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<title>Guidcy - Expert Guidance On Demand</title>
+<meta name="description" content="Guidcy is an expert consultation marketplace where users can browse verified consultants, book sessions, pay online, and join through Google Meet."/>
+<meta name="robots" content="index, follow"/>
+<link rel="canonical" href="https://www.guidcy.com/"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/></noscript>
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/patches.css">
+
+
+<!-- PDF.js / Mammoth (resume + notes parsing) are lazy-loaded on first use via guidcyLoadScript() -->
+
+<!-- Supabase JS -->
+<!-- Must stay deferred and ahead of app.js: app.js binds `sb` once at parse time and
+     ~285 call sites use that binding directly, so if this SDK is not present by then
+     `sb` stays null and booking/payment silently stop working. The preload starts the
+     download as early as possible to keep that wait short. -->
+<link rel="preload" as="script" href="/assets/vendor/supabase.js">
+<script defer src="/assets/vendor/supabase.js"></script>
+<!-- Razorpay checkout is initiated by secure server-side form POST; no frontend gateway secret or SDK is loaded. -->
+<!-- All transactional email goes through Resend (api/send-guidcy-email.js + the Supabase edge function), not EmailJS -->
+<!-- Google GSI client (Calendar/Meet link OAuth) is lazy-loaded on first use via guidcyLoadScript() -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Guidcy",
+  "url": "https://www.guidcy.com",
+  "logo": "https://www.guidcy.com/logo.png",
+  "description": "Guidcy is an online expert consultation marketplace for booking business, career, finance, startup and professional guidance sessions."
+}
+</script>
+
+<!-- === GUIDCY REQUESTED HOME LAYOUT FIXES === -->
+
+<script defer src="/assets/js/app.js"></script>
+<script defer src="/assets/js/shared-search.js"></script>
+<script defer src="/assets/js/controllers.js"></script>
+<!-- === END GUIDCY REQUESTED HOME LAYOUT FIXES === -->
+
+
+
+<!-- === GUIDCY ANIMATED PANEL + HOW GUIDCY WORKS ANIMATION PATCH === -->
+
+<!-- === END GUIDCY ANIMATED PANEL + HOW GUIDCY WORKS ANIMATION PATCH === -->
+
+
+<!-- === GUIDCY SMALL ANIMATED PANEL LOGO PATCH === -->
+
+<!-- === END GUIDCY SMALL ANIMATED PANEL LOGO PATCH === -->
+
+
+
+<!-- === GUIDCY MOBILE ANIMATED SECTION DIMENSION FIX === -->
+
+<!-- === END GUIDCY MOBILE ANIMATED SECTION DIMENSION FIX === -->
+
+
+
+<!-- === GUIDCY USER GOAL TRACKER PATCH === -->
+
+<!-- === END GUIDCY USER GOAL TRACKER PATCH === -->
+
+
+
+</head>
+<body>
+
+<!-- ════ NAV ════ -->
+<nav class="nav" id="main-nav">
+  <div class="logo-wrap" onclick="go('home')">
+    <div class="logo-svg-wrap"><img src="/logo-header.png" alt="Guidcy" width="180" height="120" fetchpriority="high" style="height:52px;width:auto"></div>
+    <div class="logo-text">
+      
+    </div>
+  </div>
+  <button class="mobile-burger" id="mobile-burger" onclick="openMobDrawer()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <button class="nav-link" onclick="go('home');closeMobileMenu()">Home</button>
+    <button class="nav-link" onclick="go('browse');closeMobileMenu()">Find the Expert</button>
+    <button class="nav-link" onclick="go('jobs');closeMobileMenu()">Find Jobs</button>
+    <button class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</button><button class="nav-link" onclick="go('blog');closeMobileMenu()">Blog</button>
+    <button class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</button><button class="nav-link" onclick="go('opportunities');closeMobileMenu()">Funds &amp; Grants Finder</button>
+  </div>
+  <div class="nav-right" id="nav-right">
+    <button class="btn" onclick="go('login')">Log in</button>
+    <button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},50)">Get started</button>
+  </div>
+</nav>
+
+<!-- ════ HOME ════ -->
+<div id="page-home" class="page on">
+  <div class="hero">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-left">
+        <div class="hero-badge"><span>🚀</span>India's Expert Consultation Platform</div>
+        <h1 class="hero-title">Find the Right <span class="hero-accent-blue">Expert.</span><br>Get the Right <span class="hero-accent-green">Guidance.</span></h1>
+        <p class="hero-sub">India's trusted platform for 1-on-1 expert consultations. Business, legal, finance, career, wellness — verified professionals, instant video calls, secure payments.</p>
+        <div class="hero-search">
+          <div class="hero-search-cat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>
+            <select id="cat-select" onchange="renderHeroSuggestions()" style="border:none;background:transparent;font-size:13px;color:#374151;font-family:inherit;outline:none;cursor:pointer;padding:0 4px;min-width:110px">
+              <option value="">All Categories</option><option value="Business">Business</option><option value="Technology">Technology</option><option value="Finance">Finance</option><option value="Legal">Legal</option><option value="Career">Career</option><option value="Wellness">Wellness</option><option value="Marketing">Marketing</option>
+            </select>
+          </div>
+          <div class="hero-search-input-wrap"><input id="srch" autocomplete="off" placeholder="Search for consultants, skills, or topics..." oninput="heroSearchInput()" onfocus="renderHeroSuggestions()" onkeydown="if(event.key==='Enter'){event.preventDefault();hideHeroSuggestions();doHeroSearch()}"/><div id="hero-search-suggestions" class="hero-search-suggestions"></div></div>
+          <button class="btn btn-blue" onclick="doHeroSearch()">Search</button>
+        </div>
+        <div class="hero-trust-row">
+          <div class="hero-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Verified Experts</div>
+          <div class="hero-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Easy Scheduling</div>
+          <div class="hero-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="11" width="22" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secure Payments</div>
+          <div class="hero-trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>24/7 Support</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="guidcy-marketing-strip-host" class="guidcy-marketing-strip-host" aria-live="polite"></div>
+
+  <div class="trust-strip" id="home-trust-strip">
+    <div class="trust-item"><span class="trust-val" id="ts-experts" style="color:var(--blue)">12K+</span><span class="trust-label">Verified experts</span></div>
+    <div class="trust-item"><span class="trust-val" id="ts-cats" style="color:var(--green)">8+</span><span class="trust-label">Categories live</span></div>
+    <div class="trust-item"><span class="trust-val" id="ts-sessions" style="color:var(--gold-d)">98K+</span><span class="trust-label">Sessions booked</span></div>
+    <div class="trust-item"><span class="trust-val" id="ts-users" style="color:#8B5CF6">0</span><span class="trust-label">Total users</span></div>
+  </div>
+
+  <!-- Categories -->
+  <div class="home-categories-section">
+    <div class="home-section-header">
+      <span class="home-section-label">EXPLORE TOP CATEGORIES</span>
+      <h2 class="home-section-title">Popular Categories</h2>
+      <p class="home-section-sub">Find the perfect expert in your area of need</p>
+    </div>
+    <div class="home-cats-grid">
+      <div class="home-cat-card" onclick="filterAndBrowse('Business')"><div class="home-cat-icon" style="background:#EBF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E72BE" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="home-cat-name">Business &amp; Strategy</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Technology')"><div class="home-cat-icon" style="background:#F0FDF4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><div class="home-cat-name">Technology</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Marketing')"><div class="home-cat-icon" style="background:#FFF7ED"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div><div class="home-cat-name">Marketing</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Career')"><div class="home-cat-icon" style="background:#FFF0F3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="home-cat-name">Career Coaching</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Wellness')"><div class="home-cat-icon" style="background:#FDF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A21CAF" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="home-cat-name">Health &amp; Wellness</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="1.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div><div class="home-cat-name">View All</div><div class="home-cat-count">All specialties</div></div>
+    </div>
+  </div>
+
+  <!-- Featured Consultants -->
+  <div class="section" style="background:var(--surface3)">
+    <div class="sec-head">
+      <div>
+        <h2 class="sec-title">Featured Experts</h2>
+        <p style="font-size:13px;color:var(--muted);margin-top:4px">Verified professionals ready to guide you</p>
+      </div>
+      <button class="sec-link" onclick="go('browse')" style="display:flex;align-items:center;gap:4px">View all <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="grid" id="cons-grid"></div>
+  </div>
+
+  <!-- How it works -->
+  <div class="section" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+    <div class="home-section-header" style="text-align:center;margin-bottom:48px">
+      <span class="home-section-label">THE PROCESS</span>
+      <h2 class="home-section-title">How Guidcy Works</h2>
+      <p class="home-section-sub">From search to session in under 5 minutes</p>
+    </div>
+    <div class="how-grid">
+      <div class="how-item"><div class="how-num">1</div><div class="how-title">Find your expert</div><div class="how-desc">Use Find the Expert to view verified consultants across multiple specialties. Filter by category, rating, and price.</div></div>
+      <div class="how-item"><div class="how-num">2</div><div class="how-title">Book a session</div><div class="how-desc">Choose your preferred time slot, session type (video/audio/chat), and duration.</div></div>
+      <div class="how-item"><div class="how-num">3</div><div class="how-title">Pay securely</div><div class="how-desc">Pay online via card, UPI, or net banking. Secured with 256-bit SSL encryption. 100% refund guarantee.</div></div>
+      <div class="how-item"><div class="how-num">4</div><div class="how-title">Connect & grow</div><div class="how-desc">Join via video call. Get expert guidance and actionable insights instantly.</div></div>
+    </div>
+  </div>
+
+  <!-- Testimonials -->
+  <div class="section" style="background:var(--surface)">
+    <div class="home-section-header" style="text-align:center;margin-bottom:40px">
+      <span class="home-section-label">USER STORIES</span>
+      <h2 class="home-section-title">What Our Users Say</h2>
+      <p class="home-section-sub">Honest reviews from our community</p>
+    </div>
+    <div class="test-grid" id="reviews-grid"><div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading reviews...</div></div>
+  </div>
+
+  <!-- CTA Banner -->
+  <div style="background:linear-gradient(135deg,#0A1628 0%,#0E2A4A 50%,#0A1628 100%);padding:72px 32px;text-align:center;color:#fff;position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(30,114,190,.2) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(61,184,74,.15) 0%,transparent 60%)"></div>
+    <div style="position:relative;z-index:1;max-width:700px;margin:0 auto">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:100px;padding:6px 18px;font-size:12px;color:rgba(255,255,255,.8);margin-bottom:24px;letter-spacing:.04em">
+        <span style="width:6px;height:6px;border-radius:50%;background:#4ADE80;display:inline-block;animation:pulse 2s infinite"></span>
+        OPEN PLATFORM — JOIN FREE
+      </div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;margin-bottom:16px;line-height:1.15">
+        Share your expertise.<br><em style="color:#60A5FA">Earn on your schedule.</em>
+      </div>
+      <p style="font-size:15px;color:#94A3B8;margin-bottom:12px;line-height:1.7">Stop Scrolling the Internet, Start Finding On Guidcy</p>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Set your own rates</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Featured profile placement</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Video calls built-in</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4ADE80"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Instant secure payouts</div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-blue" style="padding:14px 32px;font-size:15px;font-weight:600;letter-spacing:.01em" onclick="go('signup');swType('consultant')">Join as a Consultant →</button>
+        <button class="btn" style="padding:14px 32px;font-size:15px;background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2);font-weight:500" onclick="go('browse')">Find a Consultant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer" hidden style="display:none">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <img src="/logo.png" alt="Guidcy" style="height:52px;width:auto;filter:brightness(10)">
+        <p>India's premier consultation marketplace connecting verified experts with individuals and businesses.</p>
+      </div>
+      <div class="footer-col"><h4>Platform</h4><a href="/find-experts" onclick="go('browse');return false">Find Experts</a><a href="/find-jobs" onclick="go('jobs');return false">Find Jobs</a><a href="/marketplace" onclick="go('marketplace');return false">Marketplace Notes</a><a href="/webinars" onclick="go('webinar');return false">Webinars</a><a href="/funds-grants" onclick="go('opportunities');return false">Funds & Grants Finder</a><a href="/career-ai-finder" onclick="go('smart-finder');return false">Career & College AI Finder</a><a href="/blog" onclick="go('blog');return false">Guidcy Blog</a></div>
+      <div class="footer-col"><h4>Company</h4><a href="/categories" onclick="go('categories');return false">All Categories</a><a href="/about" onclick="go('about');return false">About Us</a><a href="/careers" onclick="go('careers');return false">Careers</a><a href="/contact" onclick="go('contact');return false">Contact Us</a><a href="/help-center" onclick="go('help');return false">Help Centre</a><a href="/dispute-resolution" onclick="go('dispute');return false">Dispute Resolution</a></div>
+      <div class="footer-col"><h4>Legal</h4><a href="/terms" onclick="go('terms');return false">Terms & Conditions</a><a href="/privacy" onclick="go('privacy');return false">Privacy Policy</a><a href="/refund" onclick="go('refund');return false">Refund Policy</a><a href="/disclaimer" onclick="go('disclaimer');return false">Disclaimer</a></div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Guidcy Technologies Pvt. Ltd. · Guidcy Hyderabad Office Near TCS Adibatla</span>
+      <div class="footer-links"><a href="/terms" onclick="go('terms');return false">Terms</a><a href="/privacy" onclick="go('privacy');return false">Privacy</a><a href="/contact" onclick="go('contact');return false">Contact</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ BROWSE ════ -->
+<div id="page-browse" class="page">
+  <div class="browse-search-toolbar" style="padding:16px 32px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+    <div class="search-suggest-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--muted);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="browse-search" type="search" autocomplete="off" style="flex:1;border:none;background:transparent;font-size:13px;outline:none;" placeholder="Search consultants, categories, skills..." oninput="browseSearch()" onfocus="renderBrowseSuggestions()" onkeydown="if(event.key==='Enter'){event.preventDefault();hideBrowseSuggestions();applyFilters()}else if(event.key==='Escape'){guidcyClearSearch()}"/>
+      <button type="button" id="browse-search-clear" class="search-clear" aria-label="Clear search" onclick="guidcyClearSearch()" hidden>&times;</button>
+      <div id="browse-search-suggestions" class="search-suggest-box"></div>
+    </div>
+    <select id="sort-select" class="sort-select" onchange="browseSort(this.value)">
+      <option value="">Sort: Relevance</option>
+      <option value="rating">Highest rated</option>
+      <option value="price_asc">Price: Low to high</option>
+      <option value="price_desc">Price: High to low</option>
+      <option value="reviews">Most reviewed</option>
+    </select>
+  </div>
+  <div class="browse-layout">
+    <div class="filter-panel">
+      <div style="font-size:14px;font-weight:600;margin-bottom:18px;color:var(--ink)">Filters</div>
+
+      <div class="filter-section">
+        <div class="filter-title">Category</div>
+        <div id="filter-cat-list" style="max-height:240px;overflow-y:auto"></div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Session type</div>
+        <label class="filter-check"><input type="checkbox" value="video" onchange="applyFilters()"/> 📹 Video call</label>
+        <label class="filter-check"><input type="checkbox" value="audio" onchange="applyFilters()"/> 📞 Audio call</label>
+        <label class="filter-check"><input type="checkbox" value="chat" onchange="applyFilters()"/> 💬 Chat</label>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Price range (per session)</div>
+        <div class="filter-range">
+          <input type="number" id="price-min" min="0" step="100" placeholder="Min ₹" oninput="guidcyPriceInput()"/>
+          <span>to</span>
+          <input type="number" id="price-max" min="0" step="100" placeholder="Max ₹" oninput="guidcyPriceInput()"/>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Minimum rating</div>
+        <label class="filter-check"><input type="radio" name="rating-f" value="4.5" onchange="applyFilters()"/> ⭐ 4.5 & above</label>
+        <label class="filter-check"><input type="radio" name="rating-f" value="4.0" onchange="applyFilters()"/> ⭐ 4.0 & above</label>
+        <label class="filter-check"><input type="radio" name="rating-f" value="0" checked onchange="applyFilters()"/> All ratings</label>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Experience</div>
+        <label class="filter-check"><input type="checkbox" value="5+" onchange="applyFilters()"/> 5+ years</label>
+        <label class="filter-check"><input type="checkbox" value="10+" onchange="applyFilters()"/> 10+ years</label>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-title">Language</div>
+        <label class="filter-check"><input type="checkbox" value="English" onchange="applyFilters()"/> English</label>
+        <label class="filter-check"><input type="checkbox" value="Hindi" onchange="applyFilters()"/> Hindi</label>
+      </div>
+
+      <button class="btn" style="width:100%;margin-top:4px" onclick="clearFilters()">Clear all filters</button>
+    </div>
+    <div class="browse-main">
+      <div class="browse-top">
+        <div class="results-count" id="browse-count">Showing all 6 experts</div>
+      </div>
+      <div class="active-filters" id="active-filters"></div>
+      <div class="browse-grid" id="browse-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PROFILE ════ -->
+<div id="page-profile" class="page">
+  <div id="profile-layout" class="profile-layout"></div>
+</div>
+
+<!-- ════ LOGIN ════ -->
+<div id="page-login" class="page">
+  <div class="form-page">
+    <div class="form-card">
+      <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
+        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <div class="guidcy-form-logo-tagline" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;line-height:1;text-align:center;background:linear-gradient(90deg,#0B4A9B,#2E8B1F);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Guidance Made Simple</div>
+      </div>
+      <div class="form-title">Welcome back</div>
+      <div class="form-sub">Sign in to continue your journey</div>
+      <div class="type-tabs">
+        <button class="type-tab on" id="li-u" onclick="swLoginType('user')">User</button>
+        <button class="type-tab" id="li-c" onclick="swLoginType('consultant')">Consultant</button>
+        <button class="type-tab" id="li-a" onclick="swLoginType('admin')">Admin</button>
+      </div>
+      <button type="button" class="goog-btn" onclick="gSignIn()"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</button>
+      <div class="or-line">or</div>
+      <form autocomplete="on" onsubmit="event.preventDefault();return false;">
+        <div class="field"><label>Email</label><input type="email" id="li-email" autocomplete="username" placeholder="you@example.com"/></div>
+        <div class="field"><label>Password</label><input type="password" placeholder="••••••••" id="li-pass" autocomplete="current-password"/></div>
+        <div style="text-align:right;margin-top:-8px;margin-bottom:14px"><button type="button" style="background:none;border:none;font-size:12px;color:var(--blue);cursor:pointer;font-weight:500" onclick="openForgotPasswordModal()">Forgot password?</button></div>
+        <button type="submit" class="primary-btn" onclick="doLogin()">Sign in</button>
+      </form>
+      <div class="switch-txt">No account? <button type="button" onclick="guidcyGoSignupFromLogin()">Create one free</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SIGNUP ════ -->
+<div id="page-signup" class="page">
+  <div class="form-page" style="max-width:520px">
+    <div class="form-card">
+      <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
+        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <div class="guidcy-form-logo-tagline" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;line-height:1;text-align:center;background:linear-gradient(90deg,#0B4A9B,#2E8B1F);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Guidance Made Simple</div>
+      </div>
+      <div class="form-title">Join Guidcy</div>
+      <div class="form-sub">Create your free account today</div>
+      <div class="type-tabs">
+        <button class="type-tab on" id="su-c" onclick="swType('consultant')">Consultant</button>
+        <button class="type-tab" id="su-u" onclick="swType('user')">User</button>
+      </div>
+      <button type="button" class="goog-btn" onclick="gSignIn()"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</button>
+      <div class="or-line">or</div>
+      <!-- USER FORM -->
+      <form id="su-user-form" style="display:none" autocomplete="on" onsubmit="event.preventDefault();return false;">
+        <div class="field-row">
+          <div class="field"><label>First name</label><input id="su-fn" placeholder="Aarav"/></div>
+          <div class="field"><label>Last name</label><input id="su-ln" placeholder="Shah"/></div>
+        </div>
+        <div class="field"><label>Email</label><input type="email" id="su-em" autocomplete="email" placeholder="you@example.com"/></div>
+        <div class="field"><label>Phone number</label><input type="tel" placeholder="+91 98765 43210"/></div>
+        <div class="field-row">
+          <div class="field"><label>Country</label><select><option selected>India</option><option>USA</option><option>UK</option><option>UAE</option><option>Singapore</option></select></div>
+          <div class="field"><label>City</label><input placeholder="Hyderabad"/></div>
+        </div>
+        <div class="field"><label>Current Company / College</label><input id="su-company-college" placeholder="Company or college name"/></div>
+        <div class="field-row">
+          <div class="field"><label>Timezone</label><select><option>IST (UTC+5:30)</option><option>GST (UTC+4)</option><option>EST (UTC-5)</option><option>GMT</option></select></div>
+          <div class="field"><label>Preferred language</label><select id="f-lang" onchange="applyFilters()"><option value="">Any language</option><option value="Hindi">Hindi</option><option value="English">English</option></select></div>
+        </div>
+        <div class="field"><label>Password</label><input type="password" id="su-pw" autocomplete="new-password" placeholder="Min 8 characters" oninput="checkPass(this)"/><div class="strength-bar"><div class="strength-fill" id="pass-strength" style="width:0%"></div></div></div>
+        <button type="submit" class="primary-btn" onclick="doSignup('user')">Create account</button>
+      </form>
+      <!-- CONSULTANT FORM -->
+      <form id="su-cons-form" autocomplete="on" onsubmit="event.preventDefault();return false;">
+        <div class="field-row">
+          <div class="field"><label>First name</label><input id="sc-fn" placeholder="Priya"/></div>
+          <div class="field"><label>Last name</label><input id="sc-ln" placeholder="Menon"/></div>
+        </div>
+        <div class="field"><label>Professional title</label><input placeholder="Senior Business Strategy Consultant"/></div>
+        <div class="field"><label>Current Company / College</label><input id="sc-company-college" placeholder="Current company, organization, or college"/></div>
+        <div class="field"><label>Email</label><input type="email" id="sc-em" autocomplete="email" placeholder="you@example.com"/></div>
+        <div class="field"><label>Phone</label><input type="tel" id="sc-ph" placeholder="+91 98765 43210"/></div>
+        <div class="field-row">
+          <div class="field"><label>Categories</label>
+            <select id="sc-cat" multiple size="6" aria-label="Selected consultation categories" style="display:none"><option>Business Strategy</option><option>Technology</option><option>Legal</option><option>Finance</option><option>Career Coaching</option><option>Wellness</option><option>Marketing</option><option>Education</option></select>
+            <div class="guidcy-category-dropdown" id="guidcy-consultant-category-dropdown">
+              <button type="button" class="guidcy-category-dropdown-btn" id="guidcy-consultant-category-toggle" aria-expanded="false" aria-controls="guidcy-consultant-category-menu">
+                <span id="guidcy-consultant-category-summary">Select categories</span>
+                <span aria-hidden="true">⌄</span>
+              </button>
+              <div class="guidcy-category-dropdown-menu" id="guidcy-consultant-category-menu">
+                <div id="guidcy-consultant-category-boxes" class="guidcy-category-box-grid" aria-label="Select one or more consultation categories"></div>
+              </div>
+            </div>
+            <div class="micro guidcy-multi-category-help" style="margin-top:6px">Select every field where you can provide consultancy.</div>
+          </div>
+          <div class="field"><label>Experience</label>
+            <select id="sc-exp"><option>1–3 yrs</option><option>3–5 yrs</option><option>5–10 yrs</option><option>10+ yrs</option></select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Rate per hour (₹)</label><input type="number" id="sc-rate" placeholder="1000"/></div>
+          <div class="field"><label>Languages spoken</label><input placeholder="English, Hindi"/></div>
+        </div>
+        <div class="field"><label>Session types offered</label>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <label class="filter-check"><input type="checkbox" checked/> Video</label>
+            <label class="filter-check"><input type="checkbox"/> Audio</label>
+            <label class="filter-check"><input type="checkbox"/> Chat</label>
+          </div>
+        </div>
+        <div class="field"><label>Short bio</label><textarea id="sc-bio" placeholder="Tell clients about your background, expertise, and what value you deliver in sessions..."></textarea></div>
+        <div class="field"><label>LinkedIn / Portfolio URL</label><input type="url" placeholder="https://linkedin.com/in/yourname"/></div>
+        <div class="field"><label>Password</label><input type="password" id="sc-pw" autocomplete="new-password" placeholder="Min 8 characters"/></div>
+        <button type="submit" class="green-btn" id="cons-signup-btn" onclick="doSignup('consultant')">Create consultant account</button>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Free to join. Set your own rates. Start accepting bookings immediately.</p>
+      </form>
+      <div class="switch-txt">Already have an account? <button onclick="go('login')">Sign in</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PAYMENT ════ -->
+<div id="page-payment" class="page">
+  <div class="pay-wrap">
+ <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;cursor:pointer;color:var(--muted)" onclick="guidcyPaymentBack()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      <span style="font-size:13px">Back to profile</span>
+    </div>
+    <div class="step-bar">
+      <div class="step-item"><div class="step-circle done">✓</div><div class="step-line done"></div></div>
+      <div class="step-item"><div class="step-circle active">2</div><div class="step-line"></div></div>
+      <div class="step-item"><div class="step-circle">3</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:24px;margin-top:-18px">
+      <span>Select slot</span><span style="color:var(--blue);font-weight:600">Payment</span><span>Confirmed</span>
+    </div>
+    <div class="pay-card">
+      <div class="pay-top">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Total due</div>
+        <div class="pay-amount" id="pay-amt">--</div>
+        <div class="pay-desc" id="pay-desc">Select a session to continue</div>
+      </div>
+      <div class="pay-body">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:none">Payment method</div>
+        <div class="pay-method-row" style="display:none">
+          <div class="pay-method sel" onclick="selPayMethod(this,'card')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Card
+          </div>
+          <div class="pay-method" onclick="selPayMethod(this,'upi')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>UPI
+          </div>
+          <div class="pay-method" onclick="selPayMethod(this,'netbank')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 10v11M12 10v11M16 10v11"/></svg>Net Banking
+          </div>
+          <div class="pay-method" onclick="selPayMethod(this,'wallet')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>Wallet
+          </div>
+        </div>
+        <div id="pay-input-area" style="display:none">
+          <div class="field"><label>Card number</label><input placeholder="1234 5678 9012 3456" oninput="fmtCard(this)" maxlength="19"/></div>
+          <div class="field-row">
+            <div class="field"><label>Expiry (MM/YY)</label><input placeholder="08/27" maxlength="5"/></div>
+            <div class="field"><label>CVV</label><input type="password" placeholder="•••" maxlength="3"/></div>
+          </div>
+          <div class="field"><label>Name on card</label><input placeholder="Your name"/></div>
+        </div>
+ <div class="pay-summary" id="pay-summary-box"></div>
+ <div id="guidcy-payment-status" class="guidcy-payment-status" role="status" aria-live="polite" hidden></div>
+        <div id="testing-mode-banner" style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px;font-size:13px;color:#92400E;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div><b>Razorpay secure checkout.</b> Payment opens only after you click Pay. Booking is confirmed only after server-side verification.</div>
+        </div>
+        <button class="green-btn" onclick="guidcyStartRazorpayBooking()">Confirm & Pay securely</button>
+        <div class="secure-row">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Razorpay secure payment · Booking saved after verified success
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ CONFIRMATION ════ -->
+<div id="page-confirm" class="page">
+  <div class="confirm-wrap">
+    <div class="confirm-card">
+      <div class="confirm-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3DB84A" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div class="confirm-title">Booking confirmed! 🎉</div>
+      <p class="confirm-sub">Your session is scheduled and paid. All details have been sent to your email and phone.</p>
+      <div class="remind-box">
+        <div style="font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px">🔔 Smart reminders enabled</div>
+        You'll be notified instantly, 1 hour, and 15 minutes before your session via email and SMS.
+      </div>
+      <div class="meet-card">
+        <div class="meet-card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#1a73e8"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+          Video Meeting link
+        </div>
+        <a class="meet-link" id="meet-link-url" href="#" target="_blank" rel="noopener" id="meet-link-url">Your Google Meet link will appear here</a>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">⏱ Link activates 5 minutes before your session</div>
+      </div>
+      <div class="detail-box" id="confirm-details"></div>
+      <button class="primary-btn" style="margin-bottom:8px" onclick="go('user-dash')">Go to my dashboard</button>
+      <button onclick="go('home')" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--rx);font-size:13px;cursor:pointer;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:500">Find more experts</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ USER DASHBOARD ════ -->
+<div id="page-user-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('user')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
+  <div class="dash-wrap">
+    <div class="dash-side">
+	      <div class="dash-user-block">
+	        <div class="dash-av" id="udash-av">AS</div>
+	        <div class="guidcy-dash-avatar-actions">
+	          <button type="button" class="guidcy-dash-avatar-edit" data-guidcy-avatar-trigger="udash-avatar-input">Edit photo</button>
+	          <input type="file" id="udash-avatar-input" class="guidcy-avatar-hidden-input" accept="image/*" data-guidcy-avatar-scope="dashboard" data-guidcy-avatar-role="user" data-guidcy-sidebar-avatar="udash-av">
+	        </div>
+	        <div class="dash-name" id="udash-name">User</div>
+	        <div class="dash-type">User account</div>
+	        <div class="dash-role-badge rb-user">Client</div>
+      </div>
+      <div class="side-nav">
+        <button class="side-btn on" data-dash-section="upcoming" onclick="swUD('upcoming',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Upcoming sessions
+        </button>
+        <button class="side-btn" data-dash-section="goals" onclick="swUD('goals',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l3 7h7l-5.5 4.2 2.1 7L12 16l-6.6 4.2 2.1-7L2 9h7l3-7z"/><path d="M12 9v4"/><path d="M10 11h4"/></svg>Goal Tracker
+        </button>
+        <button class="side-btn" data-dash-section="history" onclick="swUD('history',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Session history
+        </button>
+        <button class="side-btn" data-dash-section="saved" onclick="swUD('saved',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved consultants
+        </button>
+        <button class="side-btn" data-dash-section="payments" onclick="swUD('payments',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Payments
+        </button>
+        <button class="side-btn" data-dash-section="notifications" onclick="swUD('notifications',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications <span class="status-pill sp-upcoming" id="user-notif-badge" style="margin-left:auto;font-size:9px;padding:1px 5px;display:none">0</span>
+        </button>
+        <button class="side-btn" data-dash-section="reviews" onclick="swUD('reviews',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>My reviews
+        </button>
+        <div class="side-divider"></div>
+        <button class="side-btn" data-dash-section="settings" onclick="swUD('settings',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
+        </button>
+        <button class="side-btn" onclick="go('browse')" style="color:var(--blue)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Find consultants
+        </button>
+      </div>
+      <div class="side-logout"><button class="btn" style="width:100%;font-size:12px" onclick="logOut()">Sign out</button></div>
+    </div>
+    <div class="dash-main" id="udash-main"></div>
+  </div>
+</div>
+
+<!-- ════ CONSULTANT DASHBOARD ════ -->
+<div id="page-cons-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('cons')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
+  <div class="dash-wrap">
+    <div class="dash-side">
+	      <div class="dash-user-block">
+	        <div class="dash-av" id="cdash-av" style="background:var(--green-l);color:var(--green-d);border-color:#B7F0BE;font-family:'Cormorant Garamond',serif;font-size:16px">?</div>
+	        <div class="guidcy-dash-avatar-actions">
+	          <button type="button" class="guidcy-dash-avatar-edit" data-guidcy-avatar-trigger="cdash-avatar-input">Edit photo</button>
+	          <input type="file" id="cdash-avatar-input" class="guidcy-avatar-hidden-input" accept="image/*" data-guidcy-avatar-scope="dashboard" data-guidcy-avatar-role="consultant" data-guidcy-sidebar-avatar="cdash-av">
+	        </div>
+	        <div class="dash-name" id="cdash-name">Loading...</div>
+	        <div class="dash-type" id="cdash-type">Consultant</div>
+	        <div class="dash-role-badge rb-consultant">Consultant</div>
+      </div>
+      <div class="side-nav">
+        <button class="side-btn on" data-dash-section="overview" onclick="swCD('overview',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview
+        </button>
+        <button class="side-btn" data-dash-section="requests" onclick="swCD('requests',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Booking requests <span class="status-pill sp-pending" id="req-count-badge" style="margin-left:auto;font-size:9px;padding:1px 5px;display:none">0</span>
+        </button>
+        <button class="side-btn" data-dash-section="my-bookings" onclick="swCD('my-bookings',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>My bookings
+        </button>
+        <button class="side-btn" data-dash-section="schedule" onclick="swCD('schedule',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Availability
+        </button>
+        <button class="side-btn" data-dash-section="earnings" onclick="swCD('earnings',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Earnings
+        </button>
+        <button class="side-btn" data-dash-section="reviews" onclick="swCD('reviews',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Reviews
+        </button>
+        <div class="side-divider"></div>
+        <button class="side-btn" data-dash-section="settings" onclick="swCD('settings',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
+        </button>
+      </div>
+      <div class="side-logout"><button class="btn" style="width:100%;font-size:12px" onclick="logOut()">Sign out</button></div>
+    </div>
+    <div class="dash-main" id="cdash-main"></div>
+  </div>
+</div>
+
+<!-- ════ ADMIN DASHBOARD ════ -->
+<div id="page-admin-dash" class="page">
+  <button class="dash-mobile-toggle" onclick="toggleDashMenu('admin')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
+  <div class="dash-wrap">
+    <div class="dash-side">
+	      <div class="dash-user-block">
+	        <div class="dash-av" id="adash-av" style="background:#FEF3C7;color:#92400E;border-color:#FDE68A">AD</div>
+	        <div class="guidcy-dash-avatar-actions">
+	          <button type="button" class="guidcy-dash-avatar-edit" data-guidcy-avatar-trigger="adash-avatar-input">Edit photo</button>
+	          <input type="file" id="adash-avatar-input" class="guidcy-avatar-hidden-input" accept="image/*" data-guidcy-avatar-scope="dashboard" data-guidcy-avatar-role="admin" data-guidcy-sidebar-avatar="adash-av">
+	        </div>
+	        <div class="dash-name">Admin Panel</div>
+	        <div class="dash-type">Guidcy Administration</div>
+	        <div class="dash-role-badge rb-admin">Super Admin</div>
+      </div>
+      <div class="side-nav">
+        <button class="side-btn on" data-admin-section="overview" onclick="swAD('overview',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Analytics
+        </button>
+        <button class="side-btn" data-admin-section="consultants" onclick="swAD('consultants',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Consultants
+        </button>
+        <button class="side-btn" data-admin-section="users" onclick="swAD('users',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users
+        </button>
+        <button class="side-btn" data-admin-section="bookings" onclick="swAD('bookings',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Bookings
+        </button>
+        <button class="side-btn" data-admin-section="payments" onclick="swAD('payments',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Payments
+        </button>
+        <button class="side-btn" data-admin-section="disputes" onclick="swAD('disputes',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Disputes
+        </button>
+        <button class="side-btn" data-marketing-strip-control="1" data-admin-section="marketing-strip" onclick="swAD('marketing-strip',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11h18"/><path d="M5 7h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M8 11v4M16 11v4"/></svg>Moving Consultant Strip
+        </button>
+        <div class="side-divider"></div>
+      </div>
+      <div class="side-logout"><button class="btn" style="width:100%;font-size:12px" onclick="logOut()">Sign out</button></div>
+    </div>
+    <div class="dash-main" id="adash-main"></div>
+  </div>
+</div>
+
+<!-- ════ REVIEW PAGE ════ -->
+<div id="page-review" class="page">
+  <div style="max-width:500px;margin:0 auto;padding:40px 20px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)">
+      <div style="padding:28px;border-bottom:1px solid var(--border);text-align:center;background:linear-gradient(135deg,var(--blue-l),var(--green-l))">
+        <div style="font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">✅ Session complete</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:500;margin-bottom:6px" id="rv-cons-name">Selected Consultant</div>
+        <div style="font-size:13px;color:var(--muted)" id="rv-session-meta">Business Strategy · Apr 18, 2025 · 60 min</div>
+      </div>
+      <div style="padding:28px">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:16px;font-weight:600;margin-bottom:6px">How was your session?</div>
+          <div style="font-size:13px;color:var(--muted)">Your review helps others find the right expert</div>
+        </div>
+        <div class="star-input" id="star-row">
+          <button class="star-i" onclick="setStars(1)">★</button>
+          <button class="star-i" onclick="setStars(2)">★</button>
+          <button class="star-i" onclick="setStars(3)">★</button>
+          <button class="star-i" onclick="setStars(4)">★</button>
+          <button class="star-i" onclick="setStars(5)">★</button>
+        </div>
+        <div class="star-label" id="star-lbl">Tap a star to rate</div>
+        <div id="rv-aspects" style="display:none;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase">Rate specific aspects</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="aspect-grid"></div>
+        </div>
+        <div class="field">
+          <label>Your written review</label>
+          <textarea id="rv-text" placeholder="Share what made this session valuable — the more specific, the more it helps others..."></textarea>
+        </div>
+        <div class="field">
+          <label>Would you recommend this consultant?</label>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button id="rec-yes" class="btn" onclick="setRec('yes')" style="flex:1">👍 Definitely yes</button>
+            <button id="rec-no" class="btn" onclick="setRec('no')" style="flex:1">🤔 Not sure</button>
+          </div>
+        </div>
+        <button class="green-btn" onclick="submitReview()">Publish review</button>
+        <button onclick="go('user-dash')" style="width:100%;margin-top:8px;padding:11px;border:1px solid var(--border);border-radius:var(--rx);font-size:13px;cursor:pointer;background:none;color:var(--muted);font-family:'DM Sans',sans-serif">Skip for now</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ CATEGORIES PAGE ════ -->
+<div id="page-categories" class="page">
+  <div style="padding:48px 32px;max-width:1000px;margin:0 auto">
+    <h1 style="font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:500;margin-bottom:6px">All Categories</h1>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:36px">Browse expert specializations across all our major categories</p>
+    <div id="cats-full-grid"></div>
+  </div>
+</div>
+
+<!-- ════ ABOUT PAGE ════ -->
+<div id="page-about" class="page">
+  <div class="info-page">
+    <h1>About Guidcy</h1>
+    <p class="lead">We're building India's most trusted bridge between world-class expertise and the people who need it most.</p>
+    <p>Guidcy is based at Guidcy Hyderabad Office Near TCS Adibatla with a simple belief: expert knowledge should be accessible to everyone — not just those with elite networks or corporate budgets. Whether you're a first-generation entrepreneur, a student navigating career choices, or a professional seeking legal clarity, the right guide can transform your path.</p>
+    <p>We've built a marketplace where India's top consultants — former McKinsey advisors, IIT CTOs, certified therapists, chartered accountants, and more — offer their expertise in structured, affordable sessions with guaranteed quality.</p>
+    <h2>Our mission</h2>
+    <p>To democratise access to expert guidance by creating a transparent, technology-first consultation marketplace that works for both consultants and clients — with trust, fairness, and impact at its core.</p>
+    <h2>Our values</h2>
+    <ul>
+      <li><strong>Verified trust</strong> — Every consultant is background-checked and credential-verified before going live.</li>
+      <li><strong>Transparent pricing</strong> — No hidden fees, no surprises. What you see is what you pay.</li>
+      <li><strong>Outcome-driven</strong> — We measure success by real impact on our users' lives and businesses.</li>
+      <li><strong>Accessible expertise</strong> — Sessions from ₹500 make quality guidance reachable for everyone.</li>
+    </ul>
+    <h2>Our story</h2>
+    <p>Guidcy was built with the vision to make expert guidance, opportunities, webinars, and career support more accessible. The platform focuses on helping students, professionals, founders, and growing teams connect with trusted experts through a simple, transparent, and outcome-focused experience.</p>
+    <div style="margin-top:36px;padding:24px;background:var(--blue-l);border-radius:var(--r);text-align:center;border:1px solid var(--blue-m)">
+      <p style="font-size:15px;font-weight:600;color:var(--blue-d);margin-bottom:12px">Guidcy Hyderabad Office Near TCS Adibatla</p>
+      <p style="font-size:13px;color:var(--muted)">📍 Guidcy Hyderabad Office Near TCS Adibatla</p>
+      <button class="btn btn-blue" style="margin-top:14px" onclick="go('contact')">Get in touch →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ CONTACT PAGE ════ -->
+<div id="page-contact" class="page">
+  <div class="info-page">
+    <h1>Contact Us</h1>
+    <p class="lead">We're here to help. Reach out through any channel that's most convenient for you.</p>
+    <div class="contact-grid">
+      <div>
+        <div class="contact-info-item">
+          <div class="contact-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+          <div><div style="font-weight:600;margin-bottom:3px">Email support</div><div style="font-size:13px;color:var(--muted)">guidcytechnologies@gmail.com</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Response within 4 hours</div></div>
+        </div>
+        <div class="contact-info-item">
+          <div class="contact-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+          <div><div style="font-weight:600;margin-bottom:3px">Phone support</div><div style="font-size:13px;color:var(--muted)">+91 8299689459</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Mon–Sat, 9 AM to 6 PM IST</div></div>
+        </div>
+        <div class="contact-info-item">
+          <div class="contact-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <div><div style="font-weight:600;margin-bottom:3px">Office</div><div style="font-size:13px;color:var(--muted)">Guidcy Hyderabad Office Near TCS Adibatla</div></div>
+        </div>
+      </div>
+      <div>
+        <div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--r);padding:20px;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600;color:var(--blue-d);margin-bottom:10px">📬 Reach us directly</div>
+          <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">✉️ <a href="mailto:guidcytechnologies@gmail.com" style="color:var(--blue);font-weight:500">guidcytechnologies@gmail.com</a></div>
+          <div style="font-size:14px;color:var(--ink2)">📞 <a href="tel:+918299689459" style="color:var(--blue);font-weight:500">+91 8299689459</a></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">Mon–Sat · 9 AM – 6 PM IST · Response within 4 hours</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:24px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:18px">Send us a message</div>
+          <div class="field"><label>Name</label><input placeholder="Your full name"/></div>
+          <div class="field"><label>Email</label><input type="email" placeholder="you@example.com"/></div>
+          <div class="field"><label>Subject</label><select><option>General enquiry</option><option>Booking support</option><option>Payment issue</option><option>Consultant application</option><option>Report a problem</option><option>Partnership</option></select></div>
+          <div class="field"><label>Message</label><textarea placeholder="Describe your query in detail..."></textarea></div>
+          <button class="primary-btn" onclick="toast('Message sent! We\'ll respond within 4 hours.',true)">Send message</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FAQ PAGE ════ -->
+<div id="page-faq" class="page">
+  <div class="info-page">
+    <h1>Frequently Asked Questions</h1>
+    <p class="lead">Everything you need to know about using Guidcy as a client or consultant.</p>
+    <h2>For Clients</h2>
+    <div id="faq-client"></div>
+    <h2 style="margin-top:32px">For Consultants</h2>
+    <div id="faq-consultant"></div>
+  </div>
+</div>
+
+<!-- ════ LEGAL PAGES ════ -->
+<div id="page-terms" class="page"><div class="info-page"><h1>Terms & Conditions</h1><p class="lead">Last updated: April 2025</p><h2>1. Acceptance of Terms</h2><p>By accessing or using Guidcy, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our platform.</p><h2>2. Platform Description</h2><p>Guidcy is a consultation marketplace that connects clients with verified independent consultants. Guidcy facilitates the connection but is not a party to the consultation agreement.</p><h2>3. User Accounts</h2><p>You must provide accurate, complete information when creating your account. You are responsible for maintaining the security of your account credentials.</p><h2>4. Bookings & Cancellations</h2><p>Sessions must be cancelled at least instantly in advance for a full refund. Cancellations within instantly may be subject to a 50% cancellation fee.</p><h2>5. Platform Fees</h2><p>Two separate charges apply to a booking. Clients pay a <b>5% Guidcy platform fee</b> on top of the consultant's session fee. It is itemised at checkout and included in the total shown before you pay. Consultants pay a <b>15% commission</b> on their session fee, which is deducted from their payout, so a consultant receives 85% of the rate they set. The client's platform fee does not reduce the consultant's earnings.</p><h2>6. Prohibited Conduct</h2><p>Users may not exchange personal contact information to bypass the platform, post false reviews, or use the platform for any illegal purpose.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+
+<div id="page-privacy" class="page"><div class="info-page"><h1>Privacy Policy</h1><p class="lead">Last updated: April 2025</p><h2>Information We Collect</h2><p>We collect information you provide directly (name, email, phone), information from your use of the platform (booking history, session data, reviews), and technical data (device type, IP address, browser).</p><h2>How We Use Your Information</h2><ul><li>To facilitate bookings and sessions between clients and consultants</li><li>To send transactional notifications (booking confirmations, reminders)</li><li>To improve our platform and personalise your experience</li><li>To prevent fraud and ensure platform safety</li></ul><h2>Data Security</h2><p>We use 256-bit SSL encryption for all data in transit and AES-256 encryption for sensitive data at rest. Payment information is handled exclusively by our secure payment processor and is never stored on Guidcy servers.</p><h2>Your Rights</h2><p>Under India's DPDP Act 2023, you have the right to access, correct, and delete your personal data. Contact guidcytechnologies@gmail.com to exercise these rights.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+
+<div id="page-refund" class="page"><div class="info-page"><h1>Refund Policy</h1><p class="lead">Last updated: April 2025</p><h2>Full Refunds</h2><p>You are eligible for a full refund if: you cancel at least instantly before the scheduled session; the consultant cancels or does not show up; or a technical issue prevents the session from taking place.</p><h2>Partial Refunds</h2><p>A 50% refund may be issued for cancellations made between 12 and instantly before the session.</p><h2>No Refunds</h2><p>No refund will be issued for cancellations made less than 12 hours before the session, sessions that have already commenced, or sessions completed as scheduled.</p><h2>Processing Time</h2><p>Approved refunds are processed within 5–7 business days to the original payment method.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+
+<div id="page-disclaimer" class="page"><div class="info-page"><h1>Disclaimer</h1><p class="lead">Important information about the nature of consultations on Guidcy.</p><p>Consultations provided through Guidcy are for informational and advisory purposes only. They do not constitute professional legal, medical, financial, or psychological advice in a formal client-advisor relationship unless explicitly agreed upon separately.</p><p>Guidcy does not guarantee any specific outcomes from consultations. The expertise and credentials of consultants are self-reported and verified to the best of our ability, but Guidcy cannot guarantee their accuracy in all cases.</p><p>For medical emergencies, please contact emergency services immediately. For urgent legal matters, please consult a licensed attorney directly.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+
+<!-- ════ TOAST ════ -->
+<div class="toast-bar" id="toastbar"></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ════ GUIDCY MOBILE DRAWER (static HTML — always present) ════ -->
+
+
+<!-- Overlay -->
+<div id="gmob-overlay"></div>
+
+<!-- Drawer -->
+<div id="gmob-drawer">
+  <div class="gmob-head">
+    <div class="gmob-logo-wrap">
+      <img id="gmob-logo-img" class="gmob-logo-img" alt="Guidcy">
+      <span class="gmob-logo-text">Guidcy</span>
+    </div>
+    <button class="gmob-close-btn" onclick="closeMobDrawer()" aria-label="Close">✕</button>
+  </div>
+
+  <div class="gmob-body">
+    <div class="gmob-section-lbl">Navigation</div>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('home')},80)">
+      <div class="gmob-icon">🏠</div><span class="gmob-label">Home</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('browse')},80)">
+      <div class="gmob-icon">👥</div><span class="gmob-label">Find the Expert</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('categories')},80)">
+      <div class="gmob-icon">📂</div><span class="gmob-label">Categories</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('jobs')},80)">
+      <div class="gmob-icon">💼</div><span class="gmob-label">Find Jobs</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('smart-finder')},80)">
+      <div class="gmob-icon">✨</div><span class="gmob-label">Career &amp; College AI Finder</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('blog')},80)">
+      <div class="gmob-icon">📝</div><span class="gmob-label">Blog</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('webinar')},80)">
+      <div class="gmob-icon">🎓</div><span class="gmob-label">Webinars</span><span class="gmob-arrow">›</span>
+    </button>
+    <button class="gmob-item" onclick="closeMobDrawer();setTimeout(function(){window.go&&go('opportunities')},80)">
+      <div class="gmob-icon">🎯</div><span class="gmob-label">Funds &amp; Grants Finder</span><span class="gmob-arrow">›</span>
+    </button>
+
+    <div id="gmob-auth-btns" style="padding:14px 20px 4px;display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+
+  <div class="gmob-footer">
+    <div class="gmob-footer-lbl">Connect with us</div>
+    <div class="gmob-email-row">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+      guidcytechnologies@gmail.com
+    </div>
+    <div class="gmob-socials">
+      <a href="https://instagram.com" target="_blank" class="gmob-social">📷</a>
+      <a href="https://linkedin.com" target="_blank" class="gmob-social">💼</a>
+      <a href="https://twitter.com" target="_blank" class="gmob-social">𝕏</a>
+      <a href="https://youtube.com" target="_blank" class="gmob-social">▶</a>
+    </div>
+  </div>
+</div>
+
+
+
+
+<!-- ════ GUIDCY FINAL FIX PACK: desktop nav, drawer logo, mobile blog, booking label ════ -->
+
+
+
+<!-- ════ WEBINAR PAGE ════ -->
+<div id="page-webinar" class="page">
+
+
+<div class="wbn-wrap">
+
+  <div id="wbn-publish-topbar" style="display:none;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-blue" onclick="wbnShowPublisher()" style="padding:11px 24px">+ Publish a webinar</button></div>
+
+  <!-- Hero -->
+  <div class="wbn-hero">
+    <div class="wbn-hero-eyebrow"><span></span>Live &amp; Upcoming Webinars</div>
+    <h1>Learn from the best.<br><em>Register in seconds.</em></h1>
+    <p>Join Guidcy's expert-led webinars on business strategy, technology, finance, law, wellness, and career growth — all live, all interactive.</p>
+    <div class="wbn-hero-actions">
+      <button class="wbn-hero-btn primary" onclick="document.getElementById('wbn-list').scrollIntoView({behavior:'smooth'})">Browse webinars ↓</button>
+      <button class="wbn-hero-btn outline" onclick="document.getElementById('wbn-list').scrollIntoView({behavior:'smooth'})">Register free →</button>
+    </div>
+    <div class="wbn-stats">
+      <div class="wbn-stat"><span class="wbn-stat-val" id="wbn-stat-count">—</span><span class="wbn-stat-lbl">Upcoming sessions</span></div>
+      <div class="wbn-stat"><span class="wbn-stat-val">Free/Paid</span><span class="wbn-stat-lbl">Consultant-defined pricing</span></div>
+      <div class="wbn-stat"><span class="wbn-stat-val">Live Q&amp;A</span><span class="wbn-stat-lbl">Interactive sessions</span></div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div style="margin-bottom:36px">
+    <div class="wbn-section-head"><div class="wbn-section-title">How it works</div></div>
+    <div class="wbn-how-grid">
+      <div class="wbn-how-item"><div class="wbn-how-num">1</div><div class="wbn-how-title">Browse webinars</div><div class="wbn-how-desc">Find sessions that match your interests from our expert lineup.</div></div>
+      <div class="wbn-how-item"><div class="wbn-how-num">2</div><div class="wbn-how-title">Register or pay</div><div class="wbn-how-desc">Free sessions need only registration; paid sessions require payment before confirmation.</div></div>
+      <div class="wbn-how-item"><div class="wbn-how-num">3</div><div class="wbn-how-title">Get your link</div><div class="wbn-how-desc">Receive a Google Meet / Zoom link directly on your email.</div></div>
+      <div class="wbn-how-item"><div class="wbn-how-num">4</div><div class="wbn-how-title">Join &amp; learn</div><div class="wbn-how-desc">Attend live, ask questions, and download materials after.</div></div>
+    </div>
+  </div>
+
+
+  <!-- Admin panel: auto-shown when logged in as admin -->
+  <div class="wbn-admin-panel" id="wbn-admin-panel" style="display:none">
+    <div class="wbn-admin-title">
+      Publish a webinar
+      <span class="wbn-admin-badge" id="wbn-publisher-badge">Consultants & Admin</span>
+    </div>
+    <div class="wbn-admin-grid" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Webinar title</label><input id="wbn-pub-title" placeholder="e.g. How to Raise Your First Round"/></div>
+      <div class="wbn-form-field"><label>Category</label>
+        <select id="wbn-pub-cat">
+          <option>Business Strategy</option><option>Technology</option><option>Finance</option><option>Legal</option><option>Career Coaching</option><option>Wellness</option><option>Marketing</option><option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="wbn-admin-grid" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Date</label><input id="wbn-pub-date" type="date"/></div>
+      <div class="wbn-form-field"><label>Time (IST)</label><input id="wbn-pub-time" type="time"/></div>
+    </div>
+    <div class="wbn-admin-grid" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Duration</label>
+        <select id="wbn-pub-dur"><option>30 minutes</option><option>45 minutes</option><option selected>60 minutes</option><option>90 minutes</option><option>2 hours</option></select>
+      </div>
+      <div class="wbn-form-field"><label>Max seats</label><input id="wbn-pub-seats" type="number" placeholder="100" value="100" min="1"/></div>
+    </div>
+    <div class="wbn-admin-grid" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Webinar pricing</label>
+        <select id="wbn-pub-price-type" onchange="wbnTogglePriceBox()"><option value="free" selected>Free of cost</option><option value="paid">Paid webinar</option></select>
+      </div>
+      <div class="wbn-form-field" id="wbn-pub-price-box" style="display:none"><label>Fees / charges (₹)</label><input id="wbn-pub-price" type="number" min="1" step="1" placeholder="499"/></div>
+    </div>
+    <div class="wbn-admin-grid full" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Description</label><textarea id="wbn-pub-desc" placeholder="Describe what attendees will learn from this session..." style="min-height:80px"></textarea></div>
+    </div>
+    <div class="wbn-admin-grid" style="margin-bottom:12px">
+      <div class="wbn-form-field"><label>Speaker name</label><input id="wbn-pub-speaker" placeholder="Speaker name"/></div>
+      <div class="wbn-form-field"><label>Speaker role / designation</label><input id="wbn-pub-speaker-role" placeholder="Business Strategy Consultant"/></div>
+    </div>
+    <div class="wbn-admin-grid full" style="margin-bottom:16px">
+      <div class="wbn-form-field"><label>Meeting link (Google Meet / Zoom)</label><input id="wbn-pub-link" placeholder="https://meet.google.com/abc-defg-hij"/></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-blue" onclick="wbnPublish()" style="padding:11px 28px">Publish webinar</button>
+      <button class="btn" id="wbn-clear-btn" onclick="wbnClearAll()" style="padding:11px 20px">Clear all webinars</button>
+    </div>
+    <div id="wbn-pub-status" style="display:none;margin-top:12px;padding:12px 14px;background:var(--green-l);border:1px solid #B7F0BE;border-radius:10px;font-size:13px;color:var(--green-d)"></div>
+  </div>
+
+  <!-- Webinar list -->
+  <div id="wbn-list">
+    <div class="wbn-section-head">
+      <div class="wbn-section-title">Upcoming &amp; live webinars</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="wbn-filter-cat" onchange="wbnRender()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer">
+          <option value="">All categories</option>
+          <option>Business Strategy</option><option>Technology</option><option>Finance</option><option>Legal</option><option>Career Coaching</option><option>Wellness</option><option>Marketing</option>
+        </select>
+      </div>
+    </div>
+    <div class="wbn-grid" id="wbn-cards"></div>
+  </div>
+
+  <!-- Admin registration management launcher only. Full table is rendered inside Admin Dashboard → Webinar Registrations. -->
+  <div id="wbn-registrations-panel" style="display:none;margin-top:24px">
+    <div class="wbn-section-head" style="align-items:center">
+      <div>
+        <div class="wbn-section-title">Webinar registration management</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">Manage filters, exports, payment status and registration cleanup from the admin dashboard.</div>
+      </div>
+      <button class="btn btn-blue" id="wbn-manage-regs-btn" onclick="guidcyOpenWebinarRegistrations&&guidcyOpenWebinarRegistrations()" style="font-size:13px;padding:9px 18px">View Webinar Registrations</button>
+    </div>
+  </div>
+
+</div><!-- /wbn-wrap -->
+
+<!-- Registration modal -->
+<div class="wbn-modal-overlay" id="wbn-reg-modal">
+  <div class="wbn-modal">
+    <div class="wbn-modal-header">
+      <button class="wbn-modal-close" onclick="wbnCloseModal()">✕</button>
+      <div class="wbn-modal-title" id="wbn-modal-title">Register for webinar</div>
+      <div class="wbn-modal-subtitle" id="wbn-modal-subtitle">Fill in your details to secure your spot</div>
+    </div>
+    <div class="wbn-modal-body">
+      <div id="wbn-reg-form">
+        <div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:var(--blue-d)">
+          <strong id="wbn-reg-webinar-name"></strong><br>
+          <span id="wbn-reg-webinar-meta" style="color:var(--muted)"></span>
+        </div>
+        <div class="wbn-form-field"><label>Full name</label><input id="wbn-reg-name" type="text" placeholder="Your full name"/></div>
+        <div class="wbn-form-field"><label>Email address</label><input id="wbn-reg-email" type="email" placeholder="you@example.com"/></div>
+        <div class="wbn-form-field"><label>WhatsApp number</label><input id="wbn-reg-phone" type="tel" placeholder="+91 98765 43210"/></div>
+        <div class="wbn-form-field"><label>Your profession / role</label><input id="wbn-reg-role" type="text" placeholder="Startup founder, student, professional…"/></div>
+        <div class="wbn-form-field"><label>What do you hope to learn? (optional)</label><textarea id="wbn-reg-goal" placeholder="Share your goal for attending this webinar…" style="min-height:70px"></textarea></div>
+        <button class="btn btn-blue" onclick="wbnSubmitReg()" style="width:100%;padding:12px;font-size:14px;border-radius:12px;margin-top:4px">Confirm registration →</button>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Your meeting link will be sent to your email before the session.</p>
+      </div>
+      <div class="wbn-success-box" id="wbn-reg-success">
+        <span class="wbn-success-icon">🎉</span>
+        <div class="wbn-success-title">You're registered!</div>
+        <div class="wbn-success-sub" id="wbn-reg-success-msg">Check your email for the meeting link.</div>
+        <button class="btn" onclick="wbnCloseModal()" style="margin-top:14px">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+</div><!-- /page-webinar -->
+
+<!-- ════ HELP CENTER PAGE ════ -->
+<div id="page-help" class="page">
+<div class="ghelp-page-wrap">
+
+  <div class="ghelp-hero">
+    <div class="ghelp-eyebrow">Support</div>
+    <h1>Help Center</h1>
+    <p>Find quick answers for booking, sessions, payments, accounts, and consultant profiles — or reach our support team directly.</p>
+    <div class="ghelp-search-wrap">
+      <svg class="ghelp-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="ghelp-search-input" placeholder="Search help topics, FAQ…" oninput="ghelpSearch()" />
+    </div>
+  </div>
+
+  <div class="ghelp-section-lbl">Browse by topic</div>
+  <div class="ghelp-topics" id="ghelp-topics">
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">📅</span><div class="ghelp-tile-title">Booking a session</div><div class="ghelp-tile-desc">How to find, select, and confirm a session with a consultant on Guidcy.</div></div>
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">💳</span><div class="ghelp-tile-title">Payments &amp; billing</div><div class="ghelp-tile-desc">Supported payment methods, invoices, and refund timelines after cancellations.</div></div>
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">🎥</span><div class="ghelp-tile-title">Google Meet sessions</div><div class="ghelp-tile-desc">Joining your session, fixing meeting link issues, and recording policies.</div></div>
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">👤</span><div class="ghelp-tile-title">Account &amp; login</div><div class="ghelp-tile-desc">Password reset, switching between user and consultant roles, and profile settings.</div></div>
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">🧑‍🏫</span><div class="ghelp-tile-title">Consultant profiles</div><div class="ghelp-tile-desc">Updating your bio, availability, session rates, and expertise tags.</div></div>
+    <div class="ghelp-tile"><span class="ghelp-tile-icon">⭐</span><div class="ghelp-tile-title">Reviews &amp; ratings</div><div class="ghelp-tile-desc">Leaving reviews, editing submitted feedback, and how ratings are calculated.</div></div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">Frequently asked questions</div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>How do I book a session with a consultant?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Find the experts on the Explore or Browse page, open a profile, select your session type, choose an available date and time slot, then click "Book this session." You will be taken to the payment screen, and on completion your session is confirmed with a Google Meet link sent to your email.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>What payment methods are accepted?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Guidcy accepts all major debit and credit cards, UPI (GPay, PhonePe, Paytm), net banking from all major Indian banks, and digital wallets. All payments are secured with 256-bit SSL encryption.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>What does the platform fee on my booking cover?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Guidcy adds a 5% platform fee to the consultant&rsquo;s session fee. It appears as its own line in the checkout summary, and the total you pay is shown before you confirm. Consultants separately pay Guidcy a 15% commission out of their own fee, so that part never changes what you pay.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>Where do I find my Google Meet link?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Your Meet link is shown on the booking confirmation page, in your confirmation email, and in your dashboard under "Upcoming sessions." The link becomes active 5 minutes before the session starts.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>Can I reschedule or cancel a booking?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Yes. Bookings cancelled more than 24 hours before the session receive a full refund. Cancellations within 24 hours receive a 50% refund. To reschedule, use the "Reschedule" button in your dashboard — no fee applies if the new slot is more than 12 hours away.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>Can I use the same email as both a User and a Consultant?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Yes. Select the appropriate login type (User or Consultant) before signing in. Each role opens its own separate dashboard with different features.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>How do consultants update their availability?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Log in as Consultant, open the dashboard, and go to "My schedule." Toggle days on or off and select preferred hours. Changes are reflected on your public profile immediately.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>How long does consultant verification take?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">Guidcy's review team typically verifies consultant applications within 24–48 hours on business days. You will receive an email once your profile is approved and live on the platform.</div></div>
+    <div class="ghelp-faq-item"><div class="ghelp-faq-q" onclick="ghelpToggleFAQ(this)"><span>How do I leave a review after my session?</span><span class="ghelp-faq-arrow">▾</span></div><div class="ghelp-faq-a">After a session is marked complete, go to your dashboard and then Session history. Click "Leave review" next to the session, rate your experience, write your review, and publish. Reviews appear on the consultant's profile within minutes.</div></div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">Contact support</div>
+    <div class="ghelp-policy-row">
+      <div class="ghelp-badge"><span>⏱</span> Response within 4 hours</div>
+      <div class="ghelp-badge"><span>🔒</span> Secure &amp; confidential</div>
+      <div class="ghelp-badge"><span>📧</span> guidcytechnologies@gmail.com</div>
+    </div>
+    <div class="ghelp-row" style="margin-bottom:12px">
+      <div class="ghelp-field"><label>Your name</label><input id="ghelp-name" type="text" placeholder="Your full name" /></div>
+      <div class="ghelp-field"><label>Registered email</label><input id="ghelp-email" type="email" placeholder="you@example.com" /></div>
+    </div>
+    <div class="ghelp-row" style="margin-bottom:12px">
+      <div class="ghelp-field"><label>Issue category</label>
+        <select id="ghelp-topic">
+          <option>Booking issue</option>
+          <option>Payment or billing issue</option>
+          <option>Login or account issue</option>
+          <option>Meeting link not working</option>
+          <option>Consultant profile issue</option>
+          <option>Cancellation or refund</option>
+          <option>Review or rating issue</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="ghelp-field"><label>Priority</label>
+        <select id="ghelp-priority">
+          <option>Normal</option>
+          <option>High — session within 24 hours</option>
+          <option>Urgent — session happening now</option>
+        </select>
+      </div>
+    </div>
+    <div class="ghelp-field" style="margin-bottom:14px"><label>Describe your issue</label><textarea id="ghelp-msg" placeholder="Include your booking ID, consultant name, and what happened. More detail means faster resolution."></textarea></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-blue" onclick="ghelpSubmitTicket()" style="flex:1;min-width:160px;padding:11px 0">Submit support ticket</button>
+      <button class="btn" onclick="ghelpCheckTicket()" style="min-width:160px;padding:11px 0">Check ticket status</button>
+    </div>
+    <div id="ghelp-ticket-out" class="ghelp-status"></div>
+    <div style="margin-top:22px;padding-top:20px;border-top:1px solid var(--border)">
+      <div class="ghelp-section-lbl" style="margin-bottom:10px">Track an existing ticket</div>
+      <div class="ghelp-track-row">
+        <input id="ghelp-track-id" placeholder="Enter Ticket ID (e.g. HLP-482931) or email" />
+        <button class="btn btn-blue" onclick="ghelpTrackTicket()" style="flex-shrink:0;padding:10px 18px">Track</button>
+      </div>
+      <div id="ghelp-track-out" class="ghelp-status"></div>
+    </div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">Other ways to reach us</div>
+    <div class="ghelp-channels">
+      <div class="ghelp-channel"><span class="ghelp-channel-icon">📧</span><div class="ghelp-channel-name">Email support</div><div class="ghelp-channel-val">guidcytechnologies@gmail.com</div></div>
+      <div class="ghelp-channel"><span class="ghelp-channel-icon">💬</span><div class="ghelp-channel-name">WhatsApp</div><div class="ghelp-channel-val">+91 8299689459</div></div>
+      <div class="ghelp-channel"><span class="ghelp-channel-icon">🕐</span><div class="ghelp-channel-name">Hours</div><div class="ghelp-channel-val">Mon–Sat, 9 AM – 8 PM IST</div></div>
+    </div>
+  </div>
+
+  <div class="ghelp-bottom-link">
+    Have a booking or session dispute?
+    <button onclick="go('dispute')">Go to Dispute Resolution →</button>
+  </div>
+
+</div>
+</div>
+
+<!-- ════ DISPUTE RESOLUTION PAGE ════ -->
+<div id="page-dispute" class="page">
+<div class="ghelp-page-wrap">
+
+  <div class="ghelp-hero">
+    <div class="ghelp-eyebrow">Dispute Resolution</div>
+    <h1>Fair resolution,<br>every time</h1>
+    <p>Raise and track concerns related to missed sessions, wrong service, cancellations, booking mismatches, or meeting-link failures. We review every case impartially.</p>
+  </div>
+
+  <div class="ghelp-policy-row" style="margin-bottom:32px">
+    <div class="ghelp-badge"><span>⚖️</span> Impartial review</div>
+    <div class="ghelp-badge"><span>⏱</span> Resolution within 3 business days</div>
+    <div class="ghelp-badge"><span>🔒</span> Confidential process</div>
+    <div class="ghelp-badge"><span>💰</span> Refunds where applicable</div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">How dispute resolution works</div>
+    <div class="gdisp-step"><div class="gdisp-step-num">1</div><div><div class="gdisp-step-title">Submit your dispute</div><div class="gdisp-step-desc">Fill in the form below with your booking details, what went wrong, and your preferred resolution. You will receive a unique Dispute ID immediately.</div></div></div>
+    <div class="gdisp-step"><div class="gdisp-step-num">2</div><div><div class="gdisp-step-title">Guidcy reviews both sides</div><div class="gdisp-step-desc">Our trust and safety team reviews your submission alongside any input from the consultant. We may reach out for additional information within 24 hours.</div></div></div>
+    <div class="gdisp-step"><div class="gdisp-step-num">3</div><div><div class="gdisp-step-title">Resolution is issued</div><div class="gdisp-step-desc">Outcomes may include a free rescheduled session, a partial or full refund, a formal warning to the consultant, or case closure with a clear explanation.</div></div></div>
+    <div class="gdisp-step"><div class="gdisp-step-num">4</div><div><div class="gdisp-step-title">You are notified by email</div><div class="gdisp-step-desc">The resolution is communicated to all parties by email. Most disputes are resolved within 3 business days.</div></div></div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">When to raise a dispute</div>
+    <ul class="gdisp-list">
+      <li>The consultant did not join the scheduled session</li>
+      <li>The Google Meet link did not work and the session could not take place</li>
+      <li>The service delivered was materially different from what was booked</li>
+      <li>A refund was due but was not processed within 7 business days</li>
+      <li>A session was cancelled without notice by the consultant</li>
+      <li>There is a clear booking mismatch in time, date, or expert</li>
+    </ul>
+    <div class="ghelp-note">
+      <strong>Note:</strong> Disputes are for confirmed booking or session issues only. For general questions or account help, use the <button onclick="go('help')" style="background:none;border:none;color:var(--blue-d);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;padding:0;text-decoration:underline">Help Center</button> instead.
+    </div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">Raise a dispute</div>
+    <div class="ghelp-row" style="margin-bottom:12px">
+      <div class="ghelp-field"><label>Your name</label><input id="gdisp-name" type="text" placeholder="Your full name" /></div>
+      <div class="ghelp-field"><label>Registered email</label><input id="gdisp-email" type="email" placeholder="you@example.com" /></div>
+    </div>
+    <div class="ghelp-row" style="margin-bottom:12px">
+      <div class="ghelp-field"><label>Booking ID</label><input id="gdisp-booking" type="text" placeholder="GDY-48291 or booking date" /></div>
+      <div class="ghelp-field"><label>Consultant name</label><input id="gdisp-consultant" type="text" placeholder="Consultant name" /></div>
+    </div>
+    <div class="ghelp-row" style="margin-bottom:12px">
+      <div class="ghelp-field"><label>Nature of dispute</label>
+        <select id="gdisp-type">
+          <option>Consultant did not join the session</option>
+          <option>User did not join the session</option>
+          <option>Google Meet link did not work</option>
+          <option>Wrong or mismatched service delivered</option>
+          <option>Session quality significantly below expectations</option>
+          <option>Refund not received after cancellation</option>
+          <option>Booking cancelled without notice</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="ghelp-field"><label>Preferred resolution</label>
+        <select id="gdisp-resolution">
+          <option>Free rescheduled session</option>
+          <option>Partial refund</option>
+          <option>Full refund</option>
+          <option>Formal warning to consultant</option>
+          <option>General review and fair resolution</option>
+        </select>
+      </div>
+    </div>
+    <div class="ghelp-field" style="margin-bottom:14px"><label>Dispute details</label><textarea id="gdisp-details" style="min-height:120px" placeholder="Describe what happened clearly — what was booked, what actually occurred, the date and time, and any supporting evidence you can reference."></textarea></div>
+    <button class="btn btn-blue" onclick="gdispSubmit()" style="width:100%;padding:12px;font-size:14px">Submit dispute</button>
+    <div id="gdisp-submit-out" class="ghelp-status"></div>
+  </div>
+
+  <div class="ghelp-card">
+    <div class="ghelp-card-title">Track your dispute</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Enter your Dispute ID (e.g. DSP-482931) or the registered email address you used when submitting.</p>
+    <div class="ghelp-track-row">
+      <input id="gdisp-track-id" placeholder="Dispute ID or registered email" />
+      <button class="btn btn-blue" onclick="gdispTrack()" style="flex-shrink:0;padding:10px 18px">Check status</button>
+    </div>
+    <div id="gdisp-track-out" class="ghelp-status"></div>
+  </div>
+
+  <div class="ghelp-escalation">
+    <div class="ghelp-escalation-title">Escalation policy</div>
+    <p style="font-size:13px;color:var(--ink2);line-height:1.75;margin-bottom:10px">If you are not satisfied with the resolution provided, you may escalate your case to our senior trust and safety officer by emailing <strong>guidcytechnologies@gmail.com</strong> with your Dispute ID. Escalated cases are reviewed within 5 business days.</p>
+    <p style="font-size:12px;color:var(--muted)">Guidcy's decisions are final for disputes resolved in accordance with our Terms of Service. We are not a legal arbitrator.</p>
+  </div>
+
+  <div class="ghelp-bottom-link">
+    Need general help instead?
+    <button onclick="go('help')">Go to Help Center →</button>
+  </div>
+
+</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY TARGETED FIX: single webinar menu item + admin edit/delete/register + mobile webinar render === -->
+
+
+
+
+<!-- GUIDCY PATCH — ONLY REQUESTED FOUR CHANGES: password show/hide, consultant education display, homepage global search preview, browse search preview by degree/college -->
+
+
+
+
+<!-- GUIDCY PATCH — EDUCATION/COLLEGE DISPLAY FIX ONLY -->
+
+
+
+
+<!-- GUIDCY PATCH — CONSULTANT PROFILE EDUCATION DISPLAY ONLY -->
+
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY MOBILE REDESIGN: responsive layout only, desktop/functionality unchanged === -->
+
+<!-- === END GUIDCY MOBILE REDESIGN === -->
+
+
+<!-- === GUIDCY WEBINAR MOBILE DESKTOP-MATCH PATCH: layout only, no functionality changes === -->
+
+<!-- === END GUIDCY WEBINAR MOBILE DESKTOP-MATCH PATCH === -->
+
+
+
+<!-- GUIDCY FINAL PATCH — WEBINAR ADMIN ADD/EDIT/DELETE + REGISTRATION SAVE, SAME ON MOBILE & DESKTOP -->
+
+
+
+
+<!-- === GUIDCY MOBILE HAMBURGER OPTIMIZATION ONLY === -->
+
+
+
+
+<!-- === GUIDCY EXACT HAMBURGER TWO-ISSUE FIX ONLY === -->
+
+
+
+
+
+
+
+<!-- === GUIDCY SUPPORT TICKET + DISPUTE SUPABASE ADMIN PATCH === -->
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY CONSULTANT WEBINAR DASHBOARD PATCH — desktop + mobile === -->
+
+
+<!-- === END GUIDCY CONSULTANT WEBINAR DASHBOARD PATCH === -->
+
+
+<!-- === GUIDCY FINAL PATCH: generic user-facing database error messages === -->
+
+<!-- === END GUIDCY FINAL PATCH: generic user-facing database error messages === -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY FIX: preserve Opportunities page after refresh === -->
+
+<!-- === END GUIDCY FIX: preserve Opportunities page after refresh === -->
+
+
+<!-- === GUIDCY REAL FIX: Opportunities route included in all routers === -->
+
+<!-- === END GUIDCY REAL FIX === -->
+
+
+
+
+
+
+
+<!-- === GUIDCY FINAL HARD PATCH: admin webinar summary strip removed, history button only === -->
+
+<!-- === END GUIDCY FINAL HARD PATCH === -->
+
+
+
+<!-- GUIDCY CATEGORY UI + STRICT CATEGORY FILTER PATCH (home + all categories only) -->
+
+
+
+
+
+<!-- === GUIDCY FINAL MENU + POPULAR CATEGORIES FIX === -->
+
+
+<!-- === END GUIDCY FINAL MENU + POPULAR CATEGORIES FIX === -->
+
+
+<!-- === GUIDCY RESUME UPLOAD VISIBILITY + PARSING FIX === -->
+
+
+<!-- === END GUIDCY RESUME UPLOAD VISIBILITY + PARSING FIX === -->
+
+
+<!-- === GUIDCY ADVANCED RESUME AUTO-FILL ENGINE === -->
+
+
+<!-- === END GUIDCY ADVANCED RESUME AUTO-FILL ENGINE === -->
+
+
+<!-- === GUIDCY FINAL RESUME AUTOFILL PRIVACY + COLLEGE FIX === -->
+
+<!-- === END GUIDCY FINAL RESUME AUTOFILL PRIVACY + COLLEGE FIX === -->
+
+
+
+
+
+<!-- === GUIDCY SUPABASE-ONLY EXPERT RECOMMENDATION PATCH FOR JOBS + CAREER/COLLEGE AI FINDER === -->
+
+<!-- === END GUIDCY SUPABASE-ONLY EXPERT RECOMMENDATION PATCH === -->
+
+
+<!-- === GUIDCY RECOMMENDED EXPERT CARD STYLE FIX === -->
+
+<!-- === END GUIDCY RECOMMENDED EXPERT CARD STYLE FIX === -->
+
+
+
+<!-- === GUIDCY GLOBAL MENU-NAME CONSISTENCY PATCH === -->
+
+<!-- === END GUIDCY GLOBAL MENU-NAME CONSISTENCY PATCH === -->
+
+
+
+<!-- === GUIDCY AI-BASED EXPERT MATCHING ENGINE PATCH === -->
+
+
+<!-- === END GUIDCY AI-BASED EXPERT MATCHING ENGINE PATCH === -->
+
+
+<!-- === GUIDCY USER PERSONALIZATION PATCH === -->
+
+
+<!-- === END GUIDCY USER PERSONALIZATION PATCH === -->
+
+
+
+<!-- === GUIDCY AI PROFILE BUILDER FOR CONSULTANTS === -->
+
+
+<!-- === END GUIDCY AI PROFILE BUILDER FOR CONSULTANTS === -->
+
+
+
+
+<!-- === END GUIDCY MENU CORRECTION PATCH === -->
+
+
+
+<!-- === GUIDCY WORK SEARCH/FILTER UI FIX === -->
+
+<!-- === END GUIDCY WORK SEARCH/FILTER UI FIX === -->
+
+
+
+<!-- === GUIDCY FIND WORK COMPACT FILTER BUTTON PATCH === -->
+
+<!-- === END GUIDCY FIND WORK COMPACT FILTER BUTTON PATCH === -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY REQUIRED FIX PACK: consultant approval, stable IDs, payouts, strict relevance, role-safe login === -->
+
+
+
+
+
+
+
+<!-- === GUIDCY ADMIN CONTROLLED HOMEPAGE MARKETING STRIP === -->
+
+
+<!-- === END GUIDCY ADMIN CONTROLLED HOMEPAGE MARKETING STRIP === -->
+
+
+
+
+
+
+
+
+<!-- === GUIDCY PATCH: webinar-wise admin registration export === -->
+
+
+<!-- === END GUIDCY PATCH: webinar-wise admin registration export === -->
+
+
+
+<!-- === GUIDCY WEBINAR WORKFLOW + REGISTRATION MANAGEMENT FIX === -->
+
+
+
+
+
+<!-- === GUIDCY LIVE WORKFLOW FINAL PATCH: Webinar Edit + Find Work Login UX === -->
+
+
+<!-- === END GUIDCY LIVE WORKFLOW FINAL PATCH === -->
+
+
+
+
+
+<!-- === GUIDCY HOTFIX 6: FIND WORK AUTH BUTTON NAVIGATION + CLEAN BACKGROUND MESSAGE === -->
+
+
+<!-- === END GUIDCY HOTFIX 6 === -->
+
+
+
+<!-- === GUIDCY HOTFIX 7: STABLE FIND WORK AUTH MODAL ONLY === -->
+
+
+<!-- === END GUIDCY HOTFIX 7 === -->
+
+
+<!-- === GUIDCY REFERRAL PROGRAM SYSTEM — Campus Ambassador Ready === -->
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY ADMIN DASHBOARD ROOT FIX: CLEANUP, ROUTING, FIND WORK APPLY, WEBINAR REFRESH === -->
+
+
+<!-- === END GUIDCY ADMIN DASHBOARD ROOT FIX === -->
+
+
+<!-- === GUIDCY MARKETPLACE MODULE: PDF NOTES, ORDERS, PAYOUT TRACKING === -->
+
+
+
+
+<!-- === END GUIDCY MARKETPLACE MODULE === -->
+
+<!-- === GUIDCY BODY-LEVEL REFRESH-SAFE DASHBOARD GUARD === -->
+
+<!-- === END GUIDCY BODY-LEVEL REFRESH-SAFE DASHBOARD GUARD === -->
+<!-- === GUIDCY FINAL NOTES DOWNLOAD + FRIENDLY MESSAGE OVERRIDE === -->
+
+<!-- === END GUIDCY FINAL NOTES DOWNLOAD + FRIENDLY MESSAGE OVERRIDE === -->
+
+
+
+<!-- === GUIDCY FINAL USER REQUEST FIX PACK: mobile blog, dash hamburger, footer pages, dual-role login, featured control === -->
+
+
+
+<!-- === GUIDCY FEATURE ORDER + FULL HELP/DISPUTE FUNCTIONAL FIX PACK === -->
+
+
+
+<!-- ════ GUIDCY TARGETED PATCH: Webinar in hamburger + sign-in fix + webinar mobile ════ -->
+
+
+
+<!-- ════ END GUIDCY TARGETED PATCH ════ -->
+
+<!-- === GUIDCY EMERGENCY PATCH: hamburger open + webinar register/mobile render (no dashboard style changes) === -->
+
+
+<!-- === END GUIDCY EMERGENCY PATCH === -->
+
+<!-- === GUIDCY SUPPORT TICKET + DISPUTE SUPABASE ADMIN PATCH - FINAL OVERRIDE === -->
+
+
+
+<!-- === GUIDCY SINGLE-SUBMIT SUPABASE PATCH: HELP + DISPUTE DESKTOP/MOBILE === -->
+
+<!-- === END GUIDCY SINGLE-SUBMIT SUPABASE PATCH === -->
+
+<!-- === GUIDCY ADMIN WEBINAR HISTORY DASHBOARD PATCH — desktop + mobile === -->
+
+<!-- === END GUIDCY ADMIN WEBINAR HISTORY DASHBOARD PATCH === -->
+
+<!-- === GUIDCY FINAL FIX: prevent duplicate webinar registration/publish entries + dedupe admin/consultant history === -->
+
+<!-- === END GUIDCY FINAL WEBINAR SINGLE ENTRY FIX === -->
+
+<!-- === GUIDCY FINAL PATCH: admin webinar dashboard must read live from Supabase, not local cache === -->
+
+<!-- === END GUIDCY FINAL PATCH: admin webinar dashboard live Supabase only === -->
+
+<!-- === GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
+
+<!-- === END GUIDCY FINAL PATCH: remove duplicate admin webinar summary strips === -->
+
+
+<!-- === GUIDCY FINAL FIX: Help Center status tracking must mirror Dispute Resolution === -->
+
+<!-- === END GUIDCY FINAL FIX: Help Center status tracking === -->
+
+<!-- === GUIDCY HARDENED OVERRIDE: Help Center live status lookup/update without updated_at dependency === -->
+
+<!-- === END GUIDCY HARDENED OVERRIDE === -->
+
+<!-- ════════════════════════════════════════════════════════════
+     GUIDCY OPPORTUNITIES FINDER PAGE
+════════════════════════════════════════════════════════════ -->
+<div id="page-opportunities" class="page">
+  <div style="max-width:1100px;margin:0 auto;padding:40px 24px 60px">
+
+    <!-- Header -->
+    <div style="margin-bottom:30px">
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:100px;background:#EBF4FF;border:1px solid #C4DFF7;font-size:12px;font-weight:700;color:#1E72BE;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">
+        🎯 Funds & Grants Finder
+      </div>
+      <h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;color:#0C1825;line-height:1.12;margin-bottom:10px">
+        Discover Your Next <span style="color:#1E72BE">Fund or Grant</span>
+      </h1>
+      <p style="font-size:15px;color:#7089A0;max-width:580px;line-height:1.7">Find hackathons, scholarships, grants, accelerators and competitions — curated and updated daily for students &amp; startups across India and beyond.</p>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:2px solid #D8E8F5;margin-bottom:24px">
+      <button id="opp-tab-student" onclick="oppSetTab('student')" style="padding:10px 24px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;color:#1E72BE;border-bottom:3px solid #1E72BE;margin-bottom:-2px;transition:all .15s">🏆 Student Competitions</button>
+      <button id="opp-tab-startup" onclick="oppSetTab('startup')" style="padding:10px 24px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;color:#7089A0;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s">🚀 Startup Funding</button>
+      <button id="opp-tab-saved" onclick="oppSetTab('saved')" style="padding:10px 24px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;color:#7089A0;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s">🔖 Saved</button>
+    </div>
+
+    <!-- Search & Filters -->
+    <div style="background:#fff;border:1px solid #D8E8F5;border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 2px 12px rgba(30,114,190,.07)">
+      <div class="opp-search-grid" style="display:grid;grid-template-columns:1fr 180px 180px auto;gap:10px;align-items:center">
+        <div class="opp-search-field" style="position:relative">
+          <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94A3B8" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="opp-search-input" placeholder="Search opportunities, hackathons, scholarships..." oninput="oppLiveSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();oppDoSearch()}" style="width:100%;height:44px;border:1px solid #D8E8F5;border-radius:10px;padding:0 12px 0 38px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border .15s" onfocus="this.style.borderColor='#1E72BE'" onblur="this.style.borderColor='#D8E8F5'">
+        </div>
+        <select id="opp-filter-cat" onchange="oppCatChanged()" style="height:44px;border:1px solid #D8E8F5;border-radius:10px;padding:0 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:#fff;color:#2D3E50">
+          <option value="">All Categories</option>
+          <optgroup label="Student">
+            <option value="Hackathon">Hackathon</option>
+            <option value="Case Competition">Case Competition</option>
+            <option value="Scholarship">Scholarship</option>
+            <option value="Olympiad">Olympiad</option>
+            <option value="Innovation Challenge">Innovation Challenge</option>
+            <option value="Essay Contest">Essay Contest</option>
+            <option value="Research Internship">Research Internship</option>
+            <option value="Fellowship">Fellowship</option>
+          </optgroup>
+          <optgroup label="Startup">
+            <option value="Grant">Grant</option>
+            <option value="Accelerator">Accelerator</option>
+            <option value="Incubator">Incubator</option>
+            <option value="Government Scheme">Government Scheme</option>
+            <option value="Pitch Competition">Pitch Competition</option>
+            <option value="VC/Angel Program">VC/Angel Program</option>
+            <option value="Startup Challenge">Startup Challenge</option>
+          </optgroup>
+        </select>
+        <select id="opp-filter-country" onchange="oppCountryChanged()" style="height:44px;border:1px solid #D8E8F5;border-radius:10px;padding:0 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:#fff;color:#2D3E50">
+          <option value="">All Countries</option>
+          <option value="India">India</option>
+          <option value="USA">USA</option>
+          <option value="Global">Global</option>
+          <option value="UK">UK</option>
+          <option value="Singapore">Singapore</option>
+          <option value="Canada">Canada</option>
+          <option value="Australia">Australia</option>
+          <option value="Germany">Germany</option>
+        </select>
+        <button onclick="oppDoSearch()" class="btn btn-blue" style="height:44px;padding:0 22px;border-radius:10px;font-size:14px;font-weight:600;white-space:nowrap">Search</button>
+      </div>
+
+      <!-- Quick Buttons -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+        <span style="font-size:12px;font-weight:600;color:#7089A0;padding-top:4px">Quick:</span>
+        <button onclick="oppQuickSearch('Hackathon')" class="opp-quick-btn student-btn">⚡ Hackathons</button>
+        <button onclick="oppQuickSearch('Scholarship')" class="opp-quick-btn student-btn">🎓 Scholarships</button>
+        <button onclick="oppQuickSearch('Fellowship')" class="opp-quick-btn student-btn">🔬 Fellowships</button>
+        <button onclick="oppQuickSearch('Olympiad')" class="opp-quick-btn student-btn">🏅 Olympiads</button>
+        <button onclick="oppQuickSearch('Innovation Challenge')" class="opp-quick-btn student-btn">💡 Innovation</button>
+        <button onclick="oppQuickSearch('Research Internship')" class="opp-quick-btn student-btn">🧪 Internships</button>
+        <button onclick="oppQuickSearch('Essay Contest')" class="opp-quick-btn student-btn">✍️ Essay Contests</button>
+        <button onclick="oppQuickSearch('Case Competition')" class="opp-quick-btn student-btn">📊 Case Competitions</button>
+        <button onclick="oppQuickSearch('Grant')" class="opp-quick-btn startup-btn" style="display:none">💰 Grants</button>
+        <button onclick="oppQuickSearch('Accelerator')" class="opp-quick-btn startup-btn" style="display:none">🚀 Accelerators</button>
+        <button onclick="oppQuickSearch('Incubator')" class="opp-quick-btn startup-btn" style="display:none">🏢 Incubators</button>
+        <button onclick="oppQuickSearch('Government Scheme')" class="opp-quick-btn startup-btn" style="display:none">🇮🇳 Govt Schemes</button>
+        <button onclick="oppQuickSearch('Pitch Competition')" class="opp-quick-btn startup-btn" style="display:none">🎤 Pitch Competitions</button>
+        <button onclick="oppQuickSearch('Startup Challenge')" class="opp-quick-btn startup-btn" style="display:none">🏆 Startup Challenges</button>
+        <button onclick="oppQuickSearch('Seed Funding')" class="opp-quick-btn startup-btn" style="display:none">🌱 Seed Funding</button>
+        <button onclick="oppQuickSearch('Angel Investor')" class="opp-quick-btn startup-btn" style="display:none">👼 Angel Programs</button>
+      </div>
+
+    </div>
+
+    <!-- Results area -->
+    <div id="opp-results-area">
+      <!-- Loading skeleton / cards rendered here by JS -->
+    </div>
+
+    <!-- Stats bar -->
+    <div id="opp-stats-bar" style="display:flex;gap:20px;align-items:center;margin-bottom:16px;font-size:13px;color:#7089A0;flex-wrap:wrap"></div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     GUIDCY CAREERS PAGE  (footer-only entry, admin-managed roles)
+════════════════════════════════════════════════════════════ -->
+<div id="page-careers" class="page">
+
+  <!-- ── HERO ── -->
+  <section class="gc-hero">
+    <div class="gc-wrap gc-hero-inner">
+      <div class="gc-hero-copy">
+        <span class="gc-eyebrow">Careers at Guidcy</span>
+        <h1 class="gc-hero-title">Grow with purpose. Build guidance people can trust.</h1>
+        <p class="gc-hero-sub">Bring your ideas, curiosity, and craft to a team helping people make confident decisions about their careers, businesses, and lives.</p>
+        <div class="gc-hero-actions">
+          <button type="button" class="gc-btn gc-btn-primary" onclick="guidcyCareersSeeRoles()">Explore open roles</button>
+          <span class="gc-hero-hint">Official Guidcy positions only</span>
+        </div>
+        <div class="gc-pillars">
+          <div class="gc-pillar"><strong>Human-first</strong><span>Build for real people</span></div>
+          <div class="gc-pillar"><strong>High ownership</strong><span>Turn ideas into outcomes</span></div>
+          <div class="gc-pillar"><strong>Always learning</strong><span>Grow with the mission</span></div>
+        </div>
+      </div>
+      <div class="gc-hero-art">
+        <div class="gc-art-stack">
+          <img id="gc-hero-photo" src="/careers-team.jpg" alt="The Guidcy team">
+          <span class="gc-float-pill"><i class="gc-dot"></i>One team. Meaningful impact.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── STICKY SUB NAV ── -->
+  <div class="gc-subnav">
+    <div class="gc-wrap gc-subnav-inner">
+      <button type="button" class="gc-subnav-link" onclick="guidcyCareersScrollTo('page-careers')">Careers Home</button>
+      <button type="button" class="gc-subnav-link" onclick="guidcyCareersScrollTo('gc-work')">How We Work</button>
+      <button type="button" class="gc-subnav-link" onclick="guidcyCareersScrollTo('gc-openings')">Open Roles</button>
+      <div class="gc-subnav-search">
+        <input id="gc-search" type="search" placeholder="Search open positions" aria-label="Search open positions" onkeydown="if(event.key==='Enter'){event.preventDefault();guidcyCareersSeeRoles()}">
+        <button type="button" aria-label="Search" onclick="guidcyCareersSeeRoles()">🔍</button>
+      </div>
+      <button type="button" class="gc-subnav-cta" onclick="guidcyCareersSeeRoles()">See all open positions</button>
+    </div>
+  </div>
+
+  <!-- ── HOW WE WORK ── -->
+  <section id="gc-work" class="gc-work">
+    <div class="gc-wrap gc-work-inner">
+      <div class="gc-work-art">
+        <div class="gc-art-stack gc-art-stack-sm">
+          <img src="/careers-work.jpg" alt="The Guidcy team working together" loading="lazy">
+          <span class="gc-float-pill gc-float-pill-dark">Ideas become impact here</span>
+        </div>
+      </div>
+      <div class="gc-work-copy">
+        <span class="gc-eyebrow">How we work</span>
+        <h2 class="gc-work-title">Do the best work of your career&mdash;with people who care.</h2>
+        <p class="gc-work-sub">We are building Guidcy with thoughtful collaboration, honest communication, and the freedom to take meaningful ownership.</p>
+        <ol class="gc-steps">
+          <li><span class="gc-step-num">01</span><div><strong>Start with the person</strong><span>Understand the human need before choosing the solution.</span></div></li>
+          <li><span class="gc-step-num">02</span><div><strong>Build with clarity</strong><span>Keep work focused, useful, and easy to trust.</span></div></li>
+          <li><span class="gc-step-num">03</span><div><strong>Learn in the open</strong><span>Share context, welcome feedback, and improve together.</span></div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── OPEN POSITIONS ── -->
+  <section id="gc-openings" class="gc-section">
+    <div class="gc-wrap">
+      <div class="gc-head">
+        <span class="gc-eyebrow">Open roles</span>
+        <h2 class="gc-title">Open positions</h2>
+        <p class="gc-lead">All roles below are posted and verified by the Guidcy team.</p>
+      </div>
+
+      <div id="gc-admin-bar" style="display:none"></div>
+
+      <div class="gc-filters">
+        <input id="gc-filter-q" type="search" placeholder="Search by role, skill or keyword" aria-label="Search roles" onkeydown="if(event.key==='Enter'){event.preventDefault();guidcyCareersRender()}">
+        <select id="gc-filter-dept" aria-label="Filter by department"><option value="">All departments</option></select>
+        <select id="gc-filter-loc" aria-label="Filter by location"><option value="">All locations</option></select>
+        <select id="gc-filter-type" aria-label="Filter by job type"><option value="">All job types</option></select>
+        <button type="button" class="gc-btn gc-btn-primary" onclick="guidcyCareersRender()">Search</button>
+      </div>
+
+      <div class="gc-result-line">
+        <span id="gc-count">Loading open positions&hellip;</span>
+        <button type="button" class="gc-mini-btn" onclick="guidcyCareersClearFilters()">Clear filters</button>
+      </div>
+
+      <div id="gc-list" class="gc-jobs"></div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section class="gc-cta">
+    <div class="gc-cta-inner">
+      <h2>Don't see the right role yet?</h2>
+      <p>We are always happy to hear from thoughtful people. Send us a short note about what you would want to build at Guidcy, and we will reach out when something opens up.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <button type="button" class="gc-btn gc-btn-primary" onclick="guidcyCareersWriteToUs()">Write to us</button>
+        <button type="button" class="gc-btn gc-btn-ghost" onclick="go('about')">Learn about Guidcy</button>
+      </div>
+      <div class="gc-cta-mail">or email <a href="mailto:guidcytechnologies@gmail.com?subject=General%20application%20-%20Guidcy%20Careers">guidcytechnologies@gmail.com</a></div>
+    </div>
+  </section>
+
+</div>
+
+
+
+
+<!-- ════════════════════════════════════════════════════════════
+     END GUIDCY OPPORTUNITIES FINDER
+════════════════════════════════════════════════════════════ -->
+
+
+<!-- === GUIDCY HARD FIX: keep only one Webinar platform summary strip in admin dashboard === -->
+
+<!-- === END GUIDCY HARD FIX: keep only one Webinar platform summary strip in admin dashboard === -->
+
+<!-- === GUIDCY FINAL FIX: Opportunities stays after refresh (last-script override) === -->
+
+<!-- === END GUIDCY FINAL FIX === -->
+
+<!-- === GUIDCY FINAL ISOLATED FIX: STRICT LOGIN ROLE VALIDATION ONLY === -->
+
+<!-- === END GUIDCY FINAL ISOLATED FIX === -->
+
+
+
+<!-- === END GUIDCY FINAL WEBINAR PUBLISH GUARD === -->
+
+<!-- === GUIDCY FINAL PATCH: remove admin webinar platform summary strip, keep admin webinar history button === -->
+
+<!-- === END GUIDCY FINAL PATCH: remove admin webinar platform summary strip, keep admin webinar history button === -->
+
+
+<!-- === GUIDCY MINIMAL BLOG ADMIN PATCH: preserve existing posts/content === -->
+
+<!-- === END GUIDCY MINIMAL BLOG ADMIN PATCH === -->
+
+
+<!-- === GUIDCY FINAL BLOG ACTION PATCH: working admin edit/delete + comment delete === -->
+
+<!-- === END GUIDCY FINAL BLOG ACTION PATCH === -->
+
+<!-- === GUIDCY FINAL BLOG INLINE EDIT + IMAGE PATCH === -->
+
+<!-- === END GUIDCY FINAL BLOG INLINE EDIT + IMAGE PATCH === -->
+
+
+<!-- === GUIDCY PATCH: HOME CATEGORY COPY + RELATED CATEGORY FILTER ONLY === -->
+
+<!-- === END GUIDCY PATCH: HOME CATEGORY COPY + RELATED CATEGORY FILTER ONLY === -->
+
+
+<!-- === GUIDCY PATCH: FULL CONSULTANT CATEGORY LIST + STRICT SAME-CATEGORY FILTER ONLY === -->
+
+<!-- === END GUIDCY PATCH: FULL CONSULTANT CATEGORY LIST + STRICT SAME-CATEGORY FILTER ONLY === -->
+
+
+<!-- === GUIDCY FINAL CATEGORY DISPLAY FIX: home two rows + all-category descriptions/counts === -->
+
+
+<!-- === END GUIDCY FINAL CATEGORY DISPLAY FIX === -->
+
+
+<!-- === GUIDCY HOME LIVE OPPORTUNITIES SECTION === -->
+
+
+<!-- === END GUIDCY HOME LIVE OPPORTUNITIES SECTION === -->
+
+<!-- === GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
+
+
+<!-- === END GUIDCY HOME STARTUP OPPORTUNITIES SECTION === -->
+
+
+<!-- === GUIDCY HOME DAILY SHARED OPPORTUNITY CACHE FIX === -->
+
+<!-- === END GUIDCY HOME DAILY SHARED OPPORTUNITY CACHE FIX === -->
+
+
+<!-- === GUIDCY HOME GROWTH PATHS + DAILY MIXED OPPORTUNITIES SECTION === -->
+
+
+<!-- === END GUIDCY HOME GROWTH PATHS + DAILY MIXED OPPORTUNITIES SECTION === -->
+
+<!-- === GUIDCY FIX: REMOVE WRONG "HOME" PREFIX FROM SECTION LABELS === -->
+
+<!-- === END GUIDCY FIX: REMOVE WRONG "HOME" PREFIX FROM SECTION LABELS === -->
+
+
+<!-- === GUIDCY WORK FEATURE PATCH === -->
+
+
+<!-- === END GUIDCY WORK FEATURE PATCH === -->
+
+
+<!-- === GUIDCY DEBUG FIX PACK: signup AI bio + Guidcy Work QA fixes === -->
+
+
+<!-- === END GUIDCY DEBUG FIX PACK === -->
+
+
+
+
+
+
+<!-- === GUIDCY PRODUCTION QA FIX: emails, SPA restore, login return, consultant data source, matching === -->
+
+<!-- === END GUIDCY PRODUCTION QA FIX === -->
+
+<!-- === GUIDCY HOTFIX: LOGIN BUTTON STUCK ON SIGNING IN ONLY === -->
+
+<!-- === END GUIDCY HOTFIX: LOGIN BUTTON STUCK ON SIGNING IN ONLY === -->
+
+<!-- === GUIDCY HOTFIX: CONSULTANT BOOKING REQUEST COUNT/LIST CONSISTENCY === -->
+
+<!-- === END GUIDCY HOTFIX: CONSULTANT BOOKING REQUEST COUNT/LIST CONSISTENCY === -->
+
+
+<!-- === GUIDCY HOTFIX: CONSULTANT BANK DETAILS + ADMIN PAYOUT VISIBILITY === -->
+
+
+<!-- === END GUIDCY HOTFIX: CONSULTANT BANK DETAILS + ADMIN PAYOUT VISIBILITY === -->
+
+<!-- === GUIDCY MARKETPLACE PAYOUT + DASHBOARD PERSISTENCE + SELLER STATS === -->
+
+
+<!-- === END GUIDCY MARKETPLACE PAYOUT + DASHBOARD PERSISTENCE + SELLER STATS === -->
+
+<!-- === GUIDCY RESEND NOTIFICATION SYSTEM: Supabase Edge Function primary, EmailJS fallback-safe === -->
+
+
+<!-- === END GUIDCY RESEND NOTIFICATION SYSTEM === -->
+
+<!-- === GUIDCY RESEND SIGNUP NOTIFICATION FIX: registration email trigger === -->
+
+<!-- === END GUIDCY RESEND SIGNUP NOTIFICATION FIX === -->
+
+
+<!-- === GUIDCY FINAL LIVE WORKFLOW OVERRIDE: requested webinar/edit/email/find-work/registration fixes === -->
+
+
+<!-- === END GUIDCY FINAL LIVE WORKFLOW OVERRIDE === -->
+<!-- === GUIDCY ROOT FIX: ROBUST SUPABASE WEBINAR EDIT/UPDATE FLOW === -->
+
+<!-- === END GUIDCY ROOT FIX: ROBUST SUPABASE WEBINAR EDIT/UPDATE FLOW === -->
+
+<!-- === GUIDCY FINAL ROOT QA FIX: SINGLE DASHBOARD BUTTON + LIVE WEBINAR RERENDER + FIND WORK AUTH MODAL === -->
+
+
+<!-- === END GUIDCY FINAL ROOT QA FIX === -->
+
+
+
+
+
+
+<!-- === GUIDCY EMAIL CLEANUP: IMPORTANT EMAILS ONLY + BANK EMAILS DISABLED === -->
+
+<!-- === END GUIDCY EMAIL CLEANUP === -->
+<!-- === GUIDCY RAG ASSISTANT === -->
+
+
+<!-- === END GUIDCY RAG ASSISTANT === -->
+
+
+<!-- === GUIDCY HOME UNIVERSAL SEARCH OVERRIDE === -->
+
+
+<!-- === END GUIDCY HOME UNIVERSAL SEARCH OVERRIDE === -->
+
+<!-- === GUIDCY CANONICAL REFRESH-SAFE ROUTING === -->
+
+<!-- === END GUIDCY CANONICAL REFRESH-SAFE ROUTING === -->
+
+<!-- === GUIDCY FINAL UX QA FIX: foreground messages, edit notes, auth return, footer, AI theme === -->
+
+
+<!-- === END GUIDCY FINAL UX QA FIX === -->
+
+<!-- === GUIDCY MARKETPLACE DOWNLOAD + FOOTER ORDER FIX === -->
+
+<!-- === END GUIDCY MARKETPLACE DOWNLOAD + FOOTER ORDER FIX === -->
+
+<!-- === GUIDCY FINAL DASHBOARD REFRESH + MARKETPLACE AUTH GUARD === -->
+
+<!-- === END GUIDCY FINAL DASHBOARD REFRESH + MARKETPLACE AUTH GUARD === -->
+<!-- === GUIDCY AUTHORITATIVE BLOG DATA + DETAIL ROUTE PATCH === -->
+
+<!-- === END GUIDCY AUTHORITATIVE BLOG DATA + DETAIL ROUTE PATCH === -->
+<!-- === GUIDCY WHOLE-SITE REFRESH-SAFE ROUTE LOCK === -->
+
+<!-- === END GUIDCY WHOLE-SITE REFRESH-SAFE ROUTE LOCK === -->
+<!-- === GUIDCY URL-FIRST ROUTER + DATA STABILITY PATCH === -->
+
+<!-- === END GUIDCY URL-FIRST ROUTER + DATA STABILITY PATCH === -->
+<!-- === GUIDCY MARKETPLACE + CATEGORY REFRESH STABILITY PATCH === -->
+
+<!-- === END GUIDCY MARKETPLACE + CATEGORY REFRESH STABILITY PATCH === -->
+<!-- === GUIDCY EMAIL DELIVERY FINAL: Supabase Edge + Vercel Resend fallback === -->
+
+<!-- === END GUIDCY EMAIL DELIVERY FINAL === -->
+
+
+
+
+
+
+	
+	
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- === GUIDCY FINAL BOOKING/PAYMENT/EMAIL/DASHBOARD REPAIR === -->
+
+
+<!-- === GUIDCY MOBILE ADMIN DRAWER + BOOKING EMAIL FORCE FIX V2 === -->
+
+
+<!-- === GUIDCY BOOKING EMAIL REPAIR + LIVE DASHBOARD REFRESH V3 === -->
+
+<!-- === GUIDCY SCOPED DASHBOARD LIVE REFRESH V1 === -->
+
+<!-- === GUIDCY CANCELLATION EMAIL + LIVE REFRESH REPAIR V1 === -->
+
+<!-- === GUIDCY FINAL FIX: IMMEDIATE DASHBOARD STATUS REFRESH V2 === -->
+
+
+<!-- === GUIDCY FINAL MOBILE RESPONSIVENESS + LIVE UPCOMING REFRESH FIX === -->
+
+
+<!-- === GUIDCY FINAL RAZORPAY MOBILE SMOOTHNESS FIX === -->
+
+
+<!-- === GUIDCY FINAL LOGIN RETURN-TO-PAGE FIX === -->
+
+<!-- === GUIDCY CLAUDE FINAL INTEGRITY PATCH ===
+     This file has 40+ earlier patches that each reassign window.go /
+     swCD / swAD / swUD, several from inside deferred callbacks
+     (DOMContentLoaded/load/setTimeout) that fire AFTER the whole
+     document has parsed - so even being the very last script tag in the
+     file is not enough to "win" once and for all. Instead of a single
+     one-time wrap, a watchdog re-applies our wrapper around whatever
+     the current implementation is every second, forever. Whichever
+     other patch last touched window.go, ours always ends up wrapped
+     around the outside of it within ~1s. -->
+
+
+</body>
+</html>
