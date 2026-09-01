@@ -203,3 +203,48 @@ test('tab return repairs a stale background route replay before it becomes the v
   assert.equal(active, 'webinar');
   assert.equal(refreshes, 1);
 });
+
+test('passive Supabase auth events update session state without owning navigation', () => {
+  const initialAuth = section(app, 'async function initAuth(){', 'async function loadProfile(){');
+  assert.match(initialAuth, /previousUserId=String\(\(currentUser&&currentUser\.id\)\|\|''\)/);
+  assert.match(initialAuth, /isNewSignIn=event==='SIGNED_IN'&&\(!previousUserId\|\|previousUserId!==nextUserId\)/);
+  assert.match(initialAuth, /if\(isNewSignIn\)[\s\S]*go\(role==='consultant'/);
+
+  const routerAuth = section(app, 'function installAuthListener(){', "window.addEventListener('popstate'");
+  assert.match(routerAuth, /previousAuthId=\(authUser&&authUser\.id\)\|\|''/);
+  assert.match(routerAuth, /previousAuthId&&authUser&&previousAuthId===authUser\.id\)return/);
+  assert.match(routerAuth, /event==='TOKEN_REFRESHED'\|\|event==='USER_UPDATED'\)return/);
+
+  const bookingPending = section(app, 'function savePendingAction(action)', 'async function fetchConsultantContact');
+  assert.doesNotMatch(bookingPending, /onAuthStateChange/);
+  const generalPending = section(app, 'function readPending(){', '/* Preserve intent for Find Jobs');
+  assert.doesNotMatch(generalPending, /onAuthStateChange/);
+
+  const adaptiveAuth = section(app, "document.addEventListener('DOMContentLoaded',function(){runLightMaintenance", '/* === guidcy-fast-role-login-fix === */');
+  assert.doesNotMatch(adaptiveAuth, /event==='SIGNED_IN'.*guardDashboardRoute/);
+  const selfHeal = section(app, 'function maybeHeal(){', 'var prevCD=window.swCD');
+  assert.doesNotMatch(selfHeal, /onAuthStateChange|SIGNED_IN/);
+});
+
+test('focus and visibility return guards restore data only on their own route', () => {
+  const jobs = section(app, 'function ensureJobsRouteAfterExternal(){', 'try{window._jobsCache');
+  assert.match(jobs, /\^\\\/(?:\(\?:)?find-jobs\|jobs/);
+  assert.doesNotMatch(jobs, /history\.|renderPage|window\.go/);
+
+  const opportunities = section(app, 'function ensureOpportunitiesRouteAfterExternal(){', "document.addEventListener('click'");
+  assert.match(opportunities, /funds-grants\|opportunities/);
+  assert.doesNotMatch(opportunities, /history\.|renderPage|window\.go/);
+
+  const finalFunds = section(app, 'function restoreFundsRoute(){', "document.addEventListener('click'");
+  assert.match(finalFunds, /funds-grants\|opportunities/);
+  assert.doesNotMatch(finalFunds, /history\.|renderPage|window\.go/);
+
+  const finalJobsStart = app.lastIndexOf('function restoreJobsRoute(){');
+  assert.ok(finalJobsStart >= 0);
+  const finalJobsEnd = app.indexOf("document.addEventListener('click'", finalJobsStart);
+  const finalJobs = app.slice(finalJobsStart, finalJobsEnd);
+  assert.match(finalJobs, /find-jobs\|jobs/);
+  assert.doesNotMatch(finalJobs, /history\.|renderPage|window\.go/);
+
+  assert.doesNotMatch(app, /recent(?:Jobs|Opp)?External(?:Open)?\(\)&&\/\^\(user-dash\|dashboard/);
+});

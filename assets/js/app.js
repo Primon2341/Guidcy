@@ -1649,6 +1649,7 @@ async function initAuth(){
         setTimeout(()=>{try{openSetNewPasswordModal()}catch(_){}},300);
         return;
       }
+      const previousUserId=String((currentUser&&currentUser.id)||'');
       // IMPORTANT: Supabase fires SIGNED_IN before the selected login tab has been
       // compared with the stored account role. During that check, do not load the
       // profile, update navigation, render a route, or expose the footer.
@@ -1659,8 +1660,10 @@ async function initAuth(){
         return;
       }
       if(session?.user){
+        const nextUserId=String(session.user.id||'');
+        const isNewSignIn=event==='SIGNED_IN'&&(!previousUserId||previousUserId!==nextUserId);
         currentUser=session.user; window.currentUser=currentUser; await loadProfile(); updateNav();
-        if(event==='SIGNED_IN'){
+        if(isNewSignIn){
           const role=currentProfile?.role||'user';
           setTimeout(()=>{
             if(window.__guidcyAuthRoleChecking || Date.now()<Number(window.__guidcyStayOnLoginUntil||0))return;
@@ -5989,9 +5992,7 @@ cancelBooking=async function(bookingId,role){
   function ensureJobsRouteAfterExternal(){
     if(!recentJobsExternalOpen())return false;
     const path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-    if(!/^\/(?:dashboard|user-dashboard|consultant-dashboard|admin-dashboard|admin|login)$/.test(path))return false;
-    try{history.replaceState({page:'jobs'},'','/find-jobs')}catch(_){}
-    try{if(typeof window.renderPage==='function')window.renderPage('jobs');else if(typeof window.go==='function')window.go('jobs')}catch(_){}
+    if(!/^\/(?:find-jobs|jobs)$/.test(path))return false;
     setTimeout(function(){try{window.guidcyRestoreJobsState&&window.guidcyRestoreJobsState()}catch(_){}},120);
     return true;
   }
@@ -6449,10 +6450,6 @@ cancelBooking=async function(bookingId,role){
   const _prevGo=window.go;
   window.go=function(page){
     if(page==='jobs'){try{history.pushState({page:'jobs'},'','/jobs');}catch(_){}window.renderPage('jobs');return;}
-    if(recentJobsExternalOpen()&&/^(user-dash|dashboard|cons-dash|consultant-dashboard|admin-dash|admin-dashboard|login)$/.test(String(page||''))){
-      ensureJobsRouteAfterExternal();
-      return false;
-    }
     const r=_prevGo?_prevGo.apply(this,arguments):null;
     if(page==='home')setTimeout(loadHomeStats,200);
     if(page==='categories')setTimeout(()=>{try{window.initCategories&&window.initCategories();}catch(_){}},50);
@@ -15700,12 +15697,8 @@ function restoreOppStateIfAvailable(){
 function ensureOpportunitiesRouteAfterExternal(){
   if(!recentOppExternalOpen())return;
   const path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-  const onAutoAuthDetour=/^\/(?:dashboard|user-dashboard|consultant-dashboard|admin-dashboard|admin|login)$/.test(path);
-  if(onAutoAuthDetour){
-    try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(e){}
-    try{if(typeof window.renderPage==='function')window.renderPage('opportunities');else if(typeof window.go==='function')window.go('opportunities')}catch(e){}
-    setTimeout(restoreOppStateIfAvailable,80);
-  }
+  if(!/^\/(?:funds-grants|opportunities)$/.test(path))return;
+  setTimeout(restoreOppStateIfAvailable,80);
 }
 
 document.addEventListener('click',function(e){
@@ -15719,20 +15712,7 @@ document.addEventListener('click',function(e){
   }catch(_){}
 },true);
 
-if(typeof window.go==='function'&&!window.go.__guidcyOppReturnGuard){
-  const priorOppGo=window.go;
-  window.go=function(page){
-    const target=String(page||'');
-    if(recentOppExternalOpen()&&/^(user-dash|dashboard|cons-dash|consultant-dashboard|admin-dash|admin-dashboard|login)$/.test(target)){
-      try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(e){}
-      try{if(typeof window.renderPage==='function')window.renderPage('opportunities')}catch(e){}
-      setTimeout(restoreOppStateIfAvailable,80);
-      return false;
-    }
-    return priorOppGo.apply(this,arguments);
-  };
-  window.go.__guidcyOppReturnGuard=true;
-}
+if(typeof window.go==='function')window.go.__guidcyOppReturnGuard=true;
 
 window.addEventListener('pageshow',function(){setTimeout(function(){restoreOppStateIfAvailable();ensureOpportunitiesRouteAfterExternal();},80)});
 window.addEventListener('focus',function(){setTimeout(ensureOpportunitiesRouteAfterExternal,80)});
@@ -18143,7 +18123,8 @@ document.addEventListener('DOMContentLoaded',function(){
     setTimeout(()=>{window.guidcyRestorePendingAction&&window.guidcyRestorePendingAction();},700);
   };
 	  window.gSignIn=function(){toastSafe('Google login has been removed. Please use email and password.','blue');};
-  try{ if(sbc()?.auth){sbc().auth.onAuthStateChange((ev,session)=>{if(session?.user && ev==='SIGNED_IN') setTimeout(()=>window.guidcyRestorePendingAction&&window.guidcyRestorePendingAction(),900);});} }catch(_){ }
+	  /* Explicit login completion restores pending actions. Passive auth events
+	     such as tab refocus must never replay navigation. */
 
   async function fetchConsultantContact(consultantId){
     const out={email:null,profileId:null}; const client=sbc(); if(!client||!consultantId) return out;
@@ -20889,9 +20870,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   window.guidcyRestorePendingAfterLogin=restorePending;
   window.guidcySavePendingAction=savePending;
-  /* Token refreshes fire onAuthStateChange too; replaying a pending action then
-     would navigate a signed-in user away mid-session. */
-  try{client()?.auth?.onAuthStateChange?.(function(evt){if(evt&&evt!=='SIGNED_IN')return;setTimeout(restorePending,650)})}catch(e){}
+  /* Pending actions are restored by explicit login completion or page load,
+     never by passive Supabase auth events. */
   window.addEventListener('load',function(){setTimeout(restorePending,1400)});
 
   /* Preserve intent for Find Jobs save buttons and saved-tab login button. */
@@ -22168,6 +22148,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(!client||!client.auth||!client.auth.onAuthStateChange)return;
     try{
       client.auth.onAuthStateChange(function(event,session){
+        var previousAuthId=(authUser&&authUser.id)||'';
         authUser=(session&&session.user)||null;
         window.__guidcyAuthUser=authUser;
         if(event==='TOKEN_REFRESHED'||event==='USER_UPDATED')return;
@@ -22178,6 +22159,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         }
         if(event==='SIGNED_IN'){
           authPromise=Promise.resolve(authUser);
+          if(previousAuthId&&authUser&&previousAuthId===authUser.id)return;
           if(window.__guidcyAuthRoleChecking || Date.now()<Number(window.__guidcyStayOnLoginUntil||0))return;
           var pending=consumePendingDestination();
           if(pending){
@@ -23655,7 +23637,6 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	  window.addEventListener('popstate',function(){setTimeout(function(){guardDashboardRoute();runLightMaintenance(document)},120)});
 	  try{client()&&client().auth&&client().auth.onAuthStateChange(function(event,session){
 	    if(event==='SIGNED_OUT'){setSessionState(null,null);return}
-	    if(event==='SIGNED_IN'&&session&&session.user)setTimeout(guardDashboardRoute,80);
 	  })}catch(_){}
 	  [700,1800,3600,6500,9500].forEach(function(ms){setTimeout(function(){runLightMaintenance(document);guardDashboardRoute()},ms)});
 	})();
@@ -24294,13 +24275,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function restoreFundsRoute(){
     if(!recentExternal())return false;
     var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-    if(!/^\/(?:dashboard|user-dashboard|consultant-dashboard|admin-dashboard|admin|login)$/.test(path))return false;
-    try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(_){}
-    try{
-      if(typeof window.renderPage==='function')window.renderPage('opportunities');
-      else if(typeof window.go==='function')window.go('opportunities');
-    }catch(_){}
-    setTimeout(function(){try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(_){}},160);
+    if(!/^\/(?:funds-grants|opportunities)$/.test(path))return false;
     try{setTimeout(function(){window.initOpportunitiesFinder&&window.initOpportunitiesFinder()},100)}catch(_){}
     return true;
   }
@@ -24312,20 +24287,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       if(u.origin!==location.origin)markExternal();
     }catch(_){}
   },true);
-  var oldGo=window.go;
-  if(typeof oldGo==='function'){
-    window.go=function(page){
-      var target=String(page||'');
-      if(recentExternal()&&/^(user-dash|dashboard|cons-dash|consultant-dashboard|admin-dash|admin-dashboard|login)$/.test(target)){
-        try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(_){}
-        try{if(typeof window.renderPage==='function')window.renderPage('opportunities')}catch(_){}
-        setTimeout(function(){try{history.replaceState({page:'opportunities'},'','/funds-grants')}catch(_){}},160);
-        try{setTimeout(function(){window.initOpportunitiesFinder&&window.initOpportunitiesFinder()},100)}catch(_){}
-        return false;
-      }
-      return oldGo.apply(this,arguments);
-    };
-  }
+  /* External-link state restores data only; it never intercepts navigation. */
   window.addEventListener('pageshow',function(){setTimeout(restoreFundsRoute,80)});
   window.addEventListener('focus',function(){setTimeout(restoreFundsRoute,80)});
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&window.__guidcyVisRefreshOK('fundsRoute'))setTimeout(restoreFundsRoute,80)});
@@ -24358,13 +24320,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function restoreJobsRoute(){
     if(!recentExternal())return false;
     var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-    if(!/^\/(?:dashboard|user-dashboard|consultant-dashboard|admin-dashboard|admin|login)$/.test(path))return false;
-    try{history.replaceState({page:'jobs'},'','/find-jobs')}catch(_){}
-    try{
-      if(typeof window.renderPage==='function')window.renderPage('jobs');
-      else if(typeof window.go==='function')window.go('jobs');
-    }catch(_){}
-    setTimeout(function(){try{history.replaceState({page:'jobs'},'','/find-jobs')}catch(_){}},160);
+    if(!/^\/(?:find-jobs|jobs)$/.test(path))return false;
     setTimeout(function(){try{window.guidcyRestoreJobsState&&window.guidcyRestoreJobsState()}catch(_){}},180);
     return true;
   }
@@ -24372,20 +24328,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var el=e.target&&e.target.closest&&e.target.closest('#page-jobs [onclick*="window.open"]');
     if(el)markExternal();
   },true);
-  var oldGo=window.go;
-  if(typeof oldGo==='function'){
-    window.go=function(page){
-      var target=String(page||'');
-      if(recentExternal()&&/^(user-dash|dashboard|cons-dash|consultant-dashboard|admin-dash|admin-dashboard|login)$/.test(target)){
-        try{history.replaceState({page:'jobs'},'','/find-jobs')}catch(_){}
-        try{if(typeof window.renderPage==='function')window.renderPage('jobs')}catch(_){}
-        setTimeout(function(){try{history.replaceState({page:'jobs'},'','/find-jobs')}catch(_){}},160);
-        setTimeout(function(){try{window.guidcyRestoreJobsState&&window.guidcyRestoreJobsState()}catch(_){}},180);
-        return false;
-      }
-      return oldGo.apply(this,arguments);
-    };
-  }
+  /* External-link state restores data only; it never intercepts navigation. */
   window.addEventListener('pageshow',function(){setTimeout(function(){try{window.guidcyRestoreJobsState&&window.guidcyRestoreJobsState()}catch(_){}restoreJobsRoute();},80)});
   window.addEventListener('focus',function(){setTimeout(restoreJobsRoute,80)});
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&window.__guidcyVisRefreshOK('jobsRoute2'))setTimeout(restoreJobsRoute,80)});
@@ -30311,12 +30254,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   [1500,4000,8000].forEach(function(t){setTimeout(maybeHeal,t)});
   window.addEventListener('load',function(){setTimeout(maybeHeal,2000)});
-  try{
-    var c=client();
-    if(c&&c.auth&&c.auth.onAuthStateChange)c.auth.onAuthStateChange(function(ev){
-      if(ev==='SIGNED_IN')setTimeout(maybeHeal,2500);
-    });
-  }catch(_){}
+  /* Passive auth events must not trigger dashboard repair/navigation. */
   var prevCD=window.swCD;
   if(typeof prevCD==='function'&&!prevCD.__guidcySelfHeal){
     window.swCD=function(){setTimeout(maybeHeal,400);return prevCD.apply(this,arguments)};
