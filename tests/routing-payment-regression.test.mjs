@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import vm from 'node:vm';
 
 const app = fs.readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const core = fs.readFileSync(new URL('../assets/js/core.js', import.meta.url), 'utf8');
@@ -119,4 +120,86 @@ test('missing meeting links expose retry actions and promo navigation closes its
   assert.ok((app.match(/Retry meeting link/g) || []).length >= 2);
   const promo = section(app, 'function renderPromoAdmin(btn)', 'window.guidcyRenderPromoAdmin=renderPromoAdmin');
   assert.match(promo, /window\.closeDashMenu\('admin'\)/);
+});
+
+test('returning to a browser tab preserves the exact current route and visible page', () => {
+  const start = app.indexOf('/* === guidcy-tab-return-route-stability-v1 ===');
+  assert.ok(start >= 0);
+  const stability = app.slice(start);
+  assert.match(stability, /snapshot=\{url:url,page:activePage\(\),capturedAt:Date\.now\(\)\}/);
+  assert.match(stability, /history\.replaceState\(\{page:snapshot\.page\|\|'',guidcyTabReturn:true\},'',snapshot\.url\)/);
+  assert.match(stability, /window\.guidcyRefreshRouteFromLocation\(\)/);
+  assert.match(stability, /visibilitychange[\s\S]*document\.hidden[\s\S]*captureRoute\(false\)[\s\S]*scheduleRestore\(\)/);
+  assert.match(stability, /window\.addEventListener\('popstate',cancelForUserNavigation\)/);
+  assert.match(stability, /document\.addEventListener\('click',cancelForUserNavigation,true\)/);
+  assert.match(stability, /#wbn-manage-regs-btn/);
+  assert.match(stability, /\^\(\?:\\\/payment\|\\\/confirm\|\\\/meeting\|\\\/review\)\$/);
+});
+
+test('tab return repairs a stale background route replay before it becomes the visible page', () => {
+  const start = app.indexOf('/* === guidcy-tab-return-route-stability-v1 ===');
+  const stability = app.slice(start);
+  const handlers = { window: {}, document: {} };
+  const timers = [];
+  const location = { origin: 'https://guidcy.test', pathname: '/webinars', search: '', hash: '' };
+  let active = 'webinar';
+  let refreshes = 0;
+  const document = {
+    hidden: false,
+    querySelector(selector) {
+      return selector === '.page.on' || selector === '.page.active' ? { id: `page-${active}` } : null;
+    },
+    addEventListener(type, handler) {
+      (handlers.document[type] ||= []).push(handler);
+    }
+  };
+  const window = {
+    addEventListener(type, handler) {
+      (handlers.window[type] ||= []).push(handler);
+    },
+    __GUIDCY_SET_ROUTE_INTENT_V6__() {},
+    guidcyRefreshRouteFromLocation() {
+      refreshes++;
+      active = location.pathname === '/webinars' ? 'webinar' : 'jobs';
+    }
+  };
+  const history = {
+    replaceState(_state, _title, url) {
+      const parsed = new URL(url, location.origin);
+      location.pathname = parsed.pathname;
+      location.search = parsed.search;
+      location.hash = parsed.hash;
+    }
+  };
+  vm.runInNewContext(stability, {
+    window,
+    document,
+    history,
+    location,
+    URL,
+    Date,
+    console,
+    setTimeout(handler, delay) {
+      const timer = { handler, delay, cancelled: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      if (timer) timer.cancelled = true;
+    }
+  });
+
+  document.hidden = true;
+  handlers.document.visibilitychange[0]();
+  document.hidden = false;
+  handlers.document.visibilitychange[0]();
+  timers.find(timer => timer.delay === 0 && !timer.cancelled).handler();
+
+  location.pathname = '/find-jobs';
+  active = 'jobs';
+  timers.find(timer => timer.delay === 120 && !timer.cancelled).handler();
+
+  assert.equal(location.pathname, '/webinars');
+  assert.equal(active, 'webinar');
+  assert.equal(refreshes, 1);
 });

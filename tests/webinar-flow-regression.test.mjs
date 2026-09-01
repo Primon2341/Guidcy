@@ -39,6 +39,23 @@ test('admin webinar filter and export recompute from the current selected webina
   assert.match(webinarFlow, /count\.textContent/);
 });
 
+test('view webinar registrations activates and renders the admin route on the first click', () => {
+  assert.match(webinarFlow, /window\.guidcyOpenWebinarRegistrations = function/);
+  assert.match(webinarFlow, /history\.pushState\(\{ page: 'admin-dash', tab: 'webinar-registrations' \}, '', target\)/);
+  assert.match(webinarFlow, /window\.guidcyRefreshRouteFromLocation\(\)/);
+  assert.match(webinarFlow, /activateWebinarRegistrationDashboard\(\)[\s\S]*window\.swAD\('webinar-registrations', null\)/);
+  assert.match(webinarFlow, /event\.stopImmediatePropagation\(\)[\s\S]*window\.guidcyOpenWebinarRegistrations\(event\)/);
+});
+
+test('the same captured webinar registration tap path is used on mobile and desktop', () => {
+  const start = webinarFlow.indexOf('window.guidcyOpenWebinarRegistrations = function');
+  const end = webinarFlow.indexOf('function dedupeWebinars', start);
+  assert.ok(start >= 0 && end > start);
+  const navigation = webinarFlow.slice(start, end);
+  assert.match(navigation, /document\.addEventListener\('click',[\s\S]*#wbn-manage-regs-btn[\s\S]*}, true\)/);
+  assert.doesNotMatch(navigation, /matchMedia|innerWidth|pointerType|ontouchstart/);
+});
+
 test('database and order creation prevent duplicate active webinar payments', () => {
   assert.doesNotMatch(createOrder, /flow !== 'webinar' && \/\^order_/);
   assert.match(createOrder, /\^order_\[A-Za-z0-9\]\+\$/);

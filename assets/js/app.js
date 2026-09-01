@@ -30911,3 +30911,89 @@ window.guidcyGoSignupFromLogin=function(){
   };
   try{renderGrid=window.renderGrid}catch(_){}
 })();
+
+/* === guidcy-tab-return-route-stability-v1 ===
+   Several legacy Jobs/Funds external-link guards listen for focus, pageshow
+   and visibility changes. Their 30-minute session flags can outlive the page
+   that created them, so merely returning to this browser tab can replay an old
+   route. Preserve the exact URL and visible page captured when the tab was
+   hidden, and repair only an automatic route change unless the user explicitly
+   chooses another route. */
+(function(){
+  'use strict';
+  if(window.__GUIDCY_TAB_RETURN_ROUTE_STABILITY_V1__)return;
+  if(typeof window.addEventListener!=='function'||typeof document==='undefined'||typeof document.addEventListener!=='function')return;
+  window.__GUIDCY_TAB_RETURN_ROUTE_STABILITY_V1__=true;
+
+  var snapshot=null;
+  var restoring=false;
+  var restoreTimers=[];
+
+  function currentUrl(){return (location.pathname||'/')+(location.search||'')+(location.hash||'')}
+  function activePage(){
+    var page=document.querySelector('.page.on')||document.querySelector('.page.active');
+    return page&&page.id?page.id.replace(/^page-/,''):'';
+  }
+  function criticalFlow(url){
+    try{
+      var parsed=new URL(url||'/',location.origin);
+      var path=parsed.pathname.replace(/\/+$/,'')||'/';
+      if(window.__guidcyPaymentFlowLock||/^(?:\/payment|\/confirm|\/meeting|\/review)$/.test(path))return true;
+      if(parsed.searchParams.has('code')||parsed.searchParams.has('error')||parsed.searchParams.has('error_description'))return true;
+      return /(?:access_token|refresh_token|error_description|type=recovery)/i.test(parsed.hash||'');
+    }catch(_){return false}
+  }
+  function clearRestoreTimers(){
+    restoreTimers.forEach(function(timer){clearTimeout(timer)});
+    restoreTimers=[];
+  }
+  function captureRoute(force){
+    if(!force&&!document.hidden)return;
+    var url=currentUrl();
+    if(criticalFlow(url)){snapshot=null;return}
+    snapshot={url:url,page:activePage(),capturedAt:Date.now()};
+  }
+  function restoreCapturedRoute(){
+    if(document.hidden||!snapshot||restoring)return;
+    if(criticalFlow(snapshot.url)||criticalFlow(currentUrl())){snapshot=null;return}
+    var urlChanged=currentUrl()!==snapshot.url;
+    var pageChanged=!!snapshot.page&&activePage()!==snapshot.page;
+    if(!urlChanged&&!pageChanged)return;
+
+    restoring=true;
+    try{
+      if(urlChanged)history.replaceState({page:snapshot.page||'',guidcyTabReturn:true},'',snapshot.url);
+      if(typeof window.__GUIDCY_SET_ROUTE_INTENT_V6__==='function')window.__GUIDCY_SET_ROUTE_INTENT_V6__(snapshot.url);
+      window.__guidcyForceRenderOnce=true;
+      if(typeof window.guidcyRefreshRouteFromLocation==='function')window.guidcyRefreshRouteFromLocation();
+      else if(snapshot.page&&typeof window.renderPage==='function')window.renderPage(snapshot.page);
+    }catch(error){console.warn('Unable to preserve the current page after tab return:',error)}
+    setTimeout(function(){restoring=false},0);
+  }
+  function scheduleRestore(){
+    clearRestoreTimers();
+    [0,120,360].forEach(function(delay){restoreTimers.push(setTimeout(restoreCapturedRoute,delay))});
+  }
+  function cancelForUserNavigation(event){
+    if(document.hidden)return;
+    if(event&&event.type!=='popstate'){
+      var target=event.target&&event.target.closest&&event.target.closest(
+        'a[href],[data-route],[data-guidcy-webinar-reg-nav],#wbn-manage-regs-btn,'+
+        '[onclick*="go("],[onclick*="window.go("],[onclick*="swAD("],[onclick*="swUD("],[onclick*="swCD("]'
+      );
+      if(!target)return;
+    }
+    snapshot=null;
+    clearRestoreTimers();
+  }
+
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){clearRestoreTimers();captureRoute(false)}
+    else scheduleRestore();
+  });
+  window.addEventListener('pagehide',function(){captureRoute(true)});
+  window.addEventListener('pageshow',scheduleRestore);
+  window.addEventListener('focus',scheduleRestore);
+  window.addEventListener('popstate',cancelForUserNavigation);
+  document.addEventListener('click',cancelForUserNavigation,true);
+})();

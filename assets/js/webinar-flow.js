@@ -755,6 +755,86 @@
     } catch (_) {}
   }
 
+  function activateWebinarRegistrationDashboard() {
+    var adminPage = byId('page-admin-dash');
+    if (!adminPage) return;
+    if (!adminPage.classList.contains('on') && !adminPage.classList.contains('active')) {
+      window.__guidcyForceRenderOnce = true;
+      if (typeof window.renderPage === 'function') window.renderPage('admin-dash');
+    }
+    if (!adminPage.classList.contains('on') && !adminPage.classList.contains('active')) {
+      document.querySelectorAll('.page.on,.page.active').forEach(function (page) {
+        page.classList.remove('on', 'active');
+      });
+      adminPage.classList.add('on');
+    }
+  }
+
+  function renderWebinarRegistrationDashboard() {
+    activateWebinarRegistrationDashboard();
+    if (typeof window.swAD === 'function') {
+      window.swAD('webinar-registrations', null);
+    } else if (typeof window.guidcyRenderWebinarRegistrationsAdmin === 'function') {
+      window.guidcyRenderWebinarRegistrationsAdmin();
+    }
+    window.scrollTo(0, 0);
+  }
+
+  window.guidcyOpenWebinarRegistrations = function (event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    if (!isAdmin()) {
+      toast('Admin login required to view webinar registrations.', 'red');
+      if (typeof originalGo === 'function') originalGo.call(window, 'login');
+      else location.href = '/login';
+      return false;
+    }
+
+    document.querySelectorAll('#wbn-reg-modal,.wbn-modal-overlay,.wbn-delete-modal').forEach(function (overlay) {
+      overlay.classList.remove('on', 'is-open', 'open');
+      overlay.style.display = 'none';
+    });
+    try {
+      sessionStorage.setItem('guidcy_admin_dash_tab', 'webinar-registrations');
+      sessionStorage.setItem('guidcy_admin_dash_view', 'webinar-registrations');
+    } catch (_) {}
+
+    var target = '/admin/webinar-registrations';
+    if (typeof window.__GUIDCY_SET_ROUTE_INTENT_V6__ === 'function') {
+      window.__GUIDCY_SET_ROUTE_INTENT_V6__(target);
+    }
+    if ((location.pathname || '').replace(/\/+$/, '') !== target) {
+      history.pushState({ page: 'admin-dash', tab: 'webinar-registrations' }, '', target);
+    }
+
+    if (typeof window.guidcyRefreshRouteFromLocation === 'function') {
+      window.guidcyRefreshRouteFromLocation();
+    } else {
+      renderWebinarRegistrationDashboard();
+    }
+
+    var finish = function () {
+      var adminPage = byId('page-admin-dash');
+      var main = byId('adash-main');
+      var title = lower(main && main.querySelector('.dash-title') && main.querySelector('.dash-title').textContent);
+      if (!adminPage || (!adminPage.classList.contains('on') && !adminPage.classList.contains('active')) || title !== 'webinar registrations') {
+        renderWebinarRegistrationDashboard();
+      } else {
+        window.scrollTo(0, 0);
+      }
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(finish);
+    else setTimeout(finish, 0);
+    return false;
+  };
+
+  document.addEventListener('click', function (event) {
+    var button = event.target && event.target.closest && event.target.closest('#wbn-manage-regs-btn');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.guidcyOpenWebinarRegistrations(event);
+  }, true);
+
   function dedupeWebinars(rows) {
     var seen = {};
     return (rows || []).filter(function (row) {
