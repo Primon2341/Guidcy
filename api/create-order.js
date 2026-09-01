@@ -35,7 +35,7 @@ async function createGuidcyFlowOrder(body) {
     return { ok: true, free: true, order_id: null, amount: 0, currency: 'INR', flow, referenceId };
   }
 
-  if (flow !== 'webinar' && /^order_[A-Za-z0-9]+$/.test(clean(row.razorpay_order_id)) && /pending|created|attempted/i.test(clean(row.payment_status || row.razorpay_status || 'pending'))) {
+ if (/^order_[A-Za-z0-9]+$/.test(clean(row.razorpay_order_id)) && /pending|created|attempted/i.test(clean(row.payment_status || row.razorpay_status || 'pending'))) {
     const order = { id: row.razorpay_order_id, amount: amountPaise, currency: 'INR', status: row.razorpay_status || 'created' };
     return { ok: true, keyId: cfg.keyId, flow, referenceId, order, order_id: order.id, amount: order.amount, currency: order.currency };
   }
