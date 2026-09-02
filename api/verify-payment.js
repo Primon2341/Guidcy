@@ -14,6 +14,7 @@ const {
   patchById,
   createMarketplacePayout,
 } = require('../lib/razorpay-utils');
+const { refundBookingRequest } = require('../lib/booking-refund');
 
 function fulfilledPatch(flow, row, payment, body) {
   const now = new Date().toISOString();
@@ -69,6 +70,10 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = await readBody(req);
+    if (body.action === 'refund_booking') {
+      const refundResult = await refundBookingRequest(req, body);
+      return json(res, refundResult.statusCode, refundResult.data);
+    }
     if (body.flow || body.bookingId || body.registrationId || body.orderId || body.referenceId || body.ref) {
       const flow = clean(body.flow || 'booking', 40).toLowerCase();
       if (!['booking', 'webinar', 'marketplace'].includes(flow)) return json(res, 400, { error: 'Invalid payment flow' });

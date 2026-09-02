@@ -12,6 +12,7 @@
 
 const { clean, json, readBody, getAuthenticatedUser, loadPaymentRecord, patchById } = require('../lib/razorpay-utils');
 const { googleMeetConfigured, createMeetLink, isMeetLink } = require('../lib/google-meet');
+const { cancelBookingRequest } = require('../lib/booking-cancellation');
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,12 +27,15 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   try {
+    const body = await readBody(req);
+    if (body.action === 'cancel_booking') {
+      return json(res, 200, await cancelBookingRequest(req, body));
+    }
     if (!googleMeetConfigured()) {
       // Not an error: the browser fallback handles this deployment.
       return json(res, 200, { ok: false, configured: false, link: '' });
     }
 
-    const body = await readBody(req);
     const user = await getAuthenticatedUser(req);
     const bookingId = clean(body.bookingId || body.booking_id || '', 120);
 
@@ -45,7 +49,18 @@ module.exports = async function handler(req, res) {
       if (!isBuyer && !isConsultant) return json(res, 403, { error: 'This booking does not belong to the signed-in user' });
       // Re-running checkout or the retry button must not spawn a second
       // meeting for a booking that already has one.
-      if (isMeetLink(row.meet_link)) return json(res, 200, { ok: true, configured: true, link: row.meet_link, reused: true });
+      if (String(row.status || '').toLowerCase() === 'cancelled' || String(row.session_status || '').toLowerCase() === 'cancelled') {
+        return json(res, 409, { error: 'A meeting cannot be created for a cancelled booking' });
+      }
+      if (isMeetLink(row.meet_link)) {
+        return json(res, 200, {
+          ok: true,
+          configured: true,
+          link: row.meet_link,
+          eventId: row.google_calendar_event_id || '',
+          reused: true,
+        });
+      }
     }
 
     const consultantName = clean(body.consultantName || (row && row.consultant_name) || 'Consultant', 160);
@@ -63,9 +78,23 @@ module.exports = async function handler(req, res) {
     });
 
     if (row) {
-      await patchById('booking', row.id, { meet_link: created.link, updated_at: new Date().toISOString() });
+      await patchById('booking', row.id, {
+        meet_link: created.link,
+        google_calendar_event_id: created.eventId || null,
+        meeting_status: 'ready',
+        meeting_last_error: null,
+        meeting_updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
     }
-    return json(res, 200, { ok: true, configured: true, link: created.link, persisted: Boolean(row), attendees: created.attendees });
+    return json(res, 200, {
+      ok: true,
+      configured: true,
+      link: created.link,
+      eventId: created.eventId || '',
+      persisted: Boolean(row),
+      attendees: created.attendees,
+    });
   } catch (error) {
     console.error('create-meet-link error:', error);
     return json(res, error.status || 500, { error: error.message || 'Meeting link could not be created' });

@@ -61,6 +61,20 @@ test('homepage card render boundary cannot be repainted with every consultant', 
   assert.match(section, /renderGrid=window\.renderGrid/);
 });
 
+test('featured expert controls render only on their own admin tab', () => {
+  const start = app.indexOf('let featuredAdminRenderEpoch=0;');
+  const end = app.indexOf('const helpTopics=', start);
+  const section = app.slice(start, end);
+
+  assert.ok(start >= 0);
+  assert.match(section, /async function buildFeatureAdmin\(epoch\)/);
+  assert.match(section, /featuredAdminViewActive=isFeatured/);
+  assert.match(section, /const renderEpoch=\+\+featuredAdminRenderEpoch/);
+  assert.match(section, /setTimeout\(function\(\)\{buildFeatureAdmin\(renderEpoch\)\},50\)/);
+  assert.match(section, /if\(!featuredAdminViewActive\|\|epoch!==featuredAdminRenderEpoch\|\|!box\|\|!box\.isConnected\)return/);
+  assert.doesNotMatch(app, /setTimeout\(buildFeatureAdmin,(700|1200)\)/);
+});
+
 test('marketplace mark-paid action reuses the compact webinar payout button sizing', () => {
   assert.match(app, /class="green-btn guidcy-paid-mini-btn gmkt-pay-action"/);
   assert.match(css, /\.gmkt-pay-action\{width:auto!important;min-width:auto!important;padding:7px 12px!important;border-radius:999px!important/);

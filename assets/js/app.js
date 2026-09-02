@@ -46,6 +46,7 @@
   };
 })();
 
+
 /* === guidcy-requested-home-reorder-fix === */
 
 (function(){
@@ -82,7 +83,7 @@
   function round2(value){var n=Number(value||0);return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:0}
   function money(value){var n=round2(value);return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
   function toastSafe(message,type){try{if(window.toast)return window.toast(message,type||'green')}catch(_){}try{alert(message)}catch(_){}}
-  function paidBooking(row){var status=lower(row&&row.payment_status);return !!(row&&(row.payment_verified===true||/^(success|paid|completed)$/.test(status)||row.payment_id||row.razorpay_payment_id))}
+  function paidBooking(row){var status=lower(row&&row.payment_status),bookingStatus=lower(row&&row.status),sessionStatus=lower(row&&row.session_status),payoutStatus=lower(row&&row.payout_status);return !!(row&&bookingStatus!=='cancelled'&&sessionStatus!=='cancelled'&&payoutStatus!=='not_required'&&(row.payment_verified===true||/^(success|paid|completed)$/.test(status)||row.payment_id||row.razorpay_payment_id))}
   function bookingGross(row){return round2(row&&((row.payment_amount!=null&&row.payment_amount!=='')?row.payment_amount:(row.total_amount!=null&&row.total_amount!=='')?row.total_amount:row.amount))}
   /* Two separate charges sit on one booking: the client pays the session fee plus a 5%
      platform fee at checkout (so gross = fee x 1.05), and Guidcy then takes a 15%
@@ -1520,8 +1521,29 @@ async function createGoogleMeetLink(consultantName, dateLabel, timeSlot, duratio
   }
 
   console.log('✅ Google Meet link created:', link);
+  if(data&&data.id){
+    if(typeof window.guidcyRememberGoogleMeetEvent==='function')window.guidcyRememberGoogleMeetEvent(link,data.id);
+    else{
+      window.__guidcyGoogleMeetEventByLink=window.__guidcyGoogleMeetEventByLink||{};
+      window.__guidcyGoogleMeetEventByLink[link]=data.id;
+    }
+  }
   return link;
 }
+
+window.guidcyDeleteBrowserGoogleMeetEvent=async function(eventId){
+  eventId=String(eventId||'').trim();
+  if(!eventId)return {ok:true,skipped:true};
+  if(!gAccessToken)await ensureGoogleCalendarAuthorization();
+  const resp=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+encodeURIComponent(eventId)+'?sendUpdates=all',{
+    method:'DELETE',
+    headers:{Authorization:'Bearer '+gAccessToken}
+  });
+  if(resp.ok||resp.status===404||resp.status===410)return {ok:true,alreadyDeleted:resp.status===404||resp.status===410};
+  if(resp.status===401)gAccessToken=null;
+  const data=await resp.json().catch(()=>({}));
+  throw new Error(data?.error?.message||'Google Calendar could not delete the cancelled meeting event.');
+};
 
 // genMeetLink is no longer used — all links go through createGoogleMeetLink()
 function genMeetLink(){
@@ -12865,13 +12887,18 @@ body{overflow-x:hidden}
     catch(e){console.warn('Homepage featured experts unavailable',e);}
     await reviewsTask;
   };
-  async function buildFeatureAdmin(){
+  let featuredAdminRenderEpoch=0;
+  let featuredAdminViewActive=false;
+  async function buildFeatureAdmin(epoch){
+    if(!featuredAdminViewActive||epoch!==featuredAdminRenderEpoch)return;
     let box=id('guidcy-feature-admin-box');
     let role='';try{role=(currentProfile&&currentProfile.role)||loggedIn||''}catch(e){}
     if(role!=='admin')return;
     const main=id('adash-main')||document.querySelector('.dash-main'); if(!main)return;
+    if(!featuredAdminViewActive||epoch!==featuredAdminRenderEpoch)return;
     if(!box){main.insertAdjacentHTML('afterbegin','<div id="guidcy-feature-admin-box" class="guidcy-feature-admin-box"></div>'); box=id('guidcy-feature-admin-box')}
     let list=[]; try{list=await fetchConsultants()}catch(e){list=[]}
+    if(!featuredAdminViewActive||epoch!==featuredAdminRenderEpoch||!box||!box.isConnected)return;
     const cfg=getFeaturedCfg(); const selected=new Set(Array.isArray(cfg.selected)?cfg.selected:[]); const ranks=cfg.ranks||{}; const lim=cleanFeaturedLimit(cfg.limit,legacyLimit());
     /* The section heading is the .dash-title the swAD wrapper already paints
        above this box (and the one the route controller matches on), so repeating
@@ -12895,10 +12922,13 @@ body{overflow-x:hidden}
   window.guidcySelectAllFeatured=function(){document.querySelectorAll('.gfeat-show').forEach((x,i)=>{x.checked=true; const r=document.querySelector(`.gfeat-rank[data-k="${CSS.escape(x.dataset.k)}"]`); if(r&&!r.value)r.value=i+1})};
   window.guidcyClearFeatured=function(){document.querySelectorAll('.gfeat-show').forEach(x=>x.checked=false)};
   const oldSwAD=window.swAD; window.swAD=function(view,btn){
-    if(view==='featured'){
+    const isFeatured=view==='featured';
+    featuredAdminViewActive=isFeatured;
+    const renderEpoch=++featuredAdminRenderEpoch;
+    if(isFeatured){
       if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}
       const main=id('adash-main'); if(main){main.innerHTML='<div class="dash-title">Homepage Featured Experts Control</div><div id="guidcy-feature-admin-box" class="guidcy-feature-admin-box"><div style="padding:18px;color:var(--muted)">Loading featured expert controls...</div></div>';}
-      setTimeout(buildFeatureAdmin,50); return;
+      setTimeout(function(){buildFeatureAdmin(renderEpoch)},50); return;
     }
     const oldBox=id('guidcy-feature-admin-box'); if(oldBox) oldBox.remove();
     return oldSwAD?oldSwAD(view,btn):undefined;
@@ -13045,8 +13075,7 @@ body{overflow-x:hidden}
   window.guidcyCheckDispute=window.gdispTrack;
   // Legacy go() override — delegates to the main go() which already calls renderInfoPages()
   // No override needed here; main go() wrapper above handles help/dispute routing correctly.
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(buildFeatureAdmin,700); if(location.pathname.includes('help-center'))go('help'); if(location.pathname.includes('dispute-resolution'))go('dispute')});
-  setTimeout(buildFeatureAdmin,1200);
+  document.addEventListener('DOMContentLoaded',function(){if(location.pathname.includes('help-center'))go('help'); if(location.pathname.includes('dispute-resolution'))go('dispute')});
 })();
 
 
@@ -26024,10 +26053,12 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function withTimeout(promise,ms){
     return Promise.race([promise,new Promise(function(_,reject){setTimeout(function(){reject(new Error('Meeting link generation timed out'))},ms||9000)})]);
   }
-  async function createMeetingLinkSafe(s){
+  async function createMeetingLinkSafe(s,bookingId){
     if(typeof window.createGoogleMeetLink!=='function')throw new Error('Google Meet service is not ready. Please try again.');
     try{
-      var link=await withTimeout(window.createGoogleMeetLink(s.consultantName,s.dateLabel,s.timeSlot,s.duration,s.id),9000);
+      var activeBooking=window.lastBooking||{};
+      var resolvedBookingId=bookingId||s.id||activeBooking.id||activeBooking.booking_id||'';
+      var link=await withTimeout(window.createGoogleMeetLink(s.consultantName,s.dateLabel,s.timeSlot,s.duration,resolvedBookingId,s.consultantEmail||''),9000);
       if(!window.guidcyIsGoogleMeetLink||!window.guidcyIsGoogleMeetLink(link))throw new Error('Google Calendar returned an invalid meeting link.');
       return clean(link);
     }catch(e){
@@ -26077,7 +26108,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 
   async function persistMeetingLink(id,link){
     if(!id||!window.guidcyIsGoogleMeetLink||!window.guidcyIsGoogleMeetLink(link))throw new Error('A valid Google Meet link is required.');
-    var result=await patchTable('bookings',id,{meet_link:link,updated_at:new Date().toISOString()});
+    var eventId=typeof window.guidcyGetGoogleMeetEventId==='function'?window.guidcyGetGoogleMeetEventId(link):'';
+    var meetingPatch={meet_link:link,updated_at:new Date().toISOString()};
+    if(eventId)meetingPatch.google_calendar_event_id=eventId;
+    var result=await patchTable('bookings',id,meetingPatch);
     if(result&&result.error)throw result.error;
     if(result&&result.ok===false)throw new Error(result.error&&result.error.message||result.raw||'Meeting link could not be saved.');
     // Tracking fields are useful for support, but link persistence must remain
@@ -26086,6 +26120,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     Promise.resolve(patchTable('bookings',id,{
       meeting_status:'ready',
       meeting_last_error:null,
+      google_calendar_event_id:eventId||null,
       meeting_updated_at:new Date().toISOString()
     })).catch(function(){});
     return link;
@@ -26120,7 +26155,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
           :Promise.reject(new Error('Google Calendar authorization is unavailable.'));
         var booking=await loadBookingForMeetingRetry(id);
         await authorization;
-        var link=await createMeetingLinkSafe(bookingSnapshot(booking));
+        var link=await createMeetingLinkSafe(bookingSnapshot(booking),id);
         await persistMeetingLink(id,link);
         booking=Object.assign({},booking,{meet_link:link,meeting_status:'ready',meeting_last_error:null});
         window.lastBooking=booking;
@@ -26234,7 +26269,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       payment_gateway:free?'free':'razorpay',
       payment_amount:gross,
       payment_verified:!!free,
-      meet_link:meetLink||''
+      meet_link:meetLink||'',
+      google_calendar_event_id:typeof window.guidcyGetGoogleMeetEventId==='function'?(window.guidcyGetGoogleMeetEventId(meetLink)||null):null,
+      meeting_status:meetLink?'ready':'pending',
+      meeting_last_error:null,
+      meeting_updated_at:new Date().toISOString()
     };
     var db=client();
     if(db&&db.from){var out=await db.from('bookings').insert(payload).select('*').single();if(out.error)throw out.error;return out.data}
@@ -26247,7 +26286,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	    if(typeof window.guidcyEnsurePaymentPageOnly==='function')window.guidcyEnsurePaymentPageOnly();
 	    setPaymentPageStatus('processing','Confirming your booking','Creating the meeting link and saving the booking.');
 	    setPayButton('Creating meeting link...',true);
-	    var meet=await createMeetingLinkSafe(s,'free-'+Date.now());
+    var meet=await createMeetingLinkSafe(s,'');
 	    setPayButton('Saving booking...',true);
 	    var saved=await insertBooking(s,true,meet);
     window.lastBooking=saved;
@@ -26294,7 +26333,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         if(typeof window.guidcyEnsureGoogleCalendarAuthorization!=='function')throw new Error('Google Calendar authorization is unavailable.');
         await window.guidcyEnsureGoogleCalendarAuthorization();
         setPayButton('Creating meeting link...',true);
-        var meet=await createMeetingLinkSafe(s);
+    var meet=await createMeetingLinkSafe(s);
         setPayButton('Saving meeting link...',true);
         await persistMeetingLink(pending.id,meet);
         booking=Object.assign({},booking,{meet_link:meet,meeting_status:'ready',meeting_last_error:null});
@@ -26520,9 +26559,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     saveRows(list);
     return list;
   }
-  function saveRows(list){list=(list||[]).filter(rowAgeOk).slice(0,12);try{localStorage.setItem(RECENT_KEY,JSON.stringify(list))}catch(_){}try{sessionStorage.setItem(RECENT_KEY,JSON.stringify(list))}catch(_){}}
+  function saveRows(list){list=(list||[]).filter(rowAgeOk).filter(isLive).slice(0,12);try{localStorage.setItem(RECENT_KEY,JSON.stringify(list))}catch(_){}try{sessionStorage.setItem(RECENT_KEY,JSON.stringify(list))}catch(_){}}
   function remember(row){
-    if(!row||!(row.id||row.booking_id)||!isPaid(row))return;
+    if(!row||!(row.id||row.booking_id)||!isLive(row))return;
     row=Object.assign({},row,{id:row.id||row.booking_id,status:lower(row.status)==='pending_payment'?'confirmed':(row.status||'confirmed'),payment_status:row.payment_status||'success',payment_verified:row.payment_verified!==false,remembered_at:new Date().toISOString()});
     var id=String(row.id), list=rows().filter(function(x){return String(x&&x.id)!==id&&String(x&&x.booking_id)!==id});
     list.unshift(row); saveRows(list);
@@ -30789,7 +30828,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
             })
           });
           var data=await resp.json().catch(function(){return {}});
-          if(resp.ok&&data&&data.link)return data.link;
+          if(resp.ok&&data&&data.link){
+            if(data.eventId&&typeof window.guidcyRememberGoogleMeetEvent==='function')window.guidcyRememberGoogleMeetEvent(data.link,data.eventId);
+            return data.link;
+          }
           console.warn('Server Meet link unavailable, falling back to browser flow:',(data&&data.error)||resp.status);
         }
       }catch(e){
@@ -30934,4 +30976,229 @@ window.guidcyGoSignupFromLogin=function(){
   window.addEventListener('focus',scheduleRestore);
   window.addEventListener('popstate',cancelForUserNavigation);
   document.addEventListener('click',cancelForUserNavigation,true);
+})();
+/* === guidcy-booking-cancellation-refund-workflow-v1 === */
+(function(){
+  'use strict';
+  if(window.__GUIDCY_BOOKING_CANCELLATION_REFUND_WORKFLOW_V1__)return;
+  window.__GUIDCY_BOOKING_CANCELLATION_REFUND_WORKFLOW_V1__=true;
+
+  var RECENT_KEY='guidcy_recent_confirmed_bookings_v3';
+  var MEETING_PENDING_KEY='guidcy_pending_meeting_link';
+  var PAYMENT_PENDING_KEY='guidcy_pending_razorpay_booking';
+  var MEET_EVENT_MAP_KEY='guidcy_google_meet_event_map_v1';
+  var CANCELLED_MEET_KEY='guidcy_cancelled_meet_links_v1';
+  var refundRenderToken=0;
+
+  function clean(value){return String(value==null?'':value).trim()}
+  function lower(value){return clean(value).toLowerCase()}
+  function esc(value){return clean(value).replace(/[&<>"']/g,function(char){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]})}
+  function money(value){var n=Number(value||0);return '₹'+(Number.isFinite(n)?n:0).toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
+  function toastSafe(message,type){try{if(typeof window.toast==='function')return window.toast(message,type||'blue');if(typeof window.showToast==='function')return window.showToast(message,type||'blue')}catch(_){} }
+  function client(){try{return window.guidcyGetSupabaseClient?window.guidcyGetSupabaseClient():window.sb}catch(_){return null}}
+  function safeJson(raw,fallback){try{return JSON.parse(raw)}catch(_){return fallback}}
+
+  function eventMap(){
+    var stored={};
+    try{stored=safeJson(sessionStorage.getItem(MEET_EVENT_MAP_KEY)||'{}',{})||{}}catch(_){}
+    return Object.assign({},stored,window.__guidcyGoogleMeetEventByLink||{});
+  }
+  function saveEventMap(map){
+    window.__guidcyGoogleMeetEventByLink=map||{};
+    try{sessionStorage.setItem(MEET_EVENT_MAP_KEY,JSON.stringify(map||{}))}catch(_){}
+  }
+  window.guidcyRememberGoogleMeetEvent=function(link,eventId){
+    link=clean(link);eventId=clean(eventId);if(!link||!eventId)return;
+    var map=eventMap();map[link]=eventId;saveEventMap(map);
+  };
+  window.guidcyGetGoogleMeetEventId=function(link){return eventMap()[clean(link)]||''};
+  window.guidcyForgetGoogleMeetEvent=function(link){var map=eventMap();delete map[clean(link)];saveEventMap(map)};
+
+  async function authToken(){
+    var c=client();if(!c||!c.auth)throw new Error('Please sign in again before cancelling.');
+    var result=await c.auth.getSession();
+    var token=result&&result.data&&result.data.session&&result.data.session.access_token;
+    if(!token)throw new Error('Please sign in again before cancelling.');
+    return token;
+  }
+  async function postJson(url,body){
+    var token=await authToken();
+    var response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body||{})});
+    var text=await response.text(),data={};
+    try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}}
+    if(!response.ok)throw new Error(data.error||data.message||text||('HTTP '+response.status));
+    return data;
+  }
+  function currentCachedMeeting(bookingId){
+    try{
+      var last=window.lastBooking||(typeof lastBooking!=='undefined'?lastBooking:null);
+      if(last&&String(last.id||last.booking_id)===String(bookingId)&&last.meet_link)return clean(last.meet_link);
+    }catch(_){}
+    try{
+      var selector='[data-booking-id="'+(window.CSS&&CSS.escape?CSS.escape(String(bookingId)):String(bookingId).replace(/["\\]/g,'\\$&'))+'"]';
+      var card=document.querySelector(selector),anchor=card&&card.querySelector('a[href*="meet.google.com"]');
+      return clean(anchor&&anchor.href);
+    }catch(_){return ''}
+  }
+  function rememberCancelledMeet(link){
+    link=clean(link).replace(/\/+$/,'').toLowerCase();if(!link)return;
+    var list=[];try{list=safeJson(sessionStorage.getItem(CANCELLED_MEET_KEY)||'[]',[])||[]}catch(_){}
+    list=[link].concat(list.filter(function(item){return clean(item)!==link})).slice(0,40);
+    try{sessionStorage.setItem(CANCELLED_MEET_KEY,JSON.stringify(list))}catch(_){}
+  }
+  function isCancelledMeet(link){
+    link=clean(link).replace(/\/+$/,'').toLowerCase();if(!link)return false;
+    try{return (safeJson(sessionStorage.getItem(CANCELLED_MEET_KEY)||'[]',[])||[]).indexOf(link)>-1}catch(_){return false}
+  }
+  function removeBookingFromStorage(storage,key,bookingId){
+    try{
+      var raw=storage.getItem(key);if(!raw)return;
+      var value=safeJson(raw,null);
+      if(Array.isArray(value)){
+        value=value.filter(function(row){return String(row&&row.id||row&&row.booking_id)!==String(bookingId)});
+        storage.setItem(key,JSON.stringify(value));
+      }else if(value&&String(value.bookingId||value.id||value.booking&&value.booking.id)===String(bookingId))storage.removeItem(key);
+    }catch(_){}
+  }
+  function clearCancelledBookingCaches(bookingId,row,oldMeetLink){
+    removeBookingFromStorage(localStorage,RECENT_KEY,bookingId);
+    removeBookingFromStorage(sessionStorage,RECENT_KEY,bookingId);
+    removeBookingFromStorage(localStorage,MEETING_PENDING_KEY,bookingId);
+    removeBookingFromStorage(sessionStorage,MEETING_PENDING_KEY,bookingId);
+    removeBookingFromStorage(localStorage,PAYMENT_PENDING_KEY,bookingId);
+    removeBookingFromStorage(sessionStorage,PAYMENT_PENDING_KEY,bookingId);
+    rememberCancelledMeet(oldMeetLink);
+    if(oldMeetLink)window.guidcyForgetGoogleMeetEvent(oldMeetLink);
+    try{if(window.lastBooking&&String(window.lastBooking.id||window.lastBooking.booking_id)===String(bookingId))window.lastBooking=null}catch(_){}
+    try{if(typeof lastBooking!=='undefined'&&lastBooking&&String(lastBooking.id||lastBooking.booking_id)===String(bookingId))lastBooking=null}catch(_){}
+    try{
+      var safeId=window.CSS&&CSS.escape?CSS.escape(String(bookingId)):String(bookingId).replace(/["\\]/g,'\\$&');
+      document.querySelectorAll('[data-booking-id="'+safeId+'"]').forEach(function(card){card.remove()});
+    }catch(_){}
+    try{window.guidcyForceBookingStatusRefresh&&window.guidcyForceBookingStatusRefresh('booking-cancelled',bookingId,'cancelled',row)}catch(_){}
+  }
+  async function refreshAfterCancellation(role,row){
+    try{window.guidcyBroadcastDataChange&&window.guidcyBroadcastDataChange('bookings')}catch(_){}
+    try{window.guidcyRefreshVisibleDashboards&&window.guidcyRefreshVisibleDashboards('booking-cancelled')}catch(_){}
+    try{
+      if(role==='consultant'&&typeof window.swCD==='function')await window.swCD('requests',null);
+      else if(typeof window.swUD==='function')await window.swUD('upcoming',null);
+    }catch(_){}
+    try{if(typeof window.guidcySendCancellationEmailsOnce==='function')window.guidcySendCancellationEmailsOnce(row).catch(function(error){console.warn('Cancellation email warning:',error)})}catch(_){}
+  }
+  async function cancelBookingThroughServer(bookingId,role,reason,needsConfirmation){
+    bookingId=clean(bookingId);role=lower(role)==='consultant'?'consultant':lower(role)==='admin'?'admin':'user';
+    if(!bookingId||bookingId==='undefined'||bookingId==='null')throw new Error('Booking id is missing. Please refresh and try again.');
+    if(needsConfirmation!==false&&!window.confirm('Cancel this session? This cannot be undone.'))return null;
+    var oldMeetLink=currentCachedMeeting(bookingId);
+    var result=await postJson('/api/create-meet-link',{action:'cancel_booking',bookingId:bookingId,role:role,reason:clean(reason)||('Cancelled by '+role)});
+    var row=result.booking||{id:bookingId,status:'cancelled',session_status:'cancelled',refund_status:result.refundPending?'refund_pending':'not_required'};
+    clearCancelledBookingCaches(bookingId,row,oldMeetLink);
+    if(result.browserMeetingCleanupRecommended&&row.google_calendar_event_id&&typeof window.guidcyDeleteBrowserGoogleMeetEvent==='function'){
+      try{await window.guidcyDeleteBrowserGoogleMeetEvent(row.google_calendar_event_id)}catch(error){console.warn('Browser calendar cleanup warning:',error&&error.message||error)}
+    }
+    await refreshAfterCancellation(role,row);
+    if(row.refund_status==='refund_pending')toastSafe('Session cancelled. Refund status is now Refund Pending for admin action.','green');
+    else toastSafe('Session cancelled.','green');
+    return row;
+  }
+
+  var previousJoinMeeting=window.joinMeeting;
+  window.joinMeeting=function(link){
+    if(isCancelledMeet(link)){toastSafe('This session was cancelled and its meeting link is disabled.','red');return false}
+    return previousJoinMeeting?previousJoinMeeting.apply(this,arguments):false;
+  };
+  window.cancelBooking=function(bookingId,role){
+    return cancelBookingThroughServer(bookingId,role,'',true).catch(function(error){console.error('Cancellation failed:',error);toastSafe(error.message||'Session could not be cancelled.','red');throw error});
+  };
+  window.cancelBooking.__guidcyAtomicCancellation=true;
+  window.guidcyCancelSessionWithReason=function(bookingId,reason){
+    return cancelBookingThroughServer(bookingId,'consultant',reason,false);
+  };
+  try{cancelBooking=window.cancelBooking}catch(_){}
+
+  function refundLabel(status){
+    return ({not_required:'Not Required',refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed'})[status]||status||'Not Required';
+  }
+  function refundPill(status){return status==='refunded'?'sp-done':status==='refund_failed'?'sp-cancelled':status==='not_required'?'sp-upcoming':'sp-pending'}
+  function refundAction(row){
+    var status=lower(row.refund_status);
+    if(status==='refund_pending'||status==='refund_failed')return '<button class="btn btn-blue" data-refund-action="1" onclick="guidcyProcessBookingRefund(\''+esc(row.id)+'\',\'process\',this)">Process Refund</button>';
+    if(status==='refund_processing')return '<button class="btn" data-refund-action="1" onclick="guidcyProcessBookingRefund(\''+esc(row.id)+'\',\'sync\',this)">Sync Refund</button>';
+    return '<span style="font-size:12px;color:var(--muted)">—</span>';
+  }
+  function refundRow(row){
+    var status=lower(row.refund_status)||'not_required';
+    var paymentReference=row.razorpay_payment_id||row.payment_id||row.razorpay_order_id||'—';
+    return '<tr data-guidcy-refund-row data-refund-status="'+esc(status)+'">'
+      +'<td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+esc(row.id||'—')+'</td>'
+      +'<td>'+esc(row.user_name||'—')+'<br><span style="font-size:11px;color:var(--muted)">'+esc(row.user_email||'')+'</span></td>'
+      +'<td>'+esc(row.consultant_name||'—')+'<br><span style="font-size:11px;color:var(--muted)">'+esc(row.consultant_email||'')+'</span></td>'
+      +'<td style="font-weight:700">'+money(row.total_amount||row.payment_amount||row.amount)+'</td>'
+      +'<td>'+esc(row.cancelled_at?new Date(row.cancelled_at).toLocaleString('en-IN'):'—')+'</td>'
+      +'<td><span class="status-pill '+(lower(row.payment_status)==='refunded'?'sp-done':lower(row.payment_status)==='success'?'sp-upcoming':'sp-pending')+'">'+esc(row.payment_status||'—')+'</span><br><span style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(paymentReference)+'</span></td>'
+      +'<td><span class="status-pill '+refundPill(status)+'">'+esc(refundLabel(status))+'</span>'+(row.refund_failure_reason?'<br><span style="font-size:10px;color:#B91C1C">'+esc(row.refund_failure_reason)+'</span>':'')+(row.refund_transaction_id?'<br><span style="font-size:10px;color:var(--muted)">'+esc(row.refund_transaction_id)+'</span>':'')+'</td>'
+      +'<td>'+refundAction(row)+'</td></tr>';
+  }
+  window.guidcyFilterAdminRefundRows=function(){
+    var select=document.getElementById('guidcy-admin-refund-filter'),value=lower(select&&select.value),shown=0;
+    try{sessionStorage.setItem('guidcy_admin_refund_filter',value)}catch(_){}
+    document.querySelectorAll('[data-guidcy-refund-row]').forEach(function(row){var visible=!value||value==='all'||row.dataset.refundStatus===value;row.style.display=visible?'':'none';if(visible)shown++});
+    var empty=document.getElementById('guidcy-admin-refund-empty');if(empty)empty.style.display=shown?'none':'block';
+  };
+  async function renderAdminRefundQueue(){
+    var page=document.getElementById('page-admin-dash'),main=document.getElementById('adash-main');
+    if(!page||!main||(!page.classList.contains('on')&&!page.classList.contains('active')))return;
+    var selected='';try{selected=sessionStorage.getItem('guidcy_admin_dash_view')||sessionStorage.getItem('guidcy_admin_last_view')||''}catch(_){}
+    var side=document.querySelector('#page-admin-dash .side-btn.on');
+    if(lower(selected)!=='payments'&&lower(side&&side.textContent).indexOf('payment')===-1)return;
+    var c=client();if(!c)return;
+    var token=++refundRenderToken;
+    var result=await c.from('bookings').select('*').eq('status','cancelled').order('cancelled_at',{ascending:false}).limit(200);
+    if(token!==refundRenderToken)return;
+    if(result.error){console.error('Refund queue load failed:',result.error);return}
+    var rows=(result.data||[]).sort(function(a,b){
+      var rank={refund_pending:0,refund_failed:1,refund_processing:2,refunded:3,not_required:4};
+      return (rank[lower(a.refund_status)]??9)-(rank[lower(b.refund_status)]??9)||new Date(b.cancelled_at||0)-new Date(a.cancelled_at||0);
+    });
+    var pending=rows.filter(function(row){return lower(row.refund_status)==='refund_pending'});
+    var processing=rows.filter(function(row){return lower(row.refund_status)==='refund_processing'});
+    var refunded=rows.filter(function(row){return lower(row.refund_status)==='refunded'});
+    var old=document.getElementById('guidcy-admin-refund-workflow');if(old)old.remove();
+    var wrap=document.createElement('section');wrap.id='guidcy-admin-refund-workflow';wrap.style.margin='22px 0';
+    var filter='refund_pending';try{filter=sessionStorage.getItem('guidcy_admin_refund_filter')||'refund_pending'}catch(_){}
+    wrap.innerHTML='<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:22px;margin:0 0 12px">Cancelled booking refunds</h3>'
+      +'<div class="admin-stats" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px"><div class="admin-stat"><div class="admin-stat-val">'+pending.length+'</div><div class="admin-stat-lbl">Refund Pending</div></div><div class="admin-stat"><div class="admin-stat-val">'+processing.length+'</div><div class="admin-stat-lbl">Refund Processing</div></div><div class="admin-stat"><div class="admin-stat-val">'+refunded.length+'</div><div class="admin-stat-lbl">Refunded</div></div></div>'
+      +'<div class="guidcy-filter-row"><select id="guidcy-admin-refund-filter" class="guidcy-mini-input" onchange="guidcyFilterAdminRefundRows()"><option value="refund_pending"'+(filter==='refund_pending'?' selected':'')+'>Refund Pending</option><option value="refund_processing"'+(filter==='refund_processing'?' selected':'')+'>Refund Processing</option><option value="refund_failed"'+(filter==='refund_failed'?' selected':'')+'>Refund Failed</option><option value="refunded"'+(filter==='refunded'?' selected':'')+'>Refunded</option><option value="not_required"'+(filter==='not_required'?' selected':'')+'>Not Required</option><option value="all"'+(filter==='all'?' selected':'')+'>All cancelled bookings</option></select><button class="btn" onclick="guidcyReloadAdminRefundQueue()">Refresh</button><span style="font-size:12px;color:var(--muted)">Paid cancellations remain auditable; no booking or payment row is deleted.</span></div>'
+      +'<div style="overflow-x:auto"><table class="data-table" style="min-width:1120px"><tr><th>Booking ID</th><th>User</th><th>Consultant</th><th>Amount paid</th><th>Cancellation date</th><th>Payment</th><th>Refund status</th><th>Action</th></tr>'+rows.map(refundRow).join('')+'</table></div>'
+      +'<div id="guidcy-admin-refund-empty" style="display:none;text-align:center;padding:24px;color:var(--muted)">No cancelled bookings match this refund status.</div>';
+    var recent=[].slice.call(main.querySelectorAll('h3')).find(function(el){return /recent transactions/i.test(el.textContent||'')});
+    if(recent)recent.insertAdjacentElement('beforebegin',wrap);else main.appendChild(wrap);
+    window.guidcyFilterAdminRefundRows();
+  }
+  window.guidcyReloadAdminRefundQueue=function(){return renderAdminRefundQueue()};
+  window.guidcyProcessBookingRefund=async function(bookingId,action,button){
+    action=action||'process';
+    if(action==='process'&&!window.confirm('Process the Razorpay refund for booking '+bookingId+'?'))return;
+    var oldText=button&&button.textContent;if(button){button.disabled=true;button.textContent=action==='sync'?'Syncing...':'Processing...'}
+    try{
+      var result=await postJson('/api/verify-payment',{action:'refund_booking',bookingId:bookingId,refundAction:action});
+      if(result.refunded)toastSafe('Refund processed and saved as Refunded.','green');
+      else if(result.pending)toastSafe('Refund is processing. Use Sync Refund to refresh gateway status.','blue');
+      else if(result.failed)toastSafe('Refund failed. The booking remains in Refund Failed for retry.','red');
+      await renderAdminRefundQueue();
+    }catch(error){console.error('Refund action failed:',error);toastSafe(error.message||'Refund action failed.','red')}
+    finally{if(button&&document.body.contains(button)){button.disabled=false;button.textContent=oldText||'Process Refund'}}
+  };
+
+  var previousSwAD=window.swAD;
+  if(typeof previousSwAD==='function'){
+    var wrappedSwAD=function(view,btn){
+      var out=previousSwAD.apply(this,arguments);
+      if(view==='payments')Promise.resolve(out).finally(function(){setTimeout(renderAdminRefundQueue,80);setTimeout(function(){if(!document.getElementById('guidcy-admin-refund-workflow'))renderAdminRefundQueue()},700)});
+      return out;
+    };
+    window.swAD=wrappedSwAD;
+    try{swAD=wrappedSwAD}catch(_){}
+  }
 })();
