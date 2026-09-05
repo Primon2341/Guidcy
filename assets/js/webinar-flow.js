@@ -1204,23 +1204,6 @@
      runs, and puts it back afterwards. */
   var shownGeneratedLink = '';
 
-  /* Publishing must not take the panel away before the link is in the field:
-     wbnRender() calls wbnApplyAdminState(), which sets #wbn-admin-panel to
-     display:none whenever isAdmin() is false - true for a consultant publishing
-     their own webinar - so the link was being written into a hidden field.
-     Only ever reopens a panel that was already open when the host clicked, so it
-     cannot show the panel to anyone who could not already see it. */
-  function panelIsOpen() {
-    var panel = byId('wbn-admin-panel');
-    return !!panel && panel.style.display !== 'none';
-  }
-
-  function keepPanelOpen(wasOpen) {
-    if (!wasOpen) return;
-    var panel = byId('wbn-admin-panel');
-    if (panel && panel.style.display === 'none') panel.style.display = 'block';
-  }
-
   function generatedLinkNote() {
     var input = byId('wbn-pub-link');
     if (!input || !input.parentNode) return null;
@@ -1298,7 +1281,6 @@
       }
       /* Read before publishing: a successful publish clears edit mode. */
       var editId = editingWebinarId();
-      var panelWasOpen = panelIsOpen();
       window.__guidcyLastPublishedWebinarId = '';
       /* Take the generated link back out of the field before the save reads it,
          or it lands in webinars.meet_link, which every visitor can read. It goes
@@ -1307,7 +1289,6 @@
       showGeneratedMeetingLink('');
       var result = await originalPublish.apply(this, arguments);
       if (result === false) return result;
-      keepPanelOpen(panelWasOpen);
       var webinarId = clean(window.__guidcyLastPublishedWebinarId) || editId;
       if (webinarId && typeof window.guidcyEnsureWebinarMeeting === 'function') {
         /* Never blocks or fails the publish: the host can still paste a link. */
@@ -1315,10 +1296,6 @@
           var link = await window.guidcyEnsureWebinarMeeting(webinarId);
           if (link) {
             showGeneratedMeetingLink(link);
-            /* The panel stays until the link is in the field, not a moment
-               before - including the render that lands while we were waiting. */
-            keepPanelOpen(panelWasOpen);
-            setTimeout(function () { keepPanelOpen(panelWasOpen); }, 600);
             toast('Meeting link created — everyone who registers is invited to it.', 'green');
           }
         } catch (error) {
