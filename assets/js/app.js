@@ -20271,7 +20271,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       else if(/user|payment_success|booking_confirmed/.test(type)) patch={user_email_sent:true,user_email_sent_at:now};
     }else if(table==='consultants' && /approv/.test(type)) patch={approval_email_sent:true,approval_email_sent_at:now};
 	    else if(table==='webinar_registrations') patch={registration_email_sent:true,registration_email_sent_at:now,confirmation_email_sent:true,confirmation_email_sent_at:now};
-    else if(table==='job_applications') patch={confirmation_email_sent:true,confirmation_email_sent_at:now};
+    else if(table==='job_applications' && /submitted|confirmation/.test(type)) patch={confirmation_email_sent:true,confirmation_email_sent_at:now};
     if(!patch) return;
     try{ await c.from(table).update(patch).eq('id',id); }catch(e){ console.info('Email flag update skipped:', e?.message||e); }
   }
@@ -20299,7 +20299,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       }
       if(table==='consultants' && /approv/.test(type)) return !!row.approval_email_sent;
 	      if(table==='webinar_registrations') return !!(row.registration_email_sent||row.confirmation_email_sent);
-      if(table==='job_applications') return !!row.confirmation_email_sent;
+      /* confirmation_email_sent means the CONFIRMATION was sent, but this guard read
+         it for every type, so once a candidate got the "application submitted" mail
+         the shortlisted and rejected mails for that row were silently swallowed.
+         bookings and marketplace_orders already discriminate by type; match them. */
+      if(table==='job_applications') return /submitted|confirmation/.test(type) ? !!row.confirmation_email_sent : false;
     }catch(e){ console.info('Email flag check skipped:', e?.message||e); }
     return false;
   }
@@ -22652,7 +22656,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       if(table==='bookings'){if(/cancel/.test(type))return !!row.cancellation_email_sent;if(/payout/.test(type))return !!row.payout_email_sent;if(/consultant|new_booking/.test(type))return !!row.consultant_email_sent;if(/user|payment_success|booking_confirmed/.test(type))return !!row.user_email_sent}
       if(table==='consultants'&&/approv/.test(type))return !!row.approval_email_sent;
       if(table==='webinar_registrations')return !!(row.registration_email_sent||row.confirmation_email_sent);
-      if(table==='job_applications')return !!row.confirmation_email_sent;
+      // same one-email-per-application bug as the other copy of this guard
+      if(table==='job_applications')return /submitted|confirmation/.test(type)?!!row.confirmation_email_sent:false;
       if(table==='marketplace_orders'){if(/seller/.test(type))return !!row.seller_email_sent;if(/buyer/.test(type))return !!row.buyer_email_sent}
     }catch(e){safeLog('info','flag_check_skipped',{error:clean(e&&e.message||e).slice(0,160)})}
     return false;
@@ -22665,7 +22670,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(table==='bookings'){if(/cancel/.test(type))patch={cancellation_email_sent:true};else if(/payout/.test(type))patch={payout_email_sent:true,payout_email_sent_at:now};else if(/consultant|new_booking/.test(type))patch={consultant_email_sent:true,consultant_email_sent_at:now};else if(/user|payment_success|booking_confirmed/.test(type))patch={user_email_sent:true,user_email_sent_at:now}}
       else if(table==='consultants'&&/approv/.test(type))patch={approval_email_sent:true,approval_email_sent_at:now};
       else if(table==='webinar_registrations')patch={registration_email_sent:true,registration_email_sent_at:now,confirmation_email_sent:true,confirmation_email_sent_at:now};
-      else if(table==='job_applications')patch={confirmation_email_sent:true,confirmation_email_sent_at:now};
+      else if(table==='job_applications'&&/submitted|confirmation/.test(type))patch={confirmation_email_sent:true,confirmation_email_sent_at:now};
       else if(table==='marketplace_orders'){if(/seller/.test(type))patch={seller_email_sent:true,seller_email_sent_at:now};else if(/buyer/.test(type))patch={buyer_email_sent:true,buyer_email_sent_at:now}}
       if(patch)await c.from(table).update(patch).eq('id',id);
     }catch(e){safeLog('info','flag_update_skipped',{error:clean(e&&e.message||e).slice(0,160)})}
@@ -29678,13 +29683,19 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       /* uq_job_applications_job_applicant is not status-aware, so a withdrawn row
          still occupies (job_id, applicant_id) and a plain insert would fail as a
          duplicate. Revive that row instead, which is what re-applying means. */
-      let error;
+      let error, appRowId='';
       const prior=await c.from('job_applications').select('id').eq('job_id',j.id).eq('applicant_id',applicantId).limit(1);
       if(prior.error)throw prior.error;
       if(prior.data&&prior.data.length){
-        ({error}=await c.from('job_applications').update(Object.assign({},payload,{updated_at:new Date().toISOString()})).eq('id',prior.data[0].id));
+        appRowId=prior.data[0].id;
+        ({error}=await c.from('job_applications').update(Object.assign({},payload,{updated_at:new Date().toISOString()})).eq('id',appRowId));
       }else{
-        ({error}=await c.from('job_applications').insert(payload));
+        /* Read the new id back: the email layer dedupes on relatedId, and without
+           this the payload carried no id so it fell back to job_id - flagging a
+           job_applications row that does not exist, and colliding across every
+           applicant for the same opening. */
+        const ins=await c.from('job_applications').insert(payload).select('id').single();
+        error=ins.error; appRowId=(ins.data&&ins.data.id)||'';
       }
       if(error){
         if(/duplicate|unique/i.test(String(error.message||error.details||''))){toast('You have already applied for this role.','blue');closeModal();return}
@@ -29694,7 +29705,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
          goes through a serverless endpoint, so awaiting it left the candidate on a
          disabled "Submitting…" button for seconds after their application had in
          fact gone through - which reads as a hang. Send it in the background. */
-      try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail('application_submitted',Object.assign({},payload,{job_title:j.title,company_name:COMPANY}))).catch(function(){})}catch(_){}
+      try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail('application_submitted',Object.assign({},payload,{id:appRowId,job_title:j.title,company_name:COMPANY}))).catch(function(){})}catch(_){}
       toast('Application submitted. Thank you for applying to Guidcy.','green');
       closeModal();
       // refresh the card so it shows the application instead of "Apply now" again
@@ -29936,7 +29947,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
                 company_name:COMPANY,
                 action_link:origin?origin+'/careers':'',
                 action_text:status==='rejected'?'See other open roles':'Open Guidcy'
-              })).catch(function(){})}catch(_){}
+              })).then(function(r){
+                if(r&&r.ok===false)console.warn('Guidcy Careers: '+emailType+' not sent',r);
+                else if(r&&r.skipped)console.warn('Guidcy Careers: '+emailType+' suppressed ('+r.reason+')');
+              }).catch(function(e){console.warn('Guidcy Careers: '+emailType+' failed',e)})}catch(_){}
             }
           }catch(e){
             console.warn(e);

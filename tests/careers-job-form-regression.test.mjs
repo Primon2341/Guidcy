@@ -91,7 +91,7 @@ test('one apply form cannot file the same application twice', async () => {
   const table = {
     select: () => table, eq: () => table,
     limit: () => Promise.resolve({ data: [], error: null }),
-    insert: () => { calls.insert++; return Promise.resolve({ error: null }); },
+    insert: () => { calls.insert++; return { select: () => ({ single: () => Promise.resolve({ data: { id: 'app-new' }, error: null }) }) }; },
     update: () => ({ eq: () => { calls.update = (calls.update || 0) + 1; return Promise.resolve({ error: null }); } })
   };
   const ctx = vm.createContext({
@@ -130,7 +130,7 @@ function applyHarness(o = {}) {
   const table = {
     select: () => table, eq: () => table,
     limit: () => Promise.resolve({ data: o.priorRow ? [{ id: 'app-1' }] : [], error: null }),
-    insert: () => { calls.insert++; return Promise.resolve({ error: null }); },
+    insert: () => { calls.insert++; return { select: () => ({ single: () => Promise.resolve({ data: { id: 'app-new' }, error: null }) }) }; },
     update: () => ({ eq: () => { calls.update++; return Promise.resolve({ error: null }); } })
   };
   const ctx = vm.createContext({
@@ -251,6 +251,26 @@ test('each application outcome sends its own email, not the submitted template',
     assert.match(api, new RegExp(type.replace(/_user$/, '') + '/i\\.test\\(type\\)'), `${type} needs its own intro copy`);
   }
   assert.doesNotMatch(api, /job_application_shortlisted_user: 'Your job application has been submitted'/);
+});
+
+test('the once-per-email flag is scoped to the confirmation, not to the whole application', () => {
+  // job_applications.confirmation_email_sent was read for EVERY type, so once the
+  // candidate had the "submitted" mail, shortlisted and rejected were swallowed.
+  // Both copies of the guard live in this bundle and both had the bug.
+  const checks = [...src.matchAll(/if\(table===[`'"]job_applications[`'"]\)\s*return([^;]*);/g)].map(m => m[1]);
+  assert.equal(checks.length, 2, 'there are two copies of this guard; both must be fixed');
+  for (const c of checks) {
+    assert.match(c, /submitted\|confirmation/, `guard still ignores the email type: ${c.trim()}`);
+    assert.doesNotMatch(c, /^\s*!!row\.confirmation_email_sent\s*$/, 'unconditional guard is the bug');
+  }
+  // ...and the flag must only be written for the confirmation, or it re-arms the block
+  const marks = [...src.matchAll(/table===[`'"]job_applications[`'"]\s*&&\s*\/submitted\|confirmation\//g)];
+  assert.equal(marks.length, 2, 'both markers must be type-scoped too');
+
+  // the confirmation must be flagged against the application row, not the job
+  const submit = slice('      let error, appRowId=', "company_name:COMPANY}))).catch(function(){})}catch(_){}");
+  assert.match(submit, /\.insert\(payload\)\.select\('id'\)\.single\(\)/, 'read the new row id back');
+  assert.match(submit, /\{id:appRowId,job_title/, 'and send it, or relatedId falls back to job_id');
 });
 
 test('Enter in a single-line field cannot publish a half-filled opening', () => {
