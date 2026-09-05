@@ -4141,27 +4141,97 @@ async function suspendConsultant(consId,idx){
    purpose: the consultant dashboard replaces itself with an "under review" notice
    for any other status, which would stop them editing the profile we are asking
    them to complete. */
+var GUIDCY_PROFILE_FIELDS=[
+  ['specialty','Professional title'],
+  ['bio','Bio'],
+  ['name','Full name'],
+  ['category','Category'],
+  ['current_company_college','Current company / college'],
+  ['avatar_url','Profile photo']
+];
+function guidcyProfileFieldLabel(f){
+  for(var i=0;i<GUIDCY_PROFILE_FIELDS.length;i++)if(GUIDCY_PROFILE_FIELDS[i][0]===f)return GUIDCY_PROFILE_FIELDS[i][1];
+  return String(f||'').replace(/_/g,' ');
+}
 function guidcyConsultantProfileComplete(c){
   c=c||{};
   var t=function(v){return String(v==null?'':v).trim()};
   return !!(t(c.name)&&t(c.specialty||c.category)&&t(c.bio));
 }
+/* The admin names the fields that must change. A field satisfies the requirement
+   only when it is filled in AND different from the value captured when the profile
+   was hidden - otherwise pressing Save without editing anything restored a profile
+   whose fields merely happened to be non-empty already. */
+function guidcyProfileRequirementsMet(row,fields,snapshot){
+  row=row||{}; snapshot=snapshot||{};
+  var t=function(v){return String(v==null?'':v).trim()};
+  var list=(fields&&fields.length)?fields:null;
+  if(!list)return guidcyConsultantProfileComplete(row);
+  for(var i=0;i<list.length;i++){
+    var f=list[i], now=t(row[f]);
+    if(!now)return false;
+    if(now===t(snapshot[f]))return false;
+  }
+  return true;
+}
+try{window.guidcyProfileRequirementsMet=guidcyProfileRequirementsMet;window.guidcyProfileFieldLabel=guidcyProfileFieldLabel;window.GUIDCY_PROFILE_FIELDS=GUIDCY_PROFILE_FIELDS}catch(_){}
 try{window.guidcyConsultantProfileComplete=guidcyConsultantProfileComplete}catch(_){}
 async function guidcyHideConsultantUntilUpdate(consId,idx){
   if(!consId)return;
-  if(!confirm('Hide this consultant from the website until they update their profile?\n\nThey keep full dashboard access, and they reappear automatically as soon as their profile is filled in.'))return;
+  /* Ask the admin what has to change. A plain confirm() left the requirement
+     implicit, so any Save restored the profile. */
+  var opts=GUIDCY_PROFILE_FIELDS.map(function(f){
+    return '<label style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;font-size:14px;cursor:pointer">'+
+      '<input type="checkbox" class="gc-hide-field" value="'+f[0]+'" style="margin-top:3px">'+
+      '<span>'+f[1]+'</span></label>';
+  }).join('');
+  var old=document.getElementById('guidcy-hide-modal'); if(old)old.remove();
+  var wrap=document.createElement('div');
+  wrap.id='guidcy-hide-modal';
+  wrap.className='modal-overlay on';
+  wrap.innerHTML='<div class="modal-card" style="max-width:520px">'+
+    '<button class="modal-close" type="button" onclick="document.getElementById(\'guidcy-hide-modal\').remove()">&times;</button>'+
+    '<div class="dash-title" style="margin-bottom:6px">Hide until profile is updated</div>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.6">Tick what this consultant must change. Their profile comes back automatically once every ticked item is filled in <b>and actually different</b> from what it is now.</p>'+
+    '<div id="guidcy-hide-fields" style="border:1px solid var(--border);border-radius:12px;padding:6px 14px;margin-bottom:14px">'+opts+'</div>'+
+    '<div class="field"><label>Message to the consultant optional</label><textarea id="guidcy-hide-note" style="min-height:74px" placeholder="e.g. Your bio is one line - please describe your experience properly."></textarea></div>'+
+    '<div id="guidcy-hide-error" style="color:#b91c1c;font-size:13px;margin-bottom:8px"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:10px">'+
+      '<button type="button" class="btn" onclick="document.getElementById(\'guidcy-hide-modal\').remove()">Cancel</button>'+
+      '<button type="button" class="btn btn-blue" id="guidcy-hide-confirm">Hide profile</button>'+
+    '</div></div>';
+  document.body.appendChild(wrap);
+  document.getElementById('guidcy-hide-confirm').onclick=function(){
+    var fields=[].slice.call(document.querySelectorAll('.gc-hide-field:checked')).map(function(i){return i.value});
+    var err=document.getElementById('guidcy-hide-error');
+    if(!fields.length){if(err)err.textContent='Pick at least one detail the consultant has to change.';return}
+    var note=(document.getElementById('guidcy-hide-note')||{}).value||'';
+    wrap.remove();
+    guidcyApplyConsultantHide(consId,idx,fields,String(note).trim());
+  };
+}
+async function guidcyApplyConsultantHide(consId,idx,fields,note){
+  var label=fields.map(guidcyProfileFieldLabel).join(', ');
   if(sb){
+    /* Snapshot exactly the fields being demanded, so "changed" can be judged later. */
+    var snapshot={}, row=null;
+    try{
+      var res=await sb.from('consultants').select('*').eq('id',consId).maybeSingle();
+      row=res&&!res.error?res.data:null;
+      if(row)fields.forEach(function(f){snapshot[f]=row[f]==null?'':String(row[f])});
+    }catch(e){console.warn('Hide snapshot skipped:',e)}
     const error=await guidcyAdminWrite(sb.from('consultants').update({
       is_active:false, is_approved:false,
-      profile_update_required:true, profile_hidden_at:new Date().toISOString()
+      profile_update_required:true, profile_hidden_at:new Date().toISOString(),
+      profile_update_fields:fields, profile_update_note:note||null,
+      profile_hidden_snapshot:snapshot
     }).eq('id',consId));
     if(error){toast('Could not hide this consultant: '+(error.message||'please try again'),'red');return;}
     try{
-      const res=await sb.from('consultants').select('profile_id').eq('id',consId).maybeSingle();
-      if(res&&res.data&&res.data.profile_id){
+      if(row&&row.profile_id){
         await guidcyAdminWrite(sb.from('notifications').insert({
-          user_id:res.data.profile_id,
-          text:'Your Guidcy profile is hidden from the website because it is incomplete. Add your title and bio in Profile & settings and save - your profile goes live again automatically.',
+          user_id:row.profile_id,
+          text:'Your Guidcy profile is hidden from the website until you update: '+label+'.'+(note?' Note from Guidcy: '+note:'')+' Update it in Profile & settings and save - your profile goes live again automatically.',
           type:'profile_update_required'
         }));
       }
@@ -4169,18 +4239,16 @@ async function guidcyHideConsultantUntilUpdate(consId,idx){
     /* The in-app note only reaches them if they happen to log in, so email as well.
        Sent in the background: a slow mailer must not hold up the admin. */
     try{
-      const who=await sb.from('consultants').select('name,profile_id').eq('id',consId).maybeSingle();
-      const row=who&&!who.error?who.data:null;
       let email='';
       if(row&&row.profile_id){
-        const pr=await sb.from('profiles').select('email,full_name').eq('id',row.profile_id).maybeSingle();
+        const pr=await sb.from('profiles').select('email').eq('id',row.profile_id).maybeSingle();
         if(pr&&!pr.error&&pr.data)email=pr.data.email||'';
       }
       if(email&&typeof window.sendGuidcyEmail==='function'){
         Promise.resolve(window.sendGuidcyEmail({
           to:email, recipientName:(row&&row.name)||'there', recipientRole:'consultant',
           type:'consultant_profile_update_required', relatedTable:'consultants', relatedId:consId,
-          data:{consultant_name:(row&&row.name)||'', status:'Hidden pending profile update',
+          data:{consultant_name:(row&&row.name)||'', required_changes:label, note:note||'',
                 action_link:(location.origin||'')+'/consultant-dashboard', action_text:'Open Profile & settings'}
         })).then(function(r){if(r&&r.ok===false)console.warn('Guidcy: hide email not sent',r)})
           .catch(function(e){console.warn('Guidcy: hide email failed',e)});
@@ -4188,17 +4256,18 @@ async function guidcyHideConsultantUntilUpdate(consId,idx){
     }catch(e){console.warn('Guidcy: hide email skipped',e)}
   }
   const sp=document.getElementById('ad-s-'+idx);
-  if(sp){sp.textContent='Hidden · awaiting update';sp.className='status-pill sp-pending';}
-  const row=sp&&sp.closest('tr');
-  if(row){const td=row.querySelector('td:last-child');if(td)td.innerHTML='<button class="action-btn ab-approve" onclick="guidcyUnhideConsultant(\''+String(consId).replace(/[\'"]/g,'')+'\','+(Number(idx)||0)+')">Unhide now</button>';}
-  toast('Consultant hidden until they update their profile','green');
+  if(sp){sp.textContent='Hidden · awaiting update';sp.className='status-pill sp-pending';sp.title='Must update: '+label;}
+  const row2=sp&&sp.closest('tr');
+  if(row2){const td=row2.querySelector('td:last-child');if(td)td.innerHTML='<button class="action-btn ab-approve" onclick="guidcyUnhideConsultant(\''+String(consId).replace(/['"]/g,'')+'\','+(Number(idx)||0)+')">Unhide now</button>';}
+  toast('Hidden until they update: '+label,'green');
 }
 async function guidcyUnhideConsultant(consId,idx){
   if(!consId)return;
   if(sb){
     const error=await guidcyAdminWrite(sb.from('consultants').update({
       is_active:true, is_approved:true, approval_status:'approved',
-      profile_update_required:false, profile_hidden_at:null
+      profile_update_required:false, profile_hidden_at:null,
+      profile_update_fields:[], profile_update_note:null, profile_hidden_snapshot:{}
     }).eq('id',consId));
     if(error){toast('Could not restore this consultant: '+(error.message||'please try again'),'red');return;}
   }
@@ -24576,16 +24645,15 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
          restore rows hidden by that action - a suspended or rejected account saving
          its profile is left exactly as it is. */
       try{
-        var vis=await c.from('consultants').select('profile_update_required,approval_status,name,specialty,category,bio').eq('id',resolved).maybeSingle();
+        var vis=await c.from('consultants').select('*').eq('id',resolved).maybeSingle();
         var visRow=vis&&!vis.error?vis.data:null;
         if(visRow&&visRow.profile_update_required===true&&String(visRow.approval_status||'').toLowerCase()==='approved'
-           &&(typeof window.guidcyConsultantProfileComplete==='function'
-              ?window.guidcyConsultantProfileComplete(visRow)
-              :!!(String(visRow.name||'').trim()&&String(visRow.specialty||visRow.category||'').trim()&&String(visRow.bio||'').trim()))){
+           &&typeof window.guidcyProfileRequirementsMet==='function'
+           &&window.guidcyProfileRequirementsMet(visRow,visRow.profile_update_fields,visRow.profile_hidden_snapshot)){
           /* approval_status is re-asserted rather than changed - the guard above
              already required it to be 'approved' - so this write satisfies the
              "is_active:true must carry the full approval set" invariant. */
-          var restore=await c.from('consultants').update({is_active:true,is_approved:true,approval_status:'approved',profile_update_required:false,profile_hidden_at:null}).eq('id',resolved);
+          var restore=await c.from('consultants').update({is_active:true,is_approved:true,approval_status:'approved',profile_update_required:false,profile_hidden_at:null,profile_update_fields:[],profile_update_note:null,profile_hidden_snapshot:{}}).eq('id',resolved);
           if(!restore.error){
             notify('Your profile is live on Guidcy again ✓','green');
             /* Let the admin know the queue moved. recipientRole:'admin' resolves the
@@ -24599,6 +24667,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
               })).catch(function(){});
             }catch(_){}
           }
+        }
+        else if(visRow&&visRow.profile_update_required===true){
+          var still=(visRow.profile_update_fields||[]).map(function(f){return window.guidcyProfileFieldLabel?window.guidcyProfileFieldLabel(f):f}).join(', ');
+          if(still)notify('Saved. Your profile stays hidden until you change: '+still,'blue');
         }
       }catch(e){console.warn('Guidcy: profile visibility restore skipped',e)}
       notify('Profile and company sequence saved ✓','green');
@@ -30262,25 +30334,34 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(cache.id===id&&Date.now()-cache.at<15000)return cache.hidden;
     var c=sbc(); if(!c)return false;
     try{
-      var r=await c.from('consultants').select('profile_update_required').eq('profile_id',id).maybeSingle();
-      var hidden=!!(r&&!r.error&&r.data&&r.data.profile_update_required===true);
-      cache={id:id,hidden:hidden,at:Date.now()};
+      var r=await c.from('consultants').select('profile_update_required,profile_update_fields,profile_update_note').eq('profile_id',id).maybeSingle();
+      var row=(r&&!r.error&&r.data)?r.data:null;
+      var hidden=!!(row&&row.profile_update_required===true);
+      cache={id:id,hidden:hidden,at:Date.now(),fields:(row&&row.profile_update_fields)||[],note:(row&&row.profile_update_note)||''};
       return hidden;
     }catch(e){return false}
   }
   function remove(){var b=document.getElementById(BANNER_ID); if(b)b.remove()}
+  function signature(){return (cache.fields||[]).join('|')+'::'+(cache.note||'')}
   function paint(){
     var main=document.getElementById('cdash-main'); if(!main)return;
-    if(document.getElementById(BANNER_ID))return;
+    var existing=document.getElementById(BANNER_ID);
+    if(existing){ if(existing.dataset.sig===signature())return; existing.remove(); }
     var d=document.createElement('div');
     d.id=BANNER_ID;
     d.style.cssText='background:#FEF3C7;border:1px solid #FDE68A;border-radius:14px;padding:16px 18px;margin-bottom:18px;color:#92400E;font-size:14px;line-height:1.6';
     /* Each part is its own block. The button was inline in the copy, and .btn is
        inline-block, so its margin-top pulled it up over the line above instead of
        pushing it down - which is what collided on a narrow screen. */
+    var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})};
+    var lab=function(f){try{return window.guidcyProfileFieldLabel?window.guidcyProfileFieldLabel(f):f}catch(_){return f}};
+    var items=(cache.fields||[]).map(function(f){return '<li>'+esc(lab(f))+'</li>'}).join('');
     d.innerHTML='<div style="font-weight:800;margin-bottom:4px">Your profile is hidden from the website</div>'+
-      '<div>It is missing some details. Add your professional title and a short bio in Profile &amp; settings, then press Save - your profile goes live again automatically.</div>'+
+      '<div>'+(items?'Guidcy needs you to update the following before your profile is listed again:':'Add your professional title and a short bio, then press Save.')+'</div>'+
+      (items?'<ul style="margin:8px 0 0;padding-left:20px">'+items+'</ul>':'')+
+      (cache.note?'<div style="margin-top:10px;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:10px"><b>Note from Guidcy:</b> '+esc(cache.note)+'</div>':'')+
       '<div style="margin-top:12px"><button type="button" class="btn btn-blue" style="max-width:100%" onclick="try{swCD(\'settings\')}catch(e){}">Open Profile &amp; settings</button></div>';
+    d.dataset.sig=signature();
     main.insertBefore(d,main.firstChild);
   }
   async function sync(){

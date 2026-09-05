@@ -54,7 +54,7 @@ const slice = (from, to) => {
 };
 
 test('hiding removes the consultant from both public gates but not from their own dashboard', () => {
-  const hide = slice('async function guidcyHideConsultantUntilUpdate(consId,idx){', "toast('Consultant hidden until they update their profile','green');");
+  const hide = slice('async function guidcyApplyConsultantHide(consId,idx,fields,note){', "toast('Hidden until they update: '+label,'green');");
   // both gates the public queries read
   assert.match(hide, /is_active:false/);
   assert.match(hide, /is_approved:false/);
@@ -66,12 +66,13 @@ test('hiding removes the consultant from both public gates but not from their ow
 });
 
 test('the automatic restore only ever un-hides rows this feature hid', () => {
-  const restore = slice('        var vis=await c.from(\'consultants\').select(\'profile_update_required', 'profile_hidden_at:null}).eq(\'id\',resolved);');
+  const restore = slice("        var vis=await c.from('consultants').select('*').eq('id',resolved).maybeSingle();", 'profile_hidden_snapshot:{}}).eq(\'id\',resolved);');
   assert.match(restore, /visRow\.profile_update_required===true/,
     'without this guard a suspended or rejected consultant would reactivate itself by saving');
   assert.match(restore, /approval_status\|\|''\)\.toLowerCase\(\)==='approved'/,
     'and an account approval later revoked must not come back either');
-  assert.match(restore, /guidcyConsultantProfileComplete/, 'a no-op save must not restore an still-empty profile');
+  assert.match(restore, /guidcyProfileRequirementsMet\(visRow,visRow\.profile_update_fields,visRow\.profile_hidden_snapshot\)/,
+    'the restore must judge the fields the admin named, against the snapshot');
 });
 
 test('suspend stays a separate, non-self-restoring state', () => {
@@ -101,7 +102,7 @@ test('profile completeness is satisfiable from the fields every settings form re
 /* Hiding is only useful if the consultant finds out, and the in-app note reaches
    them only if they happen to log in and open the bell. */
 test('a hidden consultant is told three ways: banner, notification and email', () => {
-  const hide = slice('async function guidcyHideConsultantUntilUpdate(consId,idx){', "toast('Consultant hidden until they update their profile','green');");
+  const hide = slice('async function guidcyApplyConsultantHide(consId,idx,fields,note){', "toast('Hidden until they update: '+label,'green');");
   assert.match(hide, /from\('notifications'\)\.insert/, 'in-app notification');
   assert.match(hide, /type:'consultant_profile_update_required'/, 'email to the consultant');
   assert.match(hide, /sendGuidcyEmail/);
@@ -113,7 +114,7 @@ test('a hidden consultant is told three ways: banner, notification and email', (
 });
 
 test('the admin is told when a consultant restores themselves', () => {
-  const restore = slice("        var vis=await c.from('consultants').select('profile_update_required", "action_text:'Open Manage Consultants'");
+  const restore = slice("        var vis=await c.from('consultants').select('*').eq('id',resolved).maybeSingle();", "action_text:'Open Manage Consultants'");
   assert.match(restore, /type:'consultant_profile_restored_admin'/);
   assert.match(restore, /recipientRole:'admin'/, 'the address resolves server-side, so this does not depend on notifications RLS');
 });
@@ -138,5 +139,49 @@ test('both senders carry the consultant-profile templates with identical subject
       (edge.match(new RegExp(type + ': ("[^"]*")'))||[])[1],
       `${type} subject differs between senders`);
     for (const f of [api, edge]) assert.match(f, new RegExp(type + '/i\\.test\\(type\\)'), `${type} needs its own body`);
+  }
+});
+
+/* The reason this exists: pressing Save with nothing edited used to restore the
+   profile, because the check only asked whether the fields were non-empty. */
+test('a save that changes nothing cannot restore the profile', () => {
+  const ctx = {};
+  const fn = slice('function guidcyProfileRequirementsMet(row,fields,snapshot){', '\n  return true;\n}');
+  const met = new Function('guidcyConsultantProfileComplete', fn + '; return guidcyProfileRequirementsMet;')(() => true);
+
+  const snapshot = { bio: 'One line.', specialty: 'Coach' };
+  const required = ['bio', 'specialty'];
+
+  // saved without editing anything -> still hidden
+  assert.equal(met({ bio: 'One line.', specialty: 'Coach' }, required, snapshot), false);
+  // only one of the two changed -> still hidden
+  assert.equal(met({ bio: 'A much longer bio about my work.', specialty: 'Coach' }, required, snapshot), false);
+  // whitespace-only edit does not count
+  assert.equal(met({ bio: '  One line. ', specialty: 'Career Coach' }, required, snapshot), false);
+  // emptying a required field does not count either
+  assert.equal(met({ bio: '', specialty: 'Career Coach' }, required, snapshot), false);
+  // both genuinely changed -> restored
+  assert.equal(met({ bio: 'A much longer bio about my work.', specialty: 'Career Coach' }, required, snapshot), true);
+});
+
+test('the admin must name at least one required change before hiding', () => {
+  const picker = slice('async function guidcyHideConsultantUntilUpdate(consId,idx){', 'guidcyApplyConsultantHide(consId,idx,fields,String(note).trim());');
+  assert.match(picker, /if\(!fields\.length\)/, 'hiding with no requirement would be unsatisfiable');
+  assert.match(picker, /gc-hide-field:checked/);
+  assert.match(picker, /guidcy-hide-note/, 'the admin can add a message explaining what is wrong');
+});
+
+test('hiding snapshots exactly the fields it demands', () => {
+  const apply = slice('async function guidcyApplyConsultantHide(consId,idx,fields,note){', "toast('Hidden until they update: '+label,'green');");
+  assert.match(apply, /fields\.forEach\(function\(f\)\{snapshot\[f\]=/);
+  assert.match(apply, /profile_update_fields:fields/);
+  assert.match(apply, /profile_hidden_snapshot:snapshot/);
+  assert.match(apply, /required_changes:label/, 'the email says what to change');
+});
+
+test('restoring by either route clears the requirement', () => {
+  for (const marker of ["profile_update_fields:\\[\\],profile_update_note:null,profile_hidden_snapshot:\\{\\}",
+                        "profile_update_fields:\\[\\], profile_update_note:null, profile_hidden_snapshot:\\{\\}"]) {
+    assert.match(src, new RegExp(marker), 'a stale requirement would re-hide on the next save');
   }
 });

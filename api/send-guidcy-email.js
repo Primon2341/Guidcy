@@ -128,6 +128,10 @@ function detailsFor(type, data) {
     add('Applicant email', pick(data, ['applicant_email', 'user_email', 'email']));
     add('Employer', pick(data, ['employer_name', 'company_name']));
     add('Status', pick(data, ['status', 'verification_status']));
+  } else if (/consultant_profile/i.test(type)) {
+    add('Consultant', pick(data, ['consultant_name', 'name']));
+    add('Please update', pick(data, ['required_changes']));
+    add('Note from Guidcy', pick(data, ['note']));
   } else {
     Object.entries(data).slice(0, 12).forEach(([key, value]) => add(key.replace(/_/g, ' '), value));
   }
@@ -142,7 +146,7 @@ function intro(type, name, role) {
   if (/webinar_registration/i.test(type)) return `Hi ${name}, webinar registration details are below.`;
   if (/consultant_approved/i.test(type)) return `Hi ${name}, your consultant profile is approved and ready on Guidcy.`;
   if (/consultant_rejected/i.test(type)) return `Hi ${name}, your consultant profile was reviewed and needs changes before approval.`;
-  if (/consultant_profile_update_required/i.test(type)) return `Hi ${name}, your Guidcy profile is currently hidden from the website because it is incomplete. Open Profile & settings in your consultant dashboard, add your professional title and a short bio, and press Save - your profile goes live again automatically, with no further review. Your account, bookings and earnings are untouched in the meantime.`;
+  if (/consultant_profile_update_required/i.test(type)) return `Hi ${name}, your Guidcy profile is currently hidden from the website until some details are updated. The exact items are listed below. Open Profile & settings in your consultant dashboard, change them, and press Save - your profile goes live again automatically, with no further review. Your account, bookings and earnings are untouched in the meantime.`;
   if (/consultant_profile_restored_admin/i.test(type)) return "Hi Admin, a consultant who was hidden pending a profile update has completed their profile, and their listing is live on Guidcy again. No action is required - this is a notice only.";
   if (/job_application_submitted/i.test(type)) return `Hi ${name}, thank you for applying to Guidcy. We have received your application and our hiring team is reviewing it. You will hear from us by email as it moves forward - the details you sent are below.`;
   if (/job_application_shortlisted/i.test(type)) return `Hi ${name}, good news - your application has been shortlisted for the interview round. Our hiring team will be in touch shortly to arrange a date and time that works for you. Please keep an eye on this inbox, and do reply if none of the proposed slots suit you. In the meantime, it is worth having a couple of examples of your recent work ready to talk through.`;
