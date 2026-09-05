@@ -6,6 +6,8 @@ import test from 'node:test';
 const require = createRequire(import.meta.url);
 const app = readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20260902030406_booking_cancellation_refund_workflow.sql', import.meta.url), 'utf8');
+const bookingSessionLogActionMigration = readFileSync(new URL('../supabase/migrations/20260902163657_normalize_booking_session_log_cancel_action.sql', import.meta.url), 'utf8');
+const financialLifecycleMigration = readFileSync(new URL('../supabase/migrations/20260902174104_booking_cancellation_payout_lifecycle.sql', import.meta.url), 'utf8');
 const cancellation = readFileSync(new URL('../lib/booking-cancellation.js', import.meta.url), 'utf8');
 const refund = readFileSync(new URL('../lib/booking-refund.js', import.meta.url), 'utf8');
 const paymentApi = readFileSync(new URL('../api/verify-payment.js', import.meta.url), 'utf8');
@@ -26,12 +28,32 @@ test('cancellation migration keeps one booking row authoritative', () => {
   assert.doesNotMatch(migration, /create table\s+public\.(booking_cancellations|booking_refunds|payment_refunds)/i);
 });
 
+test('legacy cancellation audit action is normalized before the existing check constraint', () => {
+  assert.match(bookingSessionLogActionMigration, /guidcy_normalize_booking_session_log_action_type/);
+  assert.match(bookingSessionLogActionMigration, /new\.action_type := 'session_cancelled'/);
+  assert.match(bookingSessionLogActionMigration, /before insert or update of action_type on public\.booking_session_logs/);
+  assert.doesNotMatch(bookingSessionLogActionMigration, /drop constraint/i);
+});
+
 test('legacy false refunds are corrected and paid cancellations enter the refund queue', () => {
   assert.match(migration, /payment_status = 'success'[\s\S]*payment_status = 'refunded'[\s\S]*refund_transaction_id is null/);
   assert.match(migration, /then 'refund_pending'/);
   assert.match(migration, /refund_requested_at/);
   assert.match(migration, /bookings_refund_queue_idx/);
   assert.match(migration, /bookings_refund_idempotency_unique_idx/);
+});
+
+test('financial lifecycle keeps paid history separate from cancelled refund and payout state', () => {
+  assert.match(financialLifecycleMigration, /payment_status = 'success'/);
+  assert.match(financialLifecycleMigration, /'blocked', 'not_eligible'/);
+  assert.match(financialLifecycleMigration, /create or replace function public\.guidcy_enforce_booking_financial_lifecycle/);
+  assert.match(financialLifecycleMigration, /new\.status := 'cancelled';[\s\S]*new\.session_status := 'cancelled';/);
+  assert.match(financialLifecycleMigration, /new\.meet_link := null;[\s\S]*new\.meeting_status := 'disabled';/);
+  assert.match(financialLifecycleMigration, /new\.payout_status := case[\s\S]*'not_eligible'[\s\S]*'blocked'/);
+  assert.match(financialLifecycleMigration, /v_completed and v_verified_paid/);
+  assert.match(financialLifecycleMigration, /Only verified, fully completed bookings can be marked paid out/);
+  assert.match(financialLifecycleMigration, /lower\(coalesce\(b\.status, ''\)\) = 'completed'/);
+  assert.match(financialLifecycleMigration, /lower\(coalesce\(b\.session_status, ''\)\) = 'completed'/);
 });
 
 test('meeting creation persists the Calendar event id and cancellation deletes the event', () => {
@@ -43,6 +65,8 @@ test('meeting creation persists the Calendar event id and cancellation deletes t
   assert.match(googleMeet, /sendUpdates=all/);
   assert.match(cancellation, /deleteMeetEvent/);
   assert.match(cancellation, /meeting_status: 'disabled'/);
+  assert.match(cancellation, /consultants\?id=eq\.\$\{encodeURIComponent\(booking\.consultant_id\)\}&select=id,profile_id&limit=1/);
+  assert.doesNotMatch(cancellation, /select=id,profile_id,email/);
   assert.match(meetApi, /body\.action === 'cancel_booking'/);
 });
 
@@ -64,7 +88,7 @@ test('final browser cancellation override wins and purges stale upcoming caches'
 
 test('admin payments has a directly filterable refund queue and gateway action', () => {
   const source = app.slice(app.indexOf('/* === guidcy-booking-cancellation-refund-workflow-v1 === */'));
-  for (const label of ['Booking ID', 'User', 'Consultant', 'Amount paid', 'Cancellation date', 'Payment', 'Refund status', 'Action']) {
+  for (const label of ['Booking ID', 'User', 'Consultant', 'Amount paid', 'Cancellation date', 'Payment', 'Booking', 'Refund status', 'Consultant payout', 'Action']) {
     assert.ok(source.includes(label), `missing admin refund column: ${label}`);
   }
   assert.match(source, /guidcy-admin-refund-filter/);
@@ -75,16 +99,78 @@ test('admin payments has a directly filterable refund queue and gateway action',
   assert.match(source, /view==='payments'/);
 });
 
-test('refund API uses deterministic idempotency and marks payment refunded only after gateway processing', () => {
+test('refund API uses deterministic idempotency while retaining paid payment history', () => {
   assert.match(refund, /guidcy-booking-refund-\$\{booking\.id\}/);
   assert.match(refund, /refund_status: 'refund_processing'/);
   assert.match(refund, /refundLifecycleStatus/);
   assert.match(refund, /status === 'processed'\) return 'refunded'/);
-  assert.match(refund, /payment_status: lifecycle === 'refunded' \? 'refunded' : 'success'/);
+  assert.match(refund, /payment_status: 'success'/);
+  assert.match(refund, /payout_status: lifecycle === 'refunded' \? 'not_eligible' : 'blocked'/);
+  assert.match(refund, /action_type: lifecycle === 'refunded' \? 'refund_processed' : 'refund_requested'/);
   assert.match(refund, /fetchRazorpayRefund/);
   assert.match(refund, /createRazorpayRefund/);
   assert.match(paymentApi, /body\.action === 'refund_booking'/);
   assert.doesNotMatch(refund, /insert\([^)]*bookings/i);
+});
+
+test('late captured payment callback cannot resurrect a cancelled booking', () => {
+  assert.match(paymentApi, /function isCancelledBooking/);
+  assert.match(paymentApi, /status: cancelled \? 'cancelled' : 'confirmed'/);
+  assert.match(paymentApi, /session_status: cancelled \? 'cancelled' : row\.session_status \|\| 'scheduled'/);
+});
+
+test('processed booking refund retains paid history and permanently blocks payout eligibility', async () => {
+  const utilsPath = require.resolve('../lib/razorpay-utils.js');
+  const refundPath = require.resolve('../lib/booking-refund.js');
+  const audit = [];
+  let stored = {
+    id: '11111111-1111-4111-8111-111111111111',
+    status: 'cancelled',
+    session_status: 'cancelled',
+    payment_status: 'success',
+    payment_verified: true,
+    payout_status: 'blocked',
+    refund_status: 'refund_pending',
+    refund_amount: 1000,
+    razorpay_payment_id: 'pay_123',
+  };
+  require.cache[utilsPath] = { id: utilsPath, filename: utilsPath, loaded: true, exports: {
+    clean: (value, max = 500) => String(value ?? '').trim().slice(0, max),
+    getAuthenticatedUser: async () => ({ id: '22222222-2222-4222-8222-222222222222', email: 'admin@example.com' }),
+    first: async () => ({ id: '22222222-2222-4222-8222-222222222222', role: 'admin', email: 'admin@example.com' }),
+    loadPaymentRecord: async () => stored,
+    authoritativeAmount: async () => 1000,
+    moneyToPaise: (amount) => Math.round(Number(amount) * 100),
+    supabaseRest: async (path, options) => {
+      if (path.startsWith('booking_session_logs')) { audit.push(options.body); return []; }
+      stored = { ...stored, ...(options.body || {}), refund_status: 'refund_processing' };
+      return [stored];
+    },
+    patchById: async (_flow, _id, patch) => { stored = { ...stored, ...patch }; return stored; },
+    createRazorpayRefund: async () => ({ id: 'rfnd_123', status: 'processed', amount: 100000 }),
+    fetchRazorpayRefund: async () => ({ id: 'rfnd_123', status: 'processed', amount: 100000 }),
+  }};
+  delete require.cache[refundPath];
+  try {
+    const { refundBookingRequest } = require(refundPath);
+    const result = await refundBookingRequest({ headers: { authorization: 'Bearer token' } }, { bookingId: stored.id });
+    assert.equal(result.data.refunded, true);
+    assert.equal(stored.payment_status, 'success');
+    assert.equal(stored.refund_status, 'refunded');
+    assert.equal(stored.payout_status, 'not_eligible');
+    assert.equal(audit.at(-1).action_type, 'refund_processed');
+  } finally {
+    delete require.cache[refundPath];
+    delete require.cache[utilsPath];
+  }
+});
+
+test('payout screens and financial transaction displays use completed paid bookings only', () => {
+  assert.match(app, /bookingStatus==='completed'&&sessionStatus==='completed'&&\(payoutStatus==='pending'\|\|payoutStatus==='paid'\)/);
+  assert.match(app, /payout-eligible completed bookings/);
+  assert.match(app, /Payment: <b>/);
+  assert.match(app, /Recent Transactions/);
+  assert.match(app, /Cancelled bookings are excluded from pending consultant payouts/);
 });
 
 test('cancellation service calls the atomic RPC once and returns the same booking id', async () => {

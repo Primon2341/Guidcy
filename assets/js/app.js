@@ -46,6 +46,175 @@
   };
 })();
 
+/* === guidcy-booking-financial-lifecycle-ui-v1 ===
+   The booking row is authoritative for payment, cancellation, refund and
+   payout.  Keep each dashboard on that exact lifecycle without changing the
+   surrounding dashboard design or unrelated payment flows. */
+(function(){
+  'use strict';
+  if(window.__GUIDCY_BOOKING_FINANCIAL_LIFECYCLE_UI_V1__)return;
+  window.__GUIDCY_BOOKING_FINANCIAL_LIFECYCLE_UI_V1__=true;
+
+  var renderToken=0;
+  function clean(value){return String(value==null?'':value).trim()}
+  function lower(value){return clean(value).toLowerCase()}
+  function esc(value){return clean(value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
+  function client(){try{return window.guidcyGetSupabaseClient?window.guidcyGetSupabaseClient():window.sb}catch(_){return null}}
+  function money(value){var n=Number(value||0);return '₹'+(Number.isFinite(n)?n:0).toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
+  function cancelled(row){return ['cancelled','canceled'].indexOf(lower(row&&row.status))>-1||['cancelled','canceled'].indexOf(lower(row&&row.session_status))>-1}
+  function payoutEligible(row){return !!(row&&row.payment_verified===true&&/^(success|paid|completed)$/.test(lower(row.payment_status))&&lower(row.status)==='completed'&&lower(row.session_status)==='completed'&&['pending','paid'].indexOf(lower(row.payout_status))>-1)}
+  function paymentLabel(row){var status=lower(row&&row.payment_status);return status==='success'||status==='paid'||status==='refunded'?'Paid':status==='failed'?'Failed':status?status.replace(/_/g,' '):'Pending'}
+  function refundLabel(status){return ({not_required:'Not Required',refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed'})[lower(status)]||'Not Required'}
+  function payoutLabel(status){return ({pending:'Payout Pending',paid:'Paid',blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible'})[lower(status)]||'Not Eligible'}
+  function statusClass(status){status=lower(status);return status==='paid'||status==='refunded'||status==='completed'?'sp-done':status==='cancelled'||status==='blocked'||status==='failed'||status==='refund_failed'?'sp-cancelled':status==='pending'||status==='refund_pending'||status==='refund_processing'?'sp-pending':'sp-upcoming'}
+  function activePage(id){var page=document.getElementById(id);return !!(page&&(page.classList.contains('on')||page.classList.contains('active')))}
+  function activeText(root){var active=document.querySelector(root+' .side-btn.on');return lower(active&&active.textContent)}
+  function isActiveView(root,needle){return activeText(root).indexOf(needle)>-1}
+
+  // Keep the public payout predicate strict for every late-loaded dashboard.
+  window.guidcyBookingIsPaidForPayout=payoutEligible;
+
+  async function annotateBookingCards(){
+    var cards=[].slice.call(document.querySelectorAll('#udash-main [data-booking-id],#cdash-main [data-booking-id]'));
+    var ids=cards.map(function(card){return clean(card.getAttribute('data-booking-id'))}).filter(Boolean);
+    if(!ids.length)return;
+    var c=client();if(!c)return;
+    var token=++renderToken;
+    var result=await c.from('bookings').select('id,status,session_status,payment_status,payment_verified,refund_status,payout_status').in('id',ids);
+    if(token!==renderToken||result.error)return;
+    var byId={};(result.data||[]).forEach(function(row){byId[String(row.id)]=row});
+    cards.forEach(function(card){
+      var row=byId[clean(card.getAttribute('data-booking-id'))],old=card.querySelector('[data-guidcy-financial-lifecycle]');
+      if(old)old.remove();
+      if(!row||!cancelled(row))return;
+      var host=card.querySelector('.bk-info')||card.querySelector('.guidcy-session-card-top > div')||card;
+      var line=document.createElement('div');
+      line.setAttribute('data-guidcy-financial-lifecycle','1');
+      line.style.cssText='margin-top:6px;font-size:11px;line-height:1.5;color:var(--muted);display:flex;gap:5px;flex-wrap:wrap';
+      line.innerHTML='<span>Payment: <b>'+esc(paymentLabel(row))+'</b></span><span>·</span><span>Booking: <b>Cancelled</b></span><span>·</span><span>Refund: <b>'+esc(refundLabel(row.refund_status))+'</b></span><span>·</span><span>Payout: <b>'+esc(payoutLabel(row.payout_status))+'</b></span>';
+      host.appendChild(line);
+    });
+  }
+
+  function bookingState(row){return cancelled(row)?'cancelled':lower(row&&(row.status||row.session_status)||'pending')||'pending'}
+  function transactionFilterControls(){
+    var filter='all',query='';
+    try{filter=lower(sessionStorage.getItem('guidcy_admin_transaction_filter')||'all');query=clean(sessionStorage.getItem('guidcy_admin_transaction_search')||'')}catch(_){}
+    return '<div class="guidcy-filter-row" style="margin:-2px 0 12px">'
+      +'<select id="guidcy-admin-transaction-filter" class="guidcy-mini-input" onchange="guidcyFilterAdminTransactions()">'
+      +'<option value="all"'+(filter==='all'?' selected':'')+'>All transactions</option>'
+      +'<option value="payout_eligible"'+(filter==='payout_eligible'?' selected':'')+'>Payout eligible</option>'
+      +'<option value="cancelled"'+(filter==='cancelled'?' selected':'')+'>Cancelled bookings</option>'
+      +'<option value="refund_pending"'+(filter==='refund_pending'?' selected':'')+'>Refund pending</option>'
+      +'<option value="refund_processing"'+(filter==='refund_processing'?' selected':'')+'>Refund processing</option>'
+      +'<option value="refunded"'+(filter==='refunded'?' selected':'')+'>Refunded</option>'
+      +'<option value="refund_failed"'+(filter==='refund_failed'?' selected':'')+'>Refund failed</option>'
+      +'</select>'
+      +'<input id="guidcy-admin-transaction-search" class="guidcy-mini-input" value="'+esc(query)+'" placeholder="Search booking, client, consultant or reference" oninput="guidcyFilterAdminTransactions()">'
+      +'<button type="button" class="btn" onclick="guidcyResetAdminTransactionFilters()">Reset</button>'
+      +'<span id="guidcy-admin-transaction-count" style="font-size:12px;color:var(--muted)"></span>'
+      +'</div>';
+  }
+  window.guidcyFilterAdminTransactions=function(){
+    var root=document.getElementById('guidcy-admin-financial-transactions');if(!root)return;
+    var filter=lower(document.getElementById('guidcy-admin-transaction-filter')&&document.getElementById('guidcy-admin-transaction-filter').value||'all');
+    var query=lower(document.getElementById('guidcy-admin-transaction-search')&&document.getElementById('guidcy-admin-transaction-search').value||'');
+    try{sessionStorage.setItem('guidcy_admin_transaction_filter',filter);sessionStorage.setItem('guidcy_admin_transaction_search',query)}catch(_){}
+    var shown=0,total=0;
+    root.querySelectorAll('[data-guidcy-admin-transaction-row]').forEach(function(item){
+      total++;
+      var matchesFilter=filter==='all'||(filter==='payout_eligible'&&item.dataset.payoutEligible==='true')||item.dataset.bookingState===filter||item.dataset.refundStatus===filter;
+      var matchesSearch=!query||lower(item.dataset.search).indexOf(query)>-1;
+      var visible=matchesFilter&&matchesSearch;item.style.display=visible?'':'none';if(visible)shown++;
+    });
+    var count=document.getElementById('guidcy-admin-transaction-count');if(count)count.textContent='Showing '+shown+' of '+total;
+    var empty=document.getElementById('guidcy-admin-transaction-empty');if(empty)empty.style.display=shown?'none':'';
+  };
+  window.guidcyResetAdminTransactionFilters=function(){
+    var filter=document.getElementById('guidcy-admin-transaction-filter'),query=document.getElementById('guidcy-admin-transaction-search');
+    if(filter)filter.value='all';if(query)query.value='';window.guidcyFilterAdminTransactions();
+  };
+  function transactionRow(row){
+    var payment=paymentLabel(row),state=bookingState(row),booking=state==='cancelled'?'Cancelled':clean(row.status||row.session_status||'Pending').replace(/_/g,' '),refundState=lower(row.refund_status)||'not_required',refund=refundLabel(refundState),payout=payoutLabel(row.payout_status),reference=row.razorpay_payment_id||row.payment_id||row.razorpay_order_id||row.payu_mihpayid||'—',payoutEligibleForTransaction=payoutEligible(row),search=lower([row.id,row.user_name,row.user_email,row.consultant_name,row.consultant_email,reference].join(' '));
+    return '<tr data-guidcy-admin-transaction-row data-booking-state="'+esc(state)+'" data-refund-status="'+esc(refundState)+'" data-payout-eligible="'+(payoutEligibleForTransaction?'true':'false')+'" data-search="'+esc(search)+'"><td style="font-size:11px;color:var(--muted)">'+esc(row.created_at?new Date(row.created_at).toLocaleDateString('en-IN'):'—')+'</td><td>'+esc(row.user_name||row.user_email||'—')+'</td><td>'+esc(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:600">'+money(row.total_amount||row.payment_amount||row.amount)+'</td><td><span class="status-pill '+statusClass(payment)+'">'+esc(payment)+'</span></td><td><span class="status-pill '+statusClass(booking)+'">'+esc(booking)+'</span></td><td><span class="status-pill '+statusClass(refund)+'">'+esc(refund)+'</span></td><td><span class="status-pill '+statusClass(row.payout_status)+'">'+esc(payout)+'</span></td><td style="font-size:11px;color:var(--muted);word-break:break-all">'+esc(reference)+'</td></tr>';
+  }
+  async function renderAdminTransactions(){
+    if(!activePage('page-admin-dash')||!isActiveView('#page-admin-dash','payment'))return;
+    var main=document.getElementById('adash-main'),c=client();if(!main||!c)return;
+    var existing=document.getElementById('guidcy-admin-financial-transactions');
+    if(existing&&!main.contains(existing))existing=null;
+    var heading=existing?existing.querySelector('h3'):[].slice.call(main.querySelectorAll('h3')).find(function(node){return /recent transactions/i.test(node.textContent||'')});
+    if(!heading)return;
+    var result=await c.from('bookings').select('*').order('created_at',{ascending:false}).limit(200);
+    if(result.error||!main.contains(heading)||!activePage('page-admin-dash')||!isActiveView('#page-admin-dash','payment'))return;
+    var rowsHtml=(result.data||[]).slice(0,80).map(transactionRow).join('');
+    var markup='<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:22px;margin:0 0 12px">Recent Transactions</h3>'+transactionFilterControls()+'<div style="overflow-x:auto"><table class="data-table" style="min-width:1180px"><tr><th>Date</th><th>Client</th><th>Consultant</th><th>Amount</th><th>Payment</th><th>Booking</th><th>Refund</th><th>Payout</th><th>Reference</th></tr>'+rowsHtml+'<tr id="guidcy-admin-transaction-empty" style="display:none"><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">'+(rowsHtml?'No transactions match the selected filter.':'No transactions yet')+'</td></tr></table></div>';
+    if(existing&&existing.isConnected){
+      existing.innerHTML=markup;
+    }else{
+      var oldTable=heading.nextElementSibling;
+      var section=document.createElement('section');section.id='guidcy-admin-financial-transactions';section.style.marginTop='22px';
+      section.innerHTML=markup;
+      heading.parentNode.insertBefore(section,heading);
+      heading.remove();
+      if(oldTable&&oldTable.tagName==='TABLE')oldTable.remove();
+    }
+    window.guidcyFilterAdminTransactions();
+    if(typeof window.guidcyScheduleAdminRefundQueue==='function')window.guidcyScheduleAdminRefundQueue('transactions-rendered');
+  }
+
+  async function resolveConsultantId(){
+    var current=window.currentUser||{},hint=window.curCons&&((window.curCons.dbId||window.curCons.id)||'');
+    if(hint)return hint;
+    if(!current.id)return '';
+    var c=client();if(!c)return '';
+    var first=await c.from('consultants').select('id').eq('profile_id',current.id).limit(1);
+    if(first.data&&first.data[0])return first.data[0].id;
+    var second=await c.from('consultants').select('id').eq('id',current.id).limit(1);
+    return second.data&&second.data[0]&&second.data[0].id||'';
+  }
+  function bookingPayable(row){return window.guidcyBookingPayable?window.guidcyBookingPayable(row):Number(row.consultant_payout_amount||0)}
+  function bookingGross(row){return window.guidcyBookingGross?window.guidcyBookingGross(row):Number(row.payment_amount||row.total_amount||row.amount||0)}
+  async function renderConsultantEarnings(){
+    if(!activePage('page-cons-dash')||!isActiveView('#page-cons-dash','earning'))return;
+    var main=document.getElementById('cdash-main'),c=client(),consultantId=await resolveConsultantId();if(!main||!c||!consultantId||!activePage('page-cons-dash')||!isActiveView('#page-cons-dash','earning'))return;
+    var result=await c.from('bookings').select('*').eq('consultant_id',consultantId).order('created_at',{ascending:false});
+    if(result.error||!activePage('page-cons-dash')||!isActiveView('#page-cons-dash','earning'))return;
+    var all=result.data||[],eligible=all.filter(payoutEligible),paid=eligible.filter(function(row){return lower(row.payout_status)==='paid'}),pending=eligible.filter(function(row){return lower(row.payout_status)==='pending'}),cancelledPaid=all.filter(function(row){return cancelled(row)&&paymentLabel(row)==='Paid'});
+    var sum=function(rows){return rows.reduce(function(total,row){return total+bookingPayable(row)},0)};
+    var gross=eligible.reduce(function(total,row){return total+bookingGross(row)},0),paidAmount=sum(paid),pendingAmount=sum(pending);
+    var rows=eligible.map(function(row){var due=bookingPayable(row);return '<tr><td>'+esc(row.user_name||row.user_email||'User')+'<br><small>'+esc(row.created_at?new Date(row.created_at).toLocaleString('en-IN'):'')+'</small></td><td>'+esc(row.session_type||'Session')+'</td><td>'+money(bookingGross(row))+'</td><td><span class="status-pill '+statusClass(row.payout_status)+'">'+esc(payoutLabel(row.payout_status))+'</span></td><td>'+money(due)+'</td></tr>'}).join('')||'<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">No completed paid sessions eligible for payout.</td></tr>';
+    main.innerHTML='<div class="dash-title">Earnings</div><div class="gmkt-money-band"><div class="gmkt-money-card"><span>Payout-eligible sessions</span><b>'+eligible.length+'</b></div><div class="gmkt-money-card"><span>Paid to you</span><b>'+money(paidAmount)+'</b></div><div class="gmkt-money-card"><span>Pending payout</span><b>'+money(pendingAmount)+'</b></div><div class="gmkt-money-card"><span>Completed gross sales</span><b>'+money(gross)+'</b></div></div><div class="gmkt-dues-card"><strong>'+money(pendingAmount)+' pending payout</strong><div>Only verified paid, completed sessions are included. '+cancelledPaid.length+' paid cancelled session'+(cancelledPaid.length===1?' is':'s are')+' excluded while refund status is tracked separately.</div></div><div style="overflow-x:auto"><table class="gmkt-admin-table"><thead><tr><th>User</th><th>Session</th><th>Customer paid</th><th>Payout status</th><th>Your payable</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+
+  async function renderAdminConsultantEarnings(){
+    if(!activePage('page-admin-dash')||!isActiveView('#page-admin-dash','consultant earnings'))return;
+    var main=document.getElementById('adash-main'),c=client();if(!main||!c)return;
+    var result=await c.from('bookings').select('consultant_id,consultant_name,consultant_email,status,session_status,payment_status,payment_verified,payout_status,consultant_payout_amount,total_amount,payment_amount,amount,created_at').order('created_at',{ascending:false});
+    if(result.error||!activePage('page-admin-dash')||!isActiveView('#page-admin-dash','consultant earnings'))return;
+    var groups={};(result.data||[]).filter(payoutEligible).forEach(function(row){var key=String(row.consultant_id||row.consultant_email||row.consultant_name||'unknown'),group=groups[key]||(groups[key]={name:row.consultant_name||'—',email:row.consultant_email||'',sessions:0,paid:0,pending:0});group.sessions++;if(lower(row.payout_status)==='paid')group.paid+=bookingPayable(row);else group.pending+=bookingPayable(row)});
+    var rows=Object.keys(groups).map(function(key){return groups[key]}).sort(function(a,b){return b.pending-a.pending||a.name.localeCompare(b.name)}),paidTotal=rows.reduce(function(total,row){return total+row.paid},0),pendingTotal=rows.reduce(function(total,row){return total+row.pending},0);
+    main.innerHTML='<div class="dash-title">Consultant Earnings</div><p style="color:var(--muted);font-size:13px;margin:-4px 0 14px">Only verified paid, completed bookings are included. Cancelled bookings are excluded from pending consultant payouts.</p><div class="guidcy-filter-row" style="margin-bottom:14px"><span class="status-pill sp-done">Paid so far '+money(paidTotal)+'</span><span class="status-pill sp-pending">Pending '+money(pendingTotal)+'</span></div><div style="overflow-x:auto"><table class="guidcy-wbn-reg-table"><thead><tr><th>Consultant</th><th>Eligible sessions</th><th>Paid</th><th>Pending payout</th></tr></thead><tbody>'+(rows.map(function(row){return '<tr><td><b>'+esc(row.name)+'</b><br><span style="color:var(--muted);font-size:12px">'+esc(row.email)+'</span></td><td style="text-align:center">'+row.sessions+'</td><td>'+money(row.paid)+'</td><td>'+(row.pending>0?'<b style="color:#92400e">'+money(row.pending)+'</b>':money(0))+'</td></tr>'}).join('')||'<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">No payout-eligible completed sessions.</td></tr>')+'</tbody></table></div>';
+  }
+
+  function schedule(task,delay){setTimeout(function(){Promise.resolve(task()).catch(function(error){console.warn('Booking financial lifecycle view refresh failed:',error&&error.message||error)})},delay||90)}
+  function wrapRoute(name,after){
+    var previous=window[name];if(typeof previous!=='function'||previous.__guidcyFinancialLifecycle)return;
+    var wrapped=function(view,button){var result=previous.apply(this,arguments);Promise.resolve(result).finally(function(){after(lower(view))});return result};
+    wrapped.__guidcyFinancialLifecycle=true;window[name]=wrapped;
+    try{if(name==='swUD')swUD=wrapped;else if(name==='swCD')swCD=wrapped;else if(name==='swAD')swAD=wrapped}catch(_){}
+  }
+  function install(){
+    window.guidcyBookingIsPaidForPayout=payoutEligible;
+    wrapRoute('swUD',function(){schedule(annotateBookingCards,120);schedule(annotateBookingCards,700)});
+    wrapRoute('swCD',function(view){schedule(annotateBookingCards,120);if(view==='earnings'){schedule(renderConsultantEarnings,160);schedule(renderConsultantEarnings,760)}});
+    wrapRoute('swAD',function(view){if(view==='payments'){schedule(renderAdminTransactions,140);schedule(renderAdminTransactions,760)}if(view==='consultant-earnings'){schedule(renderAdminConsultantEarnings,150);schedule(renderAdminConsultantEarnings,760)}});
+  }
+  window.guidcyInstallBookingFinancialLifecycleUi=install;
+  install();
+  window.guidcyRefreshBookingFinancialStatus=function(){schedule(annotateBookingCards,0);schedule(renderAdminTransactions,0)};
+})();
+
 
 /* === guidcy-requested-home-reorder-fix === */
 
@@ -83,7 +252,7 @@
   function round2(value){var n=Number(value||0);return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:0}
   function money(value){var n=round2(value);return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
   function toastSafe(message,type){try{if(window.toast)return window.toast(message,type||'green')}catch(_){}try{alert(message)}catch(_){}}
-  function paidBooking(row){var status=lower(row&&row.payment_status),bookingStatus=lower(row&&row.status),sessionStatus=lower(row&&row.session_status),payoutStatus=lower(row&&row.payout_status);return !!(row&&bookingStatus!=='cancelled'&&sessionStatus!=='cancelled'&&payoutStatus!=='not_required'&&(row.payment_verified===true||/^(success|paid|completed)$/.test(status)||row.payment_id||row.razorpay_payment_id))}
+  function paidBooking(row){var status=lower(row&&row.payment_status),bookingStatus=lower(row&&row.status),sessionStatus=lower(row&&row.session_status),payoutStatus=lower(row&&row.payout_status);return !!(row&&row.payment_verified===true&&/^(success|paid|completed)$/.test(status)&&bookingStatus==='completed'&&sessionStatus==='completed'&&(payoutStatus==='pending'||payoutStatus==='paid'))}
   function bookingGross(row){return round2(row&&((row.payment_amount!=null&&row.payment_amount!=='')?row.payment_amount:(row.total_amount!=null&&row.total_amount!=='')?row.total_amount:row.amount))}
   /* Two separate charges sit on one booking: the client pays the session fee plus a 5%
      platform fee at checkout (so gross = fee x 1.05), and Guidcy then takes a 15%
@@ -151,11 +320,26 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
 
   function addConsultantKeys(map,row){if(!row)return;[row.id,row.profile_id,row.user_id,row.auth_user_id].filter(Boolean).forEach(function(key){map.set(String(key),row)})}
   function newestBank(a,b){if(!a)return b||null;if(!b)return a||null;return new Date(b.updated_at||b.created_at||0)>=new Date(a.updated_at||a.created_at||0)?b:a}
+  function cancelledBooking(row){var bookingStatus=lower(row&&row.status),sessionStatus=lower(row&&row.session_status);return bookingStatus==='cancelled'||bookingStatus==='canceled'||sessionStatus==='cancelled'||sessionStatus==='canceled'}
+  function paidCancelledBooking(row){return cancelledBooking(row)&&(row&&row.payment_verified===true||/^(success|paid|completed|refunded)$/.test(lower(row&&row.payment_status)))}
+  function refundStatusLabel(row){var status=lower(row&&row.refund_status)||'not_required';return ({pending:'Refund Pending',processing:'Refund Processing',refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',failed:'Refund Failed',not_required:'Not Required'})[status]||'Not Required'}
+  function refundStatusPill(row){var status=lower(row&&row.refund_status);return status==='refunded'?'sp-done':status==='refund_failed'||status==='failed'?'sp-cancelled':status==='not_required'?'sp-upcoming':'sp-pending'}
+  function refundAmount(row){var amount=Number(row&&row.refund_amount);if(Number.isFinite(amount)&&amount>=0)return round2(amount);return lower(row&&row.refund_status)==='not_required'?0:bookingGross(row)}
+  function cancelledPayoutAudit(rows){
+    var cancelled=(rows||[]).filter(paidCancelledBooking);if(!cancelled.length)return '';
+    var total=cancelled.reduce(function(sum,row){return round2(sum+refundAmount(row))},0);
+    return '<section id="guidcy-cancelled-payout-exclusions" style="margin:18px 0;padding:16px;border:1px solid #F4C7C7;border-radius:14px;background:#FFF8F8">'
+      +'<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:21px;margin:0 0 6px">Cancelled bookings excluded from consultant payouts</h3>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+cancelled.length+' paid cancelled booking'+(cancelled.length===1?'':'s')+' · '+money(total)+' refund amount. These bookings have ₹0 consultant payout due.</div>'
+      +'<div style="overflow-x:auto"><table class="data-table" style="min-width:900px"><tr><th>Booking ID</th><th>Consultant</th><th>Refund amount</th><th>Refund status</th><th>Consultant payout</th></tr>'
+      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:700">'+money(refundAmount(row))+'</td><td><span class="status-pill '+refundStatusPill(row)+'">'+h(refundStatusLabel(row))+'</span></td><td><span class="status-pill sp-cancelled">Not Eligible · ₹0</span></td></tr>'}).join('')
+      +'</table></div></section>';
+  }
   async function loadConsultantPayoutGroups(){
     var c=client();if(!c)throw new Error('Supabase is not connected');
     var results=await Promise.all([c.from('bookings').select('*').order('created_at',{ascending:false}),c.from('consultants').select('*'),c.from('consultant_bank_details').select('*')]);
     if(results[0].error)throw results[0].error;
-    var bookings=(results[0].data||[]).filter(paidBooking),consultants=results[1].error?[]:(results[1].data||[]),banks=results[2].error?[]:(results[2].data||[]);
+    var allBookings=results[0].data||[],bookings=allBookings.filter(paidBooking),cancelledBookings=allBookings.filter(paidCancelledBooking),consultants=results[1].error?[]:(results[1].data||[]),banks=results[2].error?[]:(results[2].data||[]);
     var consultantMap=new Map();consultants.forEach(function(row){addConsultantKeys(consultantMap,row)});
     var bankMap=new Map();banks.forEach(function(bank){[bank.consultant_id,bank.consultant_user_id].filter(Boolean).forEach(function(key){bankMap.set(String(key),newestBank(bankMap.get(String(key)),bank))})});
     var groups=new Map();
@@ -171,7 +355,7 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
       if(isPaid)group.paid=round2(group.paid+payable);else{group.pendingBookings++;group.pending=round2(group.pending+payable)}
       var bank=bankMap.get(String(consultantId||''))||bankMap.get(String(consultant.profile_id||''))||bankMap.get(String(consultant.user_id||''))||bankMap.get(String(consultant.auth_user_id||''));if(bank)group.bank=newestBank(group.bank,bank);
     });
-    return Array.from(groups.values()).sort(function(a,b){return b.pending-a.pending||a.name.localeCompare(b.name)}).map(function(group,index){group.id='consultant-weekly-'+index;return group});
+    return {groups:Array.from(groups.values()).sort(function(a,b){return b.pending-a.pending||a.name.localeCompare(b.name)}).map(function(group,index){group.id='consultant-weekly-'+index;return group}),cancelledBookings:cancelledBookings};
   }
   function bankHtml(bank){if(!bank)return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">Payout details</div><b style="color:#92400e">Bank details not submitted</b></div>';return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">Payout details</div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Preference<b>'+h(String(bank.payout_preference||'bank_transfer').replace(/_/g,' '))+'</b></div><div class="guidcy-payout-kv">Account holder<b>'+h(bank.account_holder_name||'—')+'</b></div><div class="guidcy-payout-kv">Bank<b>'+h(bank.bank_name||'—')+'</b></div><div class="guidcy-payout-kv">Account number<b class="guidcy-sensitive">'+h(bank.account_number||'—')+'</b></div><div class="guidcy-payout-kv">IFSC<b class="guidcy-sensitive">'+h(bank.ifsc_code||'—')+'</b></div><div class="guidcy-payout-kv">UPI ID<b class="guidcy-sensitive">'+h(bank.upi_id||'—')+'</b></div><div class="guidcy-payout-kv">Verification<b>'+(bank.is_verified?'Verified':'Not verified')+'</b></div></div></div>'}
   var payoutRenderToken=0;
@@ -182,10 +366,10 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
     if(m.dataset.guidcyTruthView!=='consultant-payouts')m.innerHTML='<div class="dash-title">Consultant Payouts</div><div style="padding:20px;color:var(--muted)">Loading weekly consultant totals from Supabase...</div>';
     m.dataset.guidcyTruthView='consultant-payouts';
     try{
-      var groups=await loadConsultantPayoutGroups();if(token!==payoutRenderToken)return;window.__guidcyConsultantPayoutGroups=groups;
+      var payoutData=await loadConsultantPayoutGroups();if(token!==payoutRenderToken)return;var groups=payoutData.groups||[],cancelledBookings=payoutData.cancelledBookings||[];window.__guidcyConsultantPayoutGroups=groups;
       var dueGroups=groups.filter(function(group){return group.pending>0}),totalDue=dueGroups.reduce(function(sum,group){return round2(sum+group.pending)},0),paidTotal=groups.reduce(function(sum,group){return round2(sum+group.paid)},0);
       var cards=groups.map(function(group){var settled=group.pending<=0;return '<div class="guidcy-payout-admin-card" data-guidcy-consultant-group data-search="'+h(lower(group.name+' '+group.email))+'" data-status="'+(settled?'paid':'pending')+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a;font-size:17px">'+h(group.name)+'</div><div style="font-size:12px;color:var(--muted)">'+h(group.email||'No email available')+'</div></div><span class="status-pill '+(settled?'sp-done':'sp-pending')+'">'+(settled?'Settled':money(group.pending)+' due')+'</span></div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Paid bookings<b>'+group.totalBookings+'</b></div><div class="guidcy-payout-kv">Bookings in this payout<b>'+group.pendingBookings+'</b></div><div class="guidcy-payout-kv">Gross customer payments<b>'+money(group.gross)+'</b></div><div class="guidcy-payout-kv">Guidcy earnings (5% platform + 15% commission)<b>'+money(group.commission)+'</b></div><div class="guidcy-payout-kv">Amount paid so far<b>'+money(group.paid)+'</b></div><div class="guidcy-payout-kv">Pending amount<b>'+money(group.pending)+'</b></div></div>'+bankHtml(group.bank)+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(settled?'<span style="font-size:12px;color:#047857;font-weight:800">✓ No pending payout</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="window.guidcyOpenConsultantBatchPayout(\''+h(group.id)+'\')">Mark '+group.pendingBookings+' booking'+(group.pendingBookings===1?'':'s')+' as Paid</button>')+'</div></div>'}).join('');
-      m.innerHTML='<div class="dash-title">Consultant Payouts</div><p style="color:var(--muted);font-size:13px;margin:-4px 0 14px">Weekly payout summary by consultant. The client pays the session fee plus a 5% platform fee at checkout; Guidcy then takes a 15% commission from the consultant, so each consultant is paid 85% of their own session fees. One action settles every pending booking in that batch.</p><div class="guidcy-filter-row"><input id="guidcy-weekly-payout-search" class="guidcy-mini-input" placeholder="Search consultant" oninput="window.guidcyFilterWeeklyPayouts()"><select id="guidcy-weekly-payout-status" class="guidcy-mini-input" onchange="window.guidcyFilterWeeklyPayouts()"><option value="">All consultants</option><option value="pending">Outstanding only</option><option value="paid">Settled only</option></select><span class="status-pill sp-pending">'+dueGroups.length+' consultants · '+money(totalDue)+' due</span><span class="status-pill sp-done">'+money(paidTotal)+' paid so far</span></div>'+cards+'<div id="guidcy-weekly-payout-empty" style="display:'+(groups.length?'none':'block')+';text-align:center;padding:44px;color:var(--muted)">No verified paid bookings in Supabase.</div>';
+      m.innerHTML='<div class="dash-title">Consultant Payouts</div><p style="color:var(--muted);font-size:13px;margin:-4px 0 14px">Weekly payout summary by consultant. The client pays the session fee plus a 5% platform fee at checkout; Guidcy then takes a 15% commission from the consultant, so each consultant is paid 85% of their own session fees. One action settles every pending booking in that batch.</p><div class="guidcy-filter-row"><input id="guidcy-weekly-payout-search" class="guidcy-mini-input" placeholder="Search consultant" oninput="window.guidcyFilterWeeklyPayouts()"><select id="guidcy-weekly-payout-status" class="guidcy-mini-input" onchange="window.guidcyFilterWeeklyPayouts()"><option value="">All consultants</option><option value="pending">Outstanding only</option><option value="paid">Settled only</option></select><span class="status-pill sp-pending">'+dueGroups.length+' consultants · '+money(totalDue)+' due</span><span class="status-pill sp-done">'+money(paidTotal)+' paid so far</span></div>'+cards+cancelledPayoutAudit(cancelledBookings)+'<div id="guidcy-weekly-payout-empty" style="display:'+(groups.length?'none':'block')+';text-align:center;padding:44px;color:var(--muted)">No verified paid, completed bookings eligible for consultant payout.</div>';
     }catch(error){if(token!==payoutRenderToken)return;console.error('Consultant payout summary failed:',error);m.innerHTML='<div class="dash-title">Consultant Payouts</div><div style="padding:24px;color:#b91c1c">Unable to load consultant payout totals from Supabase.</div>'}
   }
   window.guidcyRenderConsultantPayoutGroups=renderConsultantPayoutGroups;
@@ -209,7 +393,7 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
   window.guidcyOpenConsultantBatchPayout=function(groupId){var group=(window.__guidcyConsultantPayoutGroups||[]).find(function(item){return item.id===groupId});if(!group||group.pending<=0)return;window.guidcyCloseConsultantBatchPayout();var wrap=document.createElement('div');wrap.id='guidcy-consultant-batch-modal';wrap.className='guidcy-modal-backdrop on';wrap.setAttribute('role','dialog');wrap.setAttribute('aria-modal','true');wrap.innerHTML='<div class="guidcy-session-modal" style="max-width:720px"><div class="dash-title">Mark weekly consultant payout as paid</div><div class="guidcy-bank-note">This updates '+group.pendingBookings+' pending booking'+(group.pendingBookings===1?'':'s')+' together after one weekly transfer.</div><div class="guidcy-payout-modal-row"><div class="guidcy-payout-kv">Consultant<b>'+h(group.name)+'</b></div><div class="guidcy-payout-kv">Pending amount<b>'+money(group.pending)+'</b></div><div class="guidcy-payout-kv">Already paid<b>'+money(group.paid)+'</b></div></div>'+bankHtml(group.bank)+'<div class="field"><label>Payout mode</label><select id="guidcy-batch-payout-mode"><option value="bank_transfer" '+(lower(group.bank&&group.bank.payout_preference)!=='upi'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(lower(group.bank&&group.bank.payout_preference)==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-batch-payout-txn" placeholder="Required for this weekly payout"></div><div class="field"><label>Payout note optional</label><textarea id="guidcy-batch-payout-note" style="min-height:72px"></textarea></div><div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn" onclick="window.guidcyCloseConsultantBatchPayout()">Cancel</button><button id="guidcy-batch-payout-confirm" class="green-btn" onclick="window.guidcyConfirmConsultantBatchPayout(\''+h(groupId)+'\')">Confirm Paid</button></div></div>';wrap.addEventListener('click',function(event){if(event.target===wrap)window.guidcyCloseConsultantBatchPayout()});document.body.appendChild(wrap);lockConsultantPayoutBackground()};
   window.guidcyConfirmConsultantBatchPayout=async function(groupId){
     var group=(window.__guidcyConsultantPayoutGroups||[]).find(function(item){return item.id===groupId}),c=client(),txn=($('guidcy-batch-payout-txn')&&$('guidcy-batch-payout-txn').value||'').trim(),button=$('guidcy-batch-payout-confirm');if(!group||!c)return false;if(!txn){toastSafe('Transaction ID / UTR is required.','red');return false}
-    var pendingRows=group.bookings.filter(function(row){return lower(row.payout_status)!=='paid'}),ids=pendingRows.map(function(row){return row.id}).filter(Boolean);if(!ids.length){toastSafe('This consultant has no pending bookings.','blue');return false}
+    var pendingRows=group.bookings.filter(function(row){return paidBooking(row)&&lower(row.payout_status)==='pending'}),ids=pendingRows.map(function(row){return row.id}).filter(Boolean);if(!ids.length){toastSafe('This consultant has no payout-eligible completed bookings.','blue');return false}
     if(button){button.disabled=true;button.textContent='Saving '+ids.length+' bookings...'}
     try{
       var user=await authUser(),now=new Date().toISOString(),mode=$('guidcy-batch-payout-mode')&&$('guidcy-batch-payout-mode').value||'bank_transfer',note=($('guidcy-batch-payout-note')&&$('guidcy-batch-payout-note').value||'').trim();
@@ -300,6 +484,13 @@ window.CFG = CFG;
 (function(){
   if(window.location.hash && window.location.hash.includes('access_token')){
     setTimeout(()=>window.history.replaceState({},'',window.location.pathname),1200);
+  }
+})();
+
+/* Install after every legacy dashboard wrapper has been defined. */
+(function(){
+  if(typeof window.guidcyInstallBookingFinancialLifecycleUi==='function'){
+    window.guidcyInstallBookingFinancialLifecycleUi();
   }
 })();
 
@@ -3834,7 +4025,7 @@ async function swAD(view,btn){
     if(sb){const{data,error}=await sb.from('bookings').select('*').order('created_at',{ascending:false}).limit(50);if(error)return guidcyAdminLoadFailed(m,'All bookings','bookings',error);bookings=data||[];}
     m.innerHTML=`<div class="dash-title">All bookings</div>
     <table class="data-table"><tr><th>Payment ID</th><th>Client</th><th>Consultant</th><th>Date</th><th>Amount</th><th>Status</th></tr>
-    ${bookings.length?bookings.map(b=>`<tr><td style="color:var(--blue);font-weight:600;font-size:11px">${b.payment_id||'—'}</td><td>${b.user_name||'—'}</td><td>${b.consultant_name||'—'}</td><td>${b.date_label||'—'}</td><td>₹${b.total_amount?.toLocaleString()||'—'}</td><td><span class="status-pill sp-${b.status==='upcoming'?'upcoming':b.status==='completed'?'done':'pending'}">${b.status}</span></td></tr>`).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No bookings yet</td></tr>`}
+    ${bookings.length?bookings.map(b=>{const bookingStatus=String(b.status||b.session_status||'pending').toLowerCase(),sessionStatus=String(b.session_status||'').toLowerCase(),isCancelled=['cancelled','canceled'].includes(bookingStatus)||['cancelled','canceled'].includes(sessionStatus),bookingLabel=isCancelled?'Cancelled':(bookingStatus||'Pending').replace(/_/g,' '),bookingClass=isCancelled?'sp-cancelled':bookingStatus==='completed'?'sp-done':(bookingStatus==='upcoming'||bookingStatus==='confirmed')?'sp-upcoming':'sp-pending',paymentStatus=String(b.payment_status||'').toLowerCase(),paymentLabel=(paymentStatus==='success'||paymentStatus==='paid'||paymentStatus==='refunded')?'Paid':paymentStatus==='failed'?'Failed':paymentStatus?'Pending':'Pending',refundStatus=String(b.refund_status||'not_required').toLowerCase(),refundLabel=({refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',not_required:'Not Required'})[refundStatus]||'Not Required',payoutStatus=String(b.payout_status||'not_eligible').toLowerCase(),payoutLabel=({blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible',pending:'Payout Pending',paid:'Paid'})[payoutStatus]||'Not Eligible',cancelledLifecycle=isCancelled?`<div style="margin-top:6px;font-size:11px;line-height:1.45;color:var(--muted)">Payment: <b>${paymentLabel}</b> · Refund: <b>${refundLabel}</b> · Payout: <b>${payoutLabel}</b></div>`:'';return `<tr><td style="color:var(--blue);font-weight:600;font-size:11px">${b.payment_id||b.razorpay_payment_id||'—'}</td><td>${b.user_name||'—'}</td><td>${b.consultant_name||'—'}</td><td>${b.date_label||'—'}</td><td>₹${b.total_amount?.toLocaleString()||b.payment_amount?.toLocaleString()||'—'}</td><td><span class="status-pill ${bookingClass}">${bookingLabel}</span>${cancelledLifecycle}</td></tr>`}).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No bookings yet</td></tr>`}
     </table>`;
 
   }else if(view==='users'){
@@ -18815,6 +19006,26 @@ document.addEventListener('DOMContentLoaded',function(){
     });
   }
   function bVal(b,names,def){for(var i=0;i<names.length;i++){var v=b[names[i]]; if(v!==undefined&&v!==null&&v!=='')return v} return def||''}
+  function bookingCancelledForPayout(b){var status=lower(b&&b.status),session=lower(b&&b.session_status);return status==='cancelled'||status==='canceled'||session==='cancelled'||session==='canceled'}
+  function paymentLabelForPayout(b){var status=lower(b&&b.payment_status);return status==='success'||status==='paid'||status==='refunded'?'Paid':status==='failed'?'Failed':status?status.replace(/_/g,' '):'Pending'}
+  function refundLabelForPayout(b){var status=lower(b&&b.refund_status)||'not_required';return ({refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',not_required:'Not Required'})[status]||'Not Required'}
+  function refundPillForPayout(b){var status=lower(b&&b.refund_status);return status==='refunded'?'sp-done':status==='refund_failed'?'sp-cancelled':status==='not_required'?'sp-upcoming':'sp-pending'}
+  function payoutEligibleForAdmin(b){
+    if(typeof window.guidcyBookingIsPaidForPayout==='function')return !!window.guidcyBookingIsPaidForPayout(b);
+    var payment=lower(b&&b.payment_status),status=lower(b&&b.status),session=lower(b&&b.session_status),payout=lower(b&&b.payout_status);
+    return b&&b.payment_verified===true&&/^(success|paid|completed)$/.test(payment)&&status==='completed'&&session==='completed'&&(payout==='pending'||payout==='paid');
+  }
+  function refundAmountForPayout(b){var amount=Number(b&&b.refund_amount);if(Number.isFinite(amount)&&amount>=0)return amount;if(lower(b&&b.refund_status)==='not_required')return 0;return Number(b&&((b.total_amount!=null&&b.total_amount!=='')?b.total_amount:(b.payment_amount!=null&&b.payment_amount!=='')?b.payment_amount:b.amount)||0)}
+  function cancelledPayoutSummary(rows){
+    var cancelled=(rows||[]).filter(bookingCancelledForPayout);if(!cancelled.length)return '';
+    var total=cancelled.reduce(function(sum,row){return sum+refundAmountForPayout(row)},0);
+    return '<section id="guidcy-cancelled-payout-exclusions" style="margin:18px 0;padding:16px;border:1px solid #F4C7C7;border-radius:14px;background:#FFF8F8">'
+      +'<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:21px;margin:0 0 6px">Cancelled bookings excluded from consultant payouts</h3>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+cancelled.length+' cancelled booking'+(cancelled.length===1?'':'s')+' · '+money(total)+' refund amount. These records are visible for audit but are not payable to consultants.</div>'
+      +'<div style="overflow-x:auto"><table class="data-table" style="min-width:760px"><tr><th>Booking ID</th><th>Consultant</th><th>Refund amount</th><th>Refund status</th></tr>'
+      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:700">'+money(refundAmountForPayout(row))+'</td><td><span class="status-pill '+refundPillForPayout(row)+'">'+h(refundLabelForPayout(row))+'</span></td></tr>'}).join('')
+      +'</table></div></section>';
+  }
   function renderBankBlock(bank){
     if(!bank)return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">Consultant payout details</div><div style="font-size:13px;color:#92400e;font-weight:700">Bank details not submitted</div><div style="font-size:12px;color:#64748b;margin-top:4px">Ask the consultant to update Bank Details / Payout Details from their dashboard.</div></div>';
     var pref=bank.payout_preference||'bank_transfer';
@@ -18822,10 +19033,31 @@ document.addEventListener('DOMContentLoaded',function(){
     var title=complete?'Consultant payout details':'Consultant payout details · incomplete';
     var warn=complete?'':'<div style="font-size:12px;color:#92400e;font-weight:700;margin:4px 0 8px">Bank details incomplete. Displaying available fields.</div>';
     return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">'+h(title)+'</div>'+warn+'<div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Payout preference<b>'+h(pref.replace('_',' '))+'</b></div><div class="guidcy-payout-kv">Account holder<b>'+h(bank.account_holder_name||'—')+'</b></div><div class="guidcy-payout-kv">Bank name<b>'+h(bank.bank_name||'—')+'</b></div><div class="guidcy-payout-kv">Account number<b class="guidcy-sensitive">'+h(bank.account_number||'—')+'</b></div><div class="guidcy-payout-kv">IFSC code<b class="guidcy-sensitive">'+h(bank.ifsc_code||'—')+'</b></div><div class="guidcy-payout-kv">UPI ID<b class="guidcy-sensitive">'+h(bank.upi_id||'—')+'</b></div><div class="guidcy-payout-kv">PAN number<b class="guidcy-sensitive">'+h(bank.pan_number||'—')+'</b></div><div class="guidcy-payout-kv">Updated / verified<b>'+h(bank.updated_at?new Date(bank.updated_at).toLocaleString('en-IN'):'—')+'<br>'+(bank.is_verified?'Verified':'Not verified')+'</b></div></div></div>'}
-  window.guidcyOpenAdminPayoutModal=function(id){var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!row)return; var bank=row._bank; var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var paid=(row.payout_status||'pending')==='paid'; if(paid){notify('This payout is already marked as paid.','red');return} modalHtml('<div class="dash-title">Mark consultant payout as paid</div><div class="guidcy-bank-note">Confirm only after transferring the consultant payable amount using the bank/UPI details below.</div><div class="guidcy-payout-modal-row"><div class="guidcy-payout-kv">Consultant<b>'+h(bVal(row,['consultant_name'],row._consultant?.name||row._consultant?.full_name||'—'))+'</b></div><div class="guidcy-payout-kv">Payable amount<b>'+money(payable)+'</b></div></div>'+renderBankBlock(bank)+'<div class="field"><label>Payout mode</label><select id="guidcy-admin-payout-mode"><option value="bank_transfer" '+((bank?.payout_preference||'bank_transfer')==='bank_transfer'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(bank?.payout_preference==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-admin-payout-txn" placeholder="Enter transaction ID" /></div><div class="field"><label>Payout note optional</label><textarea id="guidcy-admin-payout-note" style="min-height:80px" placeholder="Optional admin note"></textarea></div><div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'guidcy-admin-modal\')?.remove()">Cancel</button><button class="green-btn" onclick="guidcyConfirmAdminPayout(\''+h(id)+'\')">Confirm Paid</button></div>')};
-  window.guidcyConfirmAdminPayout=async function(id){var c=activeClient(); var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!c||!row)return; var txn=(el('guidcy-admin-payout-txn')?.value||'').trim(); if(!txn){notify('Transaction ID is required.','red');return} var user=await authUser(); var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var body={payout_status:'paid',payout_transaction_id:txn,payout_paid_at:new Date().toISOString(),payout_mode:el('guidcy-admin-payout-mode')?.value||'bank_transfer',payout_note:(el('guidcy-admin-payout-note')?.value||'').trim(),payout_marked_by:user?.id||null,platform_fee:comm,consultant_payout_amount:payable}; try{var r=await c.from('bookings').update(body).eq('id',id).select('*').single(); if(r.error)throw r.error; try{await c.from('consultant_payout_logs').insert({booking_id:id,consultant_id:row._consultant_id,payout_amount:payable,payout_status:'paid',payout_transaction_id:txn,payout_mode:body.payout_mode,admin_id:user?.id||null,note:body.payout_note})}catch(e){console.warn('Payout log warning:',e?.message||e)} closeModal(); notify('Consultant payout marked as paid.','green'); window.swAD&&window.swAD(sessionStorage.getItem('guidcy_admin_last_view')||'bookings',null)}catch(e){console.error('Payout update failed:',e); notify('Could not save payout status. Please try again.','red')}};
-  function renderAdminBookingCard(b,onlyPayout){var cons=b._consultant||{}; var bank=b._bank||null; var gross=Number(bVal(b,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(b,['platform_fee'],0))||window.guidcyFees(Number(bVal(b,['amount'],0)||gross)).platformFee); var payable=Number(b.consultant_payout_amount||Math.max(0,gross-comm)); var paid=(b.payout_status||'pending')==='paid'; var consName=bVal(b,['consultant_name'],cons.name||cons.full_name||'—'); var consEmail=bVal(b,['consultant_email'],cons.email||''); return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-cons="'+h(lower(consName+' '+consEmail))+'" data-date="'+h((b.created_at||'').slice(0,10))+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">Booking '+h(b.id||b.booking_id||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+h(bVal(b,['session_type','category'],'Session'))+' · '+h(bVal(b,['date_label','booking_date','session_date','date'],'—'))+' '+h(bVal(b,['time_slot','booking_time','session_time','time'],''))+'</div></div><span class="status-pill '+(paid?'sp-done':'sp-pending')+'">Payout '+h(b.payout_status||'pending')+'</span></div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">User<b>'+h(bVal(b,['user_name','client_name'],'—'))+'<br>'+h(bVal(b,['user_email','client_email'],''))+'</b></div><div class="guidcy-payout-kv">Consultant<b>'+h(consName)+'<br>'+h(consEmail)+'</b></div><div class="guidcy-payout-kv">Booking / session status<b>'+h(b.status||'—')+'<br>'+h(b.session_status||'scheduled')+'</b></div><div class="guidcy-payout-kv">Payment status<b>'+h(b.payment_status||'—')+'</b></div><div class="guidcy-payout-kv">Payment gateway txn<b>'+h(b.razorpay_order_id||b.razorpay_payment_id||b.payment_id||'—')+'</b></div><div class="guidcy-payout-kv">User paid<b>'+money(gross)+'</b></div><div class="guidcy-payout-kv">Guidcy commission 15%<b>'+money(comm)+'</b></div><div class="guidcy-payout-kv">Consultant payable<b>'+money(payable)+'</b></div>'+(paid?'<div class="guidcy-payout-kv">Payout transaction ID<b>'+h(b.payout_transaction_id||'—')+'</b></div><div class="guidcy-payout-kv">Payout date/time<b>'+h(b.payout_paid_at?new Date(b.payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div><div class="guidcy-payout-kv">Payout mode / note<b>'+h(b.payout_mode||'—')+'<br>'+h(b.payout_note||b.payout_remarks||'—')+'</b></div>':'')+'</div>'+renderBankBlock(bank)+'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'+(paid?'<span style="font-size:12px;color:#047857;font-weight:800">✓ Paid details saved</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenAdminPayoutModal(\''+h(b.id)+'\')">Mark as Paid</button>')+'</div></div>'}
-  async function renderAdminBookingsWithBank(view,btn){if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(_){}} sessionStorage.setItem('guidcy_admin_last_view',view); var m=el('adash-main'); if(!m)return; var onlyPayout=view==='payouts'; m.innerHTML='<div class="dash-title">'+(onlyPayout?'Consultant Payouts':'All bookings & payments')+'</div><div style="padding:20px;color:var(--muted)">Loading booking, payment and payout details...</div>'; try{var rows=await loadAdminBookingsWithBank(); window.__guidcyAdminBookingRows=rows; if(onlyPayout)rows=rows.filter(function(b){var ps=String(b.payment_status||'').toLowerCase();return (ps==='success'||ps==='completed'||b.razorpay_order_id||b.payment_id) && String(b.payout_status||'pending')!=='paid'}); var filter='<div class="guidcy-filter-row"><input class="guidcy-mini-input" id="guidcy-cons-filter" placeholder="Search consultant/user" oninput="guidcyFilterBookingCards&&guidcyFilterBookingCards()"><input class="guidcy-mini-input" id="guidcy-date-filter" type="date" onchange="guidcyFilterBookingCards&&guidcyFilterBookingCards()"><select class="guidcy-mini-input" onchange="swAD(this.value,null)"><option value="bookings" '+(view==='bookings'?'selected':'')+'>All bookings</option><option value="payouts" '+(view==='payouts'?'selected':'')+'>Pending payouts</option></select></div>'; if(!rows.length){m.innerHTML='<div class="dash-title">'+(onlyPayout?'Consultant Payouts':'All bookings & payments')+'</div>'+filter+'<div style="text-align:center;padding:44px;color:var(--muted)">'+(onlyPayout?'No pending consultant payout found.':'No bookings found.')+'</div>'; return} m.innerHTML='<div class="dash-title">'+(onlyPayout?'Consultant Payouts':'All bookings & payments')+'</div>'+filter+rows.map(function(b){return renderAdminBookingCard(b,onlyPayout)}).join('')}catch(e){console.error('Admin payout booking load failed:',e); m.innerHTML='<div class="dash-title">'+(onlyPayout?'Consultant Payouts':'All bookings & payments')+'</div><div style="padding:24px;color:#b91c1c">Unable to load booking and payout details. Please check access and try again.</div>'}}
+  window.guidcyOpenAdminPayoutModal=function(id){var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!row)return; if(!payoutEligibleForAdmin(row)){notify('Only verified paid and completed bookings can be paid out. Cancelled bookings are not eligible.','red');return} var bank=row._bank; var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var paid=(row.payout_status||'pending')==='paid'; if(paid){notify('This payout is already marked as paid.','red');return} modalHtml('<div class="dash-title">Mark consultant payout as paid</div><div class="guidcy-bank-note">Confirm only after transferring the consultant payable amount using the bank/UPI details below.</div><div class="guidcy-payout-modal-row"><div class="guidcy-payout-kv">Consultant<b>'+h(bVal(row,['consultant_name'],row._consultant?.name||row._consultant?.full_name||'—'))+'</b></div><div class="guidcy-payout-kv">Payable amount<b>'+money(payable)+'</b></div></div>'+renderBankBlock(bank)+'<div class="field"><label>Payout mode</label><select id="guidcy-admin-payout-mode"><option value="bank_transfer" '+((bank?.payout_preference||'bank_transfer')==='bank_transfer'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(bank?.payout_preference==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-admin-payout-txn" placeholder="Enter transaction ID" /></div><div class="field"><label>Payout note optional</label><textarea id="guidcy-admin-payout-note" style="min-height:80px" placeholder="Optional admin note"></textarea></div><div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'guidcy-admin-modal\')?.remove()">Cancel</button><button class="green-btn" onclick="guidcyConfirmAdminPayout(\''+h(id)+'\')">Confirm Paid</button></div>')};
+  window.guidcyConfirmAdminPayout=async function(id){var c=activeClient(); var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!c||!row)return; if(!payoutEligibleForAdmin(row)){notify('Only verified paid and completed bookings can be paid out. Cancelled bookings are not eligible.','red');return} var txn=(el('guidcy-admin-payout-txn')?.value||'').trim(); if(!txn){notify('Transaction ID is required.','red');return} var user=await authUser(); var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var body={payout_status:'paid',payout_transaction_id:txn,payout_paid_at:new Date().toISOString(),payout_mode:el('guidcy-admin-payout-mode')?.value||'bank_transfer',payout_note:(el('guidcy-admin-payout-note')?.value||'').trim(),payout_marked_by:user?.id||null,platform_fee:comm,consultant_payout_amount:payable}; try{var r=await c.from('bookings').update(body).eq('id',id).select('*').single(); if(r.error)throw r.error; try{await c.from('consultant_payout_logs').insert({booking_id:id,consultant_id:row._consultant_id,payout_amount:payable,payout_status:'paid',payout_transaction_id:txn,payout_mode:body.payout_mode,admin_id:user?.id||null,note:body.payout_note})}catch(e){console.warn('Payout log warning:',e?.message||e)} closeModal(); notify('Consultant payout marked as paid.','green'); window.swAD&&window.swAD(sessionStorage.getItem('guidcy_admin_last_view')||'bookings',null)}catch(e){console.error('Payout update failed:',e); notify('Could not save payout status. Please try again.','red')}};
+  function renderAdminBookingCard(b,onlyPayout){
+    var cons=b._consultant||{},bank=b._bank||null,gross=Number(bVal(b,['payment_amount','total_amount','amount','price'],0)||0),comm=(Number(bVal(b,['platform_fee'],0))||window.guidcyFees(Number(bVal(b,['amount'],0)||gross)).platformFee),cancelled=bookingCancelledForPayout(b),eligible=payoutEligibleForAdmin(b),payoutStatus=lower(b.payout_status)||'not_eligible',paid=payoutStatus==='paid',payable=eligible?Number(b.consultant_payout_amount||Math.max(0,gross-comm)):0,consName=bVal(b,['consultant_name'],cons.name||cons.full_name||'—'),consEmail=bVal(b,['consultant_email'],cons.email||''),payment=paymentLabelForPayout(b),refund=refundLabelForPayout(b),payoutLabel=({pending:'Payout Pending',paid:'Paid',blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible'})[payoutStatus]||'Not Eligible',payoutPill=paid?'sp-done':cancelled||payoutStatus==='blocked'||payoutStatus==='not_eligible'?'sp-cancelled':'sp-pending';
+    var pills='<div style="display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap"><span class="status-pill '+(payment==='Paid'?'sp-done':'sp-pending')+'">'+h(payment)+'</span>'+(cancelled?'<span class="status-pill sp-cancelled">Cancelled</span><span class="status-pill '+refundPillForPayout(b)+'">'+h(refund)+'</span>':'')+'<span class="status-pill '+payoutPill+'">'+h(payoutLabel)+'</span></div>';
+    var payoutDetails=paid&&!cancelled?'<div class="guidcy-payout-kv">Payout transaction ID<b>'+h(b.payout_transaction_id||'—')+'</b></div><div class="guidcy-payout-kv">Payout date/time<b>'+h(b.payout_paid_at?new Date(b.payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div><div class="guidcy-payout-kv">Payout mode / note<b>'+h(b.payout_mode||'—')+'<br>'+h(b.payout_note||b.payout_remarks||'—')+'</b></div>':'';
+    var action=cancelled?'<span style="font-size:12px;color:#B91C1C;font-weight:800">Cancelled booking · ₹0 consultant payout due</span>':paid?'<span style="font-size:12px;color:#047857;font-weight:800">✓ Paid details saved</span>':eligible?'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenAdminPayoutModal(\''+h(b.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:var(--muted);font-weight:800">Not eligible for consultant payout</span>';
+    return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-cons="'+h(lower(consName+' '+consEmail))+'" data-date="'+h((b.created_at||'').slice(0,10))+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">Booking '+h(b.id||b.booking_id||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+h(bVal(b,['session_type','category'],'Session'))+' · '+h(bVal(b,['date_label','booking_date','session_date','date'],'—'))+' '+h(bVal(b,['time_slot','booking_time','session_time','time'],''))+'</div></div>'+pills+'</div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">User<b>'+h(bVal(b,['user_name','client_name'],'—'))+'<br>'+h(bVal(b,['user_email','client_email'],''))+'</b></div><div class="guidcy-payout-kv">Consultant<b>'+h(consName)+'<br>'+h(consEmail)+'</b></div><div class="guidcy-payout-kv">Booking / session status<b>'+h(cancelled?'Cancelled':b.status||'—')+'<br>'+h(cancelled?'Cancelled':b.session_status||'scheduled')+'</b></div><div class="guidcy-payout-kv">Payment status<b>'+h(payment)+'</b></div>'+(cancelled?'<div class="guidcy-payout-kv">Refund status<b>'+h(refund)+'</b></div>':'')+'<div class="guidcy-payout-kv">Payment gateway txn<b>'+h(b.razorpay_order_id||b.razorpay_payment_id||b.payment_id||'—')+'</b></div><div class="guidcy-payout-kv">User paid<b>'+money(gross)+'</b></div><div class="guidcy-payout-kv">Guidcy commission 15%<b>'+money(comm)+'</b></div><div class="guidcy-payout-kv">Consultant payable<b>'+money(payable)+(cancelled?'<br><span style="font-size:11px;color:#B91C1C">Not eligible after cancellation</span>':'')+'</b></div>'+payoutDetails+'</div>'+renderBankBlock(bank)+'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'+action+'</div></div>';
+  }
+  async function renderAdminBookingsWithBank(view,btn){
+    if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(_){}}
+    sessionStorage.setItem('guidcy_admin_last_view',view);
+    var m=el('adash-main');if(!m)return;
+    var onlyPayout=view==='payouts',title=onlyPayout?'Consultant Payouts':'All bookings & payments';
+    m.innerHTML='<div class="dash-title">'+title+'</div><div style="padding:20px;color:var(--muted)">Loading booking, payment and payout details...</div>';
+    try{
+      var allRows=await loadAdminBookingsWithBank();
+      window.__guidcyAdminBookingRows=allRows;
+      var rows=onlyPayout?allRows.filter(payoutEligibleForAdmin):allRows;
+      var cancelledSummary=onlyPayout?cancelledPayoutSummary(allRows):'';
+      var filter='<div class="guidcy-filter-row"><input class="guidcy-mini-input" id="guidcy-cons-filter" placeholder="Search consultant/user" oninput="guidcyFilterBookingCards&&guidcyFilterBookingCards()"><input class="guidcy-mini-input" id="guidcy-date-filter" type="date" onchange="guidcyFilterBookingCards&&guidcyFilterBookingCards()"><select class="guidcy-mini-input" onchange="swAD(this.value,null)"><option value="bookings" '+(view==='bookings'?'selected':'')+'>All bookings</option><option value="payouts" '+(view==='payouts'?'selected':'')+'>Pending payouts</option></select></div>';
+      if(!rows.length){m.innerHTML='<div class="dash-title">'+title+'</div>'+filter+cancelledSummary+'<div style="text-align:center;padding:44px;color:var(--muted)">'+(onlyPayout?'No pending consultant payout found.':'No bookings found.')+'</div>';return}
+      m.innerHTML='<div class="dash-title">'+title+'</div>'+filter+cancelledSummary+rows.map(function(b){return renderAdminBookingCard(b,onlyPayout)}).join('');
+    }catch(e){console.error('Admin payout booking load failed:',e);m.innerHTML='<div class="dash-title">'+title+'</div><div style="padding:24px;color:#b91c1c">Unable to load booking and payout details. Please check access and try again.</div>'}
+  }
   var prevAD=window.swAD; window.swAD=function(view,btn){if(view==='bookings'||view==='payouts')return renderAdminBookingsWithBank(view,btn); return prevAD?prevAD.apply(this,arguments):undefined};
   var prevCD=window.swCD; window.swCD=function(view,btn){if(view==='settings'||view==='profile'||view==='payouts')return renderConsultantBankSettings(btn); return prevCD?prevCD.apply(this,arguments):undefined};
 })();
@@ -25063,7 +25295,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       b.type='button';
       b.dataset.guidcyPromoAdminNav='1';
       b.dataset.adminSection='promo-codes';
-      b.textContent='Promo Codes';
+      b.innerHTML='<span style="width:14px;text-align:center">🏷️</span> Promo Codes';
       b.onclick=function(){window.guidcyOpenPromoAdmin(this)};
       var div=nav.querySelector('.side-divider');
       div?div.insertAdjacentElement('beforebegin',b):nav.appendChild(b);
@@ -25304,7 +25536,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   function adminCard(b){
     var sent=(b.user_email_sent?'User email sent':'User email pending')+' · '+(b.consultant_email_sent?'Consultant email sent':'Consultant email pending');
-    return '<div class="guidcy-paid-booking-card guidcy-booking-card" data-cons="'+esc((b.user_name+' '+b.user_email+' '+b.consultant_name+' '+b.consultant_email).toLowerCase())+'" data-date="'+esc(clean(b.created_at).slice(0,10))+'"><div class="guidcy-paid-booking-head"><div><div class="guidcy-paid-booking-title">Booking '+esc(b.id||'—')+'</div><div class="guidcy-paid-booking-sub">'+esc(b.date_label||'—')+' '+esc(b.time_slot||'')+'</div></div><span class="status-pill sp-upcoming">Paid</span></div><div class="guidcy-paid-booking-grid"><div class="guidcy-paid-booking-kv">Client<b>'+esc(b.user_name||'—')+(b.user_email?'<br>'+esc(b.user_email):'')+'</b></div><div class="guidcy-paid-booking-kv">Consultant<b>'+esc(b.consultant_name||'—')+(b.consultant_email?'<br>'+esc(b.consultant_email):'')+'</b></div><div class="guidcy-paid-booking-kv">Amount<b>'+money(b.total_amount||b.payment_amount||b.amount)+'</b></div><div class="guidcy-paid-booking-kv">Payment ID<b>'+esc(b.razorpay_order_id||b.payment_id||'—')+'</b></div><div class="guidcy-paid-booking-kv">Email status<b>'+esc(sent)+'</b></div></div></div>';
+    var bookingStatus=clean(b.status).toLowerCase(),sessionStatus=clean(b.session_status).toLowerCase(),cancelled=['cancelled','canceled'].includes(bookingStatus)||['cancelled','canceled'].includes(sessionStatus),refundStatus=clean(b.refund_status||'not_required').toLowerCase(),refundLabel=({pending:'Refund Pending',processing:'Refund Processing',refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',failed:'Refund Failed',not_required:'Not Required'})[refundStatus]||'Not Required',refundClass=refundStatus==='refunded'?'sp-done':refundStatus==='refund_failed'||refundStatus==='failed'?'sp-cancelled':refundStatus==='not_required'?'sp-upcoming':'sp-pending';
+    var statusPills='<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap"><span class="status-pill sp-upcoming">Paid</span>'+(cancelled?'<span class="status-pill sp-cancelled">Cancelled</span><span class="status-pill '+refundClass+'">'+esc(refundLabel)+'</span>':'')+'</div>';
+    return '<div class="guidcy-paid-booking-card guidcy-booking-card" data-cons="'+esc((b.user_name+' '+b.user_email+' '+b.consultant_name+' '+b.consultant_email).toLowerCase())+'" data-date="'+esc(clean(b.created_at).slice(0,10))+'" data-booking-status="'+(cancelled?'cancelled':esc(bookingStatus||sessionStatus||'pending'))+'" data-refund-status="'+esc(refundStatus)+'"><div class="guidcy-paid-booking-head"><div><div class="guidcy-paid-booking-title">Booking '+esc(b.id||'—')+'</div><div class="guidcy-paid-booking-sub">'+esc(b.date_label||'—')+' '+esc(b.time_slot||'')+'</div></div>'+statusPills+'</div><div class="guidcy-paid-booking-grid"><div class="guidcy-paid-booking-kv">Client<b>'+esc(b.user_name||'—')+(b.user_email?'<br>'+esc(b.user_email):'')+'</b></div><div class="guidcy-paid-booking-kv">Consultant<b>'+esc(b.consultant_name||'—')+(b.consultant_email?'<br>'+esc(b.consultant_email):'')+'</b></div><div class="guidcy-paid-booking-kv">Amount<b>'+money(b.total_amount||b.payment_amount||b.amount)+'</b></div><div class="guidcy-paid-booking-kv">Payment ID<b>'+esc(b.razorpay_order_id||b.payment_id||'—')+'</b></div><div class="guidcy-paid-booking-kv">Email status<b>'+esc(sent)+'</b></div></div></div>';
   }
   var prevAD=window.swAD;
   window.swAD=async function(view,btn){
@@ -29340,10 +29574,16 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }catch(e){console.warn('Guidcy Careers: resume upload skipped',e);return link}
   }
 
+  /* Same hole as saveRole: the disabled submit button only stops pointer clicks,
+     while Enter or the mobile keyboard's Go key still re-enters this handler. The
+     resume upload makes the in-flight window long, so guard the handler itself. */
+  let applying=false;
   async function submitApplication(ev,j){
     ev.preventDefault();
+    if(applying)return;
     const c=sbc(); if(!c){toast('Something went wrong. Please try again.','red');return}
     const btn=ev.target.querySelector('button[type="submit"]');
+    applying=true;
     try{
       if(btn){btn.disabled=true;btn.textContent='Submitting…'}
       if(await hasApplied(j.id)){toast('You have already applied for this role.','blue');closeModal();return}
@@ -29371,7 +29611,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }catch(e){
       console.warn('Guidcy Careers: application failed',e);
       toast('We could not submit your application. Please try again.','red');
-    }finally{if(btn){btn.disabled=false;btn.textContent='Submit application'}}
+    }finally{applying=false;if(btn){btn.disabled=false;btn.textContent='Submit application'}}
   }
 
   /* ── admin ── */
@@ -29412,17 +29652,33 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   async function openRoleForm(id){
     if(!isAdmin()){toast('Only Guidcy admins can post job openings.','red');return}
-    const j=id?await getRole(id):null;
+    let j=null;
+    if(id){
+      /* Open the shell first so a slow lookup does not look like a dead button,
+         and stop here when the row never arrives. Falling through with j=null
+         rendered the blank "Post a new opening" form under an Edit click, so
+         saving inserted a duplicate opening instead of updating the original. */
+      openModal('<div class="gc-modal-head"><div class="gc-job-title">Edit opening</div></div><div class="gc-modal-body"><div class="gc-skel-bar" style="width:60%"></div><div class="gc-skel-bar" style="width:38%;margin-top:10px"></div></div>');
+      j=await getRole(id);
+      if(!j){toast('We could not open this opening. Please try again.','red');closeModal();return}
+    }
     openModal(roleForm(j));
     const form=$('gc-role-form');
     if(form)form.addEventListener('submit',e=>saveRole(e,j&&j.id));
   }
+  /* Disabling the submit button only stops pointer clicks. Implicit submission -
+     Enter in a field, or the mobile keyboard's Go key - still fires this handler
+     while the first save is in flight, which is how one form produced several
+     identical openings. Guard the handler itself. */
+  let saving=false;
   async function saveRole(ev,id){
     ev.preventDefault();
+    if(saving)return;
     if(!isAdmin()){toast('Only Guidcy admins can post job openings.','red');return}
     const c=sbc(); if(!c){toast('Something went wrong. Please try again.','red');return}
     const btn=ev.target.querySelector('button[type="submit"]');
     const label=btn?btn.textContent:'';
+    saving=true;
     try{
       if(btn){btn.disabled=true;btn.textContent='Saving…'}
       const flag=$('gc-r-flags').value;
@@ -29464,7 +29720,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }catch(e){
       console.warn('Guidcy Careers: save failed',e);
       toast('We could not save this opening. Please try again.','red');
-    }finally{if(btn){btn.disabled=false;btn.textContent=label}}
+    }finally{saving=false;if(btn){btn.disabled=false;btn.textContent=label}}
   }
   async function setStatus(id,val){
     if(!isAdmin())return;
@@ -29632,6 +29888,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var fn=window[name];
     if(typeof fn!=='function'||fn.__guidcyCareersHydration)return;
     var wrapped=function(page){
+      /* The modal lives on <body> and pins it with position:fixed while open, so
+         navigating away from careers with the job form up left the form floating
+         over the next page with the whole site unable to scroll. */
+      try{closeModal()}catch(_){}
       var out=fn.apply(this,arguments);
       /* go()/renderPage() have already written the URL by now, so the route
          itself - not the page name - decides whether careers needs waking. */
@@ -29648,7 +29908,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   window.addEventListener('load',function(){setTimeout(installNavigationHooks,0)});
   armHydration();
   [0,60,180,420,900].forEach(t=>setTimeout(hydrate,t));
-  window.addEventListener('popstate',()=>setTimeout(armHydration,220));
+  window.addEventListener('popstate',()=>{try{closeModal()}catch(_){}setTimeout(armHydration,220)});
   window.addEventListener('load',()=>{setTimeout(hydrate,300);setTimeout(restorePending,1200)});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(hydrate,300));
   try{sbc()&&sbc().auth&&sbc().auth.onAuthStateChange&&sbc().auth.onAuthStateChange(()=>setTimeout(()=>{adminBar();if($('gc-list')&&$('gc-list').dataset.state==='ready'){cache=[];render()}},500))}catch(_){}
@@ -30989,6 +31249,8 @@ window.guidcyGoSignupFromLogin=function(){
   var MEET_EVENT_MAP_KEY='guidcy_google_meet_event_map_v1';
   var CANCELLED_MEET_KEY='guidcy_cancelled_meet_links_v1';
   var refundRenderToken=0;
+  var refundQueueObserver=null;
+  var refundQueueIntent=0;
 
   function clean(value){return String(value==null?'':value).trim()}
   function lower(value){return clean(value).toLowerCase()}
@@ -31120,6 +31382,20 @@ window.guidcyGoSignupFromLogin=function(){
   function refundLabel(status){
     return ({not_required:'Not Required',refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed'})[status]||status||'Not Required';
   }
+  function paymentLabel(status){
+    status=lower(status);
+    if(status==='success'||status==='paid'||status==='refunded')return 'Paid';
+    if(status==='failed')return 'Failed';
+    return status?status.replace(/_/g,' '):'Pending';
+  }
+  function payoutLabel(status){
+    status=lower(status);
+    return ({pending:'Payout Pending',paid:'Paid',blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible'})[status]||'Not Eligible';
+  }
+  function payoutPill(status){
+    status=lower(status);
+    return status==='paid'?'sp-done':status==='blocked'?'sp-cancelled':status==='pending'?'sp-pending':'sp-upcoming';
+  }
   function refundPill(status){return status==='refunded'?'sp-done':status==='refund_failed'?'sp-cancelled':status==='not_required'?'sp-upcoming':'sp-pending'}
   function refundAction(row){
     var status=lower(row.refund_status);
@@ -31136,8 +31412,10 @@ window.guidcyGoSignupFromLogin=function(){
       +'<td>'+esc(row.consultant_name||'—')+'<br><span style="font-size:11px;color:var(--muted)">'+esc(row.consultant_email||'')+'</span></td>'
       +'<td style="font-weight:700">'+money(row.total_amount||row.payment_amount||row.amount)+'</td>'
       +'<td>'+esc(row.cancelled_at?new Date(row.cancelled_at).toLocaleString('en-IN'):'—')+'</td>'
-      +'<td><span class="status-pill '+(lower(row.payment_status)==='refunded'?'sp-done':lower(row.payment_status)==='success'?'sp-upcoming':'sp-pending')+'">'+esc(row.payment_status||'—')+'</span><br><span style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(paymentReference)+'</span></td>'
+      +'<td><span class="status-pill '+(lower(row.payment_status)==='success'||lower(row.payment_status)==='paid'?'sp-upcoming':lower(row.payment_status)==='failed'?'sp-cancelled':'sp-pending')+'">'+esc(paymentLabel(row.payment_status))+'</span><br><span style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(paymentReference)+'</span></td>'
+      +'<td><span class="status-pill sp-cancelled">Cancelled</span></td>'
       +'<td><span class="status-pill '+refundPill(status)+'">'+esc(refundLabel(status))+'</span>'+(row.refund_failure_reason?'<br><span style="font-size:10px;color:#B91C1C">'+esc(row.refund_failure_reason)+'</span>':'')+(row.refund_transaction_id?'<br><span style="font-size:10px;color:var(--muted)">'+esc(row.refund_transaction_id)+'</span>':'')+'</td>'
+      +'<td><span class="status-pill '+payoutPill(row.payout_status)+'">'+esc(payoutLabel(row.payout_status))+'</span></td>'
       +'<td>'+refundAction(row)+'</td></tr>';
   }
   window.guidcyFilterAdminRefundRows=function(){
@@ -31146,16 +31424,45 @@ window.guidcyGoSignupFromLogin=function(){
     document.querySelectorAll('[data-guidcy-refund-row]').forEach(function(row){var visible=!value||value==='all'||row.dataset.refundStatus===value;row.style.display=visible?'':'none';if(visible)shown++});
     var empty=document.getElementById('guidcy-admin-refund-empty');if(empty)empty.style.display=shown?'none':'block';
   };
-  async function renderAdminRefundQueue(){
-    var page=document.getElementById('page-admin-dash'),main=document.getElementById('adash-main');
-    if(!page||!main||(!page.classList.contains('on')&&!page.classList.contains('active')))return;
+  function activeAdminPayments(){
+    var page=document.getElementById('page-admin-dash');
+    if(!page||(!page.classList.contains('on')&&!page.classList.contains('active')))return false;
     var selected='';try{selected=sessionStorage.getItem('guidcy_admin_dash_view')||sessionStorage.getItem('guidcy_admin_last_view')||''}catch(_){}
     var side=document.querySelector('#page-admin-dash .side-btn.on');
-    if(lower(selected)!=='payments'&&lower(side&&side.textContent).indexOf('payment')===-1)return;
+    return lower(selected)==='payments'||clean(side&&side.dataset&&side.dataset.adminSection)==='payments'||/payment/i.test(clean(side&&side.textContent));
+  }
+  function paymentManagementDomReady(){
+    var main=document.getElementById('adash-main');
+    return !!(main&&[].slice.call(main.querySelectorAll('h3')).some(function(node){return /recent transactions/i.test(node.textContent||'')}));
+  }
+  function clearRefundQueueObserver(){
+    if(refundQueueObserver){refundQueueObserver.disconnect();refundQueueObserver=null;}
+  }
+  function scheduleAdminRefundQueue(){
+    var intent=++refundQueueIntent;
+    clearRefundQueueObserver();
+    function attempt(){
+      if(intent!==refundQueueIntent)return true;
+      if(!activeAdminPayments()||!paymentManagementDomReady())return false;
+      clearRefundQueueObserver();
+      Promise.resolve(renderAdminRefundQueue()).catch(function(error){console.error('Refund queue render failed:',error)});
+      return true;
+    }
+    if(attempt())return;
+    var main=document.getElementById('adash-main');
+    if(!main||typeof MutationObserver!=='function')return;
+    refundQueueObserver=new MutationObserver(function(){attempt()});
+    refundQueueObserver.observe(main,{childList:true,subtree:true});
+  }
+  window.guidcyScheduleAdminRefundQueue=scheduleAdminRefundQueue;
+
+  async function renderAdminRefundQueue(){
+    var page=document.getElementById('page-admin-dash'),main=document.getElementById('adash-main');
+    if(!page||!main||!activeAdminPayments())return;
     var c=client();if(!c)return;
     var token=++refundRenderToken;
     var result=await c.from('bookings').select('*').eq('status','cancelled').order('cancelled_at',{ascending:false}).limit(200);
-    if(token!==refundRenderToken)return;
+    if(token!==refundRenderToken||!activeAdminPayments()||!main.isConnected)return;
     if(result.error){console.error('Refund queue load failed:',result.error);return}
     var rows=(result.data||[]).sort(function(a,b){
       var rank={refund_pending:0,refund_failed:1,refund_processing:2,refunded:3,not_required:4};
@@ -31170,7 +31477,7 @@ window.guidcyGoSignupFromLogin=function(){
     wrap.innerHTML='<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:22px;margin:0 0 12px">Cancelled booking refunds</h3>'
       +'<div class="admin-stats" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px"><div class="admin-stat"><div class="admin-stat-val">'+pending.length+'</div><div class="admin-stat-lbl">Refund Pending</div></div><div class="admin-stat"><div class="admin-stat-val">'+processing.length+'</div><div class="admin-stat-lbl">Refund Processing</div></div><div class="admin-stat"><div class="admin-stat-val">'+refunded.length+'</div><div class="admin-stat-lbl">Refunded</div></div></div>'
       +'<div class="guidcy-filter-row"><select id="guidcy-admin-refund-filter" class="guidcy-mini-input" onchange="guidcyFilterAdminRefundRows()"><option value="refund_pending"'+(filter==='refund_pending'?' selected':'')+'>Refund Pending</option><option value="refund_processing"'+(filter==='refund_processing'?' selected':'')+'>Refund Processing</option><option value="refund_failed"'+(filter==='refund_failed'?' selected':'')+'>Refund Failed</option><option value="refunded"'+(filter==='refunded'?' selected':'')+'>Refunded</option><option value="not_required"'+(filter==='not_required'?' selected':'')+'>Not Required</option><option value="all"'+(filter==='all'?' selected':'')+'>All cancelled bookings</option></select><button class="btn" onclick="guidcyReloadAdminRefundQueue()">Refresh</button><span style="font-size:12px;color:var(--muted)">Paid cancellations remain auditable; no booking or payment row is deleted.</span></div>'
-      +'<div style="overflow-x:auto"><table class="data-table" style="min-width:1120px"><tr><th>Booking ID</th><th>User</th><th>Consultant</th><th>Amount paid</th><th>Cancellation date</th><th>Payment</th><th>Refund status</th><th>Action</th></tr>'+rows.map(refundRow).join('')+'</table></div>'
+      +'<div style="overflow-x:auto"><table class="data-table" style="min-width:1320px"><tr><th>Booking ID</th><th>User</th><th>Consultant</th><th>Amount paid</th><th>Cancellation date</th><th>Payment</th><th>Booking</th><th>Refund status</th><th>Consultant payout</th><th>Action</th></tr>'+rows.map(refundRow).join('')+'</table></div>'
       +'<div id="guidcy-admin-refund-empty" style="display:none;text-align:center;padding:24px;color:var(--muted)">No cancelled bookings match this refund status.</div>';
     var recent=[].slice.call(main.querySelectorAll('h3')).find(function(el){return /recent transactions/i.test(el.textContent||'')});
     if(recent)recent.insertAdjacentElement('beforebegin',wrap);else main.appendChild(wrap);
@@ -31194,11 +31501,26 @@ window.guidcyGoSignupFromLogin=function(){
   var previousSwAD=window.swAD;
   if(typeof previousSwAD==='function'){
     var wrappedSwAD=function(view,btn){
+      if(view==='payments'){
+        try{sessionStorage.setItem('guidcy_admin_dash_view','payments');sessionStorage.setItem('guidcy_admin_last_view','payments')}catch(_){}
+        scheduleAdminRefundQueue();
+      }else{
+        refundRenderToken++;
+        refundQueueIntent++;
+        clearRefundQueueObserver();
+      }
       var out=previousSwAD.apply(this,arguments);
-      if(view==='payments')Promise.resolve(out).finally(function(){setTimeout(renderAdminRefundQueue,80);setTimeout(function(){if(!document.getElementById('guidcy-admin-refund-workflow'))renderAdminRefundQueue()},700)});
+      if(view==='payments')Promise.resolve(out).finally(function(){scheduleAdminRefundQueue()});
       return out;
     };
     window.swAD=wrappedSwAD;
     try{swAD=wrappedSwAD}catch(_){}
+  }
+})();
+
+/* Install after every legacy dashboard wrapper has been defined. */
+(function(){
+  if(typeof window.guidcyInstallBookingFinancialLifecycleUi==='function'){
+    window.guidcyInstallBookingFinancialLifecycleUi();
   }
 })();

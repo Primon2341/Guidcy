@@ -16,6 +16,13 @@ const {
 } = require('../lib/razorpay-utils');
 const { refundBookingRequest } = require('../lib/booking-refund');
 
+function isCancelledBooking(row) {
+  const bookingStatus = clean(row && row.status, 40).toLowerCase();
+  const sessionStatus = clean(row && row.session_status, 40).toLowerCase();
+  return ['cancelled', 'canceled'].includes(bookingStatus)
+    || ['cancelled', 'canceled'].includes(sessionStatus);
+}
+
 function fulfilledPatch(flow, row, payment, body) {
   const now = new Date().toISOString();
   const base = {
@@ -49,10 +56,14 @@ function fulfilledPatch(flow, row, payment, body) {
       amount_paid: Number(row.amount_paid || row.payment_amount || row.amount || 0),
     };
   }
+  const cancelled = isCancelledBooking(row);
   const bookingPatch = {
     ...base,
     payment_id: payment.id,
-    status: 'confirmed',
+    // A captured callback may arrive after the user cancelled.  Preserve the
+    // cancellation so this can never become an upcoming session again.
+    status: cancelled ? 'cancelled' : 'confirmed',
+    session_status: cancelled ? 'cancelled' : row.session_status || 'scheduled',
     payment_status: 'success',
     paid_at: now,
   };
