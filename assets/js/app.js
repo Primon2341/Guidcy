@@ -29487,6 +29487,21 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     document.body.style.top='';
     window.scrollTo(0,lockedY);
   }
+  /* Enter in a single-line field is HTML implicit submission. On this form that
+     published a half-filled opening and closed the modal while the admin was
+     still typing, taking everything not yet entered with it - and the mobile
+     keyboard's Go key does exactly the same. Only the explicit Publish/Save
+     button may submit; textareas keep Enter for newlines, and a keyboard user
+     can still tab to the button and press Enter there. */
+  function submitOnlyOnButton(form){
+    if(!form)return;
+    form.addEventListener('keydown',function(e){
+      if(e.key!=='Enter')return;
+      const t=e.target||{};
+      if(t.tagName==='TEXTAREA'||t.tagName==='BUTTON'||t.type==='file')return;
+      e.preventDefault();
+    });
+  }
   function openModal(html){ensureModal();$('gc-modal-content').innerHTML=html;$('gc-modal').classList.add('on');lockScroll()}
   function closeModal(){const m=$('gc-modal'); if(m)m.classList.remove('on'); unlockScroll()}
   window.guidcyCareersCloseModal=closeModal;
@@ -29558,6 +29573,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     );
     const form=$('gc-apply-form');
     if(form)form.addEventListener('submit',e=>submitApplication(e,j));
+    submitOnlyOnButton(form);
   }
 
   async function uploadResume(){
@@ -29665,6 +29681,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     openModal(roleForm(j));
     const form=$('gc-role-form');
     if(form)form.addEventListener('submit',e=>saveRole(e,j&&j.id));
+    submitOnlyOnButton(form);
   }
   /* Disabling the submit button only stops pointer clicks. Implicit submission -
      Enter in a field, or the mobile keyboard's Go key - still fires this handler

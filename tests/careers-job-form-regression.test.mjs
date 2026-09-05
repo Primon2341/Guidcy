@@ -111,8 +111,38 @@ test('one apply form cannot file the same application twice', async () => {
   assert.equal(btn.disabled, false);
 });
 
+test('Enter in a single-line field cannot publish a half-filled opening', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext(slice('  function submitOnlyOnButton(form){', '      e.preventDefault();\n    });\n  }'), ctx);
+  let handler = null;
+  ctx.submitOnlyOnButton({ addEventListener: (type, fn) => { if (type === 'keydown') handler = fn; } });
+  assert.ok(handler, 'the guard must attach a keydown listener');
+
+  const press = (key, target) => {
+    let prevented = false;
+    handler({ key, target, preventDefault: () => { prevented = true; } });
+    return prevented;
+  };
+  // every single-line control on the job form submits implicitly on Enter
+  for (const type of ['text', 'number', 'date', 'email', 'search'])
+    assert.equal(press('Enter', { tagName: 'INPUT', type }), true, `input[type=${type}]`);
+  assert.equal(press('Enter', { tagName: 'SELECT' }), true, 'select');
+  // ...but typing must stay usable and the form must stay submittable
+  assert.equal(press('Enter', { tagName: 'TEXTAREA' }), false, 'textarea keeps newlines');
+  assert.equal(press('Enter', { tagName: 'BUTTON', type: 'submit' }), false, 'keyboard users submit from the button');
+  assert.equal(press('Enter', { tagName: 'INPUT', type: 'file' }), false, 'Enter still opens the file picker');
+  assert.equal(press('a', { tagName: 'INPUT', type: 'text' }), false, 'ordinary typing is untouched');
+});
+
+test('both careers forms are wired to the implicit-submit guard', () => {
+  const roleForm = slice('  async function openRoleForm(id){', 'submitOnlyOnButton(form);');
+  assert.match(roleForm, /addEventListener\('submit',e=>saveRole/);
+  const applyForm = slice('  async function applyRole(id){', 'submitOnlyOnButton(form);');
+  assert.match(applyForm, /addEventListener\('submit',e=>submitApplication/);
+});
+
 test('Edit stops with an error instead of rendering the blank create form', () => {
-  const fn = slice('  async function openRoleForm(id){', "if(form)form.addEventListener('submit',e=>saveRole(e,j&&j.id));\n  }");
+  const fn = slice('  async function openRoleForm(id){', 'submitOnlyOnButton(form);');
   assert.match(fn, /if\(!j\)\{toast\([^)]*\);closeModal\(\);return\}/,
     'a role that will not load must abort, not fall through to roleForm(null)');
   assert.ok(fn.indexOf('openModal(') < fn.indexOf('await getRole(id)'),
