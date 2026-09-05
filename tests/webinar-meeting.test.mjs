@@ -195,3 +195,34 @@ test('opening a webinar for editing shows the link every time, not sometimes', a
   assert.equal(field.value, LINK,
     'the link must be written after the form fill, otherwise the fill blanks it');
 });
+
+/* wbnRender() -> wbnApplyAdminState() (app.js:7648) sets #wbn-admin-panel to
+   display:none whenever isAdmin() is false, which it is for a consultant
+   publishing their own webinar. Publishing therefore took the panel away before
+   the generated link reached the field, so it was written somewhere invisible. */
+test('the panel stays open until the link is in the field', () => {
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  const from = flow.indexOf('function panelIsOpen()');
+  const to = flow.indexOf('function generatedLinkNote()');
+  assert.ok(from > -1 && to > from, 'the panel helpers must still be there to exercise');
+
+  const panel = { style: { display: 'block' } };
+  const [isOpen, reopen] = new Function('byId',
+    flow.slice(from, to) + '\nreturn [panelIsOpen, keepPanelOpen];')(() => panel);
+
+  // publishing hides it; it is put back because it was open when the host clicked
+  const wasOpen = isOpen();
+  panel.style.display = 'none';
+  reopen(wasOpen);
+  assert.equal(panel.style.display, 'block', 'a panel the host had open must survive the publish');
+
+  // a panel that was already closed is left closed - never revealed to anyone
+  panel.style.display = 'none';
+  reopen(false);
+  assert.equal(panel.style.display, 'none', 'it must not open a panel the host could not already see');
+
+  // and it is re-asserted after the link is written, not only before
+  const wrapper = flow.slice(flow.lastIndexOf('window.wbnPublish = async function'));
+  assert.ok(wrapper.indexOf('showGeneratedMeetingLink(link)') < wrapper.lastIndexOf('keepPanelOpen(panelWasOpen)'),
+    'the panel has to be held open through the render that lands while the meeting is being created');
+});
