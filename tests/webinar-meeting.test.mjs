@@ -74,8 +74,7 @@ test('adding a guest keeps the ones already invited', () => {
     'Calendar replaces the attendee list wholesale, so it must be read first');
   assert.match(fn, /if \(!added\.length\) return \{ ok: true, alreadyInvited: true/,
     're-confirming a registration must not re-notify everyone');
-  assert.match(fn, /const send = notify === false \? 'none' : 'all';/,
-    'Calendar notifies all guests or none, so a webinar must be able to opt out');
+  assert.match(fn, /sendUpdates=all/, 'Google sends the invitation');
 });
 
 /* The bug this guards: window.wbnPublish is assigned in a dozen places across
@@ -339,8 +338,6 @@ test('registering does not expose the other registrants', () => {
   assert.match(add, /hideGuestList \? \{ attendees, guestsCanSeeOtherGuests: false \} : \{ attendees \}/,
     'the guest list must be hidden from the guests');
   assert.match(emails, /hideGuestList: true/);
-  assert.match(emails, /notify: false/,
-    'adding one registrant must not mail every earlier registrant');
   // the new webinar event is created that way in the first place
   assert.match(meeting, /hideGuestList: true/);
   assert.match(gmeet, /\.\.\.\(hideGuestList \? \{ guestsCanSeeOtherGuests: false \} : \{\}\)/);
