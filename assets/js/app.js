@@ -8177,8 +8177,14 @@ body{overflow-x:hidden}
     var arr = dedupe(getLocalRaw().concat([w]));
     setLocal(arr);
     await upsertDb(w);
+    /* The host no longer has to create or paste a link: publishing books the
+       meeting on the same calendar a 1:1 session uses. Idempotent per webinar,
+       so a second publish or an edit moves that event rather than making a new
+       one. Never blocks publishing if Meet is unconfigured or slow. */
+    var generatedLink='';
+    try{ if(window.guidcyEnsureWebinarMeeting) generatedLink = await window.guidcyEnsureWebinarMeeting(w.id) || ''; }catch(_){}
     ['wbn-pub-title','wbn-pub-date','wbn-pub-time','wbn-pub-desc','wbn-pub-speaker','wbn-pub-speaker-role','wbn-pub-link'].forEach(function(k){ var el=byId(k); if(el) el.value=''; });
-    var st=byId('wbn-pub-status'); if(st){ st.textContent='✓ Webinar "'+w.title+'" published successfully!'; st.style.display='block'; setTimeout(function(){st.style.display='none'},3000); }
+    var st=byId('wbn-pub-status'); if(st){ st.innerHTML='✓ Webinar "'+String(w.title).replace(/[&<>"']/g,'')+'" published successfully!'+(generatedLink?'<br><span style="font-size:12px">Meeting link created automatically and sent to everyone who registers.</span>':''); st.style.display='block'; setTimeout(function(){st.style.display='none'},generatedLink?6000:3000); }
     try{toast('Webinar published!','green')}catch(e){}
     window.wbnRender();
   };

@@ -10,9 +10,10 @@
 // knock), and the link is persisted. Without it the link is still created but
 // only the caller is invited and nothing is written.
 
-const { clean, json, readBody, getAuthenticatedUser, loadPaymentRecord, patchById } = require('../lib/razorpay-utils');
+const { clean, json, readBody, getAuthenticatedUser, loadPaymentRecord, patchById, first } = require('../lib/razorpay-utils');
 const { googleMeetConfigured, createMeetLink, isMeetLink } = require('../lib/google-meet');
 const { cancelBookingRequest } = require('../lib/booking-cancellation');
+const { ensureWebinarMeeting } = require('../lib/webinar-meeting');
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,6 +38,32 @@ module.exports = async function handler(req, res) {
     }
 
     const user = await getAuthenticatedUser(req);
+
+    /* Publishing a webinar generates its meeting through the same calendar
+       integration a 1:1 booking uses. Only the host or an admin may ask, and
+       ensureWebinarMeeting() reuses the existing event - clicking Publish twice
+       or editing the webinar never produces a second meeting. */
+    const webinarId = clean(body.webinarId || body.webinar_id || '', 200);
+    if (webinarId) {
+      const webinar = await first(`webinars?id=eq.${encodeURIComponent(webinarId)}&select=*`);
+      if (!webinar) return json(res, 404, { error: 'Webinar not found' });
+      const callerEmail = String(user.email || '').toLowerCase();
+      const isHost = String(webinar.created_by || '') === String(user.id)
+        || (Boolean(callerEmail) && callerEmail === String(webinar.publisher_email || '').toLowerCase());
+      let isAdmin = false;
+      if (!isHost) {
+        const profile = await first(`profiles?id=eq.${encodeURIComponent(user.id)}&select=role`);
+        isAdmin = String(profile && profile.role || '').toLowerCase() === 'admin';
+      }
+      if (!isHost && !isAdmin) return json(res, 403, { error: 'Only the webinar host can create its meeting' });
+      const meeting = await ensureWebinarMeeting(webinar);
+      if (!meeting.link) return json(res, 200, { ok: false, configured: meeting.configured !== false, link: '', reason: meeting.skipped || 'no-link' });
+      return json(res, 200, {
+        ok: true, configured: true, link: meeting.link, eventId: meeting.eventId || '',
+        created: !!meeting.created, reused: !!meeting.reused, moved: !!meeting.moved,
+      });
+    }
+
     const bookingId = clean(body.bookingId || body.booking_id || '', 120);
 
     let row = null;

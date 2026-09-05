@@ -1166,6 +1166,35 @@
     exportRegistrationRows(rows, selected, window.__guidcyWebinarsForRegs || []);
   };
 
+  /* Publishing generates the webinar's Google Meet through the same server
+     integration a 1:1 booking uses. The endpoint is idempotent per webinar, so
+     publishing twice or editing the webinar moves the existing event instead of
+     creating a second meeting. Returns '' when Meet is not configured, which is
+     not an error - the host can still paste a link. */
+  window.guidcyEnsureWebinarMeeting = async function (webinarId) {
+    var id = clean(webinarId);
+    if (!id) return '';
+    var token = '';
+    try {
+      var client = (window.guidcyGetSupabaseClient && window.guidcyGetSupabaseClient()) || window.sb;
+      var session = client && client.auth && await client.auth.getSession();
+      token = (session && session.data && session.data.session && session.data.session.access_token) || '';
+    } catch (_) {}
+    if (!token) return '';
+    try {
+      var response = await fetch('/api/create-meet-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ webinarId: id }),
+      });
+      var body = await response.json().catch(function () { return {}; });
+      return (body && body.link) || '';
+    } catch (error) {
+      console.warn('Webinar meeting link could not be generated:', error && error.message);
+      return '';
+    }
+  };
+
   var originalPublish = window.wbnPublish;
   if (typeof originalPublish === 'function') {
     window.wbnPublish = function () {
