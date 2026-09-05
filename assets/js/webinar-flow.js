@@ -740,6 +740,24 @@
     location.href = '/webinars';
   };
 
+  /* The blocking flag exists to stop someone wandering off mid-checkout. It was
+     persisted to sessionStorage and only ever cleared by pressing Back on the
+     payment page or by cancelling a checkout that had actually started - so a
+     user who simply navigated away or reloaded stayed blocked, and from then on
+     every go() in the tab was redirected to /payment. Each of those redirects
+     also re-ran ensurePaymentPage(), which re-homes the footer against whatever
+     page was active at that instant, which is how the footer ended up above the
+     content. A fresh document has no checkout in flight by definition, so a
+     persisted blocking flag is stale: keep the state so the user can still
+     resume and pay, but stop it hijacking navigation. */
+  try {
+    var bootState = paymentState();
+    if (bootState && bootState.blocking && !bootState.completed) {
+      bootState.blocking = false;
+      savePaymentState(bootState);
+    }
+  } catch (_) {}
+
   if (typeof originalGo === 'function') {
     window.go = function (page) {
       var state = paymentState();

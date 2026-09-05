@@ -63,3 +63,34 @@ test('database and order creation prevent duplicate active webinar payments', ()
   assert.match(migration, /on public\.webinar_registrations \(webinar_id, lower\(btrim\(email\)\)\)/i);
   assert.match(migration, /where coalesce\(is_deleted, false\) is false/i);
 });
+
+/* The blocking flag stops someone wandering off mid-checkout, but it lived in
+   sessionStorage and was only cleared by pressing Back on the payment page or by
+   cancelling a checkout that had actually started. A user who merely navigated
+   away or reloaded stayed blocked, so every later go() in that tab was redirected
+   to /payment - the whole site became unusable - and each redirect re-ran
+   ensurePaymentPage(), which re-homes the footer against whatever page happened to
+   be active, putting the footer above the content. */
+test('a stale blocking flag cannot survive a page load and trap the tab', () => {
+  const at = webinarFlow.indexOf('var bootState = paymentState();');
+  assert.ok(at > 0, 'a fresh document must release a persisted blocking flag');
+  const block = webinarFlow.slice(at, at + 260);
+  assert.match(block, /bootState\.blocking && !bootState\.completed/,
+    'only an in-flight-looking flag is released; a completed payment keeps its state');
+  assert.match(block, /bootState\.blocking = false/);
+  assert.match(block, /savePaymentState\(bootState\)/, 'the release must be persisted, not just in memory');
+
+  // it has to run before go() is wrapped, or the first navigation still sees blocking
+  assert.ok(at < webinarFlow.indexOf("window.go = function (page)"),
+    'the release must happen before the go() wrapper is installed');
+});
+
+test('navigating away mid-checkout is still refused', () => {
+  const at = webinarFlow.indexOf('window.go = function (page)');
+  const wrapper = webinarFlow.slice(at, at + 420);
+  assert.match(wrapper, /state && state\.blocking && page !== 'payment'/,
+    'an in-session checkout must still hold the user on the payment page');
+  assert.match(wrapper, /return 'webinar_payment_locked'/);
+  assert.match(wrapper, /state && !state\.blocking && page !== 'payment'\) clearPaymentState\(\)/,
+    'and a released state must clear itself on the first navigation away');
+});
