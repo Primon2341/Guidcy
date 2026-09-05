@@ -251,7 +251,18 @@ test('each application outcome sends its own email, not the submitted template',
   assert.match(src, /application_status_updated:'job_application_submitted_user'/,
     'the misleading alias still exists in EMAIL_TYPE_MAP - the careers page must not use it');
 
-  // both new templates need a subject and their own body, or they fall back to a generic one
+  // THE trap: the templates exist twice. api/send-guidcy-email.js is a Vercel route
+  // that production never calls; the live sender is the Supabase Edge Function. Editing
+  // one and not the other ships mail with subject "Guidcy notification".
+  const edge = fs.readFileSync(new URL('../supabase/functions/send-guidcy-email/index.ts', import.meta.url), 'utf8');
+  for (const type of ['job_application_submitted_user', 'job_application_shortlisted_user', 'job_application_rejected_user']) {
+    assert.ok(edge.includes(type + ':'), `${type} missing from the Edge Function - the one that actually sends`);
+    assert.ok(api.includes(type + ':'), `${type} missing from the Vercel fallback route`);
+    assert.equal(
+      (api.match(new RegExp(type + ': ("[^"]*"|\'[^\']*\')'))||[])[1].replace(/'/g, '"'),
+      (edge.match(new RegExp(type + ': ("[^"]*")'))||[])[1],
+      `${type} subject differs between the two senders`);
+  }
   for (const type of ['job_application_shortlisted_user', 'job_application_rejected_user']) {
     assert.ok(api.includes(type + ":"), `${type} needs a subject line`);
     assert.match(api, new RegExp(type.replace(/_user$/, '') + '/i\\.test\\(type\\)'), `${type} needs its own intro copy`);
