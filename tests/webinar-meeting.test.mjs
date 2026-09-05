@@ -103,3 +103,18 @@ test('the publish that actually runs is the one that books the meeting', () => {
   assert.match(winner.slice(0, 2000), /var editId = editingWebinarId\(\);/,
     'the edit id has to be read before publishing, which clears edit mode');
 });
+
+test('the publisher can see the link, without it becoming public', () => {
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  // read back through RLS rather than from any cached or public source
+  assert.match(flow, /from\('webinar_meetings'\)\.select\('meet_link'\)\.eq\('webinar_id', id\)/);
+  // shown after publishing, and again whenever the host reopens the webinar
+  assert.match(flow, /showGeneratedMeetingLink\(link\)/);
+  assert.match(flow, /storedMeetingLink\(webinarId \|\| editingWebinarId\(\)\)\.then\(showGeneratedMeetingLink\)/);
+  // cleared so a previous webinar's link never shows against a different one
+  assert.match(flow, /window\.wbnCancelEdit = function \(\) \{\s*showGeneratedMeetingLink\(''\);/);
+  /* The input is saved to webinars.meet_link, which every visitor can read.
+     Putting the generated link in it would publish the join URL. */
+  assert.doesNotMatch(flow, /byId\('wbn-pub-link'\)\.value\s*=/,
+    'the generated link must never be written into the field that saves to the public column');
+});
