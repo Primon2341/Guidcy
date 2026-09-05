@@ -4006,19 +4006,26 @@ async function swAD(view,btn){
       if(error)return guidcyAdminLoadFailed(m,'Manage Consultants','consultants',error);
       if(data)consultants=data;
     }
-    const activeCount=consultants.filter(c=>c.is_active).length;
-    const suspendedCount=consultants.filter(c=>!c.is_active).length;
+    const awaitingUpdate=c=>c.profile_update_required===true;
+    const activeCount=consultants.filter(c=>c.is_active&&!awaitingUpdate(c)).length;
+    const hiddenCount=consultants.filter(awaitingUpdate).length;
+    const suspendedCount=consultants.filter(c=>!c.is_active&&!awaitingUpdate(c)).length;
     const rows=consultants.map((c,i)=>{
-      const isActive=c.is_active;
-      const statusCls=isActive?'sp-upcoming':'sp-cancelled';
-      const statusTxt=isActive?'Active':'Suspended';
-      const actions=isActive
-        ?`<button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">Suspend</button>`
+      /* Three states now: live, hidden pending the consultant's own update (which
+         restores itself), and suspended by an admin (which does not). */
+      const pendingUpdate=awaitingUpdate(c);
+      const isActive=c.is_active&&!pendingUpdate;
+      const statusCls=pendingUpdate?'sp-pending':(isActive?'sp-upcoming':'sp-cancelled');
+      const statusTxt=pendingUpdate?'Hidden · awaiting update':(isActive?'Active':'Suspended');
+      const actions=pendingUpdate
+        ?`<button class="action-btn ab-approve" onclick="guidcyUnhideConsultant('${c.id||''}',${i})">Unhide now</button>`
+        :isActive
+        ?`<button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">Suspend</button><button class="action-btn" onclick="guidcyHideConsultantUntilUpdate('${c.id||''}',${i})">Hide till profile update</button>`
         :`<button class="action-btn ab-approve" onclick="approveConsultant('${c.id||''}',${i})">↑ Reinstate</button>`;
       const joined=c.created_at?new Date(c.created_at).toLocaleDateString('en-IN'):'—';
       return `<tr><td><div style="font-weight:600">${c.name}</div><div style="font-size:11px;color:var(--muted)">${c.experience||c.exp||''} ${c.specialty||c.category||''}</div></td><td>₹${(c.rate||c.price||0).toLocaleString()}</td><td>${joined}</td><td><span id="ad-s-${i}" class="status-pill ${statusCls}">${statusTxt}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td></tr>`;
     }).join('');
-    const statsBar=`<div style="display:flex;gap:12px;margin-bottom:20px"><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--green-d);font-weight:600">${activeCount} Active</div><div style="background:#FCEBEB;border:1px solid #F9A8A8;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#A32D2D;font-weight:600">${suspendedCount} Suspended</div><div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--muted);font-weight:600">${consultants.length} Total</div></div>`;
+    const statsBar=`<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap"><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--green-d);font-weight:600">${activeCount} Active</div><div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#92400E;font-weight:600">${hiddenCount} Awaiting profile update</div><div style="background:#FCEBEB;border:1px solid #F9A8A8;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#A32D2D;font-weight:600">${suspendedCount} Suspended</div><div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--muted);font-weight:600">${consultants.length} Total</div></div>`;
     m.innerHTML=`<div class="dash-title">Manage Consultants</div>${statsBar}<table class="data-table"><tr><th>Name & Category</th><th>Rate/hr</th><th>Joined</th><th>Status</th><th>Actions</th></tr>${rows}${!rows?'<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No consultants registered yet</td></tr>':''}</table>`
   }else if(view==='bookings'){
     let bookings=[];
@@ -4125,6 +4132,61 @@ async function suspendConsultant(consId,idx){
   const row=sp?.closest('tr');
   if(row){const td=row.querySelector('td:last-child');if(td)td.innerHTML='<button class="action-btn ab-approve" onclick="approveConsultant(\''+String(consId||'').replace(/[\'"]/g,'')+'\','+(Number(idx)||0)+')">&uarr; Reinstate</button>';}
   toast('Consultant suspended');
+}
+/* Hide a consultant whose profile is incomplete, and let them back automatically
+   once they fill it in. This flips only the flags every public query already
+   filters on (is_active, is_approved) - no listing or search query changes - and
+   records profile_update_required so the restore can tell these rows apart from
+   the ones a human suspended or rejected. approval_status stays 'approved' on
+   purpose: the consultant dashboard replaces itself with an "under review" notice
+   for any other status, which would stop them editing the profile we are asking
+   them to complete. */
+function guidcyConsultantProfileComplete(c){
+  c=c||{};
+  var t=function(v){return String(v==null?'':v).trim()};
+  return !!(t(c.name)&&t(c.specialty||c.category)&&t(c.bio));
+}
+try{window.guidcyConsultantProfileComplete=guidcyConsultantProfileComplete}catch(_){}
+async function guidcyHideConsultantUntilUpdate(consId,idx){
+  if(!consId)return;
+  if(!confirm('Hide this consultant from the website until they update their profile?\n\nThey keep full dashboard access, and they reappear automatically as soon as their profile is filled in.'))return;
+  if(sb){
+    const error=await guidcyAdminWrite(sb.from('consultants').update({
+      is_active:false, is_approved:false,
+      profile_update_required:true, profile_hidden_at:new Date().toISOString()
+    }).eq('id',consId));
+    if(error){toast('Could not hide this consultant: '+(error.message||'please try again'),'red');return;}
+    try{
+      const res=await sb.from('consultants').select('profile_id').eq('id',consId).maybeSingle();
+      if(res&&res.data&&res.data.profile_id){
+        await guidcyAdminWrite(sb.from('notifications').insert({
+          user_id:res.data.profile_id,
+          text:'Your Guidcy profile is hidden from the website because it is incomplete. Add your title and bio in Profile & settings and save - your profile goes live again automatically.',
+          type:'profile_update_required'
+        }));
+      }
+    }catch(e){console.warn('Hide notice not saved:',e)}
+  }
+  const sp=document.getElementById('ad-s-'+idx);
+  if(sp){sp.textContent='Hidden · awaiting update';sp.className='status-pill sp-pending';}
+  const row=sp&&sp.closest('tr');
+  if(row){const td=row.querySelector('td:last-child');if(td)td.innerHTML='<button class="action-btn ab-approve" onclick="guidcyUnhideConsultant(\''+String(consId).replace(/[\'"]/g,'')+'\','+(Number(idx)||0)+')">Unhide now</button>';}
+  toast('Consultant hidden until they update their profile','green');
+}
+async function guidcyUnhideConsultant(consId,idx){
+  if(!consId)return;
+  if(sb){
+    const error=await guidcyAdminWrite(sb.from('consultants').update({
+      is_active:true, is_approved:true, approval_status:'approved',
+      profile_update_required:false, profile_hidden_at:null
+    }).eq('id',consId));
+    if(error){toast('Could not restore this consultant: '+(error.message||'please try again'),'red');return;}
+  }
+  const sp=document.getElementById('ad-s-'+idx);
+  if(sp){sp.textContent='Active';sp.className='status-pill sp-upcoming';}
+  const row=sp&&sp.closest('tr');
+  if(row){const td=row.querySelector('td:last-child');if(td)td.innerHTML='<span style="color:var(--green-d);font-size:12px">\u2713 Live on Guidcy</span>';}
+  toast('Consultant is live on Guidcy again \u2713','green');
 }
 async function removeReview(reviewId){
   if(sb&&reviewId){
@@ -24489,6 +24551,24 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       setProfile(Object.assign({},profile()||{},profilePayload,profileRow||{}));
       try{window.curCons=Object.assign({},window.curCons||{},consPayload,consRow||{});window.__guidcyOwnConsultantProfile=Object.assign({},window.__guidcyOwnConsultantProfile||{},consPayload,consRow||{})}catch(_){}
       try{window.updateNav&&window.updateNav()}catch(_){}
+      /* If an admin hid this profile pending an update, put it back on the website
+         now that it is filled in. Guarded on profile_update_required so it can only
+         restore rows hidden by that action - a suspended or rejected account saving
+         its profile is left exactly as it is. */
+      try{
+        var vis=await c.from('consultants').select('profile_update_required,approval_status,name,specialty,category,bio').eq('id',resolved).maybeSingle();
+        var visRow=vis&&!vis.error?vis.data:null;
+        if(visRow&&visRow.profile_update_required===true&&String(visRow.approval_status||'').toLowerCase()==='approved'
+           &&(typeof window.guidcyConsultantProfileComplete==='function'
+              ?window.guidcyConsultantProfileComplete(visRow)
+              :!!(String(visRow.name||'').trim()&&String(visRow.specialty||visRow.category||'').trim()&&String(visRow.bio||'').trim()))){
+          /* approval_status is re-asserted rather than changed - the guard above
+             already required it to be 'approved' - so this write satisfies the
+             "is_active:true must carry the full approval set" invariant. */
+          var restore=await c.from('consultants').update({is_active:true,is_approved:true,approval_status:'approved',profile_update_required:false,profile_hidden_at:null}).eq('id',resolved);
+          if(!restore.error)notify('Your profile is live on Guidcy again ✓','green');
+        }
+      }catch(e){console.warn('Guidcy: profile visibility restore skipped',e)}
       notify('Profile and company sequence saved ✓','green');
       return true;
     }catch(e){console.error('Consultant profile save failed',e);notify('Could not save profile: '+(e.message||e),'red');return false}
