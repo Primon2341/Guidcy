@@ -191,18 +191,24 @@ test('a candidate can withdraw, and the admin list can show a withdrawn applicat
   assert.match(fn, /appId\?\{id:appId\}/, 'withdraw must use the id carried on the button, not a map that a re-render can empty');
   assert.match(fn, /status:'withdrawn'/, 'withdraw must set the status the schema already allows');
   assert.match(fn, /if\(withdrawing\)return/, 'withdraw needs the same re-entrancy guard');
-  assert.match(src, /opts\(\['applied','viewed','shortlisted','interview','selected','rejected','withdrawn'\]/,
-    "a withdrawn row must not render as 'applied' in the admin table");
+  assert.match(src, /if\(withdrawn\(a\)\)/,
+    "a withdrawn row must not render as an editable 'applied' control");
+  assert.doesNotMatch(src, /opts\(\[[^\]]*'withdrawn'\]/,
+    'the admin must not be able to withdraw on the candidate\u2019s behalf');
   assert.match(src, /data-gc="withdraw"/, 'the card needs a withdraw affordance');
 });
 
 test('the applicant status control names the hire state, reverts on failure, and mails only decisions', () => {
   const handler = slice("      document.querySelectorAll('.gc-app-status').forEach(sel=>{", '      });\n    }catch(e){');
+  assert.match(handler, /btn\.addEventListener\('click'/, 'the write happens on the Update button, not on select');
+  assert.doesNotMatch(handler, /sel\.addEventListener\('change',async/, 'picking a value must not write');
+  assert.match(handler, /norm\(now\.data\.status\)==='withdrawn'/,
+    'a withdrawal after the table was drawn must beat the admin decision');
   // 'selected' is the terminal state the CHECK constraint allows; say so in the UI
   assert.match(src, /selected:'Selected \/ Hired'/);
-  assert.match(src, /data-prev="'\+esc\(clean\(a\.status\)\|\|'applied'\)\+'"/,
+  assert.match(src, /data-prev="'\+esc\(cur\)\+'"/,
     'the control must remember what it showed so a failed write can be undone');
-  assert.match(handler, /if\(prev\)this\.value=prev/, 'a failed write must not leave the new value on screen');
+  assert.match(handler, /if\(prev\)sel\.value=prev/, 'a failed write must not leave the new value on screen');
   assert.match(handler, /const emailType=STATUS_EMAIL\[status\]/,
     'the template is chosen per status, not one generic status-changed event');
   assert.doesNotMatch(handler, /await\s+window\.sendWorkEmail/, 'the decision email must not block the admin');

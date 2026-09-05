@@ -29899,6 +29899,23 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       : '<span style="color:var(--muted)" title="The stored file could not be opened">Unavailable</span>';
   }
 
+  /* Only the candidate withdraws. Once they have, the row is frozen - otherwise an
+     admin working down the list could still mark them rejected or selected and the
+     person who already pulled out would get a decision email. */
+  function withdrawn(a){return norm(a&&a.status)==='withdrawn'}
+  function statusCell(a){
+    if(withdrawn(a))
+      return '<span class="gc-tag">'+esc(ADMIN_STATUS_LABELS.withdrawn)+'</span>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">Withdrawn by the candidate</div>';
+    const cur=clean(a.status)||'applied';
+    return '<div style="display:flex;gap:6px;align-items:center">'+
+      '<select class="gc-app-status" data-app="'+esc(a.id)+'" data-prev="'+esc(cur)+'" style="border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px">'+
+        opts(['applied','viewed','shortlisted','interview','selected','rejected'],cur,ADMIN_STATUS_LABELS)+
+      '</select>'+
+      '<button type="button" class="gc-mini-btn gc-app-apply" data-app="'+esc(a.id)+'" disabled>Update</button>'+
+    '</div>';
+  }
+
   async function viewApplicants(id){
     if(!isAdmin())return;
     const c=sbc(); if(!c)return;
@@ -29917,18 +29934,36 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
               '<td>'+esc(a.applicant_phone||'—')+'</td>'+
               '<td>'+resumeCell(a,signed)+'</td>'+
               '<td>'+esc(fmtDate(a.created_at))+'</td>'+
-              '<td><select class="gc-app-status" data-app="'+esc(a.id)+'" data-prev="'+esc(clean(a.status)||'applied')+'" style="border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px">'+
-                opts(['applied','viewed','shortlisted','interview','selected','rejected','withdrawn'],clean(a.status)||'applied',ADMIN_STATUS_LABELS)+'</select></td>'+
+              '<td>'+statusCell(a)+'</td>'+
             '</tr>').join('')+'</tbody></table></div>'
           : '<div class="gc-empty"><span class="gc-empty-icon">📭</span>No applications yet for this role.</div>')+
         '<div class="gc-job-actions" style="margin-top:20px"><button type="button" class="gc-btn gc-btn-ghost" data-gc="close">Close</button></div></div>');
       document.querySelectorAll('.gc-app-status').forEach(sel=>{
-        sel.addEventListener('change',async function(){
-          const status=this.value, appId=this.getAttribute('data-app'), prev=this.getAttribute('data-prev')||'';
+        const appId=sel.getAttribute('data-app');
+        const btn=document.querySelector('.gc-app-apply[data-app="'+appId+'"]');
+        /* Picking from the list no longer writes anything. The status changes when
+           the admin says so, which also means a stray scroll over the select can no
+           longer fire a decision email. */
+        const sync=function(){if(btn)btn.disabled=(sel.value===(sel.getAttribute('data-prev')||''))};
+        sel.addEventListener('change',sync); sync();
+        if(!btn)return;
+        btn.addEventListener('click',async function(){
+          const status=sel.value, prev=sel.getAttribute('data-prev')||'';
+          if(status===prev)return;
+          const label=btn.textContent;
+          btn.disabled=true; btn.textContent='Saving…';
           try{
+            /* The candidate may have withdrawn since this table was drawn. Check
+               before writing, so a withdrawal always wins over an admin decision. */
+            const now=await sbc().from('job_applications').select('status').eq('id',appId).maybeSingle();
+            if(now&&!now.error&&now.data&&norm(now.data.status)==='withdrawn'){
+              toast('This application was withdrawn by the candidate.','blue');
+              viewApplicants(id);
+              return;
+            }
             const r=await sbc().from('job_applications').update({status:status,updated_at:new Date().toISOString()}).eq('id',appId);
             if(r.error)throw r.error;
-            this.setAttribute('data-prev',status);
+            sel.setAttribute('data-prev',status);
             toast('Application status updated.','green');
             /* Two moments are news for the candidate; the rest is the hiring team's
                own bookkeeping. Pass the template name as the event so it survives
@@ -29955,8 +29990,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
           }catch(e){
             console.warn(e);
             /* Leaving the new value on screen told the admin it had saved. */
-            if(prev)this.value=prev;
+            if(prev)sel.value=prev;
             toast('Could not update status.','red');
+          }finally{
+            btn.textContent=label;
+            sync();
           }
         });
       });
