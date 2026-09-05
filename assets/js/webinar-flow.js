@@ -1196,51 +1196,50 @@
     }
   };
 
-  /* The generated link is shown to the publisher under the Meeting link field,
-     never inside that input: the input is saved to webinars.meet_link, and that
-     table has a SELECT policy of `true`, so anything written there is readable
-     by every visitor. Reading it back from webinar_meetings keeps the RLS check
-     (host, admin or confirmed registrant) doing the work. */
-  function generatedLinkBox() {
+  /* The generated link is shown in the Meeting link field itself, with a note
+     underneath. What it must never do is get SAVED from there: that input is
+     written to webinars.meet_link, and public.webinars has a SELECT policy of
+     `true`, so a join URL stored in it is readable by every visitor. The publish
+     wrapper therefore takes our value back out of the field before the save
+     runs, and puts it back afterwards. */
+  var shownGeneratedLink = '';
+
+  function generatedLinkNote() {
     var input = byId('wbn-pub-link');
     if (!input || !input.parentNode) return null;
-    var box = byId('wbn-pub-link-generated');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'wbn-pub-link-generated';
-      box.style.cssText = 'display:none;margin-top:8px;padding:10px 12px;background:var(--green-l,#EAF7EC);border:1px solid #B7F0BE;border-radius:10px;font-size:13px;line-height:1.5';
-      input.parentNode.appendChild(box);
+    var note = byId('wbn-pub-link-note');
+    if (!note) {
+      note = document.createElement('div');
+      note.id = 'wbn-pub-link-note';
+      note.style.cssText = 'display:none;margin-top:6px;font-size:12px;line-height:1.5;color:var(--muted,#6B7280)';
+      input.parentNode.appendChild(note);
     }
-    return box;
+    return note;
+  }
+
+  /* Only ever touches the field's own generated value, so a link the host typed
+     is left exactly where they put it - and still saves the way it always did. */
+  function hostTypedTheirOwnLink(input) {
+    var current = clean(input && input.value);
+    return !!current && current !== shownGeneratedLink;
   }
 
   function showGeneratedMeetingLink(link) {
-    var box = generatedLinkBox();
-    if (!box) return;
+    var input = byId('wbn-pub-link');
+    var note = generatedLinkNote();
     var url = clean(link);
     if (!url) {
-      box.style.display = 'none';
-      box.innerHTML = '';
+      if (input && !hostTypedTheirOwnLink(input)) input.value = '';
+      shownGeneratedLink = '';
+      if (note) { note.textContent = ''; note.style.display = 'none'; }
       return;
     }
-    box.innerHTML = '<div style="font-weight:600;margin-bottom:4px">Meeting link</div>'
-      + '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" '
-      + 'style="word-break:break-all;color:inherit">' + escapeHtml(url) + '</a>'
-      + '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-      + '<button type="button" id="wbn-pub-link-copy" class="btn" style="padding:6px 14px;font-size:12px">Copy link</button>'
-      + '<span style="font-size:12px;opacity:.85">Visible only to you and confirmed registrants. Everyone who registers is emailed this link.</span>'
-      + '</div>';
-    box.style.display = 'block';
-    var copy = byId('wbn-pub-link-copy');
-    if (copy) {
-      copy.onclick = function () {
-        try {
-          navigator.clipboard.writeText(url).then(function () { toast('Meeting link copied.', 'green'); },
-            function () { toast('Select the link to copy it.', 'blue'); });
-        } catch (_) {
-          toast('Select the link to copy it.', 'blue');
-        }
-      };
+    if (input && hostTypedTheirOwnLink(input)) return;
+    shownGeneratedLink = url;
+    if (input) input.value = url;
+    if (note) {
+      note.textContent = 'Generated automatically. Visible only to you and confirmed registrants — everyone who registers is emailed this link.';
+      note.style.display = 'block';
     }
   }
 
@@ -1283,6 +1282,10 @@
       /* Read before publishing: a successful publish clears edit mode. */
       var editId = editingWebinarId();
       window.__guidcyLastPublishedWebinarId = '';
+      /* Take the generated link back out of the field before the save reads it,
+         or it lands in webinars.meet_link, which every visitor can read. It goes
+         back in below once the meeting is confirmed. A link the host typed is
+         left alone and saves exactly as it used to. */
       showGeneratedMeetingLink('');
       var result = await originalPublish.apply(this, arguments);
       if (result === false) return result;

@@ -113,8 +113,54 @@ test('the publisher can see the link, without it becoming public', () => {
   assert.match(flow, /storedMeetingLink\(webinarId \|\| editingWebinarId\(\)\)\.then\(showGeneratedMeetingLink\)/);
   // cleared so a previous webinar's link never shows against a different one
   assert.match(flow, /window\.wbnCancelEdit = function \(\) \{\s*showGeneratedMeetingLink\(''\);/);
-  /* The input is saved to webinars.meet_link, which every visitor can read.
-     Putting the generated link in it would publish the join URL. */
-  assert.doesNotMatch(flow, /byId\('wbn-pub-link'\)\.value\s*=/,
-    'the generated link must never be written into the field that saves to the public column');
+
+  /* It is shown IN the field, so the save must not carry it: #wbn-pub-link is
+     written to webinars.meet_link, which every visitor can read. The wrapper
+     clears it before delegating and restores it after. */
+  const wrapper = flow.slice(flow.lastIndexOf('window.wbnPublish = async function'));
+  const cleared = wrapper.indexOf("showGeneratedMeetingLink('')");
+  const saved = wrapper.indexOf('await originalPublish.apply');
+  const restored = wrapper.indexOf('showGeneratedMeetingLink(link)');
+  assert.ok(cleared > -1 && saved > -1 && restored > -1, 'publish must clear, save, then restore the field');
+  assert.ok(cleared < saved, 'the generated link has to leave the field before the save reads it');
+  assert.ok(saved < restored, 'and go back in only once the meeting is confirmed');
+
+  // a link the host typed is theirs: never overwritten, never silently dropped
+  assert.match(flow, /function hostTypedTheirOwnLink\(input\) \{[\s\S]*?return !!current && current !== shownGeneratedLink;/);
+  assert.match(flow, /if \(input && !hostTypedTheirOwnLink\(input\)\) input\.value = '';/);
+  assert.match(flow, /if \(input && hostTypedTheirOwnLink\(input\)\) return;/);
+});
+
+/* Runs the field logic for real, rather than asserting on its source: the
+   branches decide whether a host's own link survives a publish. */
+test('the field shows the generated link but never saves it', () => {
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  const from = flow.indexOf('var shownGeneratedLink');
+  const to = flow.indexOf('async function storedMeetingLink');
+  assert.ok(from > -1 && to > from, 'the field helpers must still be there to exercise');
+
+  const input = { value: '', parentNode: { appendChild() {} } };
+  const note = { textContent: '', style: {} };
+  const stubs = {
+    byId: id => (id === 'wbn-pub-link' ? input : id === 'wbn-pub-link-note' ? note : null),
+    clean: v => String(v == null ? '' : v).trim(),
+  };
+  const show = new Function('byId', 'clean', flow.slice(from, to) + '\nreturn showGeneratedMeetingLink;')(stubs.byId, stubs.clean);
+
+  // an empty field gets the generated link, and the note explains it
+  show('https://meet.google.com/aaa-bbbb-ccc');
+  assert.equal(input.value, 'https://meet.google.com/aaa-bbbb-ccc');
+  assert.match(note.textContent, /Visible only to you and confirmed registrants/);
+
+  // publishing takes it back out, so the save cannot write it to the public column
+  show('');
+  assert.equal(input.value, '', 'the generated link must not be in the field when the save reads it');
+  assert.equal(note.style.display, 'none');
+
+  // a link the host typed is left alone - not replaced, and not wiped by a publish
+  input.value = 'https://zoom.us/j/hosts-own-room';
+  show('https://meet.google.com/aaa-bbbb-ccc');
+  assert.equal(input.value, 'https://zoom.us/j/hosts-own-room', 'the host’s own link must not be overwritten');
+  show('');
+  assert.equal(input.value, 'https://zoom.us/j/hosts-own-room', 'and must still be there for the save');
 });
