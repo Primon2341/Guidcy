@@ -71,18 +71,40 @@ test('database and order creation prevent duplicate active webinar payments', ()
    to /payment - the whole site became unusable - and each redirect re-ran
    ensurePaymentPage(), which re-homes the footer against whatever page happened to
    be active, putting the footer above the content. */
-test('a stale blocking flag cannot survive a page load and trap the tab', () => {
+test('a stale payment state cannot survive into a later visit', () => {
   const at = webinarFlow.indexOf('var bootState = paymentState();');
-  assert.ok(at > 0, 'a fresh document must release a persisted blocking flag');
-  const block = webinarFlow.slice(at, at + 260);
-  assert.match(block, /bootState\.blocking && !bootState\.completed/,
-    'only an in-flight-looking flag is released; a completed payment keeps its state');
+  assert.ok(at > 0, 'a fresh document must vet the persisted state');
+  const block = webinarFlow.slice(at, at + 900);
+
+  // nothing persisted may outlive its window - a days-old state was being replayed
+  assert.match(webinarFlow, /WEBINAR_PAYMENT_MAX_AGE_MS = 30 \* 60 \* 1000/);
+  assert.match(block, /Date\.now\(\) - openedAt\) > WEBINAR_PAYMENT_MAX_AGE_MS/);
+  assert.match(block, /if \(stale\) \{[\s\S]*?clearPaymentState\(\)/,
+    'a stale state - completed or not - must be dropped, not replayed');
+  assert.match(block, /!openedAt \|\|/, 'a state with no timestamp counts as stale');
+
+  // a genuinely fresh, unfinished payment keeps its state but loses the nav lock
+  assert.match(block, /bootState\.blocking && !bootState\.completed/);
   assert.match(block, /bootState\.blocking = false/);
   assert.match(block, /savePaymentState\(bootState\)/, 'the release must be persisted, not just in memory');
 
   // it has to run before go() is wrapped, or the first navigation still sees blocking
   assert.ok(at < webinarFlow.indexOf("window.go = function (page)"),
-    'the release must happen before the go() wrapper is installed');
+    'the vetting must happen before the go() wrapper is installed');
+});
+
+/* The replayed state carried an old registration id, so /api/create-order answered
+   alreadyPaid and the client showed "Payment successful" without Razorpay ever
+   opening - and startWebinarPayment returned early on state.completed, so the Pay
+   button did nothing at all. Both are only safe while stale states are dropped. */
+test('a completed state still short-circuits the pay button, so it must not be stale', () => {
+  assert.match(webinarFlow, /if \(webinarPaymentBusy \|\| state\.completed\) return;/,
+    'the early return is what made the Pay button silently do nothing');
+  assert.match(webinarFlow, /if \(state\.completed\) showWebinarConfirmation\(/,
+    'and this is what re-showed a stale success popup on load');
+  const at = webinarFlow.indexOf('var bootState = paymentState();');
+  assert.ok(at < webinarFlow.indexOf('if (state.completed) showWebinarConfirmation('),
+    'the state must be vetted before the restore handler can replay it');
 });
 
 test('navigating away mid-checkout is still refused', () => {

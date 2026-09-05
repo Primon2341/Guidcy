@@ -740,21 +740,41 @@
     location.href = '/webinars';
   };
 
-  /* The blocking flag exists to stop someone wandering off mid-checkout. It was
-     persisted to sessionStorage and only ever cleared by pressing Back on the
-     payment page or by cancelling a checkout that had actually started - so a
-     user who simply navigated away or reloaded stayed blocked, and from then on
-     every go() in the tab was redirected to /payment. Each of those redirects
-     also re-ran ensurePaymentPage(), which re-homes the footer against whatever
-     page was active at that instant, which is how the footer ended up above the
-     content. A fresh document has no checkout in flight by definition, so a
-     persisted blocking flag is stale: keep the state so the user can still
-     resume and pay, but stop it hijacking navigation. */
+  /* The whole payment state was persisted to sessionStorage with nothing to
+     expire it, so it could be replayed days later. Two ways that broke:
+
+     - A finished payment kept completed:true, so loading /payment re-showed
+       "Payment successful" for an old registration, and startWebinarPayment
+       returned early on `state.completed` - the Pay button never opened
+       Razorpay. Even when it did run, it reused the old registration id, so
+       /api/create-order answered alreadyPaid and the client jumped straight to
+       the success popup without charging anything.
+     - blocking:true was only cleared by pressing Back on the payment page or by
+       cancelling a checkout that had actually started, so a user who simply
+       navigated away or reloaded stayed blocked and every later go() in the tab
+       was redirected to /payment. Each redirect re-ran ensurePaymentPage(),
+       which re-homes the footer against whichever page was active at that
+       instant - which is how the footer ended up above the content.
+
+     So: drop anything stale, keep only a genuinely fresh state, and never let a
+     persisted blocking flag survive into a new document (nothing is in flight in
+     a document that has only just loaded). */
+  var WEBINAR_PAYMENT_MAX_AGE_MS = 30 * 60 * 1000;
   try {
     var bootState = paymentState();
-    if (bootState && bootState.blocking && !bootState.completed) {
-      bootState.blocking = false;
-      savePaymentState(bootState);
+    if (bootState) {
+      var openedAt = Number(bootState.openedAt || 0);
+      var stale = !openedAt || (Date.now() - openedAt) > WEBINAR_PAYMENT_MAX_AGE_MS;
+      if (stale) {
+        /* Includes a completed payment from an earlier visit: the registration is
+           already recorded server-side, and replaying it only produces a false
+           confirmation and blocks the next payment. */
+        clearPaymentState();
+        window.__guidcyPaymentFlowLock = false;
+      } else if (bootState.blocking && !bootState.completed) {
+        bootState.blocking = false;
+        savePaymentState(bootState);
+      }
     }
   } catch (_) {}
 
