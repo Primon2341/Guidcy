@@ -101,7 +101,7 @@ test('one apply form cannot file the same application twice', async () => {
     authId: async () => 'user-1',
     hasApplied: async () => false,
     // the real one uploads a resume first, which is what widens the re-entry window
-    uploadResume: () => new Promise(r => setTimeout(() => r('https://example.com/cv.pdf'), 5)),
+    uploadResume: () => new Promise(r => setTimeout(() => r({ url: 'https://example.com/cv.pdf', failed: false }), 5)),
     uid: () => 'user-1',
     clean: v => String(v == null ? '' : v).trim(),
     $: id => fields[id],
@@ -138,7 +138,7 @@ function applyHarness(o = {}) {
     sbc: () => ({ from: () => table }),
     authId: async () => ('authId' in o ? o.authId : 'user-1'),
     hasApplied: async () => false,
-    uploadResume: async () => '',
+    uploadResume: async () => ({ url: '', failed: false }),
     uid: () => 'stale-page-state',
     clean: v => String(v == null ? '' : v).trim(),
     $: id => fields[id],
@@ -203,11 +203,54 @@ test('the applicant status control names the hire state, reverts on failure, and
   assert.match(src, /data-prev="'\+esc\(clean\(a\.status\)\|\|'applied'\)\+'"/,
     'the control must remember what it showed so a failed write can be undone');
   assert.match(handler, /if\(prev\)this\.value=prev/, 'a failed write must not leave the new value on screen');
-  assert.match(handler, /if\(status==='selected'\|\|status==='rejected'\)/,
-    'intermediate pipeline moves are bookkeeping, not news for the candidate');
+  assert.match(handler, /const emailType=STATUS_EMAIL\[status\]/,
+    'the template is chosen per status, not one generic status-changed event');
   assert.doesNotMatch(handler, /await\s+window\.sendWorkEmail/, 'the decision email must not block the admin');
   // the email must be sent inside the success branch, never after a failed write
   assert.ok(handler.indexOf('if(r.error)throw r.error') < handler.indexOf('sendWorkEmail'));
+});
+
+test('an uploaded resume is stored as a private path, surfaced to the admin, and never lost silently', () => {
+  const upload = slice('  async function uploadResume(applicantId){', "return {url:link,failed:true}}\n  }");
+  assert.doesNotMatch(upload, /getPublicUrl/, 'the bucket is private; a public URL would be a dead link');
+  assert.match(upload, /return \{url:path,failed:false\}/, 'store the storage path');
+  assert.match(upload, /\(applicantId\|\|uid\(\)\|\|'guest'\)/,
+    'the folder must be the session id so the storage policy can match auth.uid()');
+
+  // a failed upload with nothing to fall back on must stop, not file a resume-less application
+  const submit = slice('      const resume=await uploadResume(applicantId);', 'return;\n      }');
+  assert.match(submit, /resume\.failed&&!resume\.url/);
+  assert.match(submit, /could not attach your resume/i);
+
+  // admin side: paths get signed, links pass through, failures say so
+  const cell = slice('  function resumeCell(a,signed){', "Unavailable</span>';\n  }");
+  assert.match(cell, /\^https\?:/, 'a candidate-supplied link is used as-is');
+  assert.match(cell, /signed\|\|\{\}\)\[raw\]/, 'a stored path is resolved through the signed-url map');
+  assert.match(cell, /Unavailable/, 'a resume that cannot be signed must not render as a broken link');
+  assert.match(src, /createSignedUrls\(paths,1800\)/, 'signed in one batch, short lived');
+});
+
+test('each application outcome sends its own email, not the submitted template', () => {
+  const api = fs.readFileSync(new URL('../api/send-guidcy-email.js', import.meta.url), 'utf8');
+
+  // the candidate hears from us exactly three times
+  assert.match(src, /STATUS_EMAIL=\{shortlisted:'job_application_shortlisted_user',rejected:'job_application_rejected_user'\}/);
+  assert.match(src, /sendWorkEmail\('application_submitted'/, 'and once when the application is filed');
+
+  // regression: 'application_status_updated' resolves to the SUBMITTED template, so a
+  // rejection used to arrive telling the candidate their application had been submitted
+  const handler = slice("      document.querySelectorAll('.gc-app-status').forEach(sel=>{", '      });\n    }catch(e){');
+  assert.doesNotMatch(handler, /sendWorkEmail\(\s*['"]application_status_updated/,
+    'the careers page must never send through that alias');
+  assert.match(src, /application_status_updated:'job_application_submitted_user'/,
+    'the misleading alias still exists in EMAIL_TYPE_MAP - the careers page must not use it');
+
+  // both new templates need a subject and their own body, or they fall back to a generic one
+  for (const type of ['job_application_shortlisted_user', 'job_application_rejected_user']) {
+    assert.ok(api.includes(type + ":"), `${type} needs a subject line`);
+    assert.match(api, new RegExp(type.replace(/_user$/, '') + '/i\\.test\\(type\\)'), `${type} needs its own intro copy`);
+  }
+  assert.doesNotMatch(api, /job_application_shortlisted_user: 'Your job application has been submitted'/);
 });
 
 test('Enter in a single-line field cannot publish a half-filled opening', () => {

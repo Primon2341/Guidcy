@@ -29284,6 +29284,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   /* 'selected' is the terminal hire state the schema allows; spell that out for the
      admin rather than adding a second status that means the same thing. */
   const ADMIN_STATUS_LABELS={applied:'Applied',viewed:'Viewed',shortlisted:'Shortlisted',interview:'Interview',selected:'Selected / Hired',rejected:'Rejected',withdrawn:'Withdrawn'};
+  /* The candidate hears from us three times: on submitting, on being shortlisted
+     for interview, and on a rejection. Values are template names, not events. */
+  const STATUS_EMAIL={shortlisted:'job_application_shortlisted_user',rejected:'job_application_rejected_user'};
 
   window.guidcyEnsureCareersPage=function(){return $('page-careers')};
 
@@ -29619,18 +29622,24 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     submitOnlyOnButton(form);
   }
 
-  async function uploadResume(){
+  /* Returns {url, failed}. This used to swallow the error and hand back whatever
+     was typed in the link box, so a candidate who attached a CV and typed no link
+     had resume_url:'' written and the admin's applicant table showed "-" with
+     nobody any the wiser. The path is keyed on the resolved session id, not on
+     page state, so a storage policy can be written against auth.uid(). */
+  async function uploadResume(applicantId){
     const f=$('gc-a-file')&&$('gc-a-file').files&&$('gc-a-file').files[0];
     const link=clean($('gc-a-resume')&&$('gc-a-resume').value);
-    if(!f)return link;
-    const c=sbc(); if(!c||!c.storage)return link;
+    if(!f)return {url:link,failed:false};
+    const c=sbc(); if(!c||!c.storage)return {url:link,failed:true};
     try{
-      const path=(uid()||'guest')+'/'+Date.now()+'-'+f.name.replace(/[^a-zA-Z0-9.\-_]/g,'_');
+      const path=(applicantId||uid()||'guest')+'/'+Date.now()+'-'+f.name.replace(/[^a-zA-Z0-9.\-_]/g,'_');
       const up=await c.storage.from('job-resumes').upload(path,f,{upsert:false});
       if(up.error)throw up.error;
-      const pub=c.storage.from('job-resumes').getPublicUrl(path);
-      return (pub&&pub.data&&pub.data.publicUrl)||link;
-    }catch(e){console.warn('Guidcy Careers: resume upload skipped',e);return link}
+      /* Private bucket: keep the path and sign it for the hiring team on demand.
+         A public URL would just be a dead link here. */
+      return {url:path,failed:false};
+    }catch(e){console.warn('Guidcy Careers: resume upload failed',e);return {url:link,failed:true}}
   }
 
   /* Same hole as saveRole: the disabled submit button only stops pointer clicks,
@@ -29648,12 +29657,17 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       const applicantId=await authId();
       if(!applicantId){toast('Your session has expired. Please log in again to submit this application.','red');return}
       if(await hasApplied(j.id)){toast('You have already applied for this role.','blue');closeModal();return}
+      const resume=await uploadResume(applicantId);
+      if(resume.failed&&!resume.url){
+        toast('We could not attach your resume file. Please add a link to it instead, or try again.','red');
+        return;
+      }
       const payload={
         job_id:j.id, applicant_id:applicantId,
         applicant_name:clean($('gc-a-name').value),
         applicant_email:clean($('gc-a-email').value),
         applicant_phone:clean($('gc-a-phone').value),
-        resume_url:await uploadResume(),
+        resume_url:resume.url,
         portfolio_url:clean($('gc-a-portfolio').value),
         linkedin_url:clean($('gc-a-linkedin').value),
         proposal:clean($('gc-a-note').value),
@@ -29852,6 +29866,28 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }finally{withdrawing=false}
   }
 
+  /* resume_url holds either a candidate-supplied link or a path in the private
+     job-resumes bucket. Sign the paths in one batch so the table can link them. */
+  async function signResumes(rows){
+    const c=sbc(); if(!c||!c.storage)return {};
+    const paths=(rows||[]).map(a=>clean(a.resume_url)).filter(u=>u&&!/^https?:\/\//i.test(u));
+    if(!paths.length)return {};
+    try{
+      const r=await c.storage.from('job-resumes').createSignedUrls(paths,1800);
+      const map={};
+      ((r&&r.data)||[]).forEach(function(x){if(x&&x.path&&x.signedUrl)map[x.path]=x.signedUrl});
+      return map;
+    }catch(e){console.warn('Guidcy Careers: could not sign resume links',e);return {}}
+  }
+  function resumeCell(a,signed){
+    const raw=clean(a.resume_url);
+    if(!raw)return '—';
+    const href=/^https?:\/\//i.test(raw)?raw:((signed||{})[raw]||'');
+    return href
+      ? '<a href="'+esc(href)+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">Open</a>'
+      : '<span style="color:var(--muted)" title="The stored file could not be opened">Unavailable</span>';
+  }
+
   async function viewApplicants(id){
     if(!isAdmin())return;
     const c=sbc(); if(!c)return;
@@ -29860,6 +29896,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       const {data,error}=await c.from('job_applications').select('*').eq('job_id',id).order('created_at',{ascending:false});
       if(error)throw error;
       const rows=data||[];
+      const signed=await signResumes(rows);
       openModal('<div class="gc-modal-head"><div class="gc-job-title">Applicants</div><div style="font-size:13px;color:var(--ink2)">'+rows.length+' application'+(rows.length===1?'':'s')+'</div></div>'+
         '<div class="gc-modal-body">'+(rows.length
           ? '<div style="overflow-x:auto"><table class="gc-table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Resume</th><th>Applied</th><th>Status</th></tr></thead><tbody>'+
@@ -29867,7 +29904,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
               '<td>'+esc(a.applicant_name||'—')+'</td>'+
               '<td>'+esc(a.applicant_email||'—')+'</td>'+
               '<td>'+esc(a.applicant_phone||'—')+'</td>'+
-              '<td>'+(a.resume_url?'<a href="'+esc(a.resume_url)+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">Open</a>':'—')+'</td>'+
+              '<td>'+resumeCell(a,signed)+'</td>'+
               '<td>'+esc(fmtDate(a.created_at))+'</td>'+
               '<td><select class="gc-app-status" data-app="'+esc(a.id)+'" data-prev="'+esc(clean(a.status)||'applied')+'" style="border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px">'+
                 opts(['applied','viewed','shortlisted','interview','selected','rejected','withdrawn'],clean(a.status)||'applied',ADMIN_STATUS_LABELS)+'</select></td>'+
@@ -29882,16 +29919,23 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
             if(r.error)throw r.error;
             this.setAttribute('data-prev',status);
             toast('Application status updated.','green');
-            /* Only the decision is worth an email - the intermediate pipeline moves
-               are the hiring team's bookkeeping, not news for the candidate. Sent in
-               the background so a slow mailer never blocks the admin. */
-            if(status==='selected'||status==='rejected'){
+            /* Two moments are news for the candidate; the rest is the hiring team's
+               own bookkeeping. Pass the template name as the event so it survives
+               both sendWorkEmail implementations - the shared EMAIL_TYPE_MAP resolves
+               'application_status_updated' back to the *submitted* template, which is
+               why a rejection used to arrive as "your application has been submitted".
+               Sent in the background so a slow mailer never blocks the admin. */
+            const emailType=STATUS_EMAIL[status];
+            if(emailType){
               const row=rows.filter(function(a){return String(a.id)===String(appId)})[0]||{};
-              try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail('application_status_updated',{
+              let origin=''; try{origin=location.origin||''}catch(_){}
+              try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail(emailType,{
                 id:appId, job_id:id, status:status,
                 applicant_email:row.applicant_email||'', applicant_name:row.applicant_name||'there',
                 job_title:(cache.filter(function(j){return String(j.id)===String(id)})[0]||{}).title||'',
-                company_name:COMPANY
+                company_name:COMPANY,
+                action_link:origin?origin+'/careers':'',
+                action_text:status==='rejected'?'See other open roles':'Open Guidcy'
               })).catch(function(){})}catch(_){}
             }
           }catch(e){

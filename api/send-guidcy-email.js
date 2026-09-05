@@ -9,6 +9,8 @@ const SUBJECTS = {
   webinar_registration_consultant: 'New registration for your webinar',
   new_webinar_registration_admin: 'New webinar registration received',
   job_application_submitted_user: 'Your job application has been submitted',
+  job_application_shortlisted_user: 'You have been shortlisted for the interview round',
+  job_application_rejected_user: 'Update on your Guidcy application',
   job_post_submitted_consultant: 'Your job post has been submitted for review',
   support_ticket_created_user: 'Your support request has been received',
   dispute_created_user: 'Your dispute has been submitted',
@@ -138,6 +140,9 @@ function intro(type, name, role) {
   if (/webinar_registration/i.test(type)) return `Hi ${name}, webinar registration details are below.`;
   if (/consultant_approved/i.test(type)) return `Hi ${name}, your consultant profile is approved and ready on Guidcy.`;
   if (/consultant_rejected/i.test(type)) return `Hi ${name}, your consultant profile was reviewed and needs changes before approval.`;
+  if (/job_application_submitted/i.test(type)) return `Hi ${name}, thank you for applying to Guidcy. We have received your application and our hiring team is reviewing it. You will hear from us by email as it moves forward - the details you sent are below.`;
+  if (/job_application_shortlisted/i.test(type)) return `Hi ${name}, good news - your application has been shortlisted for the interview round. Our hiring team will be in touch shortly to arrange a date and time that works for you. Please keep an eye on this inbox, and do reply if none of the proposed slots suit you. In the meantime, it is worth having a couple of examples of your recent work ready to talk through.`;
+  if (/job_application_rejected/i.test(type)) return `Hi ${name}, thank you for taking the time to apply and for your interest in Guidcy. After careful consideration we have decided to move forward with other candidates whose experience is closer to what this particular role needs right now. This is not a reflection of your ability, and we would genuinely welcome an application from you for future openings. We wish you every success with your search.`;
   if (/dispute_reply/i.test(type)) return `Hi ${name}, there is a new reply on your Guidcy dispute.`;
   if (/dispute_status_updated/i.test(type)) return `Hi ${name}, the status of your Guidcy dispute has changed.`;
   if (role === 'admin') return 'Hi Admin, a new Guidcy action requires review.';
