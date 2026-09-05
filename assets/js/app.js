@@ -29280,7 +29280,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function fmtDate(d){if(!d)return '—';try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(_){return String(d)}}
   function isNew(d){if(!d)return false;try{return (Date.now()-new Date(d).getTime())/86400000<=14}catch(_){return false}}
   function tags(s){return String(s||'').split(/[,\n]/).map(x=>x.trim()).filter(Boolean).slice(0,6)}
-  function opts(arr,sel){return arr.map(x=>'<option value="'+esc(x)+'"'+(sel===x?' selected':'')+'>'+esc(x)+'</option>').join('')}
+  function opts(arr,sel,labels){return arr.map(x=>'<option value="'+esc(x)+'"'+(sel===x?' selected':'')+'>'+esc((labels&&labels[x])||x)+'</option>').join('')}
+  /* 'selected' is the terminal hire state the schema allows; spell that out for the
+     admin rather than adding a second status that means the same thing. */
+  const ADMIN_STATUS_LABELS={applied:'Applied',viewed:'Viewed',shortlisted:'Shortlisted',interview:'Interview',selected:'Selected / Hired',rejected:'Rejected',withdrawn:'Withdrawn'};
 
   window.guidcyEnsureCareersPage=function(){return $('page-careers')};
 
@@ -29323,11 +29326,46 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     const c=sbc(); if(!c)return null;
     try{const {data,error}=await c.from('job_posts').select('*').eq('id',id).single(); if(error)throw error; return data}catch(e){console.warn(e);return null}
   }
+  /* RLS on job_applications requires applicant_id = auth.uid(). window.currentUser /
+     currentProfile can legitimately hold an email with no id (a login path rebuilds
+     the profile before loadProfile() has filled it in) and isLogged() accepts that
+     state - so every application went out with applicant_id:null and Postgres
+     rejected it. Ask the session for the real id instead of trusting page state. */
+  async function authId(){
+    const c=sbc();
+    try{const r=await(c&&c.auth&&c.auth.getUser&&c.auth.getUser()); const id=r&&r.data&&r.data.user&&r.data.user.id; if(id)return id}catch(_){}
+    try{const r=await(c&&c.auth&&c.auth.getSession&&c.auth.getSession()); const id=r&&r.data&&r.data.session&&r.data.session.user&&r.data.session.user.id; if(id)return id}catch(_){}
+    return uid();
+  }
+
+  /* The candidate's own application per job, so a card can show where they stand
+     and offer to withdraw. */
+  let myApps={};
+  async function loadMyApplications(){
+    if(!isLogged()){myApps={};return}
+    const c=sbcReady(); if(!c)return;
+    const id=await authId(); if(!id)return;
+    try{
+      const {data,error}=await c.from('job_applications').select('id,job_id,status').eq('applicant_id',id);
+      if(error)throw error;
+      /* Swap in one go. Clearing first left a window where a Withdraw button was
+         still on screen but its application had nothing to point at. */
+      const next={};
+      (data||[]).forEach(function(r){next[String(r.job_id)]=r});
+      myApps=next;
+    }catch(e){console.warn('Guidcy Careers: could not load your applications',e)}
+  }
+  const APPLICANT_STATUS={applied:'Application sent',viewed:'Viewed by the team',shortlisted:'Shortlisted',interview:'Interview stage',selected:'Selected',rejected:'Not selected'};
+  function myApp(jobId){
+    const a=myApps[String(jobId)];
+    return (a&&norm(a.status)!=='withdrawn')?a:null;
+  }
+
   async function hasApplied(jobId){
     const c=sbc(); if(!c)return false;
     try{
       let q=c.from('job_applications').select('id').eq('job_id',jobId).neq('status','withdrawn').limit(1);
-      const id=uid(), em=userEmail();
+      const id=await authId(), em=userEmail();
       if(id)q=q.eq('applicant_id',id); else if(em)q=q.eq('applicant_email',em); else return false;
       const {data,error}=await q; if(error)throw error;
       return Array.isArray(data)&&data.length>0;
@@ -29365,6 +29403,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   function card(j){
     const admin=isAdmin();
+    const mine=myApp(j.id);
     const closed=clean(j.status)&&clean(j.status)!=='approved';
     return '<article class="gc-job">'+
       '<div>'+
@@ -29395,7 +29434,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       '</div>'+
       '<div class="gc-job-actions">'+
         '<button type="button" class="gc-btn gc-btn-ghost" data-gc="view" data-id="'+esc(j.id)+'">View details</button>'+
-        '<button type="button" class="gc-btn gc-btn-primary" data-gc="apply" data-id="'+esc(j.id)+'">Apply now</button>'+
+        (mine
+          ? '<span class="gc-tag">'+esc(APPLICANT_STATUS[norm(mine.status)]||'Application sent')+'</span>'+
+            '<button type="button" class="gc-btn gc-btn-ghost" data-gc="withdraw" data-id="'+esc(j.id)+'" data-app="'+esc(mine.id)+'">Withdraw application</button>'
+          : '<button type="button" class="gc-btn gc-btn-primary" data-gc="apply" data-id="'+esc(j.id)+'">Apply now</button>')+
       '</div>'+
     '</article>';
   }
@@ -29450,6 +29492,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       }
       retries=0;
       cache=rows;
+      await loadMyApplications();
       fillFilters(rows);
       const shown=rows.filter(matches);
       const count=$('gc-count');
@@ -29602,9 +29645,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     applying=true;
     try{
       if(btn){btn.disabled=true;btn.textContent='Submitting…'}
+      const applicantId=await authId();
+      if(!applicantId){toast('Your session has expired. Please log in again to submit this application.','red');return}
       if(await hasApplied(j.id)){toast('You have already applied for this role.','blue');closeModal();return}
       const payload={
-        job_id:j.id, applicant_id:uid(),
+        job_id:j.id, applicant_id:applicantId,
         applicant_name:clean($('gc-a-name').value),
         applicant_email:clean($('gc-a-email').value),
         applicant_phone:clean($('gc-a-phone').value),
@@ -29616,14 +29661,30 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         available_start_date:($('gc-a-start').value||null),
         status:'applied'
       };
-      const {error}=await c.from('job_applications').insert(payload);
+      /* uq_job_applications_job_applicant is not status-aware, so a withdrawn row
+         still occupies (job_id, applicant_id) and a plain insert would fail as a
+         duplicate. Revive that row instead, which is what re-applying means. */
+      let error;
+      const prior=await c.from('job_applications').select('id').eq('job_id',j.id).eq('applicant_id',applicantId).limit(1);
+      if(prior.error)throw prior.error;
+      if(prior.data&&prior.data.length){
+        ({error}=await c.from('job_applications').update(Object.assign({},payload,{updated_at:new Date().toISOString()})).eq('id',prior.data[0].id));
+      }else{
+        ({error}=await c.from('job_applications').insert(payload));
+      }
       if(error){
         if(/duplicate|unique/i.test(String(error.message||error.details||''))){toast('You have already applied for this role.','blue');closeModal();return}
         throw error;
       }
-      try{await window.sendWorkEmail&&window.sendWorkEmail('application_submitted',Object.assign({},payload,{job_title:j.title,company_name:COMPANY}))}catch(_){}
+      /* The application row is already saved. This notification is best-effort and
+         goes through a serverless endpoint, so awaiting it left the candidate on a
+         disabled "Submitting…" button for seconds after their application had in
+         fact gone through - which reads as a hang. Send it in the background. */
+      try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail('application_submitted',Object.assign({},payload,{job_title:j.title,company_name:COMPANY}))).catch(function(){})}catch(_){}
       toast('Application submitted. Thank you for applying to Guidcy.','green');
       closeModal();
+      // refresh the card so it shows the application instead of "Apply now" again
+      cache=[]; render();
     }catch(e){
       console.warn('Guidcy Careers: application failed',e);
       toast('We could not submit your application. Please try again.','red');
@@ -29769,6 +29830,28 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       cache=[]; render();
     }catch(e){console.warn(e);toast('Delete failed. Please try again.','red')}
   }
+  /* The schema was always built for withdrawal - the status CHECK allows it and
+     the duplicate guards exclude it - but nothing ever set it, so a candidate
+     could never take an application back. */
+  let withdrawing=false;
+  async function withdrawApplication(jobId,appId){
+    const app=appId?{id:appId}:myApps[String(jobId)];
+    if(!app||!app.id){toast('We could not find your application for this role.','red');return}
+    if(withdrawing)return;
+    if(!confirm('Withdraw your application for this role? You can apply again afterwards.'))return;
+    const c=sbc(); if(!c){toast('Something went wrong. Please try again.','red');return}
+    withdrawing=true;
+    try{
+      const {error}=await c.from('job_applications').update({status:'withdrawn',updated_at:new Date().toISOString()}).eq('id',app.id);
+      if(error)throw error;
+      toast('Application withdrawn. You can apply again any time.','green');
+      cache=[]; render();
+    }catch(e){
+      console.warn('Guidcy Careers: withdraw failed',e);
+      toast('We could not withdraw your application. Please try again.','red');
+    }finally{withdrawing=false}
+  }
+
   async function viewApplicants(id){
     if(!isAdmin())return;
     const c=sbc(); if(!c)return;
@@ -29786,18 +29869,37 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
               '<td>'+esc(a.applicant_phone||'—')+'</td>'+
               '<td>'+(a.resume_url?'<a href="'+esc(a.resume_url)+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">Open</a>':'—')+'</td>'+
               '<td>'+esc(fmtDate(a.created_at))+'</td>'+
-              '<td><select class="gc-app-status" data-app="'+esc(a.id)+'" style="border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px">'+
-                opts(['applied','viewed','shortlisted','interview','selected','rejected'],clean(a.status)||'applied')+'</select></td>'+
+              '<td><select class="gc-app-status" data-app="'+esc(a.id)+'" data-prev="'+esc(clean(a.status)||'applied')+'" style="border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:12px">'+
+                opts(['applied','viewed','shortlisted','interview','selected','rejected','withdrawn'],clean(a.status)||'applied',ADMIN_STATUS_LABELS)+'</select></td>'+
             '</tr>').join('')+'</tbody></table></div>'
           : '<div class="gc-empty"><span class="gc-empty-icon">📭</span>No applications yet for this role.</div>')+
         '<div class="gc-job-actions" style="margin-top:20px"><button type="button" class="gc-btn gc-btn-ghost" data-gc="close">Close</button></div></div>');
       document.querySelectorAll('.gc-app-status').forEach(sel=>{
         sel.addEventListener('change',async function(){
+          const status=this.value, appId=this.getAttribute('data-app'), prev=this.getAttribute('data-prev')||'';
           try{
-            const r=await sbc().from('job_applications').update({status:this.value,updated_at:new Date().toISOString()}).eq('id',this.getAttribute('data-app'));
+            const r=await sbc().from('job_applications').update({status:status,updated_at:new Date().toISOString()}).eq('id',appId);
             if(r.error)throw r.error;
+            this.setAttribute('data-prev',status);
             toast('Application status updated.','green');
-          }catch(e){console.warn(e);toast('Could not update status.','red')}
+            /* Only the decision is worth an email - the intermediate pipeline moves
+               are the hiring team's bookkeeping, not news for the candidate. Sent in
+               the background so a slow mailer never blocks the admin. */
+            if(status==='selected'||status==='rejected'){
+              const row=rows.filter(function(a){return String(a.id)===String(appId)})[0]||{};
+              try{if(window.sendWorkEmail)Promise.resolve(window.sendWorkEmail('application_status_updated',{
+                id:appId, job_id:id, status:status,
+                applicant_email:row.applicant_email||'', applicant_name:row.applicant_name||'there',
+                job_title:(cache.filter(function(j){return String(j.id)===String(id)})[0]||{}).title||'',
+                company_name:COMPANY
+              })).catch(function(){})}catch(_){}
+            }
+          }catch(e){
+            console.warn(e);
+            /* Leaving the new value on screen told the admin it had saved. */
+            if(prev)this.value=prev;
+            toast('Could not update status.','red');
+          }
         });
       });
     }catch(e){
@@ -29814,6 +29916,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(act==='close'){e.preventDefault();closeModal();return}
     if(act==='view'){e.preventDefault();viewRole(id);return}
     if(act==='apply'){e.preventDefault();applyRole(id);return}
+    if(act==='withdraw'){e.preventDefault();withdrawApplication(id,el.getAttribute('data-app'));return}
     if(act==='new'){e.preventDefault();openRoleForm(null);return}
     if(act==='edit'){e.preventDefault();openRoleForm(id);return}
     if(act==='status'){e.preventDefault();setStatus(id,el.getAttribute('data-val'));return}

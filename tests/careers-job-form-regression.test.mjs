@@ -87,10 +87,18 @@ test('one apply form cannot file the same application twice', async () => {
   fields['gc-a-name'].value = 'Ada';
   fields['gc-a-email'].value = 'ada@example.com';
   const btn = { disabled: false, textContent: 'Submit application' };
+  // select(...).eq(...).eq(...).limit(...) is the "have they applied before?" probe
+  const table = {
+    select: () => table, eq: () => table,
+    limit: () => Promise.resolve({ data: [], error: null }),
+    insert: () => { calls.insert++; return Promise.resolve({ error: null }); },
+    update: () => ({ eq: () => { calls.update = (calls.update || 0) + 1; return Promise.resolve({ error: null }); } })
+  };
   const ctx = vm.createContext({
     window: {},
     COMPANY: 'Guidcy Technologies Pvt. Ltd.',
-    sbc: () => ({ from: () => ({ insert: () => { calls.insert++; return Promise.resolve({ error: null }); } }) }),
+    sbc: () => ({ from: () => table }),
+    authId: async () => 'user-1',
     hasApplied: async () => false,
     // the real one uploads a resume first, which is what widens the re-entry window
     uploadResume: () => new Promise(r => setTimeout(() => r('https://example.com/cv.pdf'), 5)),
@@ -99,7 +107,7 @@ test('one apply form cannot file the same application twice', async () => {
     $: id => fields[id],
     toast: (m, t) => calls.toasts.push([m, t]),
     closeModal: () => { calls.closed++; },
-    setTimeout, Object, Promise, Array, String, console
+    Date, setTimeout, Object, Promise, Array, String, console
   });
   vm.runInContext(slice('  let applying=false;\n  async function submitApplication(',
     "}finally{applying=false;if(btn){btn.disabled=false;btn.textContent='Submit application'}}\n  }"), ctx);
@@ -109,6 +117,97 @@ test('one apply form cannot file the same application twice', async () => {
   assert.equal(calls.insert, 1, 'repeated submits must file one application');
   assert.equal(calls.closed, 1);
   assert.equal(btn.disabled, false);
+});
+
+function applyHarness(o = {}) {
+  const calls = { insert: 0, update: 0, closed: 0, toasts: [] };
+  const fields = Object.fromEntries(['gc-a-name', 'gc-a-email', 'gc-a-phone', 'gc-a-portfolio',
+    'gc-a-linkedin', 'gc-a-note', 'gc-a-answer', 'gc-a-start'].map(id => [id, { value: '' }]));
+  fields['gc-a-name'].value = 'Ada';
+  fields['gc-a-email'].value = 'ada@example.com';
+  fields['gc-a-note'].value = 'Why I am a good fit';
+  const btn = { disabled: false, textContent: 'Submit application' };
+  const table = {
+    select: () => table, eq: () => table,
+    limit: () => Promise.resolve({ data: o.priorRow ? [{ id: 'app-1' }] : [], error: null }),
+    insert: () => { calls.insert++; return Promise.resolve({ error: null }); },
+    update: () => ({ eq: () => { calls.update++; return Promise.resolve({ error: null }); } })
+  };
+  const ctx = vm.createContext({
+    window: {}, COMPANY: 'Guidcy',
+    sbc: () => ({ from: () => table }),
+    authId: async () => ('authId' in o ? o.authId : 'user-1'),
+    hasApplied: async () => false,
+    uploadResume: async () => '',
+    uid: () => 'stale-page-state',
+    clean: v => String(v == null ? '' : v).trim(),
+    $: id => fields[id],
+    toast: (m, t) => calls.toasts.push([m, t]),
+    closeModal: () => { calls.closed++; },
+    cache: [], render: () => { calls.rendered = (calls.rendered || 0) + 1; },
+    Date, setTimeout, Object, Promise, Array, String, console
+  });
+  vm.runInContext(slice('  let applying=false;\n  async function submitApplication(',
+    "}finally{applying=false;if(btn){btn.disabled=false;btn.textContent='Submit application'}}\n  }"), ctx);
+  const run = () => ctx.submitApplication({ preventDefault() {}, target: { querySelector: () => btn } },
+    { id: 'job-1', title: 'Frontend Engineer' });
+  return { calls, run, fields, btn };
+}
+
+test('a filed application is confirmed without waiting on the notification email', async () => {
+  // the row is already saved; awaiting a serverless email left the candidate on a
+  // disabled "Submitting..." button long after the application had gone through
+  let emailSettled = false;
+  const h = applyHarness();
+  h.sendWorkEmail = () => new Promise(() => {});
+  const fn = slice('  let applying=false;\n  async function submitApplication(', 'company_name:COMPANY})))');
+  assert.doesNotMatch(fn, /await\s+window\.sendWorkEmail/, 'the email must not be awaited in the submit path');
+  assert.match(fn, /Promise\.resolve\(window\.sendWorkEmail\(/, 'it is fired and left to finish in the background');
+  assert.equal(emailSettled, false);
+});
+
+test('an application is filed against the session id, never a null from stale page state', async () => {
+  // RLS is `applicant_id = auth.uid()`; a null id is rejected and the application is lost
+  const h = applyHarness({ authId: null });
+  await h.run();
+  assert.equal(h.calls.insert, 0, 'nothing may be sent without a real auth id');
+  assert.equal(h.calls.closed, 0, 'the form stays open so the answers are not lost');
+  assert.equal(h.fields['gc-a-note'].value, 'Why I am a good fit');
+  assert.match(h.calls.toasts.at(-1)[0], /log in again/i);
+});
+
+test('re-applying after a withdrawal revives the existing row instead of inserting a duplicate', async () => {
+  // uq_job_applications_job_applicant is not status-aware, so the withdrawn row
+  // still owns (job_id, applicant_id) and a plain insert would fail as a duplicate
+  const h = applyHarness({ priorRow: true });
+  await h.run();
+  assert.equal(h.calls.update, 1);
+  assert.equal(h.calls.insert, 0);
+  assert.equal(h.calls.closed, 1);
+});
+
+test('a candidate can withdraw, and the admin list can show a withdrawn application', () => {
+  const fn = slice('  async function withdrawApplication(jobId,appId){', "finally{withdrawing=false}\n  }");
+  assert.match(fn, /appId\?\{id:appId\}/, 'withdraw must use the id carried on the button, not a map that a re-render can empty');
+  assert.match(fn, /status:'withdrawn'/, 'withdraw must set the status the schema already allows');
+  assert.match(fn, /if\(withdrawing\)return/, 'withdraw needs the same re-entrancy guard');
+  assert.match(src, /opts\(\['applied','viewed','shortlisted','interview','selected','rejected','withdrawn'\]/,
+    "a withdrawn row must not render as 'applied' in the admin table");
+  assert.match(src, /data-gc="withdraw"/, 'the card needs a withdraw affordance');
+});
+
+test('the applicant status control names the hire state, reverts on failure, and mails only decisions', () => {
+  const handler = slice("      document.querySelectorAll('.gc-app-status').forEach(sel=>{", '      });\n    }catch(e){');
+  // 'selected' is the terminal state the CHECK constraint allows; say so in the UI
+  assert.match(src, /selected:'Selected \/ Hired'/);
+  assert.match(src, /data-prev="'\+esc\(clean\(a\.status\)\|\|'applied'\)\+'"/,
+    'the control must remember what it showed so a failed write can be undone');
+  assert.match(handler, /if\(prev\)this\.value=prev/, 'a failed write must not leave the new value on screen');
+  assert.match(handler, /if\(status==='selected'\|\|status==='rejected'\)/,
+    'intermediate pipeline moves are bookkeeping, not news for the candidate');
+  assert.doesNotMatch(handler, /await\s+window\.sendWorkEmail/, 'the decision email must not block the admin');
+  // the email must be sent inside the success branch, never after a failed write
+  assert.ok(handler.indexOf('if(r.error)throw r.error') < handler.indexOf('sendWorkEmail'));
 });
 
 test('Enter in a single-line field cannot publish a half-filled opening', () => {
