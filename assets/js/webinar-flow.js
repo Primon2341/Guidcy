@@ -462,7 +462,7 @@
     }
   }
 
-  function showWebinarConfirmation(registration, webinar) {
+  function showWebinarConfirmation(registration, webinar, alreadyRegistered) {
     var old = byId('booking-confirm-popup');
     if (old) old.remove();
     var popup = document.createElement('div');
@@ -473,8 +473,12 @@
     popup.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="guidcy-webinar-payment-confirm-title" style="max-width:520px;text-align:center">' +
       '<button class="modal-close" type="button" aria-label="Stay on Payment page" onclick="guidcyWebinarPaymentOutcomeAction(\'stay\')">×</button>' +
       '<div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:34px">✓</div>' +
-      '<div id="guidcy-webinar-payment-confirm-title" style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">Payment successful</div>' +
-      '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">Your webinar registration is confirmed. Choose an action below when you are ready.</div>' +
+      '<div id="guidcy-webinar-payment-confirm-title" style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">' +
+      (alreadyRegistered ? 'You are already registered' : 'Payment successful') + '</div>' +
+      '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">' +
+      (alreadyRegistered
+        ? 'This webinar is already paid for with ' + escapeHtml(registration.email || 'this email') + ', so no new payment was taken and Razorpay was not opened.'
+        : 'Your webinar registration is confirmed. Choose an action below when you are ready.') + '</div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">' +
       '<div class="detail-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:600;text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
       '<div class="detail-row"><span style="color:var(--muted)">Date</span><span>' + escapeHtml(formatDate(webinar.date || webinar.webinar_date)) + '</span></div>' +
@@ -537,6 +541,7 @@
     setPaymentStatus('processing', 'Opening secure checkout', 'Stay on this Payment page while Razorpay processes the registration.');
     renderWebinarPaymentPage();
     var checkoutCompleted = false;
+    var alreadyRegistered = false;
     try {
       var created = await postJson('/api/create-order', {
         flow: 'webinar',
@@ -544,6 +549,7 @@
       });
       if (created.alreadyPaid && created.row) {
         state.registration = created.row;
+        alreadyRegistered = true;
       } else {
         if (!created.order || !/^order_[A-Za-z0-9]+$/.test(clean(created.order.id))) {
           throw new Error('Unable to create the Razorpay webinar order.');
@@ -584,7 +590,11 @@
       savePaymentState(state);
       window.lastWebinarRegistration = state.registration;
       ensurePaymentPage();
-      setPaymentStatus('success', 'Payment successful', 'Your webinar registration is confirmed. Choose an action from the confirmation popup.');
+      setPaymentStatus('success',
+        alreadyRegistered ? 'Already registered' : 'Payment successful',
+        alreadyRegistered
+          ? 'This webinar was already paid for with this email. No new payment was taken.'
+          : 'Your webinar registration is confirmed. Choose an action from the confirmation popup.');
       renderWebinarPaymentPage();
       try {
         await sendWebinarEmails(state.registration, state.webinar);
@@ -595,7 +605,7 @@
         window.wbnLoad && await window.wbnLoad();
         window.wbnRenderRegs && window.wbnRenderRegs();
       } catch (_) {}
-      showWebinarConfirmation(state.registration, state.webinar);
+      showWebinarConfirmation(state.registration, state.webinar, alreadyRegistered);
     } catch (error) {
       console.error('Webinar Razorpay payment failed:', error);
       state.blocking = false;
@@ -656,17 +666,28 @@
       paid = webinar.is_paid === true || lower(webinar.price_type) === 'paid' || Number(webinar.price_amount || 0) > 0;
       var registration = await prepareRegistration(webinar, details, paid);
       if (paid) {
-        openWebinarPaymentPage(webinar, registration, details);
+        /* Already paid for with this email. Sending them to the payment page and
+           then popping "Payment successful" read as a charge that never happened -
+           Razorpay is not opened here, and nothing is taken. Say so where they
+           already are, in the registration form, and leave the payment flow out
+           of it entirely. */
         if (registration.__alreadyConfirmed || isConfirmedRegistration(registration)) {
-          var state = paymentState();
-          state.registration = registration;
-          state.completed = true;
-          state.blocking = true;
-          savePaymentState(state);
-          setPaymentStatus('success', 'Already registered', 'This verified webinar registration is already paid. No duplicate payment was created.');
-          renderWebinarPaymentPage();
-          showWebinarConfirmation(registration, webinar);
+          clearPaymentState();
+          window.__guidcyPaymentFlowLock = false;
+          var regForm = byId('wbn-reg-form');
+          var regSuccess = byId('wbn-reg-success');
+          var regMessage = byId('wbn-reg-success-msg');
+          if (regForm) regForm.style.display = 'none';
+          if (regSuccess) regSuccess.classList.add('on');
+          if (regMessage) {
+            regMessage.textContent = 'You are already registered for "' + webinarTitle(webinar) +
+              '". It is already paid for with ' + (registration.email || details.email) +
+              ', so no new payment was taken. The meeting link will be sent before the session.';
+          }
+          toast('You are already registered for this webinar.', 'blue');
+          return;
         }
+        openWebinarPaymentPage(webinar, registration, details);
         return;
       }
       var freeResult = await postJson('/api/verify-payment', {
@@ -709,6 +730,13 @@
   }
   window.wbnSubmitReg = submitWebinarRegistration;
   window.wbnSubmitReg.__guidcyPaymentPageFlow = true;
+  /* app.js wraps wbnSubmitReg to fire the registration emails the moment the submit
+     resolves - which for a paid webinar is before any payment, so the attendee was
+     told "You are registered" while the registration was still pending_payment.
+     That wrapper skips any submit already marked as running a verified-payment
+     flow, which this one does: sendWebinarEmails() sends the same three emails
+     (attendee, host, admin) only after server-side verification. */
+  window.wbnSubmitReg.__guidcyVerifiedPaymentFlow = true;
 
   window.guidcyStartRazorpayBooking = function () {
     if (paymentState()) return startWebinarPayment();

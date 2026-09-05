@@ -116,3 +116,45 @@ test('navigating away mid-checkout is still refused', () => {
   assert.match(wrapper, /state && !state\.blocking && page !== 'payment'\) clearPaymentState\(\)/,
     'and a released state must clear itself on the first navigation away');
 });
+
+/* app.js wraps wbnSubmitReg to fire the registration emails the moment the submit
+   resolves. For a paid webinar that is before any payment, so the attendee was
+   told "You are registered for the Guidcy webinar" while the row was still
+   pending_payment. The wrapper opts out of any submit already marked as running a
+   verified-payment flow; webinar-flow's submit was missing that marker. */
+test('the paid webinar submit is exempt from the send-on-registration wrapper', () => {
+  const app = fs.readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /!oldWbn\.__resendWrapped&&!oldWbn\.__guidcyVerifiedPaymentFlow/,
+    'the wrapper must keep honouring the opt-out marker');
+  assert.match(webinarFlow, /window\.wbnSubmitReg\.__guidcyVerifiedPaymentFlow = true/,
+    'without the marker the attendee is emailed before paying');
+  // the marker has to be set on the same function that is exported as wbnSubmitReg
+  const at = webinarFlow.indexOf('window.wbnSubmitReg = submitWebinarRegistration;');
+  assert.ok(at > 0 && webinarFlow.indexOf('window.wbnSubmitReg.__guidcyVerifiedPaymentFlow = true') > at);
+});
+
+test('every webinar email is sent only after the registration is confirmed', () => {
+  // free path: emails come after the free verify-payment call has confirmed the row
+  const free = webinarFlow.slice(webinarFlow.indexOf("free: true"));
+  const confirmAt = free.indexOf('if (!isConfirmedRegistration(registration)) throw');
+  const sendAt = free.indexOf('await sendWebinarEmails(registration, webinar)');
+  assert.ok(confirmAt > -1 && sendAt > confirmAt, 'free registration must be confirmed before emailing');
+
+  // paid path: emails come after server-side verification, inside the success block
+  const paid = webinarFlow.slice(webinarFlow.indexOf('async function startWebinarPayment'));
+  const verifyAt = paid.indexOf('if (!isConfirmedRegistration(state.registration))');
+  const paidSendAt = paid.indexOf('await sendWebinarEmails(state.registration, state.webinar)');
+  assert.ok(verifyAt > -1 && paidSendAt > verifyAt, 'payment must be verified before emailing');
+});
+
+/* Registering again with an email that already paid is not a payment: Razorpay is
+   never opened and nothing is charged, so the popup must not claim otherwise. */
+test('an already-paid registration never reaches the payment page or claims a payment', () => {
+  assert.match(webinarFlow, /if \(registration\.__alreadyConfirmed \|\| isConfirmedRegistration\(registration\)\) \{[\s\S]{0,400}?clearPaymentState\(\)/,
+    'it must stop before openWebinarPaymentPage and drop any payment state');
+  const at = webinarFlow.indexOf('if (registration.__alreadyConfirmed || isConfirmedRegistration(registration)) {');
+  const openAt = webinarFlow.indexOf('openWebinarPaymentPage(webinar, registration, details);', at);
+  assert.ok(at > 0 && openAt > at, 'the already-registered branch must return before the payment page opens');
+  assert.match(webinarFlow, /alreadyRegistered \? 'You are already registered' : 'Payment successful'/,
+    'the popup must say which of the two actually happened');
+});
