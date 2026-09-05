@@ -2041,8 +2041,8 @@ body.gmob-open{overflow:hidden}
 /* === guidcy-dashboard-signout-stability-final-css === */
 .guidcy-category-box-grid{
     display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-    gap:10px;
+    grid-template-columns:1fr;
+    gap:2px;
   }
   .guidcy-category-dropdown{
     position:relative;
@@ -2106,7 +2106,7 @@ body.gmob-open{overflow:hidden}
   .guidcy-category-box:hover{border-color:#9BC7EC;box-shadow:0 8px 18px rgba(30,114,190,.10);transform:translateY(-1px)}
   .guidcy-category-box.on{border-color:#1E72BE;background:#EBF4FF;box-shadow:inset 0 0 0 1px rgba(30,114,190,.18)}
   .guidcy-category-box input{width:16px;height:16px;accent-color:#1E72BE;flex:0 0 auto}
-  .guidcy-category-box-icon{font-size:16px;line-height:1}
+
   @media(max-width:640px){
     .guidcy-category-dropdown-menu{
       position:relative;
@@ -2848,4 +2848,40 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 .guidcy-search-all{border-top:1px solid #D8E8F5!important}
 @media(max-width:560px){
   .guidcy-did-you-mean .search-suggest-role,.guidcy-search-empty .search-suggest-role{white-space:normal!important}
+}
+
+/* Both category pickers are lists of <label> rows that sit inside a .field, and
+   `.field label` (0,1,1) outranks a single class - so the rows inherited
+   display:block, 11px uppercase text and a 6px bottom margin. That is what made
+   them tall, gappy and shouty. Match that specificity and reset it. */
+.field .gcat-row,
+.field .guidcy-category-box{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:0 0 2px;
+  padding:8px 10px;
+  min-height:0;
+  font-size:13px;
+  font-weight:500;
+  letter-spacing:0;
+  text-transform:none;
+  line-height:1.35;
+  color:var(--ink2);
+  border-radius:9px;
+}
+.field .gcat-row:last-child,
+.field .guidcy-category-box:last-child{margin-bottom:0}
+.field .gcat-row.on,
+.field .guidcy-category-box.on{color:var(--ink);font-weight:600}
+/* flat rows rather than cards, so the signup picker reads like the settings one */
+.field .guidcy-category-box{border:none;background:transparent;box-shadow:none;transform:none}
+.field .guidcy-category-box:hover{border:none;background:var(--surface2);box-shadow:none;transform:none}
+.field .guidcy-category-box.on{background:var(--blue-l);box-shadow:none}
+.field .guidcy-category-box input{position:absolute;opacity:0;width:0;height:0}
+.field .gcat-name,
+.field .guidcy-category-box-name{flex:1;min-width:0;font-size:13px;text-transform:none;letter-spacing:0}
+@media(max-width:720px){
+  .field .gcat-row,
+  .field .guidcy-category-box{padding:9px 10px}
 }

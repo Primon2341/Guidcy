@@ -17275,11 +17275,11 @@ document.addEventListener('DOMContentLoaded',function(){
     const summary = document.getElementById('guidcy-consultant-category-summary');
     if(summary) summary.textContent = selectedNames.length ? (selectedNames.length<=2 ? selectedNames.join(', ') : selectedNames.length + ' categories selected') : 'Select categories';
     grid.innerHTML = GUIDCY_CONSULTANT_CATEGORIES.map(function(pair){
-      const icon = pair[0], name = pair[1], checked = selectedKeys.has(key(name));
-      // name first, tick box aligned right — same pattern as the settings picker
+      const name = pair[1], checked = selectedKeys.has(key(name));
+      // name first, tick box aligned right — same pattern as the settings picker.
+      // No emoji: the plain name plus a checkbox reads cleaner in a compact list.
       return `<label class="guidcy-category-box ${checked?'on':''}">
         <input type="checkbox" value="${safe(name)}" ${checked?'checked':''}/>
-        <span class="guidcy-category-box-icon">${icon}</span>
         <span class="guidcy-category-box-name">${safe(name)}</span>
         <span class="guidcy-category-box-tick">✓</span>
       </label>`;
