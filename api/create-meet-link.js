@@ -13,7 +13,7 @@
 const { clean, json, readBody, getAuthenticatedUser, loadPaymentRecord, patchById, first } = require('../lib/razorpay-utils');
 const { googleMeetConfigured, createMeetLink, isMeetLink } = require('../lib/google-meet');
 const { cancelBookingRequest } = require('../lib/booking-cancellation');
-const { ensureWebinarMeeting } = require('../lib/webinar-meeting');
+const { ensureWebinarMeeting, deleteWebinarMeeting } = require('../lib/webinar-meeting');
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,6 +56,15 @@ module.exports = async function handler(req, res) {
         isAdmin = String(profile && profile.role || '').toLowerCase() === 'admin';
       }
       if (!isHost && !isAdmin) return json(res, 403, { error: 'Only the webinar host can create its meeting' });
+
+      /* Deleting the webinar takes its meeting off the calendar, so registrants
+         are not left holding an invite to a session that is not happening. Same
+         gate as creating it, and asked while the webinar row is still there -
+         that row is what proves ownership. */
+      if (body.action === 'delete_webinar_meeting') {
+        return json(res, 200, await deleteWebinarMeeting(webinarId));
+      }
+
       const meeting = await ensureWebinarMeeting(webinar);
       if (!meeting.link) return json(res, 200, { ok: false, configured: meeting.configured !== false, link: '', reason: meeting.skipped || 'no-link' });
       return json(res, 200, {

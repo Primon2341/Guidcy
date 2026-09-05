@@ -1171,15 +1171,20 @@
      publishing twice or editing the webinar moves the existing event instead of
      creating a second meeting. Returns '' when Meet is not configured, which is
      not an error - the host can still paste a link. */
-  window.guidcyEnsureWebinarMeeting = async function (webinarId) {
-    var id = clean(webinarId);
-    if (!id) return '';
-    var token = '';
+  async function sessionAccessToken() {
     try {
       var client = (window.guidcyGetSupabaseClient && window.guidcyGetSupabaseClient()) || window.sb;
       var session = client && client.auth && await client.auth.getSession();
-      token = (session && session.data && session.data.session && session.data.session.access_token) || '';
-    } catch (_) {}
+      return (session && session.data && session.data.session && session.data.session.access_token) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  window.guidcyEnsureWebinarMeeting = async function (webinarId) {
+    var id = clean(webinarId);
+    if (!id) return '';
+    var token = await sessionAccessToken();
     if (!token) return '';
     try {
       var response = await fetch('/api/create-meet-link', {
@@ -1215,11 +1220,23 @@
     return !!panel && panel.style.display !== 'none';
   }
 
+  var hostClosedPanel = false;
+
   function keepPanelOpen(wasOpen) {
-    if (!wasOpen) return;
+    if (!wasOpen || hostClosedPanel) return;
     var panel = byId('wbn-admin-panel');
     if (panel && panel.style.display === 'none') panel.style.display = 'block';
   }
+
+  /* The panel is held open until the meeting link is in the field, so the host
+     needs a way to put it away themselves. An explicit close is final: nothing
+     here reopens it until they open it again. */
+  window.guidcyCloseWebinarPanel = function () {
+    hostClosedPanel = true;
+    showGeneratedMeetingLink('');
+    var panel = byId('wbn-admin-panel');
+    if (panel) panel.style.display = 'none';
+  };
 
   function generatedLinkNote() {
     var input = byId('wbn-pub-link');
@@ -1299,6 +1316,7 @@
       /* Read before publishing: a successful publish clears edit mode. */
       var editId = editingWebinarId();
       var panelWasOpen = panelIsOpen();
+      hostClosedPanel = false;
       window.__guidcyLastPublishedWebinarId = '';
       /* Take the generated link back out of the field before the save reads it,
          or it lands in webinars.meet_link, which every visitor can read. It goes
@@ -1340,11 +1358,63 @@
   var originalOpenEditForm = window.guidcyOpenWebinarEditForm;
   if (typeof originalOpenEditForm === 'function') {
     window.guidcyOpenWebinarEditForm = window.openWebinarEditForm = async function (webinarId) {
+      hostClosedPanel = false;
       showGeneratedMeetingLink('');
       var opened = await originalOpenEditForm.apply(this, arguments);
       if (opened === false) return opened;
       showGeneratedMeetingLink(await storedMeetingLink(editingWebinarId() || webinarId));
       return opened;
+    };
+  }
+
+  /* Deleting a webinar has to take its meeting off the calendar too, or everyone
+     who registered keeps an invite to a session that is not happening. Asked
+     before the rows go: the webinar row is what proves ownership to the server,
+     and webinar_meetings is removed with it by the foreign key. */
+  async function requestMeetingDeletion(webinarId) {
+    var token = await sessionAccessToken();
+    if (!token) return null;
+    var response = await fetch('/api/create-meet-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ webinarId: webinarId, action: 'delete_webinar_meeting' }),
+    });
+    var body = await response.json().catch(function () { return {}; });
+    if (!response.ok || (body && body.ok === false)) {
+      throw new Error((body && body.error) || ('HTTP ' + response.status));
+    }
+    return body;
+  }
+
+  var originalDeleteSession = window.wbnDeleteSession;
+  if (typeof originalDeleteSession === 'function') {
+    window.wbnDeleteSession = async function (webinarId) {
+      var id = clean(webinarId);
+      if (!id) return originalDeleteSession.apply(this, arguments);
+      if (!window.confirm('Delete this webinar? Its meeting is removed from the calendar and everyone who registered is told it is cancelled. This cannot be undone.')) return;
+
+      var calendarCleared = true;
+      try {
+        await requestMeetingDeletion(id);
+      } catch (error) {
+        calendarCleared = false;
+        console.warn('Webinar meeting could not be removed from the calendar:', error && error.message);
+      }
+
+      /* The chain below asks the same question again. It reads confirm()
+         synchronously before its first await, so the override is put back
+         before any other code can observe it. */
+      var nativeConfirm = window.confirm;
+      var pending;
+      window.confirm = function () { return true; };
+      try {
+        pending = originalDeleteSession.apply(this, arguments);
+      } finally {
+        window.confirm = nativeConfirm;
+      }
+      var result = await pending;
+      if (!calendarCleared) toast('Webinar deleted, but its calendar meeting could not be removed. Please delete it in Google Calendar.', 'red');
+      return result;
     };
   }
 

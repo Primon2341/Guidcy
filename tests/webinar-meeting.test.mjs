@@ -145,7 +145,8 @@ test('the field shows the generated link but never saves it', () => {
     byId: id => (id === 'wbn-pub-link' ? input : id === 'wbn-pub-link-note' ? note : null),
     clean: v => String(v == null ? '' : v).trim(),
   };
-  const show = new Function('byId', 'clean', flow.slice(from, to) + '\nreturn showGeneratedMeetingLink;')(stubs.byId, stubs.clean);
+  const show = new Function('byId', 'clean', 'window',
+    flow.slice(from, to) + '\nreturn showGeneratedMeetingLink;')(stubs.byId, stubs.clean, {});
 
   // an empty field gets the generated link, and the note explains it
   show('https://meet.google.com/aaa-bbbb-ccc');
@@ -207,8 +208,9 @@ test('the panel stays open until the link is in the field', () => {
   assert.ok(from > -1 && to > from, 'the panel helpers must still be there to exercise');
 
   const panel = { style: { display: 'block' } };
-  const [isOpen, reopen] = new Function('byId',
-    flow.slice(from, to) + '\nreturn [panelIsOpen, keepPanelOpen];')(() => panel);
+  const win = {};
+  const [isOpen, reopen] = new Function('byId', 'window', 'showGeneratedMeetingLink',
+    flow.slice(from, to) + '\nreturn [panelIsOpen, keepPanelOpen];')(() => panel, win, () => {});
 
   // publishing hides it; it is put back because it was open when the host clicked
   const wasOpen = isOpen();
@@ -225,4 +227,104 @@ test('the panel stays open until the link is in the field', () => {
   const wrapper = flow.slice(flow.lastIndexOf('window.wbnPublish = async function'));
   assert.ok(wrapper.indexOf('showGeneratedMeetingLink(link)') < wrapper.lastIndexOf('keepPanelOpen(panelWasOpen)'),
     'the panel has to be held open through the render that lands while the meeting is being created');
+
+  // the host's own Close button wins: nothing reopens the panel behind them
+  panel.style.display = 'block';
+  win.guidcyCloseWebinarPanel();
+  assert.equal(panel.style.display, 'none', 'Close must actually close it');
+  reopen(true);
+  assert.equal(panel.style.display, 'none', 'an explicit close must not be undone by the publish flow');
+});
+
+test('deleting a webinar takes its meeting off the calendar', async (t) => {
+  const lib = require_('../lib/webinar-meeting.js');
+  const utils = require_('../lib/razorpay-utils.js');
+
+  assert.deepEqual(await lib.deleteWebinarMeeting(''), { ok: true, skipped: 'no-webinar' });
+
+  const firstStub = t.mock.method(utils, 'first', async () => null);
+  assert.deepEqual(await lib.deleteWebinarMeeting('WBN-x'), { ok: true, skipped: 'no-meeting' },
+    'a webinar that never had a meeting is a no-op, not an error');
+
+  firstStub.mock.mockImplementation(async () => ({
+    webinar_id: 'WBN-x', meet_link: 'https://meet.google.com/aaa-bbbb-ccc', event_id: 'evt-1',
+  }));
+  t.mock.method(utils, 'getSupabaseConfig', () => ({ url: 'https://db.example', serviceKey: 'k' }));
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    calls.push({ url: String(url), method: init && init.method });
+    return { ok: true, text: async () => '' };
+  });
+
+  const result = await lib.deleteWebinarMeeting('WBN-x');
+  assert.equal(result.deleted, true);
+  assert.equal(calls.length, 1, 'Google is skipped when Meet is not configured, but the row still goes');
+  assert.equal(calls[0].method, 'DELETE');
+  assert.match(calls[0].url, /webinar_meetings\?webinar_id=eq\.WBN-x$/);
+
+  // a failed delete must not report success
+  calls.length = 0;
+  globalThis.fetch = async () => ({ ok: false, text: async () => 'permission denied' });
+  await assert.rejects(() => lib.deleteWebinarMeeting('WBN-x'), /Could not remove the webinar meeting/);
+});
+
+test('the calendar event is removed, with the guests told, behind the same gate', () => {
+  // sendUpdates=all is what cancels it on every registrant's own calendar
+  assert.match(gmeet, /events\/\$\{encodeURIComponent\(eventId\)\}\?sendUpdates=all/);
+  assert.match(meeting, /deleteMeetEvent\(\{ eventId: existing\.event_id, meetLink: existing\.meet_link \}\)/);
+  // and it is asked for only after the host/admin check, not before
+  const gate = api.indexOf("return json(res, 403, { error: 'Only the webinar host can create its meeting' })");
+  const del = api.indexOf("body.action === 'delete_webinar_meeting'");
+  assert.ok(gate > -1 && del > gate, 'deleting a meeting must sit behind the host/admin gate');
+});
+
+test('deleting from the UI clears the calendar first, and puts confirm back', async () => {
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  const from = flow.indexOf('var originalDeleteSession = window.wbnDeleteSession;');
+  const to = flow.indexOf('var originalCancelEdit');
+  assert.ok(from > -1 && to > from, 'the delete wrapper must still be there to exercise');
+
+  const nativeConfirm = () => { throw new Error('the real confirm must be restored, not left overridden'); };
+  const order = [];
+  const build = (answer, meetingDeletion) => {
+    const win = {
+      confirm: answer,
+      wbnDeleteSession: async () => {
+        // the chain asks again; it must see the suppressed confirm, synchronously
+        order.push(win.confirm() ? 'inner-delete' : 'inner-cancelled');
+        return 'deleted';
+      },
+    };
+    new Function('window', 'clean', 'toast', 'requestMeetingDeletion', flow.slice(from, to))(
+      win,
+      v => String(v == null ? '' : v).trim(),
+      () => {},
+      async id => { order.push('calendar:' + id); return meetingDeletion(); },
+    );
+    return win;
+  };
+
+  // saying no does nothing at all - no calendar call, no delete
+  let win = build(() => false, () => ({ ok: true }));
+  assert.equal(await win.wbnDeleteSession('WBN-x'), undefined);
+  assert.deepEqual(order, [], 'declining must not touch the calendar or the rows');
+
+  // saying yes clears the calendar BEFORE the rows, then restores confirm
+  order.length = 0;
+  win = build(() => true, () => ({ ok: true }));
+  const answered = win.confirm;
+  assert.equal(await win.wbnDeleteSession('WBN-x'), 'deleted');
+  assert.deepEqual(order, ['calendar:WBN-x', 'inner-delete'],
+    'the meeting has to go while the webinar row still proves who owns it');
+  assert.equal(win.confirm, answered, 'confirm must be restored after the delete');
+
+  // a calendar failure still deletes the webinar, and confirm is still restored
+  order.length = 0;
+  win = build(() => true, () => { throw new Error('google down'); });
+  win.confirm = nativeConfirm;
+  win.confirm = () => true;
+  const restored = win.confirm;
+  assert.equal(await win.wbnDeleteSession('WBN-x'), 'deleted',
+    'a calendar outage must not block deleting the webinar');
+  assert.equal(win.confirm, restored, 'confirm must be restored even when the calendar call threw');
 });
