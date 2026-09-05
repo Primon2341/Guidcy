@@ -30275,9 +30275,12 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var d=document.createElement('div');
     d.id=BANNER_ID;
     d.style.cssText='background:#FEF3C7;border:1px solid #FDE68A;border-radius:14px;padding:16px 18px;margin-bottom:18px;color:#92400E;font-size:14px;line-height:1.6';
+    /* Each part is its own block. The button was inline in the copy, and .btn is
+       inline-block, so its margin-top pulled it up over the line above instead of
+       pushing it down - which is what collided on a narrow screen. */
     d.innerHTML='<div style="font-weight:800;margin-bottom:4px">Your profile is hidden from the website</div>'+
-      'It is missing some details. Add your professional title and a short bio in Profile &amp; settings, then press Save - your profile goes live again automatically. '+
-      '<button type="button" class="btn btn-blue" style="margin-top:10px" onclick="try{swCD(\'settings\')}catch(e){}">Open Profile &amp; settings</button>';
+      '<div>It is missing some details. Add your professional title and a short bio in Profile &amp; settings, then press Save - your profile goes live again automatically.</div>'+
+      '<div style="margin-top:12px"><button type="button" class="btn btn-blue" style="max-width:100%" onclick="try{swCD(\'settings\')}catch(e){}">Open Profile &amp; settings</button></div>';
     main.insertBefore(d,main.firstChild);
   }
   async function sync(){
