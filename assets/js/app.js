@@ -1114,11 +1114,13 @@ function guidcySetPaymentStep(done){
     if(done){
       circles[1].classList.remove('active'); circles[1].classList.add('done'); circles[1].textContent='✓';
       if(lines[1])lines[1].classList.add('done');
-      circles[2].classList.add('active');
+      /* Confirmed is finished, not merely current - it gets the same green tick as
+         "Select slot", otherwise a paid user still sees an unticked step 3. */
+      circles[2].classList.remove('active'); circles[2].classList.add('done'); circles[2].textContent='✓';
     }else{
       circles[1].classList.remove('done'); circles[1].classList.add('active'); circles[1].textContent='2';
       if(lines[1])lines[1].classList.remove('done');
-      circles[2].classList.remove('active');
+      circles[2].classList.remove('done'); circles[2].classList.remove('active'); circles[2].textContent='3';
     }
     /* the labels under the bar carry their own highlight */
     const labels=bar.parentNode&&bar.parentNode.querySelector('.step-bar+div');

@@ -639,8 +639,45 @@
     };
   }
 
+  /* Tried to register with details that are already registered. Show it as a
+     dismissible notice inside the form and leave every field exactly as typed -
+     replacing the form with a success panel meant the visitor could not correct
+     the email and try again without reopening the whole modal. */
+  function showAlreadyRegisteredNotice(webinar, email) {
+    var form = byId('wbn-reg-form');
+    if (!form) return;
+    form.style.display = '';
+    var success = byId('wbn-reg-success');
+    if (success) success.classList.remove('on');
+    clearAlreadyRegisteredNotice();
+    var box = document.createElement('div');
+    box.id = 'wbn-reg-already';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:relative;background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:14px 40px 14px 14px;margin-bottom:14px;color:#92400E;font-size:13px;line-height:1.6';
+    box.innerHTML =
+      '<button type="button" id="wbn-reg-already-close" aria-label="Dismiss" style="position:absolute;top:7px;right:9px;border:none;background:transparent;font-size:19px;line-height:1;color:#92400E;cursor:pointer">&times;</button>' +
+      '<b>You are already registered</b><br>' + escapeHtml(email) +
+      ' is already registered for "' + escapeHtml(webinarTitle(webinar)) +
+      '" and it is already paid for, so no new payment was taken. Close this to edit the details, or use a different email to register someone else.';
+    form.insertBefore(box, form.firstChild);
+    var close = byId('wbn-reg-already-close');
+    if (close) close.onclick = function () { clearAlreadyRegisteredNotice(); focusRegistrationEmail(); };
+    focusRegistrationEmail();
+    try { box.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+  }
+  function clearAlreadyRegisteredNotice() {
+    var old = byId('wbn-reg-already');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+  function focusRegistrationEmail() {
+    var input = byId('wbn-reg-email');
+    if (!input) return;
+    try { input.focus(); input.select(); } catch (_) {}
+  }
+
   async function submitWebinarRegistration() {
     if (window.__guidcyWebinarRegistrationBusy) return;
+    clearAlreadyRegisteredNotice();
     var id = clean(window.__guidcyCurrentWebinarId);
     var details = registrationFormDetails();
     if (!id) {
@@ -677,17 +714,8 @@
         if (registration.__alreadyConfirmed || isConfirmedRegistration(registration)) {
           clearPaymentState();
           window.__guidcyPaymentFlowLock = false;
-          var regForm = byId('wbn-reg-form');
-          var regSuccess = byId('wbn-reg-success');
-          var regMessage = byId('wbn-reg-success-msg');
-          if (regForm) regForm.style.display = 'none';
-          if (regSuccess) regSuccess.classList.add('on');
-          if (regMessage) {
-            regMessage.textContent = 'You are already registered for "' + webinarTitle(webinar) +
-              '". It is already paid for with ' + (registration.email || details.email) +
-              ', so no new payment was taken. The meeting link will be sent before the session.';
-          }
-          toast('You are already registered for this webinar.', 'blue');
+          showAlreadyRegisteredNotice(webinar, registration.email || details.email);
+          toast('That email is already registered for this webinar.', 'blue');
           return;
         }
         openWebinarPaymentPage(webinar, registration, details);
@@ -728,6 +756,8 @@
   if (typeof originalOpenRegistration === 'function') {
     window.wbnOpenReg = function (id) {
       window.__guidcyCurrentWebinarId = id;
+      // a notice left over from a previous attempt must not greet the next one
+      clearAlreadyRegisteredNotice();
       return originalOpenRegistration.apply(this, arguments);
     };
   }

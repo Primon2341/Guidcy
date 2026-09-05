@@ -159,6 +159,26 @@ test('an already-paid registration never reaches the payment page or claims a pa
     'the popup must say which of the two actually happened');
 });
 
+/* The notice must not take the form away: the visitor has to be able to correct
+   the email and try again without reopening the modal. */
+test('the already-registered notice leaves the registration form usable', () => {
+  const fn = webinarFlow.slice(
+    webinarFlow.indexOf('function showAlreadyRegisteredNotice(webinar, email)'),
+    webinarFlow.indexOf('function clearAlreadyRegisteredNotice()'));
+  assert.doesNotMatch(fn, /form\.style\.display = 'none'/, 'the form must stay on screen');
+  assert.match(fn, /form\.style\.display = ''/, 'and be re-shown if a previous attempt hid it');
+  assert.match(fn, /success\.classList\.remove\('on'\)/, 'the success panel must not cover it');
+  assert.match(fn, /focusRegistrationEmail\(\)/, 'the email is what they need to change');
+  assert.match(fn, /wbn-reg-already-close/, 'the notice must be dismissible');
+
+  // dismissing puts the cursor back in the email field
+  assert.match(webinarFlow, /close\.onclick = function \(\) \{ clearAlreadyRegisteredNotice\(\); focusRegistrationEmail\(\); \}/);
+  // and a stale notice never greets the next attempt
+  assert.match(webinarFlow, /clearAlreadyRegisteredNotice\(\);\n      return originalOpenRegistration/);
+  const submitAt = webinarFlow.indexOf('async function submitWebinarRegistration()');
+  assert.match(webinarFlow.slice(submitAt, submitAt + 220), /clearAlreadyRegisteredNotice\(\)/);
+});
+
 /* The payment page's step bar is static markup: step 2 "Payment" stayed lit after
    the payment was confirmed, so a paid user was still looking at "Payment"
    instead of "Confirmed". */
@@ -172,10 +192,13 @@ test('a confirmed payment advances the step bar to Confirmed', () => {
   // forward: step 2 becomes done, its line fills, step 3 lights up
   assert.match(fn, /circles\[1\]\.classList\.add\('done'\)/);
   assert.match(fn, /lines\[1\]\)lines\[1\]\.classList\.add\('done'\)/);
-  assert.match(fn, /circles\[2\]\.classList\.add\('active'\)/);
+  assert.match(fn, /circles\[2\]\.classList\.add\('done'\)/,
+    'Confirmed must get the same green tick as Select slot, not stay an unticked "3"');
+  assert.match(fn, /circles\[2\]\.textContent='\u2713'/);
   // and back again, so a failed payment does not leave the bar claiming success
   assert.match(fn, /circles\[1\]\.classList\.remove\('done'\)/);
-  assert.match(fn, /circles\[2\]\.classList\.remove\('active'\)/);
+  assert.match(fn, /circles\[2\]\.classList\.remove\('done'\)/);
+  assert.match(fn, /circles\[2\]\.textContent='3'/, 'and revert to 3 if the payment did not succeed');
 
   // webinar-flow's own fallback status path must drive it too
   assert.match(webinarFlow, /window\.guidcySetPaymentStep && window\.guidcySetPaymentStep\(kind === 'success'\)/);
