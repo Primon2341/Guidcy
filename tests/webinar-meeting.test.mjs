@@ -76,3 +76,30 @@ test('adding a guest keeps the ones already invited', () => {
     're-confirming a registration must not re-notify everyone');
   assert.match(fn, /sendUpdates=all/, 'Google sends the invitation');
 });
+
+/* The bug this guards: window.wbnPublish is assigned in a dozen places across
+   app.js, and several of those replace it outright instead of wrapping. A
+   meeting call added to any but the LAST assignment in load order is dead code
+   - which is exactly what happened, and why a published webinar got no link. */
+test('the publish that actually runs is the one that books the meeting', () => {
+  const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const order = [...index.matchAll(/src="\/(assets\/js\/[\w.-]+\.js)"/g)].map(m => m[1]);
+  assert.ok(order.indexOf('assets/js/webinar-flow.js') > order.indexOf('assets/js/app.js'),
+    'the wrapper that books the meeting has to be installed after every app.js assignment');
+
+  const loaded = order
+    .map(rel => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8'))
+    .join('\n/* ---- next file ---- */\n');
+  const assignments = [...loaded.matchAll(/window\.wbnPublish\s*=\s*(async\s*)?function/g)];
+  assert.ok(assignments.length > 1, 'expected the layered publish definitions to still be there');
+  const winner = loaded.slice(assignments[assignments.length - 1].index);
+  assert.match(winner.slice(0, 2000), /await window\.guidcyEnsureWebinarMeeting\(webinarId\)/,
+    'the last wbnPublish assignment wins at runtime, so it is the one that must book the meeting');
+
+  // and it needs an id for both paths: a new publish hands one over, an edit already has it
+  const app = fs.readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /window\.__guidcyLastPublishedWebinarId\s*=\s*immediate\.id\s*\|\|\s*id/,
+    'the publish that generates the id must expose it');
+  assert.match(winner.slice(0, 2000), /var editId = editingWebinarId\(\);/,
+    'the edit id has to be read before publishing, which clears edit mode');
+});

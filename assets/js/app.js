@@ -13800,6 +13800,10 @@ body{overflow-x:hidden}
     }
 
     var immediate=savedRow||normRow(row);
+    /* The id is generated in here, so publish the value the outer wrapper needs
+       to book the meeting - that wrapper is the only caller that sees every
+       publish and edit path. */
+    window.__guidcyLastPublishedWebinarId=immediate.id||id;
     _webinars=_webinars.filter(function(w){return w.id!==immediate.id});
     _webinars.push(immediate);
     _webinars.sort(function(a,b){return String(a.date+' '+a.time).localeCompare(String(b.date+' '+b.time));});

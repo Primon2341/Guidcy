@@ -1188,6 +1188,7 @@
         body: JSON.stringify({ webinarId: id }),
       });
       var body = await response.json().catch(function () { return {}; });
+      if (!body || !body.link) console.warn('Webinar meeting not created:', response.status, body);
       return (body && body.link) || '';
     } catch (error) {
       console.warn('Webinar meeting link could not be generated:', error && error.message);
@@ -1195,19 +1196,45 @@
     }
   };
 
+  /* window.wbnPublish is reassigned by a dozen modules in app.js, several of
+     which replace it outright rather than wrap it, and the edit paths never
+     reach the one that creates a webinar. This wrapper is installed last and is
+     therefore the only place every publish and every edit passes through, so
+     the meeting is booked from here. The new-publish path hands over the id it
+     generated; an edit already has it in the edit-mode globals. */
+  function editingWebinarId() {
+    return clean(window.__guidcyEditingWebinarRowId || window.__guidcyEditingWebinarId
+      || window.editingWebinarId || (byId('wbn-edit-id') && byId('wbn-edit-id').value));
+  }
+
   var originalPublish = window.wbnPublish;
   if (typeof originalPublish === 'function') {
-    window.wbnPublish = function () {
+    window.wbnPublish = async function () {
       var date = clean(byId('wbn-pub-date') && byId('wbn-pub-date').value);
       var time = clean(byId('wbn-pub-time') && byId('wbn-pub-time').value);
       if (date && time) {
         var startsAt = new Date(date + 'T' + time);
         if (!Number.isNaN(startsAt.getTime()) && startsAt.getTime() <= Date.now()) {
           toast('Choose a future webinar date and time. Past webinars are not shown in the Upcoming webinars list.', 'red');
-          return Promise.resolve(false);
+          return false;
         }
       }
-      return originalPublish.apply(this, arguments);
+      /* Read before publishing: a successful publish clears edit mode. */
+      var editId = editingWebinarId();
+      window.__guidcyLastPublishedWebinarId = '';
+      var result = await originalPublish.apply(this, arguments);
+      if (result === false) return result;
+      var webinarId = clean(window.__guidcyLastPublishedWebinarId) || editId;
+      if (webinarId && typeof window.guidcyEnsureWebinarMeeting === 'function') {
+        /* Never blocks or fails the publish: the host can still paste a link. */
+        try {
+          var link = await window.guidcyEnsureWebinarMeeting(webinarId);
+          if (link) toast('Meeting link created — everyone who registers is invited to it.', 'green');
+        } catch (error) {
+          console.warn('Webinar meeting link could not be generated:', error && error.message);
+        }
+      }
+      return result;
     };
   }
 
