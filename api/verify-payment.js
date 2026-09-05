@@ -15,6 +15,7 @@ const {
   createMarketplacePayout,
 } = require('../lib/razorpay-utils');
 const { refundBookingRequest } = require('../lib/booking-refund');
+const { sendWebinarRegistrationEmails } = require('../lib/webinar-emails');
 
 function isCancelledBooking(row) {
   const bookingStatus = clean(row && row.status, 40).toLowerCase();
@@ -108,7 +109,8 @@ module.exports = async function handler(req, res) {
           razorpay_status: null,
           updated_at: new Date().toISOString(),
         });
-        return json(res, 200, { ok: true, verified: true, free: true, flow, registration: patched });
+        const confirmed = await sendWebinarRegistrationEmails(patched);
+        return json(res, 200, { ok: true, verified: true, free: true, flow, registration: confirmed });
       }
 
       // A buyer can close or refresh the tab after Razorpay captures payment but
@@ -156,7 +158,10 @@ module.exports = async function handler(req, res) {
       if (!row.razorpay_order_id || row.razorpay_order_id !== orderId) return json(res, 400, { error: 'Razorpay order does not match the stored payment reference' });
 
       if (isFulfilled(flow, row)) {
-        return json(res, 200, { ok: true, verified: true, flow, booking: flow === 'booking' ? row : null, registration: flow === 'webinar' ? row : null, order: flow === 'marketplace' ? row : null, idempotent: true });
+        /* Reconciling a payment that was captured while the tab was gone is exactly
+           when the browser never got to send the email, so catch it up here. */
+        const settled = flow === 'webinar' ? await sendWebinarRegistrationEmails(row) : row;
+        return json(res, 200, { ok: true, verified: true, flow, booking: flow === 'booking' ? row : null, registration: flow === 'webinar' ? settled : null, order: flow === 'marketplace' ? row : null, idempotent: true });
       }
 
       if (!verifyPaymentSignature({ orderId: row.razorpay_order_id, paymentId, signature })) {
@@ -199,13 +204,16 @@ module.exports = async function handler(req, res) {
 
       const patched = await patchById(flow, row.id, fulfilledPatch(flow, row, payment, body));
       if (flow === 'marketplace') await createMarketplacePayout(patched);
+      /* Verification is the first moment the registration is known to be real, and
+         the last moment that does not depend on the browser still being there. */
+      const settled = flow === 'webinar' ? await sendWebinarRegistrationEmails(patched) : patched;
 
       return json(res, 200, {
         ok: true,
         verified: true,
         flow,
         booking: flow === 'booking' ? patched : null,
-        registration: flow === 'webinar' ? patched : null,
+        registration: flow === 'webinar' ? settled : null,
         order: flow === 'marketplace' ? patched : null,
       });
     }
