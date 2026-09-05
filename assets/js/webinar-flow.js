@@ -1307,14 +1307,21 @@
   }
 
   /* Opening a webinar for editing shows the link it already has, so the host can
-     find it again without republishing. */
-  var originalEditSession = window.wbnEditSession;
-  if (typeof originalEditSession === 'function') {
-    window.wbnEditSession = function (webinarId) {
-      var returned = originalEditSession.apply(this, arguments);
+     find it again without republishing.
+     Wrapped here rather than on wbnEditSession: that function calls this one
+     WITHOUT awaiting it and returns straight away, so hooking it left our fetch
+     racing the form fill - and the fill ends with setVal('wbn-pub-link', w.link),
+     which is empty for a generated meeting. Whichever request answered first won,
+     so the link appeared only every few attempts. This one returns a promise, so
+     the link is written after the fields are populated, every time. */
+  var originalOpenEditForm = window.guidcyOpenWebinarEditForm;
+  if (typeof originalOpenEditForm === 'function') {
+    window.guidcyOpenWebinarEditForm = window.openWebinarEditForm = async function (webinarId) {
       showGeneratedMeetingLink('');
-      storedMeetingLink(webinarId || editingWebinarId()).then(showGeneratedMeetingLink);
-      return returned;
+      var opened = await originalOpenEditForm.apply(this, arguments);
+      if (opened === false) return opened;
+      showGeneratedMeetingLink(await storedMeetingLink(editingWebinarId() || webinarId));
+      return opened;
     };
   }
 

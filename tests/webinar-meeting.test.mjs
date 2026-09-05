@@ -110,7 +110,7 @@ test('the publisher can see the link, without it becoming public', () => {
   assert.match(flow, /from\('webinar_meetings'\)\.select\('meet_link'\)\.eq\('webinar_id', id\)/);
   // shown after publishing, and again whenever the host reopens the webinar
   assert.match(flow, /showGeneratedMeetingLink\(link\)/);
-  assert.match(flow, /storedMeetingLink\(webinarId \|\| editingWebinarId\(\)\)\.then\(showGeneratedMeetingLink\)/);
+  assert.match(flow, /showGeneratedMeetingLink\(await storedMeetingLink\(editingWebinarId\(\) \|\| webinarId\)\)/);
   // cleared so a previous webinar's link never shows against a different one
   assert.match(flow, /window\.wbnCancelEdit = function \(\) \{\s*showGeneratedMeetingLink\(''\);/);
 
@@ -163,4 +163,35 @@ test('the field shows the generated link but never saves it', () => {
   assert.equal(input.value, 'https://zoom.us/j/hosts-own-room', 'the host’s own link must not be overwritten');
   show('');
   assert.equal(input.value, 'https://zoom.us/j/hosts-own-room', 'and must still be there for the save');
+});
+
+/* The bug this guards: wbnEditSession calls the async edit-form opener without
+   awaiting it, so hooking wbnEditSession left our webinar_meetings fetch racing
+   the form fill - and that fill ends with setVal('wbn-pub-link', w.link), empty
+   for a generated meeting. Whichever answered first won, so the link showed up
+   only every third or fourth attempt. */
+test('opening a webinar for editing shows the link every time, not sometimes', async () => {
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  const from = flow.indexOf('var originalOpenEditForm = window.guidcyOpenWebinarEditForm;');
+  const to = flow.indexOf('var originalCancelEdit');
+  assert.ok(from > -1 && to > from, 'the edit-form wrapper must still be there to exercise');
+
+  const LINK = 'https://meet.google.com/aaa-bbbb-ccc';
+  const field = { value: '' };
+  const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+  const win = {
+    // the real opener resolves late and finishes by blanking the link field
+    guidcyOpenWebinarEditForm: async () => { await tick(); await tick(); field.value = ''; return true; },
+  };
+  new Function('window', 'showGeneratedMeetingLink', 'storedMeetingLink', 'editingWebinarId',
+    flow.slice(from, to))(
+    win,
+    link => { field.value = link || ''; },
+    async () => { await tick(); return LINK; },   // resolves BEFORE the form fill
+    () => 'WBN-test',
+  );
+
+  await win.guidcyOpenWebinarEditForm('WBN-test');
+  assert.equal(field.value, LINK,
+    'the link must be written after the form fill, otherwise the fill blanks it');
 });
