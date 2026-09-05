@@ -340,7 +340,7 @@
         ['Email', details.email || state.registration.email || '—'],
         ['Registration ID', state.registration.id]
       ].map(function (row) {
-        return '<div class="detail-row"><span style="color:var(--muted)">' + escapeHtml(row[0]) + '</span><span style="font-weight:600;text-align:right">' + escapeHtml(row[1]) + '</span></div>';
+        return '<div class="pay-sum-row"><span style="color:var(--muted)">' + escapeHtml(row[0]) + '</span><span style="font-weight:600;text-align:right">' + escapeHtml(row[1]) + '</span></div>';
       }).join('');
     }
     if (button) {
@@ -483,10 +483,10 @@
         ? 'This webinar is already paid for with ' + escapeHtml(registration.email || 'this email') + ', so no new payment was taken and Razorpay was not opened.'
         : 'Your webinar registration is confirmed. Choose an action below when you are ready.') + '</div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">' +
-      '<div class="detail-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:600;text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
-      '<div class="detail-row"><span style="color:var(--muted)">Date</span><span>' + escapeHtml(formatDate(webinar.date || webinar.webinar_date)) + '</span></div>' +
-      '<div class="detail-row"><span style="color:var(--muted)">Time</span><span>' + escapeHtml(formatTime(webinar.time || webinar.webinar_time)) + '</span></div>' +
-      '<div class="detail-row"><span style="color:var(--muted)">Registration ID</span><span style="word-break:break-all;text-align:right">' + escapeHtml(registration.id) + '</span></div>' +
+      '<div class="pay-sum-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:600;text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
+      '<div class="pay-sum-row"><span style="color:var(--muted)">Date</span><span>' + escapeHtml(formatDate(webinar.date || webinar.webinar_date)) + '</span></div>' +
+      '<div class="pay-sum-row"><span style="color:var(--muted)">Time</span><span>' + escapeHtml(formatTime(webinar.time || webinar.webinar_time)) + '</span></div>' +
+      '<div class="pay-sum-row"><span style="color:var(--muted)">Registration ID</span><span style="word-break:break-all;text-align:right">' + escapeHtml(registration.id) + '</span></div>' +
       '</div>' +
       '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
       '<button class="btn btn-blue" type="button" onclick="guidcyWebinarPaymentOutcomeAction(\'webinars\')">View webinars</button>' +

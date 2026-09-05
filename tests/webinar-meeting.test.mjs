@@ -61,7 +61,7 @@ test('the generated link is not public', () => {
 });
 
 test('a registration puts the person on the invite and carries the link', () => {
-  assert.match(emails, /addMeetAttendees\(\{ eventId: meeting\.event_id, emails: \[clean\(row\.email, 160\)\] \}\)/);
+  assert.match(emails, /addMeetAttendees\(\{[\s\S]*?eventId: meeting\.event_id,[\s\S]*?emails: \[clean\(row\.email, 160\)\],/);
   assert.match(emails, /meet_link: meetLink/);
   assert.match(emails, /join_link: meetLink/, 'the email template renders Join link from join_link');
   // a calendar hiccup must not cost them the confirmation email
@@ -74,7 +74,8 @@ test('adding a guest keeps the ones already invited', () => {
     'Calendar replaces the attendee list wholesale, so it must be read first');
   assert.match(fn, /if \(!added\.length\) return \{ ok: true, alreadyInvited: true/,
     're-confirming a registration must not re-notify everyone');
-  assert.match(fn, /sendUpdates=all/, 'Google sends the invitation');
+  assert.match(fn, /const send = notify === false \? 'none' : 'all';/,
+    'Calendar notifies all guests or none, so a webinar must be able to opt out');
 });
 
 /* The bug this guards: window.wbnPublish is assigned in a dozen places across
@@ -327,4 +328,45 @@ test('deleting from the UI clears the calendar first, and puts confirm back', as
   assert.equal(await win.wbnDeleteSession('WBN-x'), 'deleted',
     'a calendar outage must not block deleting the webinar');
   assert.equal(win.confirm, restored, 'confirm must be restored even when the calendar call threw');
+});
+
+/* A webinar's guest list is every registrant. Calendar shows that list to all of
+   them and can only notify all guests or none - so the invite was handing each
+   registrant everyone else's email address, and re-mailing the whole list every
+   time somebody new signed up. */
+test('registering does not expose the other registrants', () => {
+  const add = gmeet.slice(gmeet.indexOf('async function addMeetAttendees'), gmeet.indexOf('module.exports'));
+  assert.match(add, /hideGuestList \? \{ attendees, guestsCanSeeOtherGuests: false \} : \{ attendees \}/,
+    'the guest list must be hidden from the guests');
+  assert.match(emails, /hideGuestList: true/);
+  assert.match(emails, /notify: false/,
+    'adding one registrant must not mail every earlier registrant');
+  // the new webinar event is created that way in the first place
+  assert.match(meeting, /hideGuestList: true/);
+  assert.match(gmeet, /\.\.\.\(hideGuestList \? \{ guestsCanSeeOtherGuests: false \} : \{\}\)/);
+
+  // the registrant still gets the link - our own email carries it
+  assert.match(emails, /meet_link: meetLink/);
+  assert.match(emails, /join_link: meetLink/);
+
+  // a 1:1 booking is untouched: both parties are meant to see each other
+  const create = gmeet.slice(gmeet.indexOf('async function createMeetLink'), gmeet.indexOf('function eventMeetLink'));
+  assert.doesNotMatch(create, /guestsCanSeeOtherGuests: false,\n/,
+    'the booking path must not hide guests unconditionally');
+});
+
+test('the payment step bar lines its circles up with its labels', () => {
+  const css = fs.readFileSync(new URL('../assets/css/patches.css', import.meta.url), 'utf8');
+  /* Measured in Chrome at 320/390/768/1464px: without this the circles sat at
+     526/673/819 against labels at 539/732/925 - the last one 106px adrift and
+     133px short of the bar's own right edge. With it: even 206px gaps and a
+     symmetric -13/0/+13 offset, which is just the circle's radius against the
+     left- and right-aligned end labels. */
+  assert.match(css, /\.step-item:last-child\{flex:0 0 auto\}/,
+    'only the first two step items carry a line, so the last must not claim an equal third');
+
+  // the webinar summary uses the payment card's own row style, not the 14px default
+  const flow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(flow, /class="detail-row"/,
+    'detail-row sets no font-size, so those rows rendered at 14px beside 13px siblings');
 });

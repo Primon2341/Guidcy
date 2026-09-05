@@ -2885,3 +2885,11 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   .field .gcat-row,
   .field .guidcy-category-box{padding:9px 10px}
 }
+
+/* Payment step bar: every .step-item was flex:1, but only the first two hold a
+   connecting line - so the third took an equal share of the width with nothing
+   in it, leaving the last circle stranded two-thirds across while its
+   "Confirmed" label sat at the right edge. Let the last item size to its circle
+   and the two lines share what is left: the circles then sit at the start,
+   centre and end, under their own labels. */
+.step-item:last-child{flex:0 0 auto}
