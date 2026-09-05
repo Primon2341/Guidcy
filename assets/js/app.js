@@ -1100,6 +1100,41 @@ function toast(msg,type=''){
   setTimeout(()=>t.className='toast-bar',3400);
 }
 
+/* The payment page's step bar is static markup: step 2 "Payment" stays lit even
+   after the payment is confirmed, so a paid user is still looking at "Payment"
+   instead of "Confirmed". Every flow already reports its outcome through
+   setPaymentPageStatus, so drive the bar from the same call. */
+function guidcySetPaymentStep(done){
+  try{
+    const bar=document.querySelector('#page-payment .step-bar');
+    if(!bar)return;
+    const circles=bar.querySelectorAll('.step-circle');
+    const lines=bar.querySelectorAll('.step-line');
+    if(circles.length<3)return;
+    if(done){
+      circles[1].classList.remove('active'); circles[1].classList.add('done'); circles[1].textContent='✓';
+      if(lines[1])lines[1].classList.add('done');
+      circles[2].classList.add('active');
+    }else{
+      circles[1].classList.remove('done'); circles[1].classList.add('active'); circles[1].textContent='2';
+      if(lines[1])lines[1].classList.remove('done');
+      circles[2].classList.remove('active');
+    }
+    /* the labels under the bar carry their own highlight */
+    const labels=bar.parentNode&&bar.parentNode.querySelector('.step-bar+div');
+    if(labels){
+      const spans=labels.querySelectorAll('span');
+      if(spans.length>=3){
+        spans[1].style.color=done?'':'var(--blue)';
+        spans[1].style.fontWeight=done?'':'600';
+        spans[2].style.color=done?'var(--green-d)':'';
+        spans[2].style.fontWeight=done?'600':'';
+      }
+    }
+  }catch(_){}
+}
+window.guidcySetPaymentStep=guidcySetPaymentStep;
+
 function setPaymentPageStatus(kind,title,detail){
   let box=document.getElementById('guidcy-payment-status');
   if(!box){
@@ -1115,6 +1150,7 @@ function setPaymentPageStatus(kind,title,detail){
   box.setAttribute('aria-live',kind==='error'?'assertive':'polite');
   box.innerHTML='<strong>'+esc(title||'')+'</strong>'+(detail?'<span>'+esc(detail)+'</span>':'');
   box.hidden=false;
+  guidcySetPaymentStep(kind==='success');
 }
 window.guidcySetPaymentPageStatus=setPaymentPageStatus;
 

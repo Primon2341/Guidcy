@@ -314,6 +314,9 @@
     box.hidden = false;
     box.className = 'guidcy-payment-status ' + kind;
     box.innerHTML = '<strong>' + escapeHtml(title) + '</strong>' + (detail ? '<span>' + escapeHtml(detail) + '</span>' : '');
+    /* the shared setter drives the step bar; this fallback path must too, or a
+       confirmed payment leaves the bar sitting on step 2 "Payment" */
+    try { window.guidcySetPaymentStep && window.guidcySetPaymentStep(kind === 'success'); } catch (_) {}
   }
 
   function renderWebinarPaymentPage() {

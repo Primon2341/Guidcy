@@ -158,3 +158,25 @@ test('an already-paid registration never reaches the payment page or claims a pa
   assert.match(webinarFlow, /alreadyRegistered \? 'You are already registered' : 'Payment successful'/,
     'the popup must say which of the two actually happened');
 });
+
+/* The payment page's step bar is static markup: step 2 "Payment" stayed lit after
+   the payment was confirmed, so a paid user was still looking at "Payment"
+   instead of "Confirmed". */
+test('a confirmed payment advances the step bar to Confirmed', () => {
+  const app = fs.readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
+  assert.match(app, /function guidcySetPaymentStep\(done\)/);
+  assert.match(app, /guidcySetPaymentStep\(kind==='success'\)/,
+    'the shared status setter must drive the bar, so every flow gets it');
+
+  const fn = app.slice(app.indexOf('function guidcySetPaymentStep(done)'), app.indexOf('window.guidcySetPaymentStep=guidcySetPaymentStep'));
+  // forward: step 2 becomes done, its line fills, step 3 lights up
+  assert.match(fn, /circles\[1\]\.classList\.add\('done'\)/);
+  assert.match(fn, /lines\[1\]\)lines\[1\]\.classList\.add\('done'\)/);
+  assert.match(fn, /circles\[2\]\.classList\.add\('active'\)/);
+  // and back again, so a failed payment does not leave the bar claiming success
+  assert.match(fn, /circles\[1\]\.classList\.remove\('done'\)/);
+  assert.match(fn, /circles\[2\]\.classList\.remove\('active'\)/);
+
+  // webinar-flow's own fallback status path must drive it too
+  assert.match(webinarFlow, /window\.guidcySetPaymentStep && window\.guidcySetPaymentStep\(kind === 'success'\)/);
+});
