@@ -97,3 +97,46 @@ test('profile completeness is satisfiable from the fields every settings form re
   for (const field of ['highest_education', 'college', 'current_work'])
     assert.doesNotMatch(fn, new RegExp('c\\.' + field), `${field} is not always rendered; requiring it strands the consultant`);
 });
+
+/* Hiding is only useful if the consultant finds out, and the in-app note reaches
+   them only if they happen to log in and open the bell. */
+test('a hidden consultant is told three ways: banner, notification and email', () => {
+  const hide = slice('async function guidcyHideConsultantUntilUpdate(consId,idx){', "toast('Consultant hidden until they update their profile','green');");
+  assert.match(hide, /from\('notifications'\)\.insert/, 'in-app notification');
+  assert.match(hide, /type:'consultant_profile_update_required'/, 'email to the consultant');
+  assert.match(hide, /sendGuidcyEmail/);
+  // the banner module renders while the flag is set and removes itself when it clears
+  const banner = slice('/* === guidcy-consultant-profile-hidden-banner === */', 'guidcy-cons-hidden-banner');
+  assert.ok(banner.length > 0);
+  assert.match(src, /Your profile is hidden from the website/);
+  assert.match(src, /profile_update_required===true/);
+});
+
+test('the admin is told when a consultant restores themselves', () => {
+  const restore = slice("        var vis=await c.from('consultants').select('profile_update_required", "action_text:'Open Manage Consultants'");
+  assert.match(restore, /type:'consultant_profile_restored_admin'/);
+  assert.match(restore, /recipientRole:'admin'/, 'the address resolves server-side, so this does not depend on notifications RLS');
+});
+
+/* Both new types must survive the "is this email essential" gates, or they are
+   dropped before the transport with reason non_essential_email. */
+test('the new consultant-profile emails pass the suppression gates', () => {
+  const gates = src.match(/consultant\.\*approv[^/]*\//g) || [];
+  assert.ok(gates.length >= 2, 'both copies of the importance filter exist');
+  for (const g of gates) assert.match(g, /consultant_profile/, `gate would suppress the new emails: ${g.slice(0, 60)}`);
+});
+
+/* Same two-sender trap as the careers templates: the Edge Function is what sends. */
+test('both senders carry the consultant-profile templates with identical subjects', () => {
+  const api = readFileSync(new URL('../api/send-guidcy-email.js', import.meta.url), 'utf8');
+  const edge = readFileSync(new URL('../supabase/functions/send-guidcy-email/index.ts', import.meta.url), 'utf8');
+  for (const type of ['consultant_profile_update_required', 'consultant_profile_restored_admin']) {
+    assert.ok(edge.includes(type + ':'), `${type} missing from the Edge Function - the one that actually sends`);
+    assert.ok(api.includes(type + ':'), `${type} missing from the Vercel fallback`);
+    assert.equal(
+      (api.match(new RegExp(type + ": ('[^']*')"))||[])[1].replace(/'/g, '"'),
+      (edge.match(new RegExp(type + ': ("[^"]*")'))||[])[1],
+      `${type} subject differs between senders`);
+    for (const f of [api, edge]) assert.match(f, new RegExp(type + '/i\\.test\\(type\\)'), `${type} needs its own body`);
+  }
+});

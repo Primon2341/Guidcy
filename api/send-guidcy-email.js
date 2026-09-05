@@ -17,6 +17,8 @@ const SUBJECTS = {
   consultant_signup_submitted: 'Your Guidcy consultant profile has been submitted',
   consultant_approved: 'Your Guidcy consultant profile is approved',
   consultant_rejected: 'Your Guidcy consultant profile needs changes',
+  consultant_profile_update_required: 'Action needed: complete your Guidcy profile',
+  consultant_profile_restored_admin: 'A consultant profile is complete and live again',
   new_consultant_admin: 'New consultant approval required on Guidcy',
   new_booking_consultant: 'New session booking received on Guidcy',
   new_booking_admin: 'New booking created on Guidcy',
@@ -140,6 +142,8 @@ function intro(type, name, role) {
   if (/webinar_registration/i.test(type)) return `Hi ${name}, webinar registration details are below.`;
   if (/consultant_approved/i.test(type)) return `Hi ${name}, your consultant profile is approved and ready on Guidcy.`;
   if (/consultant_rejected/i.test(type)) return `Hi ${name}, your consultant profile was reviewed and needs changes before approval.`;
+  if (/consultant_profile_update_required/i.test(type)) return `Hi ${name}, your Guidcy profile is currently hidden from the website because it is incomplete. Open Profile & settings in your consultant dashboard, add your professional title and a short bio, and press Save - your profile goes live again automatically, with no further review. Your account, bookings and earnings are untouched in the meantime.`;
+  if (/consultant_profile_restored_admin/i.test(type)) return "Hi Admin, a consultant who was hidden pending a profile update has completed their profile, and their listing is live on Guidcy again. No action is required - this is a notice only.";
   if (/job_application_submitted/i.test(type)) return `Hi ${name}, thank you for applying to Guidcy. We have received your application and our hiring team is reviewing it. You will hear from us by email as it moves forward - the details you sent are below.`;
   if (/job_application_shortlisted/i.test(type)) return `Hi ${name}, good news - your application has been shortlisted for the interview round. Our hiring team will be in touch shortly to arrange a date and time that works for you. Please keep an eye on this inbox, and do reply if none of the proposed slots suit you. In the meantime, it is worth having a couple of examples of your recent work ready to talk through.`;
   if (/job_application_rejected/i.test(type)) return `Hi ${name}, thank you for taking the time to apply and for your interest in Guidcy. After careful consideration we have decided to move forward with other candidates whose experience is closer to what this particular role needs right now. This is not a reflection of your ability, and we would genuinely welcome an application from you for future openings. We wish you every success with your search.`;

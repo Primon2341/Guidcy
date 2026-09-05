@@ -4166,6 +4166,26 @@ async function guidcyHideConsultantUntilUpdate(consId,idx){
         }));
       }
     }catch(e){console.warn('Hide notice not saved:',e)}
+    /* The in-app note only reaches them if they happen to log in, so email as well.
+       Sent in the background: a slow mailer must not hold up the admin. */
+    try{
+      const who=await sb.from('consultants').select('name,profile_id').eq('id',consId).maybeSingle();
+      const row=who&&!who.error?who.data:null;
+      let email='';
+      if(row&&row.profile_id){
+        const pr=await sb.from('profiles').select('email,full_name').eq('id',row.profile_id).maybeSingle();
+        if(pr&&!pr.error&&pr.data)email=pr.data.email||'';
+      }
+      if(email&&typeof window.sendGuidcyEmail==='function'){
+        Promise.resolve(window.sendGuidcyEmail({
+          to:email, recipientName:(row&&row.name)||'there', recipientRole:'consultant',
+          type:'consultant_profile_update_required', relatedTable:'consultants', relatedId:consId,
+          data:{consultant_name:(row&&row.name)||'', status:'Hidden pending profile update',
+                action_link:(location.origin||'')+'/consultant-dashboard', action_text:'Open Profile & settings'}
+        })).then(function(r){if(r&&r.ok===false)console.warn('Guidcy: hide email not sent',r)})
+          .catch(function(e){console.warn('Guidcy: hide email failed',e)});
+      }
+    }catch(e){console.warn('Guidcy: hide email skipped',e)}
   }
   const sp=document.getElementById('ad-s-'+idx);
   if(sp){sp.textContent='Hidden · awaiting update';sp.className='status-pill sp-pending';}
@@ -12503,7 +12523,7 @@ body{overflow-x:hidden}
   function adminEmail(){return email(window.CFG&&CFG.admin_email)||CONTACT_EMAIL}
   function notify(msg,type){try{(window.toast||window.notify||console.log)(msg,type||'blue')}catch(_){}}
   function uuid(v){v=clean(v);return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)?v:''}
-  function important(opts){var d=opts?.data||{}, blob=[opts?.type,opts?.notification_type,opts?.relatedTable,opts?.subject,d.type,d.event_type,d.subject,d.message,d.notification_type].map(clean).join(' ').toLowerCase(); if(/bank|ifsc|account_verification|verification_request/.test(blob)&&!/payout_completed|payout_paid/.test(blob))return false; return !blob||/booking|payment|cancel|payout|webinar_registration|job_application|application_submitted|consultant.*approv|new_consultant|consultant_signup|user_welcome|support_ticket|dispute|admin/.test(blob)}
+  function important(opts){var d=opts?.data||{}, blob=[opts?.type,opts?.notification_type,opts?.relatedTable,opts?.subject,d.type,d.event_type,d.subject,d.message,d.notification_type].map(clean).join(' ').toLowerCase(); if(/bank|ifsc|account_verification|verification_request/.test(blob)&&!/payout_completed|payout_paid/.test(blob))return false; return !blob||/booking|payment|cancel|payout|webinar_registration|job_application|application_submitted|consultant.*approv|consultant_profile|new_consultant|consultant_signup|user_welcome|support_ticket|dispute|admin/.test(blob)}
   async function token(c){try{return (await c?.auth?.getSession?.())?.data?.session?.access_token||''}catch(_){return ''}}
   async function directInvoke(c,payload){
     var url=clean(window.CFG&&CFG.supabase_url).replace(/\/$/,''), key=clean(window.CFG&&CFG.supabase_key);
@@ -20290,7 +20310,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   const inflight = new Set();
   const SENT_PREFIX = 'guidcy_email_sent_v2:';
   const BLOCKED_BANK_TYPE_RE = /(bank|bank_details|bank_account|consultant_bank|ifsc|account_verification|verification_request|verification_approved|verification_rejected)/i;
-  const ALLOWED_NON_BANK_RE = /(consultant.*approv|approval.*consultant|booking|payment_success|payment_failed|cancel|payout_completed|payout_paid|webinar_registration|webinar_payment|find_work|job_application|application_submitted|new_booking|session_cancelled)/i;
+  const ALLOWED_NON_BANK_RE = /(consultant.*approv|approval.*consultant|consultant_profile|booking|payment_success|payment_failed|cancel|payout_completed|payout_paid|webinar_registration|webinar_payment|find_work|job_application|application_submitted|new_booking|session_cancelled)/i;
 
   function isBlockedBankEmail(opts){
     opts=opts||{};
@@ -22672,7 +22692,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   var CONTACT_EMAIL='guidcytechnologies@gmail.com';
   var inflight=new Set();
   var BLOCKED_BANK_TYPE_RE=/(bank|bank_details|bank_account|consultant_bank|ifsc|account_verification|verification_request|verification_approved|verification_rejected)/i;
-  var IMPORTANT_RE=/(booking|payment|cancel|payout|webinar_registration|job_application|application_submitted|consultant.*approv|approval.*consultant|consultant.*reject|reject.*consultant|new_consultant|consultant_signup|user_welcome|support_ticket|dispute|admin|marketplace_.*email|new_booking|payment_received|session_cancelled)/i;
+  var IMPORTANT_RE=/(booking|payment|cancel|payout|webinar_registration|job_application|application_submitted|consultant.*approv|approval.*consultant|consultant.*reject|reject.*consultant|consultant_profile|new_consultant|consultant_signup|user_welcome|support_ticket|dispute|admin|marketplace_.*email|new_booking|payment_received|session_cancelled)/i;
 
   function clean(v){return String(v==null?'':v).trim()}
   function email(v){v=clean(v);return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)?v:''}
@@ -24566,7 +24586,19 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
              already required it to be 'approved' - so this write satisfies the
              "is_active:true must carry the full approval set" invariant. */
           var restore=await c.from('consultants').update({is_active:true,is_approved:true,approval_status:'approved',profile_update_required:false,profile_hidden_at:null}).eq('id',resolved);
-          if(!restore.error)notify('Your profile is live on Guidcy again ✓','green');
+          if(!restore.error){
+            notify('Your profile is live on Guidcy again ✓','green');
+            /* Let the admin know the queue moved. recipientRole:'admin' resolves the
+               address server-side, so this does not depend on notifications RLS. */
+            try{
+              if(typeof window.sendGuidcyEmail==='function')Promise.resolve(window.sendGuidcyEmail({
+                to:'', recipientName:'Admin', recipientRole:'admin',
+                type:'consultant_profile_restored_admin', relatedTable:'consultants', relatedId:resolved,
+                data:{consultant_name:visRow.name||'', status:'Live again',
+                      action_link:(location.origin||'')+'/admin-dashboard', action_text:'Open Manage Consultants'}
+              })).catch(function(){});
+            }catch(_){}
+          }
         }
       }catch(e){console.warn('Guidcy: profile visibility restore skipped',e)}
       notify('Profile and company sequence saved ✓','green');
@@ -30208,6 +30240,75 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   window.addEventListener('load',()=>{setTimeout(hydrate,300);setTimeout(restorePending,1200)});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(hydrate,300));
   try{sbc()&&sbc().auth&&sbc().auth.onAuthStateChange&&sbc().auth.onAuthStateChange(()=>setTimeout(()=>{adminBar();if($('gc-list')&&$('gc-list').dataset.state==='ready'){cache=[];render()}},500))}catch(_){}
+})();
+
+
+/* === guidcy-consultant-profile-hidden-banner === */
+/* A consultant hidden pending a profile update keeps full dashboard access, so the
+   only thing telling them is a notification they may never open. Put an unmissable
+   banner at the top of every dashboard view while the flag is set, and take it away
+   the moment it clears. Read-only: it never writes, and it renders nothing at all
+   for consultants who are not in that state. */
+(function(){
+  'use strict';
+  if(window.__GUIDCY_CONS_HIDDEN_BANNER__)return; window.__GUIDCY_CONS_HIDDEN_BANNER__=true;
+  var BANNER_ID='guidcy-cons-hidden-banner';
+  function sbc(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
+  function uid(){try{return (window.currentUser&&window.currentUser.id)||(window.currentProfile&&window.currentProfile.id)||''}catch(_){return ''}}
+
+  var cache={id:'',hidden:false,at:0};
+  async function isHidden(){
+    var id=uid(); if(!id)return false;
+    if(cache.id===id&&Date.now()-cache.at<15000)return cache.hidden;
+    var c=sbc(); if(!c)return false;
+    try{
+      var r=await c.from('consultants').select('profile_update_required').eq('profile_id',id).maybeSingle();
+      var hidden=!!(r&&!r.error&&r.data&&r.data.profile_update_required===true);
+      cache={id:id,hidden:hidden,at:Date.now()};
+      return hidden;
+    }catch(e){return false}
+  }
+  function remove(){var b=document.getElementById(BANNER_ID); if(b)b.remove()}
+  function paint(){
+    var main=document.getElementById('cdash-main'); if(!main)return;
+    if(document.getElementById(BANNER_ID))return;
+    var d=document.createElement('div');
+    d.id=BANNER_ID;
+    d.style.cssText='background:#FEF3C7;border:1px solid #FDE68A;border-radius:14px;padding:16px 18px;margin-bottom:18px;color:#92400E;font-size:14px;line-height:1.6';
+    d.innerHTML='<div style="font-weight:800;margin-bottom:4px">Your profile is hidden from the website</div>'+
+      'It is missing some details. Add your professional title and a short bio in Profile &amp; settings, then press Save - your profile goes live again automatically. '+
+      '<button type="button" class="btn btn-blue" style="margin-top:10px" onclick="try{swCD(\'settings\')}catch(e){}">Open Profile &amp; settings</button>';
+    main.insertBefore(d,main.firstChild);
+  }
+  async function sync(){
+    var page=document.getElementById('page-cons-dash');
+    if(!page||!page.classList.contains('on')){remove();return}
+    if(await isHidden())paint(); else remove();
+  }
+  function invalidate(){cache.at=0}
+  var prev=window.swCD;
+  function wrap(){
+    var fn=window.swCD;
+    if(typeof fn!=='function'||fn.__guidcyHiddenBanner)return;
+    var wrapped=async function(view,btn){
+      var out=await fn.apply(this,arguments);
+      /* the profile save is what clears the flag, so re-check after settings */
+      if(String(view||'')==='settings')invalidate();
+      setTimeout(sync,60);
+      return out;
+    };
+    wrapped.__guidcyHiddenBanner=true;
+    for(var k in fn)try{wrapped[k]=fn[k]}catch(_){}
+    window.swCD=wrapped;
+  }
+  wrap();
+  window.addEventListener('load',function(){setTimeout(wrap,0);setTimeout(sync,900)});
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(sync,700)});
+  /* saving the profile can clear the flag without a view change */
+  document.addEventListener('click',function(e){
+    var b=e.target&&e.target.closest&&e.target.closest('#page-cons-dash button');
+    if(b&&/save profile/i.test(b.textContent||'')){invalidate();setTimeout(sync,1400);setTimeout(sync,3000)}
+  },true);
 })();
 
 
