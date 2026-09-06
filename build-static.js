@@ -377,7 +377,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js"].forEach(minifyDeployableJavaScript);
+["assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -407,6 +407,7 @@ function cacheBustAssets(html){
  "assets/js/app.js",
  "assets/js/shared-search.js",
  "assets/js/webinar-flow.js",
+ "assets/js/ui-refresh.js",
  "assets/vendor/supabase.js",
     "assets/css/base.css",
     "assets/css/patches.css"
