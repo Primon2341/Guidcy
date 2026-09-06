@@ -314,15 +314,6 @@ function scoreConsultant(c, form, intent) {
     });
     const roleScore = fieldMatchScore(role, term, 42, 24);
     if (roleScore) { score += roleScore; addSignal(signals, 'role', role, roleScore, roleScore >= 42); }
-    /* The consultant's own headline was never scored as a field. roleOf() prefers
-       current_position, so an "Event Management consultant" whose position reads
-       "CMO" earned 8 points from a substring while other people took 42 for a
-       role and 44 for an MBA - and never appeared for "event management". This
-       is the one field where a consultant states what they do. */
-    const specialtyScore = fieldMatchScore(c.specialty, term, 42, 24);
-    if (specialtyScore) { score += specialtyScore; addSignal(signals, 'focus', c.specialty, specialtyScore, specialtyScore >= 42); }
-    const categoryScore = fieldMatchScore(c.category, term, 34, 20);
-    if (categoryScore) { score += categoryScore; addSignal(signals, 'focus', c.category, categoryScore, categoryScore >= 34); }
     /* A bare includes() let "ca" score against "capital" and "career". Anything
        under four characters has to land on a word boundary. */
     const inProfile = term.length >= 4
