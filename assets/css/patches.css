@@ -2946,3 +2946,10 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   margin-top:6px;font-size:13px;line-height:1.6;color:var(--ink2);
   white-space:normal;overflow-wrap:anywhere;
 }
+
+/* "Related expertise": profiles that do the same work under another name. The
+   note sits under the heading so the reader knows why they are seeing them
+   rather than assuming the search went wide. */
+.guidcy-match-section-note{
+  margin:-6px 0 12px;font-size:12px;line-height:1.5;color:var(--muted);
+}

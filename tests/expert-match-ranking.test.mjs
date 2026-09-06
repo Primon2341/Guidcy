@@ -96,3 +96,45 @@ test('the browser fallback orders the same way, so the two cannot disagree', () 
   assert.match(fn, /if\(rb!==ra\)return rb-ra;/);
   assert.match(fn, /if\(vb!==va\)return vb-va;/);
 });
+
+/* Same work, different wording: NPD is R&D, R&D reaches the PhD who runs the
+   lab. Shown after the direct matches and clearly labelled, never mixed in and
+   never used to fill an empty result. */
+function related() {
+  const groups = api.slice(api.indexOf('const RELATED_GROUPS'), api.indexOf('];', api.indexOf('const RELATED_GROUPS')) + 2);
+  const fn = api.slice(api.indexOf('function relatedTerms('), api.indexOf('\n}\n', api.indexOf('function relatedTerms(')) + 3);
+  return new Function(groups + '\n' + fn + '\nreturn relatedTerms;')();
+}
+
+test('related terms reach the same work under another name', () => {
+  const reach = related();
+  assert.ok(reach(['npd']).includes('r&d'), 'NPD is R&D');
+  assert.ok(reach(['npd']).includes('process development'));
+  assert.ok(reach(['research']).includes('phd'), 'research reaches the PhD');
+  assert.ok(reach(['logistics']).includes('supply chain'));
+  // and nothing at all for a search that means nothing here
+  assert.deepEqual(reach(['underwater basketry']), []);
+  // never echoes back what was typed - that is the direct search
+  assert.ok(!reach(['logistics']).includes('logistics'));
+});
+
+test('related profiles are an addition, never a substitute', () => {
+  assert.match(api, /const related = alsoTerms\.length \? consultants/);
+  assert.match(api, /\.filter\(c => !shown\.has\(String\(c\.id\)\)\)/,
+    'a direct match must not be repeated in the related row');
+  assert.match(api, /\.slice\(0, 4\)/, 'a few, not a second full list');
+  assert.match(api, /passesFilters\(item\.consultant, form\)/,
+    "the reader's filters apply to these too");
+
+  const fn = app.slice(app.indexOf('function relatedSection(){'), app.indexOf('function consultantCard(c,whyHtml){'));
+  assert.match(fn, /if\(!list\.length\)return '';/);
+  assert.match(fn, /Related expertise/);
+  assert.match(fn, /Different wording, same work/, 'the reader must know why these are here');
+});
+
+test('a failed search shows no related row either', () => {
+  // the browser only renders what the API returned, and the API returns none
+  // when nothing matched - "here is somebody adjacent" is not an answer
+  assert.match(app, /window\.__guidcyRelatedMatches=\[\];/,
+    'the local fallback must clear it, or a stale row survives the next search');
+});

@@ -267,6 +267,39 @@ async function fetchConsultants() {
 
 
 
+/* Words that genuinely mean the same work. Someone searching NPD wants the
+   person who wrote "new product development" or "R&D"; someone searching R&D
+   wants the PhD who runs a lab. This is a deliberate, readable list rather than
+   an inferred expansion - the inferred one is exactly what put every consultant
+   under every search. Each group is mutual: any word in it reaches the others.
+   Related profiles are shown after the direct ones and never instead of them. */
+const RELATED_GROUPS = [
+  ['npd', 'new product development', 'product development', 'r&d', 'research and development', 'process development', 'innovation'],
+  ['r&d', 'research', 'phd', 'doctorate', 'laboratory', 'patent', 'publication'],
+  ['logistics', 'supply chain', 'warehousing', 'inventory', 'procurement', 'operations'],
+  ['marketing', 'brand', 'branding', 'growth', 'seo', 'advertising', 'campaign'],
+  ['finance', 'accounting', 'tax', 'investment', 'valuation', 'audit'],
+  ['startup', 'founder', 'entrepreneur', 'incubation', 'fundraising', 'venture'],
+  ['career', 'resume', 'cv', 'interview', 'placement', 'recruitment', 'hiring'],
+  ['legal', 'contract', 'compliance', 'intellectual property', 'trademark'],
+  ['event management', 'events', 'event planning', 'production', 'hospitality'],
+  ['data', 'analytics', 'machine learning', 'artificial intelligence', 'data science'],
+  ['product', 'ux', 'design', 'user research'],
+  ['education', 'admission', 'college', 'university', 'mentoring', 'coaching'],
+];
+
+/* Terms that mean the same work as what was typed, minus the typed words
+   themselves - those are the direct search. */
+function relatedTerms(terms) {
+  const typed = new Set(terms);
+  const out = new Set();
+  RELATED_GROUPS.forEach(group => {
+    if (!group.some(word => typed.has(word) || terms.some(term => term.includes(word)))) return;
+    group.forEach(word => { if (!typed.has(word)) out.add(word); });
+  });
+  return Array.from(out);
+}
+
 /* The reader's own words, nothing added. The whole phrase plus its individual
    words, so "event management" finds both the phrase and either word, and the
    typo pass can still nudge a misspelling onto a word the profiles use. */
@@ -348,16 +381,34 @@ module.exports = async function handler(req, res) {
       })
       .slice(0, form.limit);
 
-    const matches = ranked.map(match => ({
+    /* Then a few profiles that do the same work under another name, kept
+       separate so the reader can see which is which, and only ever alongside a
+       direct answer - never as a way to fill an empty page. */
+    const alsoTerms = relatedTerms(terms);
+    const shown = new Set(ranked.map(item => String(item.consultant.id)));
+    const related = alsoTerms.length ? consultants
+      .filter(c => !shown.has(String(c.id)))
+      .map(c => ({ consultant: c, hits: profileHits(c, alsoTerms) }))
+      .filter(item => item.hits.length && passesFilters(item.consultant, form))
+      .sort((a, b) => (ratingOf(b.consultant) - ratingOf(a.consultant))
+        || (reviewsOf(b.consultant) - reviewsOf(a.consultant))
+        || String(a.consultant.name || '').localeCompare(String(b.consultant.name || '')))
+      .slice(0, 4) : [];
+
+    const shape = (match, isRelated) => ({
       consultant: publicConsultant(match.consultant),
       rating: ratingOf(match.consultant),
       reviews: reviewsOf(match.consultant),
-      hits: match.hits.slice(0, 6)
-    }));
+      hits: match.hits.slice(0, 6),
+      related: isRelated
+    });
+    const matches = ranked.map(m => shape(m, false));
     return json(res, 200, {
       ok: true,
       terms,
+      relatedTerms: alsoTerms,
       matches,
+      related: related.map(m => shape(m, true)),
       consultants: matches.map(match => match.consultant),
       sources: []
     });
