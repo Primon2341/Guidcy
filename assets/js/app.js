@@ -23225,6 +23225,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         department:clean(e.department||e.dept),
         start_date:clean(e.start_date||e.start||''),
         end_date:clean(e.end_date||e.end||''),
+        /* What they actually did in the role - the LinkedIn-style description.
+           Read under several names so an entry saved before this existed, or by
+           an import, is not silently dropped. */
+        description:clean(e.description||e.summary||e.details||e.responsibilities||e.work_description||''),
         currently_working:!!(e.currently_working||e.current||e.present)
       };
     }).filter(function(e){return e.company_name});
@@ -23245,7 +23249,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return ey-sy+1;
   }
   function expText(c){
-    return expOf(c).map(function(e){return [e.company_name,e.designation,e.department,e.currently_working?'current':''].join(' ')}).join(' ');
+    return expOf(c).map(function(e){return [e.company_name,e.designation,e.department,e.description,e.currently_working?'current':''].join(' ')}).join(' ');
   }
   function fillSuggestions(){
     return;
@@ -23254,7 +23258,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     // Preserve the exact user-defined company order stored in Supabase.
     // Do not auto-sort by dates here, because Move Up / Move Down is an explicit profile preference.
     list=normalizeExp(list);
-    if(!list.length)list=[{company_name:'',designation:'',department:'',start_date:'',end_date:'',currently_working:false}];
+    if(!list.length)list=[{company_name:'',designation:'',department:'',start_date:'',end_date:'',description:'',currently_working:false}];
     return '<div class="guidcy-exp-section" data-exp-prefix="'+esc(prefix)+'"><div class="guidcy-exp-head"><div><b>Previous Companies</b></div><button type="button" class="guidcy-exp-add" onclick="guidcyAddExperienceRow(\''+esc(prefix)+'\')">+ Add Another Company</button></div><div id="'+esc(prefix)+'-exp-list">'+list.map(function(e,i){return experienceRow(prefix,e,i)}).join('')+'</div></div>';
   }
   function experienceRow(prefix,e,i){
@@ -23264,13 +23268,16 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       +'<div class="field"><label>Department</label><input data-exp-field="department" value="'+esc(e.department)+'" placeholder="Example: Polymer R&D"/></div>'
       +'<div class="field"><label>Start Date</label><input data-exp-field="start_date" inputmode="numeric" placeholder="dd/mm/yyyy" value="'+esc(e.start_date)+'"/></div>'
       +'<div class="field"><label>End Date</label><input data-exp-field="end_date" inputmode="numeric" placeholder="dd/mm/yyyy" value="'+esc(e.end_date)+'"/></div>'
-      +'</div><label class="guidcy-exp-current"><input type="checkbox" data-exp-field="currently_working" '+(e.currently_working?'checked':'')+'> Currently Working Here</label>'
+      +'</div><div class="field guidcy-exp-about"><label>What you did in this role <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, shown on your profile</span></label>'
+      +'<textarea data-exp-field="description" rows="3" maxlength="1200" placeholder="Example: Led the polymer R&amp;D team of 8, took three products from concept to launch, and set up the in-house testing lab.">'+esc(e.description||'')+'</textarea>'
+      +'<div class="guidcy-exp-hint">A couple of lines on what you owned and what came of it. This is what makes a profile read as real rather than a job title.</div></div>'
+      +'<label class="guidcy-exp-current"><input type="checkbox" data-exp-field="currently_working" '+(e.currently_working?'checked':'')+'> Currently Working Here</label>'
       +'<div class="guidcy-exp-actions"><button type="button" onclick="guidcyMoveExperienceRow(this,-1)">Move Up</button><button type="button" onclick="guidcyMoveExperienceRow(this,1)">Move Down</button><button type="button" onclick="guidcyDeleteExperienceRow(this)">Delete</button></div></div>';
   }
   window.guidcyAddExperienceRow=function(prefix){
     fillSuggestions();
     var box=$(prefix+'-exp-list'); if(!box)return;
-    box.insertAdjacentHTML('beforeend',experienceRow(prefix,{company_name:'',designation:'',department:'',start_date:'',end_date:'',currently_working:false},box.children.length));
+    box.insertAdjacentHTML('beforeend',experienceRow(prefix,{company_name:'',designation:'',department:'',start_date:'',end_date:'',description:'',currently_working:false},box.children.length));
   };
   window.guidcyDeleteExperienceRow=function(btn){
     var row=btn&&btn.closest('[data-exp-row]'),box=row&&row.parentElement;if(!row||!box)return;
@@ -23285,7 +23292,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function collectExperience(prefix){
     return Array.from(document.querySelectorAll('#'+prefix+'-exp-list [data-exp-row]')).map(function(row){
       function f(n){var el=row.querySelector('[data-exp-field="'+n+'"]');return el&&el.type==='checkbox'?!!el.checked:clean(el&&el.value)}
-      return {company_name:f('company_name'),designation:f('designation'),department:f('department'),start_date:f('start_date'),end_date:f('end_date'),currently_working:f('currently_working')};
+      return {company_name:f('company_name'),designation:f('designation'),department:f('department'),start_date:f('start_date'),end_date:f('end_date'),description:f('description'),currently_working:f('currently_working')};
     }).filter(function(e){return e.company_name});
   }
   function expPatch(list,position){
@@ -23505,7 +23512,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function profileExperienceHtml(c){
     // Public profile must use the same user-defined sequence as the dashboard.
     var list=expOf(c||{}); if(!list.length)return '';
-    return '<section class="guidcy-profile-experience"><h3>Experience</h3><div class="guidcy-exp-timeline">'+list.map(function(e){var dur=(e.start_date||'')+(e.currently_working?' - Present':(e.end_date?' - '+e.end_date:''));return '<div class="guidcy-exp-timeline-item"><div class="guidcy-exp-timeline-title">'+esc(e.company_name)+'</div><div class="guidcy-exp-timeline-meta">'+esc(e.designation||'')+(e.department?' · '+esc(e.department):'')+'</div><div class="guidcy-exp-timeline-meta">'+esc(dur)+'</div></div>'}).join('')+'</div></section>';
+    return '<section class="guidcy-profile-experience"><h3>Experience</h3><div class="guidcy-exp-timeline">'+list.map(function(e){var dur=(e.start_date||'')+(e.currently_working?' - Present':(e.end_date?' - '+e.end_date:''));return '<div class="guidcy-exp-timeline-item"><div class="guidcy-exp-timeline-title">'+esc(e.company_name)+'</div><div class="guidcy-exp-timeline-meta">'+esc(e.designation||'')+(e.department?' · '+esc(e.department):'')+'</div><div class="guidcy-exp-timeline-meta">'+esc(dur)+'</div>'+(e.description?'<div class="guidcy-exp-timeline-about">'+esc(e.description).replace(/\n+/g,'<br>')+'</div>':'')+'</div>'}).join('')+'</div></section>';
   }
   var oldOpenProfile=window.openProfile;
   if(typeof oldOpenProfile==='function'&&!oldOpenProfile.__guidcyExperience){
@@ -24668,7 +24675,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function collect(prefix){
     return Array.from(document.querySelectorAll('#'+prefix+'-exp-list [data-exp-row]')).map(function(row){
       function get(name){var x=row.querySelector('[data-exp-field="'+name+'"]');return x?.type==='checkbox'?!!x.checked:String(x?.value||'').trim()}
-      return {company_name:get('company_name'),designation:get('designation'),department:get('department'),start_date:get('start_date'),end_date:get('end_date'),currently_working:get('currently_working')};
+      return {company_name:get('company_name'),designation:get('designation'),department:get('department'),start_date:get('start_date'),end_date:get('end_date'),description:get('description'),currently_working:get('currently_working')};
     }).filter(x=>x.company_name);
   }
   function experiencePatch(prefix,position){

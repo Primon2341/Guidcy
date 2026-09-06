@@ -2933,3 +2933,16 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 }
 .guidcy-match-close:hover{background:var(--surface2);color:var(--ink)}
 .guidcy-match-close:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Work experience: what the consultant did in the role, LinkedIn style. The
+   editor field is full width under the two-column grid; the profile shows it
+   under the dates, wrapping and preserving the author's line breaks. */
+.guidcy-exp-section .guidcy-exp-about{grid-column:1/-1;margin-top:10px}
+.guidcy-exp-section .guidcy-exp-about textarea{
+  width:100%;min-height:74px;resize:vertical;line-height:1.5;font-family:inherit;font-size:13px;
+}
+.guidcy-exp-hint{margin-top:6px;font-size:11px;line-height:1.5;color:var(--muted)}
+.guidcy-exp-timeline-about{
+  margin-top:6px;font-size:13px;line-height:1.6;color:var(--ink2);
+  white-space:normal;overflow-wrap:anywhere;
+}

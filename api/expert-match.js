@@ -88,6 +88,7 @@ function experienceEntries(c) {
         department: item.department || item.industry || item.function || '',
         start_date: item.start_date || item.startDate || item.from || '',
         end_date: item.end_date || item.endDate || item.to || '',
+        description: item.description || item.summary || item.details || item.responsibilities || '',
         currently_working: item.currently_working === true || item.current === true || item.present === true || /present|current/i.test(String(item.end_date || item.to || ''))
       });
     });
