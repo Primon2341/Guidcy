@@ -12210,6 +12210,7 @@ body{overflow-x:hidden}
   async function seller(btn){const m=$('cdash-main'); if(!m)return; const c=sbc(); const ns=await c.from('marketplace_notes').select('*').eq('uploader_id',uid()).order('created_at',{ascending:false}); const os=await c.from('marketplace_orders').select('*, marketplace_notes(title)').eq('seller_id',uid()).order('created_at',{ascending:false}); m.innerHTML='<div class="dash-title">My Marketplace</div><button class="btn btn-blue" onclick="go(\'marketplace\');setTimeout(()=>GuidcyMarketplace.openUpload(),200)">Upload Notes</button><h3 style="margin-top:18px">My Uploaded Notes</h3><div class="gmkt-grid">'+((ns.data||[]).length?(ns.data||[]).map(card).join(''):'<div class="gmkt-empty">No notes uploaded yet.</div>')+'</div><h3 style="margin-top:20px">Sales & Earnings</h3><table class="gmkt-admin-table"><thead><tr><th>Note</th><th>Price</th><th>Commission</th><th>Payable</th><th>Status</th></tr></thead><tbody>'+((os.data||[]).map(o=>'<tr><td>'+esc(o.marketplace_notes?.title||o.note_id)+'</td><td>'+rupee(o.price)+'</td><td>'+rupee(o.commission_amount)+'</td><td>'+rupee(o.seller_payable)+'</td><td>'+esc(o.payment_status)+'</td></tr>').join('')||'<tr><td colspan="5">No sales yet.</td></tr>')+'</tbody></table>'}
   /* A consultant can buy notes too, so this view is no longer bolted to the user
      dashboard - the caller says which dashboard body to paint into. */
+  let awaitingAuthForPurchases=false;
   async function purchases(btn,mainId){
     const m=$(mainId||'udash-main'); if(!m)return;
     const c=sbc();
@@ -12239,10 +12240,24 @@ body{overflow-x:hidden}
       m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Could not load your purchased notes. <button class="btn btn-blue" style="margin-left:8px" onclick="GuidcyMarketplace.purchases()">Retry</button></div>';
       return;
     }
-    /* No session yet: leave the loading state up. The dashboard auth watcher
-       re-renders this tab once the session resolves - painting a definitive
-       "No purchased notes yet." here is what made the real rows look late. */
-    if(orders===null)return;
+    /* No session yet. This is why the user dashboard felt slow and the
+       consultant one did not: the consultant reaches this tab after auth has
+       resolved, but the user dashboard can render it during boot, and this
+       branch just left "Loading purchased notes..." on screen until some
+       unrelated re-render happened to repaint it.
+       guidcyOnAuthReady fires the moment initAuth() finishes, so wait on that
+       instead of on luck. Once auth has resolved, a null answer means no
+       session at all, which deserves saying rather than a spinner. */
+    if(orders===null){
+      if(!window.__guidcyAuthReadyFired&&typeof window.guidcyOnAuthReady==='function'&&!awaitingAuthForPurchases){
+        awaitingAuthForPurchases=true;
+        window.guidcyOnAuthReady(function(){awaitingAuthForPurchases=false;purchases(btn,mainId)});
+        return;
+      }
+      if(awaitingAuthForPurchases)return;
+      m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Please sign in to see your purchased notes.</div>';
+      return;
+    }
     const noteMap=new Map();
     noteRows.forEach(note=>noteMap.set(String(note.id),note));
     const rows=orders.map(order=>{
