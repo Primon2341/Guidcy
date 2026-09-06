@@ -20,6 +20,8 @@ test('no weighted score decides who is shown or in what order', () => {
     'the company collapse is gone - one stray signal must not discard everyone else');
   const block = api.slice(api.indexOf('const ranked = consultants'), api.indexOf('.slice(0, form.limit);'));
   assert.doesNotMatch(block, /\.score/, 'the consultant ordering must not read a score at all');
+  assert.match(block, /if \(a\.tier !== b\.tier\) return a\.tier - b\.tier;/,
+    'relevance picks the bucket, rating only orders within it');
   assert.doesNotMatch(api, /score: Math\.round\(match\.score\)/,
     'no score is handed downstream, so nothing can re-sort by it');
   assert.match(api, /\.filter\(item => \(item\.signals \|\| \[\]\)\.length > 0\)/,
@@ -110,4 +112,36 @@ test('the browser fallback orders the same way, so the two cannot disagree', () 
   assert.match(fn, /if\(vb!==va\)return vb-va;/, 'then reviews');
   assert.doesNotMatch(fn, /sort\(function\(a,b\)\{return b\.score-a\.score\}\)/,
     'the fallback must not rank by points while the server ranks by rating');
+});
+
+/* Ordering by rating alone put an alphabetical list in front of the reader,
+   because not one consultant has a rating yet - and it left an "Event Management
+   consultant" off the results for "event management". Relevance now picks the
+   bucket and the rating orders within it. */
+test('what a consultant says they do outranks a passing mention', () => {
+  const from = api.indexOf('const headline = cleanPhrase(');
+  const to = api.indexOf('signals.sort((a, b) =>', from);
+  assert.ok(from > -1 && to > from, 'the tier calculation must still be there');
+
+  const tierOf = new Function('c', 'terms', 'signals', 'cleanPhrase', 'addSignal',
+    api.slice(from, to) + '\nreturn tier;');
+  const clean = v => String(v || '').toLowerCase().trim();
+  const noop = () => {};
+
+  const neelam = { specialty: 'Event Management consultant', category: 'Entertainment' };
+  assert.equal(tierOf(neelam, ['event management'], [], clean, noop), 1,
+    'her stated discipline is the strongest thing a profile can say');
+
+  const roleHolder = { specialty: 'Director', category: 'Marketing' };
+  assert.equal(tierOf(roleHolder, ['event management'], [{ type: 'role', exact: true }], clean, noop), 1);
+  assert.equal(tierOf(roleHolder, ['event management'], [{ type: 'education', exact: false }], clean, noop), 2,
+    'an MBA is a credential, not a statement of what you do');
+  assert.equal(tierOf(roleHolder, ['event management'], [{ type: 'profile', exact: false }], clean, noop), 3,
+    'a mention in the bio is the weakest evidence there is');
+});
+
+test('the tier is visible as a signal, so an order can be explained', () => {
+  assert.match(api, /addSignal\(signals, 'focus', c\.specialty \|\| c\.category, 0, true\)/);
+  assert.match(api, /addSignal\(signals, 'focus'[^)]*, 0, /,
+    'it carries no weight - it marks the bucket, it does not score');
 });

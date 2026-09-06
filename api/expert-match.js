@@ -335,8 +335,22 @@ function scoreConsultant(c, form, intent) {
   const completion = ['bio','about','avatar_url','current_position','current_work','highest_education','college','skills','category'].reduce((n, key) => n + (c[key] ? 1 : 0), 0);
   score += completion;
 
+  /* How the profile matched, not how much. Three ordered buckets replace the
+     weights that used to fight each other:
+       1 - what they say they do: their stated discipline, or their actual role;
+       2 - their credentials: skills, education, an employer, a past designation;
+       3 - a passing mention somewhere in the profile text.
+     Rating orders within a bucket, so a stated specialist is never pushed under
+     someone who merely mentions the subject in their bio. */
+  const headline = cleanPhrase([c.specialty, c.category].filter(Boolean).join(' '));
+  const headlineTerm = terms.find(term => term.length >= 4 && headline.includes(term));
+  if (headlineTerm) addSignal(signals, 'focus', c.specialty || c.category, 0, true);
+  const strongRole = signals.some(sig => sig.type === 'role' && sig.exact);
+  const credential = signals.some(sig => ['skill', 'education', 'company', 'role', 'field'].includes(sig.type));
+  const tier = (headlineTerm || strongRole) ? 1 : (credential ? 2 : 3);
+
   signals.sort((a, b) => (b.exact - a.exact) || b.score - a.score);
-  return { consultant: c, score, signals: signals.slice(0, 8), hits: signals.map(s => s.label).slice(0, 7) };
+  return { consultant: c, tier, signals: signals.slice(0, 8), hits: signals.map(s => s.label).slice(0, 7) };
 }
 
 function compactProfile(c, signals) {
@@ -562,19 +576,18 @@ module.exports = async function handler(req, res) {
     /* Correct obvious typos against the words the profiles use, so "loigstics"
        still finds the logistics manager. */
     intent.terms = correctTerms(intent.terms || [], profileVocabulary(consultants));
-    /* No weighted score decides anything any more. The weights fought each other -
-       an employer beat a stated discipline, an MBA beat a matching role, and a
-       single stray signal could carry someone to the top of a list they had no
-       business being in. Two plain rules instead:
-         1. show a consultant when their own profile actually matches the search;
-         2. order them by rating, which is the one honest comparison we hold.
-       Signals still say WHY someone matched, but they no longer decide the order. */
+    /* No weighted score decides anything. Relevance is a bucket - what they say
+       they do, then their credentials, then a passing mention - and the rating
+       orders people within a bucket. Nobody is carried to the top by one stray
+       signal, and a stated specialist is never buried under a bio mention. */
     const ratingOf = c => Number(c.rating || c.average_rating || 0) || 0;
     const reviewsOf = c => Number(c.reviews || c.review_count || 0) || 0;
     const ranked = consultants
       .map(c => scoreConsultant(c, form, intent))
       .filter(item => (item.signals || []).length > 0)
       .sort((a, b) => {
+        /* Relevance decides the bucket; the rating only orders within one. */
+        if (a.tier !== b.tier) return a.tier - b.tier;
         const byRating = ratingOf(b.consultant) - ratingOf(a.consultant);
         if (byRating) return byRating;
         /* Same rating: more reviews is the sturdier one. Unrated consultants keep
