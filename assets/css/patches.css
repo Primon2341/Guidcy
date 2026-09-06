@@ -2899,7 +2899,10 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
    the reader keeps the table they were looking at instead of watching it
    vanish and return. The swap fade is short enough to read as "updated"
    rather than as an animation. */
-#adash-main,#cdash-main,#udash-main{position:relative}
+/* Any region can carry the bar, so anchor it on the busy class itself
+   rather than naming each container. Applied only while a render is in
+   flight, and position:relative does not move anything in flow. */
+.guidcy-panel-busy{position:relative}
 .guidcy-panel-busy::before{
   content:"";position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;
   background:linear-gradient(90deg,transparent,var(--blue,#2563EB),transparent);

@@ -17,7 +17,7 @@
  * path is swallowed.
  *
  * Deliberately conservative, because the rule here was not to disturb anything:
- *  - only the three dashboard panels are touched, nothing else on the site;
+ *  - only the listed content regions are touched, nothing else on the page;
  *  - only a SHORT, loading-shaped payload is ever held back;
  *  - an empty panel always gets its placeholder, so a first paint still shows
  *    feedback rather than sitting blank;
@@ -31,7 +31,20 @@
   if (window.__GUIDCY_PANEL_REFRESH__) return;
   window.__GUIDCY_PANEL_REFRESH__ = true;
 
-  var PANEL_IDS = ['adash-main', 'cdash-main', 'udash-main'];
+  /* The content regions that renderers repaint. Listing one that never shows a
+     placeholder costs nothing - the interception only ever acts on a
+     loading-shaped payload assigned over existing content. */
+  var PANEL_IDS = [
+    /* dashboards */
+    'adash-main', 'cdash-main', 'udash-main',
+    /* browse, categories and the home rails */
+    'browse-grid', 'cats-full-grid', 'cons-grid', 'cons-rec-grid',
+    'sf-supabase-consultants-grid', 'reviews-grid',
+    /* webinars */
+    'wbn-cards', 'wbn-regs-list',
+    /* marketplace and careers */
+    'gmkt-grid', 'gc-list'
+  ];
   /* The wording the existing renderers use for their placeholders. */
   var PLACEHOLDER_WORDS = /(loading|searching|filtering|please wait|fetching)/i;
   /* Long enough for the longest real placeholder, short enough that no rendered
@@ -122,4 +135,23 @@
   attachAll();
   document.addEventListener('DOMContentLoaded', attachAll);
   window.addEventListener('load', attachAll);
+
+  /* Several of these regions do not exist at load - the marketplace page builds
+     itself on first visit, and any container inside a panel is replaced whole
+     when its parent is repainted, which discards the override with the old
+     element. Re-attach when the DOM changes, coalesced into one pass per frame
+     so a busy render does not pay for it repeatedly. */
+  if (typeof MutationObserver === 'function') {
+    var queued = false;
+    var run = function () { queued = false; attachAll(); };
+    /* setTimeout, not requestAnimationFrame: rAF does not fire in a hidden tab,
+       so a region built in a background tab would never be attached. The work
+       is a handful of getElementById calls, so there is nothing to align to a
+       frame anyway. */
+    new MutationObserver(function () {
+      if (queued) return;
+      queued = true;
+      setTimeout(run, 0);
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
 })();

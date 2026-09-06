@@ -58,9 +58,15 @@ test('a panel showing only its own placeholder is not treated as content', () =>
   assert.equal(hasContent(PANEL), true, 'a rendered table is worth keeping on screen');
 });
 
-test('it stays narrowly scoped and cannot strand a panel', () => {
-  assert.match(src, /var PANEL_IDS = \['adash-main', 'cdash-main', 'udash-main'\];/,
-    'only the dashboard panels, nothing else on the site');
+test('it stays an allowlist and cannot strand a panel', () => {
+  const ids = (src.slice(src.indexOf('var PANEL_IDS = ['), src.indexOf('];', src.indexOf('var PANEL_IDS = [')))
+    .match(/'[\w-]+'/g) || []).map(s => s.slice(1, -1));
+  for (const required of ['adash-main', 'cdash-main', 'udash-main', 'browse-grid', 'wbn-cards', 'gmkt-grid', 'gc-list']) {
+    assert.ok(ids.includes(required), 'missing content region: ' + required);
+  }
+  assert.ok(ids.length <= 20, 'this is an allowlist, not a free-for-all - it must stay reviewable');
+  assert.doesNotMatch(src, /Element\.prototype,\s*'innerHTML',\s*\{/,
+    'the override must be per element, never on the prototype');
   assert.match(src, /var STALE_MS = 6000;/);
   assert.match(src, /pendingTimer = setTimeout\(/,
     'a render that never finishes must show its placeholder after all');
@@ -79,4 +85,17 @@ test('the script is registered so it actually ships', () => {
     'the panels are rendered by app.js, so attach after it');
   assert.equal((build.match(/assets\/js\/ui-refresh\.js/g) || []).length, 2,
     'it must be both minified and content-hashed, like every other script');
+});
+
+/* Most of these regions are built after load - the marketplace page on first
+   visit, and any container inside a panel is discarded when its parent is
+   repainted, taking the override with it. */
+test('regions that appear later are still picked up', () => {
+  assert.match(src, /new MutationObserver\(/, 'a container created later must still be attached');
+  assert.match(src, /if \(queued\) return;/, 'one pass per frame, not one per mutation');
+  assert.match(src, /setTimeout\(run, 0\);/);
+  assert.doesNotMatch(src, /requestAnimationFrame\s*\(/,
+    'rAF never fires in a hidden tab, so a region built there would go unattached');
+  assert.match(src, /if \(!el \|\| el\.__guidcyPanelRefresh\) return;/,
+    're-attaching must be idempotent, or a region gets wrapped repeatedly');
 });
