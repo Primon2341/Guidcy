@@ -2920,3 +2920,16 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   .guidcy-panel-busy::before{animation:none;background:var(--blue,#2563EB);background-size:100% 100%}
   .guidcy-panel-swap{animation:none}
 }
+
+/* AI expert matching: the results can be dismissed, so the header carries a
+   close control beside its link. Sized as a proper 32px target rather than a
+   bare glyph, and it keeps its place when the header wraps on a phone. */
+.guidcy-result-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.guidcy-match-close{
+  width:32px;height:32px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);background:var(--surface);color:var(--muted);
+  border-radius:100px;font-size:19px;line-height:1;cursor:pointer;padding:0;
+  font-family:inherit;transition:background .15s ease,color .15s ease;
+}
+.guidcy-match-close:hover{background:var(--surface2);color:var(--ink)}
+.guidcy-match-close:focus-visible{outline:2px solid var(--blue);outline-offset:2px}

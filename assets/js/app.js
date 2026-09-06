@@ -10403,6 +10403,16 @@ body{overflow-x:hidden}
     if(d.language)txt+=' Your language preference was also considered.';
     return txt+'<div class="guidcy-match-chiprow">'+chips.map(function(x){return '<span class="guidcy-match-chip">'+esc(x)+'</span>'}).join('')+'</div>';
   }
+  /* The suggestions had no way out: once rendered they stayed until a reload.
+     Clears whichever results container is on the page - browse or home - and
+     leaves the form above it alone so another search still works. */
+  window.guidcyCloseExpertMatch=function(){
+    ['guidcy-browse-match-results','guidcy-home-match-results'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el)el.innerHTML='';
+    });
+  };
+
   function consultantCard(c,whyHtml){
     var id=idOf(c), role=esc(roleOf(c)), name=esc(c.name||'Consultant'), price=priceOf(c), rating=Number(c.rating)||0, reviews=Number(c.reviews||c.review_count||0)||0;
     var avatar=c.avatar_url||c.photo_url||c.image_url||''; var bg=esc(c.avatar_bg||c.bg||'#EBF4FF'), col=esc(c.avatar_color||c.color||'#1E72BE');
@@ -10427,7 +10437,7 @@ body{overflow-x:hidden}
     var best=ranked.slice(0,4), similar=ranked.slice(4,8);
     if(!ranked.length){el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-title">No matching experts found yet</div><div class="guidcy-match-empty" style="margin-top:14px">Try a broader goal such as “marketing”, “career guidance”, “startup funding”, or “college admission”.</div></div>';return;}
     var sub=ranked.some(function(x){return x&&x._rag})?'Matched with Guidcy RAG, your goal, and live approved consultant profiles.':'Matched using your goal, stage, budget, language, urgency and sector from live approved consultants.';
-    el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-head"><div><div class="guidcy-result-title">Best expert matches for you</div><div class="guidcy-result-sub">'+sub+'</div></div><button class="btn" onclick="window.go&&go(\'browse\')">Open Find the Expert →</button></div><div class="guidcy-match-section-title">Best matching consultants</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+best.map(function(x){return consultantCard(x.c,reasonFor(x,d))}).join('')+'</div>'+(similar.length?'<div class="guidcy-match-section-title">Similar experts</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:16px">'+similar.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>':'')+'<div class="guidcy-match-section-title">Free resources & webinars</div><div class="guidcy-resource-grid">'+resourceCards(webinars,d)+'</div></div>';
+    el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-head"><div><div class="guidcy-result-title">Best expert matches for you</div><div class="guidcy-result-sub">'+sub+'</div></div><div class="guidcy-result-head-actions"><button class="btn" onclick="window.go&&go(\'browse\')">Open Find the Expert →</button><button type="button" class="guidcy-match-close" aria-label="Close suggestions" title="Close suggestions" onclick="window.guidcyCloseExpertMatch&&guidcyCloseExpertMatch()">×</button></div></div><div class="guidcy-match-section-title">Best matching consultants</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+best.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>'+(similar.length?'<div class="guidcy-match-section-title">Similar experts</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:16px">'+similar.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>':'')+'<div class="guidcy-match-section-title">Free resources & webinars</div><div class="guidcy-resource-grid">'+resourceCards(webinars,d)+'</div></div>';
   }
   async function ragExpertMatch(d){
     try{
