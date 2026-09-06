@@ -10411,6 +10411,18 @@ body{overflow-x:hidden}
       var el=document.getElementById(id);
       if(el)el.innerHTML='';
     });
+    /* Running a match also drops the goal into the browse search box and filters
+       the grid behind the suggestions. Closing has to undo that too, or the
+       reader is left staring at a filtered list with nothing on screen saying
+       why - so clear the search and re-run the filters to show everyone again.
+       Only the search is reset; a category or price filter the reader set
+       themselves is theirs to keep. */
+    try{
+      var box=document.getElementById('browse-search');
+      if(box)box.value='';
+      if(window.browseFilters)window.browseFilters.search='';
+      if(typeof window.applyFilters==='function')window.applyFilters();
+    }catch(e){console.warn('Could not reset the browse filter on close',e)}
   };
 
   function consultantCard(c,whyHtml){

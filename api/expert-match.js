@@ -196,8 +196,10 @@ function companyMatches(query, company) {
   if (a === b) return true;
   if (a.length >= 3 && b.includes(a)) return true;
   if (b.length >= 3 && a.includes(b)) return true;
-  if (a.length >= 2 && acronymAll(company) === a) return true;
-  if (b.length >= 2 && acronymAll(query) === b) return true;
+  /* A two-letter acronym collides with far too much - it is how "NTU" became an
+     exact company match for "startup funding". Three characters or more. */
+  if (a.length >= 3 && acronymAll(company) === a) return true;
+  if (b.length >= 3 && acronymAll(query) === b) return true;
   const aw = a.split(/\s+/).filter(w => w.length > 2);
   return aw.length > 1 && aw.every(w => b.includes(w));
 }
@@ -213,6 +215,63 @@ function addSignal(signals, type, label, score, exact) {
   const key = `${type}:${cleanPhrase(label)}`;
   if (signals.some(s => s.key === key)) return;
   signals.push({ key, type, label: String(label).trim(), score, exact: !!exact });
+}
+
+/* Typos: "loigstics", "marketting", "startupp". Rather than ship a dictionary,
+   correct against the words the profiles themselves use - so a correction can
+   only ever move a term towards something a consultant actually wrote. Applied
+   only to terms that appear nowhere, so a real word is never rewritten.
+   Bounded: distance 1 for short words, 2 from seven characters up. */
+function editDistanceWithin(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + cost);
+      if (row[j] < best) best = row[j];
+    }
+    if (best > max) return false;
+    prev = row;
+  }
+  return prev[b.length] <= max;
+}
+
+function profileVocabulary(consultants) {
+  const vocab = new Set();
+  for (const c of consultants) {
+    for (const word of consultantText(c).split(/[^a-z0-9+#.]+/)) {
+      if (word.length >= 4 && word.length <= 24 && !STOP_WORDS.has(word)) vocab.add(word);
+    }
+    if (vocab.size > 6000) break;
+  }
+  return vocab;
+}
+
+function correctTerms(terms, vocab) {
+  if (!vocab.size) return terms;
+  const corrected = new Set(terms);
+  for (const term of terms) {
+    if (term.includes(' ') || term.length < 4 || vocab.has(term)) continue;
+    const budget = term.length >= 7 ? 2 : 1;
+    let best = '';
+    let bestDistance = budget + 1;
+    for (const word of vocab) {
+      if (Math.abs(word.length - term.length) > budget) continue;
+      if (word[0] !== term[0]) continue;
+      for (let d = 1; d <= budget; d++) {
+        if (editDistanceWithin(term, word, d)) {
+          if (d < bestDistance) { bestDistance = d; best = word; }
+          break;
+        }
+      }
+      if (bestDistance === 1) break;
+    }
+    if (best) corrected.add(best);
+  }
+  return Array.from(corrected);
 }
 
 function scoreConsultant(c, form, intent) {
@@ -247,7 +306,12 @@ function scoreConsultant(c, form, intent) {
     });
     const roleScore = fieldMatchScore(role, term, 42, 24);
     if (roleScore) { score += roleScore; addSignal(signals, 'role', role, roleScore, roleScore >= 42); }
-    if (profile.includes(term)) {
+    /* A bare includes() let "ca" score against "capital" and "career". Anything
+       under four characters has to land on a word boundary. */
+    const inProfile = term.length >= 4
+      ? profile.includes(term)
+      : new RegExp('\\b' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(profile);
+    if (inProfile) {
       score += term.length > 5 ? 8 : 3;
       addSignal(signals, 'profile', term, term.length > 5 ? 8 : 3, false);
     }
@@ -487,6 +551,9 @@ module.exports = async function handler(req, res) {
     const question = [form.goal, form.stage, form.sector, form.page_context].filter(Boolean).join(' ');
     const [consultants, contextRows] = await Promise.all([fetchConsultants(), ragContext(question)]);
     const intent = await inferIntent(form, contextRows);
+    /* Correct obvious typos against the words the profiles use, so "loigstics"
+       still finds the logistics manager. */
+    intent.terms = correctTerms(intent.terms || [], profileVocabulary(consultants));
     const allRanked = consultants
       .map(c => scoreConsultant(c, form, intent))
       .filter(item => item.score > 0)
@@ -495,7 +562,15 @@ module.exports = async function handler(req, res) {
         const bx = (b.signals || []).some(s => s.exact) ? 1 : 0;
         return (bx - ax) || b.score - a.score;
       });
-    const exactCompanyRanked = allRanked.filter(item => (item.signals || []).some(signal => signal.type === 'company' && signal.exact));
+    /* Narrowing to exact-company matches is right for "someone from HFCL" and
+       wrong for everything else: a single spurious company hit was throwing away
+       every other consultant, which is how a PhD with no startup background beat
+       a Startup specialist. Only collapse when the goal actually names an
+       organisation. */
+    const askedAboutOrganisation = Array.isArray(intent.organizations) && intent.organizations.length > 0;
+    const exactCompanyRanked = askedAboutOrganisation
+      ? allRanked.filter(item => (item.signals || []).some(signal => signal.type === 'company' && signal.exact))
+      : [];
     const ranked = (exactCompanyRanked.length ? exactCompanyRanked : allRanked).slice(0, form.limit);
     const matches = (await enrichReasons(ranked, intent, form)).map(match => ({
       consultant: publicConsultant(match.consultant),
