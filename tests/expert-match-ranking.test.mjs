@@ -121,20 +121,27 @@ test('related terms reach the same work under another name', () => {
 test('related profiles are an addition, never a substitute', () => {
   assert.match(api, /const related = alsoTerms\.length \? consultants/);
   assert.match(api, /\.filter\(c => !shown\.has\(String\(c\.id\)\)\)/,
-    'a direct match must not be repeated in the related row');
+    'a direct match must not be repeated further down the list');
   assert.match(api, /\.slice\(0, 4\)/, 'a few, not a second full list');
   assert.match(api, /passesFilters\(item\.consultant, form\)/,
     "the reader's filters apply to these too");
-
-  const fn = app.slice(app.indexOf('function relatedSection(){'), app.indexOf('function consultantCard(c,whyHtml){'));
-  assert.match(fn, /if\(!list\.length\)return '';/);
-  assert.match(fn, /Related expertise/);
-  assert.match(fn, /Different wording, same work/, 'the reader must know why these are here');
 });
 
-test('a failed search shows no related row either', () => {
-  // the browser only renders what the API returned, and the API returns none
-  // when nothing matched - "here is somebody adjacent" is not an answer
-  assert.match(app, /window\.__guidcyRelatedMatches=\[\];/,
-    'the local fallback must clear it, or a stale row survives the next search');
+test('everyone is shown in one list, direct matches first', () => {
+  assert.match(app, /ranked=ranked\.concat\(\(api\.related\|\|\[\]\)\.map/,
+    'related profiles join the same list rather than sitting in their own row');
+  assert.doesNotMatch(app, /Related expertise/, 'no separate heading');
+  assert.doesNotMatch(app, /relatedSection\(\)/, 'and no separate section to render');
+  // order matters: concat appends, so the direct matches keep the front
+  const line = app.slice(app.indexOf('ranked=ranked.concat('));
+  assert.ok(line.indexOf('_related:true') > 0, 'the related ones are still identifiable in the data');
+});
+
+test('the goal box and the browse search bar do not write into each other', () => {
+  const run = app.slice(app.indexOf('async function run(prefix,home){'), app.indexOf('function reasonFor(item,d)'));
+  assert.doesNotMatch(run, /bs\.value=d\.goal/, 'a goal must not overwrite the search bar');
+  assert.doesNotMatch(run, /browseFilters\.search=d\.goal/, 'nor filter the grid behind the results');
+  assert.doesNotMatch(run, /getElementById\('srch'\)/, 'and the search bar must not seed the goal');
+  // the explicit button is the one sanctioned way across, because the reader asked
+  assert.match(app, /Use current search/);
 });

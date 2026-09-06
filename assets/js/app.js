@@ -10418,32 +10418,10 @@ body{overflow-x:hidden}
       var el=document.getElementById(id);
       if(el)el.innerHTML='';
     });
-    /* Running a match also drops the goal into the browse search box and filters
-       the grid behind the suggestions. Closing has to undo that too, or the
-       reader is left staring at a filtered list with nothing on screen saying
-       why - so clear the search and re-run the filters to show everyone again.
-       Only the search is reset; a category or price filter the reader set
-       themselves is theirs to keep. */
-    try{
-      var box=document.getElementById('browse-search');
-      if(box)box.value='';
-      if(window.browseFilters)window.browseFilters.search='';
-      if(typeof window.applyFilters==='function')window.applyFilters();
-    }catch(e){console.warn('Could not reset the browse filter on close',e)}
+    /* Nothing else to undo: a match no longer touches the browse search bar, so
+       whatever the reader typed there is theirs and stays. */
   };
 
-  /* Only ever an addition to a real answer: no direct matches, no related row,
-     because "here is somebody adjacent" is not an answer to a search that found
-     nothing. */
-  function relatedSection(){
-    var list=window.__guidcyRelatedMatches||[];
-    if(!list.length)return '';
-    return '<div class="guidcy-match-section-title">Related expertise</div>'
-      +'<div class="guidcy-match-section-note">Different wording, same work — these profiles describe it another way.</div>'
-      +'<div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'
-      +list.map(function(x){return consultantCard(x.c,'')}).join('')
-      +'</div>';
-  }
   function consultantCard(c,whyHtml){
     var id=idOf(c), role=esc(roleOf(c)), name=esc(c.name||'Consultant'), price=priceOf(c), rating=Number(c.rating)||0, reviews=Number(c.reviews||c.review_count||0)||0;
     var avatar=c.avatar_url||c.photo_url||c.image_url||''; var bg=esc(c.avatar_bg||c.bg||'#EBF4FF'), col=esc(c.avatar_color||c.color||'#1E72BE');
@@ -10471,7 +10449,7 @@ body{overflow-x:hidden}
     var best=ranked.slice(0,8);
     if(!ranked.length){el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-title">No matching experts found yet</div><div class="guidcy-match-empty" style="margin-top:14px">Try a broader goal such as “marketing”, “career guidance”, “startup funding”, or “college admission”.</div></div>';return;}
     var sub=ranked.some(function(x){return x&&x._rag})?'Matched to your goal from consultant profiles on Guidcy.':'Matched to your goal, stage, budget, language, urgency and sector.';
-    el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-head"><div><div class="guidcy-result-title">Best expert matches for you</div><div class="guidcy-result-sub">'+sub+'</div></div><div class="guidcy-result-head-actions"><button class="btn" onclick="window.go&&go(\'browse\')">Open Find the Expert →</button><button type="button" class="guidcy-match-close" aria-label="Close suggestions" title="Close suggestions" onclick="window.guidcyCloseExpertMatch&&guidcyCloseExpertMatch()">×</button></div></div><div class="guidcy-match-section-title">Best matching consultants</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+best.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>'+relatedSection()+'<div class="guidcy-match-section-title">Free resources & webinars</div><div class="guidcy-resource-grid">'+resourceCards(webinars,d)+'</div></div>';
+    el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-head"><div><div class="guidcy-result-title">Best expert matches for you</div><div class="guidcy-result-sub">'+sub+'</div></div><div class="guidcy-result-head-actions"><button class="btn" onclick="window.go&&go(\'browse\')">Open Find the Expert →</button><button type="button" class="guidcy-match-close" aria-label="Close suggestions" title="Close suggestions" onclick="window.guidcyCloseExpertMatch&&guidcyCloseExpertMatch()">×</button></div></div><div class="guidcy-match-section-title">Best matching consultants</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+best.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>'+'<div class="guidcy-match-section-title">Free resources & webinars</div><div class="guidcy-resource-grid">'+resourceCards(webinars,d)+'</div></div>';
   }
   async function ragExpertMatch(d){
     try{
@@ -10482,7 +10460,7 @@ body{overflow-x:hidden}
     }catch(e){console.warn('RAG expert match fallback',e);return null}
   }
   async function run(prefix,home){
-    var d=formData(prefix); if(!d.goal.trim()){var q=document.getElementById('srch')&&document.getElementById('srch').value; if(q)d.goal=q}
+    var d=formData(prefix);
     if(!d.goal.trim()){alert('Please enter your goal first.');return}
     var target=home?'guidcy-home-match-results':'guidcy-browse-match-results'; var el=document.getElementById(target); if(el)el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-match-loading">Finding live experts and related free resources...</div></div>';
     var apiPromise=ragExpertMatch(d), consPromise=fetchConsultantsOnlySupabase(), websPromise=fetchFreeWebinars(d);
@@ -10491,13 +10469,18 @@ body{overflow-x:hidden}
       ranked=api.matches.map(function(m){return {c:m.consultant||m.c||m,score:Number(m.score)||0,hits:m.hits||[],reason:m.reason||'',_rag:true}}).filter(function(x){return x.c&&x.c.id});
       /* Profiles doing the same work under another name - NPD for R&D, a PhD for
          research. Kept apart from the direct answers, and only shown with them. */
-      window.__guidcyRelatedMatches=(api.related||[]).map(function(m){return {c:m.consultant||m.c||m,hits:m.hits||[]}}).filter(function(x){return x.c&&x.c.id});
+      /* Appended to the same list rather than shown apart: the direct matches
+         keep their place at the front, the related ones follow. */
+      ranked=ranked.concat((api.related||[]).map(function(m){return {c:m.consultant||m.c||m,hits:m.hits||[],_related:true}}).filter(function(x){return x.c&&x.c.id}));
     }else{
       ranked=rank(await consPromise,d);
-      window.__guidcyRelatedMatches=[];
     }
     var webs=await websPromise; renderResults(target,d,ranked,webs,home);
-    if(!home){try{var bs=document.getElementById('browse-search'); if(bs)bs.value=d.goal; if(window.browseFilters){window.browseFilters.search=d.goal} if(typeof window.applyFilters==='function')window.applyFilters()}catch(e){}}
+    /* The goal box and the browse search bar are separate fields. A goal used to
+       overwrite the search bar and filter the grid behind the results, leaving
+       the reader with a filtered list they never asked for. Only the "Use
+       current search" button moves text between them - that is the reader
+       asking for it. */
   }
   function agentSessionId(){try{var k='guidcy_agent_session_id';var v=sessionStorage.getItem(k);if(!v){v='agent-'+Date.now()+'-'+Math.random().toString(36).slice(2);sessionStorage.setItem(k,v)}return v}catch(e){return 'agent-'+Date.now()}}
   function agentUserId(){try{return (window.currentUser&&currentUser.id)||(window.currentProfile&&currentProfile.id)||''}catch(e){return ''}}
