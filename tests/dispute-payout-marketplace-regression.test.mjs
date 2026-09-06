@@ -13,7 +13,10 @@ test('disputes render and track from Supabase without synthetic booking backfill
   assert.match(app,/guidcyRenderDisputesFromSupabase/);
   assert.match(app,/from\('disputes'\)\.select\('\*'\)\.eq\('is_deleted',false\)/);
   assert.match(app,/window\.gdispTrack=window\.guidcyTrackDisputeFromSupabase/);
-  assert.match(app,/No dispute found in Supabase for that Dispute ID/);
+  /* The message a reader sees must not name the database behind it. The internal
+     function names above are fine - nobody sees those. */
+  assert.match(app,/No dispute found for that Dispute ID/);
+  assert.doesNotMatch(app,/No dispute found in Supabase/);
 });
 
 test('consultant payouts are grouped and one action updates the complete pending batch',()=>{
