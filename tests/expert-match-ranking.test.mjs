@@ -76,3 +76,15 @@ test('an employer only scores when the reader named one', () => {
   // the company path itself is untouched, so "someone from HFCL" still works
   assert.match(api, /addSignal\(signals, 'company'/);
 });
+
+/* specialty and category were never scored as fields. roleOf() prefers
+   current_position, so an "Event Management consultant" listed as "CMO" earned 8
+   points from a substring while other people took 42 for a role and 44 for an
+   MBA - and never appeared for "event management" at all. */
+test('what a consultant says they do is scored, not just their job title', () => {
+  assert.match(api, /fieldMatchScore\(c\.specialty, term, 42, 24\)/,
+    'the headline must weigh like a role, it is where the discipline is stated');
+  assert.match(api, /fieldMatchScore\(c\.category, term, 34, 20\)/);
+  assert.match(api, /addSignal\(signals, 'focus', c\.specialty/,
+    'and it must be visible as a signal, so a bad rank can be explained');
+});
