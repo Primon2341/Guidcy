@@ -10366,10 +10366,17 @@ body{overflow-x:hidden}
       var pr=priceOf(c); if(d.budget){ if(limit===0){ if(pr===0){score+=5;hits.push('free budget')} else score-=2;} else if(pr>0&&pr<=limit){score+=4;hits.push('within budget')} else if(pr>limit){score-=1;}}
       if(lang){var ltxt=[c.languages,c.language,c.preferred_language].map(function(x){return Array.isArray(x)?x.join(' '):String(x||'')}).join(' ').toLowerCase(); if(ltxt.indexOf(lang)>-1){score+=3;hits.push(lang)}}
       if(norm(d.urgency).indexOf('today')>-1){score+=Number(c.is_available||c.available_today||c.instant_available||0)?3:0;if(c.is_available||c.available_today)hits.push('available today')}
-      score+=(Number(c.rating)||0)*0.25+(Number(c.reviews||c.review_count)||0)*0.01;
-      if(!kws.length&&score<1)score=Number(c.rating)||0;
       return {c:c,score:score,hits:hits.filter(Boolean).slice(0,6)};
-    }).filter(function(x){return x.score>0}).sort(function(a,b){return b.score-a.score});
+    }).filter(function(x){return x.score>0||!kws.length}).sort(function(a,b){
+      /* Matches the server: the profile decides who is shown, the rating decides
+         the order. The weights above only pick which consultants qualify - they
+         must not settle who comes first, or this fallback contradicts the API. */
+      var ra=Number(a.c.rating)||0, rb=Number(b.c.rating)||0;
+      if(rb!==ra)return rb-ra;
+      var va=Number(a.c.reviews||a.c.review_count)||0, vb=Number(b.c.reviews||b.c.review_count)||0;
+      if(vb!==va)return vb-va;
+      return String(a.c.name||'').localeCompare(String(b.c.name||''));
+    });
   }
   function reasonFor(item,d){
     function profileReason(c){

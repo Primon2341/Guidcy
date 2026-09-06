@@ -562,27 +562,32 @@ module.exports = async function handler(req, res) {
     /* Correct obvious typos against the words the profiles use, so "loigstics"
        still finds the logistics manager. */
     intent.terms = correctTerms(intent.terms || [], profileVocabulary(consultants));
-    const allRanked = consultants
+    /* No weighted score decides anything any more. The weights fought each other -
+       an employer beat a stated discipline, an MBA beat a matching role, and a
+       single stray signal could carry someone to the top of a list they had no
+       business being in. Two plain rules instead:
+         1. show a consultant when their own profile actually matches the search;
+         2. order them by rating, which is the one honest comparison we hold.
+       Signals still say WHY someone matched, but they no longer decide the order. */
+    const ratingOf = c => Number(c.rating || c.average_rating || 0) || 0;
+    const reviewsOf = c => Number(c.reviews || c.review_count || 0) || 0;
+    const ranked = consultants
       .map(c => scoreConsultant(c, form, intent))
-      .filter(item => item.score > 0)
+      .filter(item => (item.signals || []).length > 0)
       .sort((a, b) => {
-        const ax = (a.signals || []).some(s => s.exact) ? 1 : 0;
-        const bx = (b.signals || []).some(s => s.exact) ? 1 : 0;
-        return (bx - ax) || b.score - a.score;
-      });
-    /* Narrowing to exact-company matches is right for "someone from HFCL" and
-       wrong for everything else: a single spurious company hit was throwing away
-       every other consultant, which is how a PhD with no startup background beat
-       a Startup specialist. Only collapse when the goal actually names an
-       organisation. */
-    const askedAboutOrganisation = Array.isArray(intent.organizations) && intent.organizations.length > 0;
-    const exactCompanyRanked = askedAboutOrganisation
-      ? allRanked.filter(item => (item.signals || []).some(signal => signal.type === 'company' && signal.exact))
-      : [];
-    const ranked = (exactCompanyRanked.length ? exactCompanyRanked : allRanked).slice(0, form.limit);
+        const byRating = ratingOf(b.consultant) - ratingOf(a.consultant);
+        if (byRating) return byRating;
+        /* Same rating: more reviews is the sturdier one. Unrated consultants keep
+           a stable order rather than shuffling between identical requests. */
+        const byReviews = reviewsOf(b.consultant) - reviewsOf(a.consultant);
+        if (byReviews) return byReviews;
+        return String(a.consultant.name || '').localeCompare(String(b.consultant.name || ''));
+      })
+      .slice(0, form.limit);
     const matches = (await enrichReasons(ranked, intent, form)).map(match => ({
       consultant: publicConsultant(match.consultant),
-      score: Math.round(match.score),
+      rating: Number(match.consultant.rating || match.consultant.average_rating || 0) || 0,
+      reviews: Number(match.consultant.reviews || match.consultant.review_count || 0) || 0,
       hits: match.hits,
       badges: badgesFromSignals(match.signals),
       signals: match.signals,

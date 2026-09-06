@@ -15,12 +15,15 @@ function load(fnName, extra = '') {
   return new Function(extra + api.slice(from, to) + '\nreturn ' + fnName + ';')();
 }
 
-test('a match only narrows to one company when a company was actually asked for', () => {
-  assert.match(api, /const askedAboutOrganisation = Array\.isArray\(intent\.organizations\) && intent\.organizations\.length > 0;/);
-  assert.match(api, /const exactCompanyRanked = askedAboutOrganisation\s*\?\s*allRanked\.filter/,
-    'without this one stray company hit discards every other consultant');
-  // "someone from HFCL" must still narrow
-  assert.match(api, /exactCompanyRanked\.length \? exactCompanyRanked : allRanked/);
+test('no weighted score decides who is shown or in what order', () => {
+  assert.doesNotMatch(api, /exactCompanyRanked/,
+    'the company collapse is gone - one stray signal must not discard everyone else');
+  const block = api.slice(api.indexOf('const ranked = consultants'), api.indexOf('.slice(0, form.limit);'));
+  assert.doesNotMatch(block, /\.score/, 'the consultant ordering must not read a score at all');
+  assert.doesNotMatch(api, /score: Math\.round\(match\.score\)/,
+    'no score is handed downstream, so nothing can re-sort by it');
+  assert.match(api, /\.filter\(item => \(item\.signals \|\| \[\]\)\.length > 0\)/,
+    'a consultant is shown when their own profile matches, full stop');
 });
 
 test('a two-letter acronym no longer counts as a company', () => {
@@ -75,4 +78,36 @@ test('an employer only scores when the reader named one', () => {
     'company points must come from an organisation the goal actually names');
   // the company path itself is untouched, so "someone from HFCL" still works
   assert.match(api, /addSignal\(signals, 'company'/);
+});
+
+test('the order is the rating, then reviews, then a stable tiebreak', () => {
+  const from = api.indexOf('const ranked = consultants');
+  const to = api.indexOf('.slice(0, form.limit);', from);
+  assert.ok(from > -1 && to > from, 'the ordering block must still be there');
+  const block = api.slice(from, to);
+
+  const body = block.slice(block.indexOf('.sort((a, b) => {') + '.sort('.length, block.lastIndexOf('})') + 1);
+  const sort = new Function('ratingOf', 'reviewsOf', 'return ' + body + ';')(
+    c => Number(c.rating || c.average_rating || 0) || 0,
+    c => Number(c.reviews || c.review_count || 0) || 0,
+  );
+  const row = (name, rating, reviews) => ({ consultant: { name, rating, reviews } });
+
+  const list = [row('Zoe', 3.5, 2), row('Amy', 4.9, 1), row('Bob', 4.9, 40), row('Cal', 0, 0)];
+  const order = list.slice().sort(sort).map(x => x.consultant.name);
+  assert.deepEqual(order, ['Bob', 'Amy', 'Zoe', 'Cal'],
+    'highest rating first; equal ratings settled by review count');
+
+  // unrated consultants must not shuffle between identical requests
+  const unrated = [row('Dave', 0, 0), row('Carol', 0, 0), row('Ed', 0, 0)];
+  assert.deepEqual(unrated.slice().sort(sort).map(x => x.consultant.name), ['Carol', 'Dave', 'Ed']);
+  assert.deepEqual(unrated.slice().reverse().sort(sort).map(x => x.consultant.name), ['Carol', 'Dave', 'Ed']);
+});
+
+test('the browser fallback orders the same way, so the two cannot disagree', () => {
+  const fn = app.slice(app.indexOf('function rank(cons,d){'), app.indexOf('function reasonFor(item,d)'));
+  assert.match(fn, /if\(rb!==ra\)return rb-ra;/, 'rating first');
+  assert.match(fn, /if\(vb!==va\)return vb-va;/, 'then reviews');
+  assert.doesNotMatch(fn, /sort\(function\(a,b\)\{return b\.score-a\.score\}\)/,
+    'the fallback must not rank by points while the server ranks by rating');
 });
