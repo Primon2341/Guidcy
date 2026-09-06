@@ -65,3 +65,14 @@ test('closing the suggestions clears the filter they applied', () => {
   assert.doesNotMatch(fn, /browseFilters\s*=\s*\{\}/,
     "a category or price filter the reader set is theirs - only the search is reset");
 });
+
+/* A company signal is worth ~70 points, so a phantom one decides the ranking on
+   its own: "NTU" scored as an exact employer for "startup funding" and put a PhD
+   with no startup background above a Startup specialist. */
+test('an employer only scores when the reader named one', () => {
+  assert.match(api, /const organisationTerms = new Set\(/);
+  assert.match(api, /if \(organisationTerms\.has\(term\) && companyMatches\(term, exp\.company_name\)\)/,
+    'company points must come from an organisation the goal actually names');
+  // the company path itself is untouched, so "someone from HFCL" still works
+  assert.match(api, /addSignal\(signals, 'company'/);
+});

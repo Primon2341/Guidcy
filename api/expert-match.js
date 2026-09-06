@@ -284,9 +284,17 @@ function scoreConsultant(c, form, intent) {
   const signals = [];
   let score = 0;
 
+  /* Company matching against every goal term is what invented "NTU" as an exact
+     employer for "startup funding" - worth ~70 points, enough to beat a genuine
+     Startup specialist on a single phantom signal. An employer only counts when
+     the reader actually named one. */
+  const organisationTerms = new Set(
+    safeArray(intent.organizations).map(textOf).map(cleanPhrase).filter(Boolean)
+  );
+
   terms.forEach(term => {
     experiences.forEach(exp => {
-      if (companyMatches(term, exp.company_name)) {
+      if (organisationTerms.has(term) && companyMatches(term, exp.company_name)) {
         const add = exp.currently_working ? 70 : 56;
         score += add + yearsBetween(exp.start_date, exp.end_date, exp.currently_working) * 3;
         addSignal(signals, 'company', `${exp.currently_working ? 'Current' : 'Previous'} ${exp.company_name}${exp.designation ? ` ${exp.designation}` : ''}`, add, true);
