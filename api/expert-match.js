@@ -1,11 +1,8 @@
 const {
-  createChatCompletion,
-  createEmbedding,
   json,
   readBody,
   setCors,
   supabaseFetch,
-  uniqueSources,
   validateQuestion
 } = require('../lib/rag-utils');
 
@@ -15,17 +12,6 @@ const STOP_WORDS = new Set([
   'after','before','work','role','page','guidcy','apply','make','show','tell','please','more','less','near'
 ]);
 
-const DOMAIN_TERMS = {
-  startup: ['startup','founder','funding','grant','pitch','investor','incubator','accelerator','mvp','business plan','entrepreneur'],
-  career: ['career','resume','cv','interview','linkedin','placement','job search','salary','switch','hr','recruiter','recruitment'],
-  education: ['college','university','admission','degree','btech','b.tech','mba','phd','gate','cat','jee','neet','scholarship'],
-  technology: ['software','technology','developer','engineering','ai','machine learning','data','cloud','react','python','product'],
-  research: ['research','r&d','polymer','optical fiber','fiber','chemistry','patent','publication','scientist','phd'],
-  finance: ['finance','tax','investment','banking','funding','valuation','accounting','cfa','ca'],
-  legal: ['legal','law','contract','compliance','company registration','ip','trademark','patent'],
-  marketing: ['marketing','seo','brand','content','growth','sales','ads','social media'],
-  business: ['business','strategy','operations','management','consulting','market','customer']
-};
 
 const COMPANY_SUFFIXES = /\b(private|pvt|limited|ltd|incorporated|inc|llc|llp|corp|corporation|company|co|technologies|technology|systems|solutions|services|india|global|international|labs|lab)\b/g;
 
@@ -41,9 +27,6 @@ function normalizeCompany(value) {
   return cleanPhrase(value).replace(COMPANY_SUFFIXES, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function acronymAll(value) {
-  return cleanPhrase(value).split(/\s+/).filter(Boolean).map(word => word[0]).join('');
-}
 
 function safeArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -150,73 +133,11 @@ function isApproved(c) {
   return c.is_approved === true || c.approved === true || status === 'approved' || status === 'verified' || status === '';
 }
 
-function extractTerms(text, sector, stage) {
-  const input = cleanPhrase([text, sector, stage].join(' '));
-  const terms = [];
-  Object.keys(DOMAIN_TERMS).forEach(key => {
-    if (input.includes(key) || DOMAIN_TERMS[key].some(term => input.includes(term))) terms.push(key, ...DOMAIN_TERMS[key]);
-  });
-  const quoted = input.match(/"([^"]+)"/g) || [];
-  quoted.forEach(q => terms.push(q.replace(/"/g, '')));
-  input.split(/[^a-z0-9.+#&]+/i).forEach(word => {
-    if (word.length > 2 && !STOP_WORDS.has(word)) terms.push(word);
-  });
-  return Array.from(new Set(terms.map(cleanPhrase).filter(Boolean))).slice(0, 120);
-}
 
-function phraseCandidates(form) {
-  const raw = cleanPhrase([form.goal, form.sector, form.stage].filter(Boolean).join(' '));
-  const parts = [];
-  raw.split(/\b(?:at|in|with|from|for|near|by|after|before)\b/i).forEach(piece => {
-    const clean = cleanPhrase(piece);
-    if (clean.length > 3) parts.push(clean);
-  });
-  const caps = String([form.goal, form.sector, form.stage].filter(Boolean).join(' ')).match(/\b[A-Z][A-Za-z0-9&.+]*(?:\s+[A-Z][A-Za-z0-9&.+]*){0,4}\b/g) || [];
-  caps.forEach(value => {
-    const clean = cleanPhrase(value);
-    if (clean.length > 2 && !STOP_WORDS.has(clean)) parts.push(clean);
-  });
-  return Array.from(new Set(parts.concat(extractTerms(raw, '', '')).filter(Boolean))).slice(0, 80);
-}
 
-function fieldMatchScore(fieldText, term, exactScore, broadScore) {
-  const hay = cleanPhrase(fieldText);
-  const needle = cleanPhrase(term);
-  if (!hay || !needle) return 0;
-  if (hay === needle) return exactScore;
-  if (hay.includes(needle)) return broadScore;
-  const words = needle.split(/\s+/).filter(w => w.length > 2);
-  if (words.length > 1 && words.every(word => hay.includes(word))) return Math.max(2, broadScore - 3);
-  return 0;
-}
 
-function companyMatches(query, company) {
-  const a = normalizeCompany(query);
-  const b = normalizeCompany(company);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.length >= 3 && b.includes(a)) return true;
-  if (b.length >= 3 && a.includes(b)) return true;
-  /* A two-letter acronym collides with far too much - it is how "NTU" became an
-     exact company match for "startup funding". Three characters or more. */
-  if (a.length >= 3 && acronymAll(company) === a) return true;
-  if (b.length >= 3 && acronymAll(query) === b) return true;
-  const aw = a.split(/\s+/).filter(w => w.length > 2);
-  return aw.length > 1 && aw.every(w => b.includes(w));
-}
 
-function yearsBetween(start, end, current) {
-  const startYear = Number(String(start || '').match(/\b(19|20)\d{2}\b/)?.[0] || 0);
-  const endYear = current ? new Date().getFullYear() : Number(String(end || '').match(/\b(19|20)\d{2}\b/)?.[0] || 0);
-  return startYear && endYear && endYear >= startYear ? endYear - startYear + 1 : 0;
-}
 
-function addSignal(signals, type, label, score, exact) {
-  if (!label || !score) return;
-  const key = `${type}:${cleanPhrase(label)}`;
-  if (signals.some(s => s.key === key)) return;
-  signals.push({ key, type, label: String(label).trim(), score, exact: !!exact });
-}
 
 /* Typos: "loigstics", "marketting", "startupp". Rather than ship a dictionary,
    correct against the words the profiles themselves use - so a correction can
@@ -275,103 +196,7 @@ function correctTerms(terms, vocab) {
   return Array.from(corrected);
 }
 
-function scoreConsultant(c, form, intent) {
-  const terms = Array.from(new Set([...(intent.terms || []), ...phraseCandidates(form)].map(cleanPhrase).filter(Boolean)));
-  const profile = consultantText(c);
-  const role = roleOf(c);
-  const experiences = experienceEntries(c);
-  const education = educationEntries(c);
-  const skills = safeArray(c.skills || c.expertise || c.tags || c.categories).map(textOf).filter(Boolean);
-  const signals = [];
-  let score = 0;
 
-  /* Company matching against every goal term is what invented "NTU" as an exact
-     employer for "startup funding" - worth ~70 points, enough to beat a genuine
-     Startup specialist on a single phantom signal. An employer only counts when
-     the reader actually named one. */
-  const organisationTerms = new Set(
-    safeArray(intent.organizations).map(textOf).map(cleanPhrase).filter(Boolean)
-  );
-
-  terms.forEach(term => {
-    experiences.forEach(exp => {
-      if (organisationTerms.has(term) && companyMatches(term, exp.company_name)) {
-        const add = exp.currently_working ? 70 : 56;
-        score += add + yearsBetween(exp.start_date, exp.end_date, exp.currently_working) * 3;
-        addSignal(signals, 'company', `${exp.currently_working ? 'Current' : 'Previous'} ${exp.company_name}${exp.designation ? ` ${exp.designation}` : ''}`, add, true);
-      }
-      const roleHit = fieldMatchScore(exp.designation, term, 38, 22);
-      if (roleHit) { score += roleHit; addSignal(signals, 'role', exp.designation, roleHit, roleHit >= 38); }
-      const deptHit = fieldMatchScore(exp.department, term, 28, 16);
-      if (deptHit) { score += deptHit; addSignal(signals, 'field', exp.department, deptHit, deptHit >= 28); }
-    });
-    education.forEach(ed => {
-      const edScore = fieldMatchScore(ed, term, 44, 27);
-      if (edScore) { score += edScore; addSignal(signals, 'education', ed, edScore, edScore >= 44); }
-    });
-    skills.forEach(skill => {
-      const skillScore = fieldMatchScore(skill, term, 34, 20);
-      if (skillScore) { score += skillScore; addSignal(signals, 'skill', skill, skillScore, skillScore >= 34); }
-    });
-    const roleScore = fieldMatchScore(role, term, 42, 24);
-    if (roleScore) { score += roleScore; addSignal(signals, 'role', role, roleScore, roleScore >= 42); }
-    /* A bare includes() let "ca" score against "capital" and "career". Anything
-       under four characters has to land on a word boundary. */
-    const inProfile = term.length >= 4
-      ? profile.includes(term)
-      : new RegExp('\\b' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(profile);
-    if (inProfile) {
-      score += term.length > 5 ? 8 : 3;
-      addSignal(signals, 'profile', term, term.length > 5 ? 8 : 3, false);
-    }
-  });
-
-  if (form.budget) {
-    const price = priceOf(c);
-    const budget = Number(String(form.budget).replace(/[^\d]/g, '')) || 0;
-    if (budget && price && price <= budget) score += 8;
-  }
-  const rating = Number(c.rating || c.average_rating || 0) || 0;
-  score += rating * 3 + (Number(c.response_rate || c.response_time_score || 0) || 0) / 20;
-  const completion = ['bio','about','avatar_url','current_position','current_work','highest_education','college','skills','category'].reduce((n, key) => n + (c[key] ? 1 : 0), 0);
-  score += completion;
-
-  /* How the profile matched, not how much. Three ordered buckets replace the
-     weights that used to fight each other:
-       1 - what they say they do: their stated discipline, or their actual role;
-       2 - their credentials: skills, education, an employer, a past designation;
-       3 - a passing mention somewhere in the profile text.
-     Rating orders within a bucket, so a stated specialist is never pushed under
-     someone who merely mentions the subject in their bio. */
-  const headline = cleanPhrase([c.specialty, c.category].filter(Boolean).join(' '));
-  const headlineTerm = terms.find(term => term.length >= 4 && headline.includes(term));
-  if (headlineTerm) addSignal(signals, 'focus', c.specialty || c.category, 0, true);
-  const strongRole = signals.some(sig => sig.type === 'role' && sig.exact);
-  const credential = signals.some(sig => ['skill', 'education', 'company', 'role', 'field'].includes(sig.type));
-  const tier = (headlineTerm || strongRole) ? 1 : (credential ? 2 : 3);
-
-  signals.sort((a, b) => (b.exact - a.exact) || b.score - a.score);
-  return { consultant: c, tier, signals: signals.slice(0, 8), hits: signals.map(s => s.label).slice(0, 7) };
-}
-
-function compactProfile(c, signals) {
-  return {
-    id: c.id,
-    name: c.name || c.full_name || 'Consultant',
-    role: roleOf(c),
-    category: c.category || c.specialty || '',
-    bio: String(c.bio || c.about || c.description || '').replace(/\s+/g, ' ').slice(0, 420),
-    expertise: safeArray(c.expertise || c.skills || c.tags || c.categories).map(textOf).slice(0, 10),
-    current_work: c.current_work || c.current_position || '',
-    current_company: c.current_company || c.current_company_college || '',
-    education: educationEntries(c).slice(0, 4).join(', '),
-    experience: experienceEntries(c).slice(0, 5),
-    languages: safeArray(c.languages || c.language || c.preferred_language).map(textOf).slice(0, 6),
-    rating: c.rating || c.average_rating || '',
-    reviews: c.reviews || c.review_count || '',
-    match_signals: signals
-  };
-}
 
 function publicConsultant(c) {
   return {
@@ -409,39 +234,8 @@ function publicConsultant(c) {
   };
 }
 
-function reasonFallback(match, form) {
-  const c = match.consultant;
-  const signals = match.signals || [];
-  const name = c.name || c.full_name || 'This consultant';
-  const goal = cleanPhrase(form.goal || 'your requirement');
-  const primary = signals[0];
-  const second = signals[1];
-  if (primary) {
-    const detail = [primary.label, second && second.label].filter(Boolean).join(' and ');
-    if (primary.type === 'company') return `${name} is relevant because their approved profile includes ${detail}. That experience can help you understand expectations, preparation steps, and practical next moves for ${goal}.`;
-    if (primary.type === 'education') return `${name} has an education background connected to ${detail}. That makes the profile useful for comparing options and planning realistic next steps for ${goal}.`;
-    if (primary.type === 'skill') return `${name} lists skills connected to ${detail}. Those skills are directly useful for turning ${goal} into an actionable plan.`;
-    return `${name}'s profile shows ${detail}, which connects with ${goal}. The match is based on approved profile data, not a generic recommendation.`;
-  }
-  return `${name}'s approved profile has relevant background for this request. Review the profile details before booking to confirm fit.`;
-}
 
-function badgesFromSignals(signals) {
-  return (signals || []).filter(s => s && s.label).slice(0, 3).map(signal => {
-    if (signal.type === 'company') return signal.label.replace(/^Current /, 'Currently at ').replace(/^Previous /, 'Previously at ');
-    if (signal.type === 'education') return signal.label;
-    if (signal.type === 'skill') return signal.label;
-    return signal.label;
-  });
-}
 
-function parseJson(text, fallback) {
-  const clean = String(text || '').replace(/```json|```/gi, '').trim();
-  const start = clean.indexOf('{');
-  const end = clean.lastIndexOf('}');
-  if (start < 0 || end < start) return fallback;
-  try { return JSON.parse(clean.slice(start, end + 1)); } catch (_) { return fallback; }
-}
 
 /* Was building its own base URL and only stripping a trailing slash. The
    SUPABASE_URL env carries a "/rest/v1" suffix - which is why razorpay-utils
@@ -470,88 +264,40 @@ async function fetchConsultants() {
   return [];
 }
 
-async function ragContext(question) {
-  try {
-    const embedding = await createEmbedding(question, 'RETRIEVAL_QUERY');
-    const matches = await supabaseRest('/rest/v1/rpc/match_rag_chunks', {
-      method: 'POST',
-      body: JSON.stringify({
-        query_embedding: embedding,
-        match_threshold: 0.12,
-        match_count: 8,
-        filter_source_type: null,
-        filter_visibility: 'public'
-      })
-    });
-    return Array.isArray(matches) ? matches : [];
-  } catch (e) {
-    console.warn('Expert match RAG context fallback:', e.message || e);
-    return [];
-  }
+
+
+
+/* The reader's own words, nothing added. The whole phrase plus its individual
+   words, so "event management" finds both the phrase and either word, and the
+   typo pass can still nudge a misspelling onto a word the profiles use. */
+function goalTerms(form, vocab) {
+  const phrase = cleanPhrase(form.goal);
+  if (!phrase) return [];
+  const words = phrase.split(/\s+/).filter(w => w.length >= 3 && !STOP_WORDS.has(w));
+  const wanted = Array.from(new Set([phrase.length >= 3 ? phrase : '', ...words].filter(Boolean)));
+  return correctTerms(wanted, vocab);
 }
 
-async function inferIntent(form, contextRows) {
-  const fallback = {
-    terms: extractTerms(form.goal, form.sector, form.stage),
-    categories: [],
-    summary: 'Profile-data based consultant recommendation.'
-  };
-  const context = contextRows.map((row, index) => `Source ${index + 1}: ${row.title}\n${row.content}`).join('\n\n---\n\n').slice(0, 5000);
-  try {
-    const answer = await createChatCompletion([
-      {
-        role: 'system',
-        content: 'You are Guidcy matching intelligence. Return ONLY valid JSON. Extract specific organizations, colleges, degrees, fields, skills, roles, grants, jobs, and advisory needs from the user request.'
-      },
-      {
-        role: 'user',
-        content: `Request:\n${JSON.stringify(form)}\n\nRetrieved context:\n${context || 'No vector context available.'}\n\nReturn JSON: {"summary":"one sentence","categories":["Career"],"terms":["Google","resume","IIT","polymer"],"ideal_expert":"short description"}`
-      }
-    ], { maxTokens: 700, temperature: 0.08 });
-    const parsed = parseJson(answer, fallback);
-    parsed.terms = Array.isArray(parsed.terms) && parsed.terms.length ? parsed.terms.concat(fallback.terms) : fallback.terms;
-    parsed.terms = Array.from(new Set(parsed.terms.map(cleanPhrase).filter(Boolean))).slice(0, 120);
-    parsed.categories = Array.isArray(parsed.categories) ? parsed.categories : [];
-    return parsed;
-  } catch (e) {
-    console.warn('Expert match intent fallback:', e.message || e);
-    return fallback;
-  }
+/* Which of those words this profile actually contains - every field of it,
+   including what they wrote about each role. */
+function profileHits(c, terms) {
+  const text = consultantText(c);
+  return terms.filter(term => text.includes(term));
 }
 
-async function enrichReasons(matches, intent, form) {
-  if (!matches.length) return matches;
-  const fallback = matches.map(match => ({ id: match.consultant.id, reason: reasonFallback(match, form) }));
-  try {
-    const answer = await createChatCompletion([
-      {
-        role: 'system',
-        content: [
-          'You write short Guidcy consultant recommendation reasons.',
-          'Use only the provided profile fields and match_signals.',
-          'Do not invent achievements, company history, ratings, education, or private information.',
-          'Never use the phrase "matches your goal through".',
-          'Return ONLY valid JSON.'
-        ].join(' ')
-      },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          user_requirement: form,
-          inferred_intent: intent,
-          consultants: matches.map(match => compactProfile(match.consultant, match.signals))
-        }) + '\nReturn JSON exactly as: {"reasons":[{"id":"consultant id","reason":"2 concise sentences explaining why this profile is relevant to the request"}]}'
-      }
-    ], { maxTokens: 1300, temperature: 0.22 });
-    const parsed = parseJson(answer, { reasons: fallback });
-    const reasonMap = new Map((Array.isArray(parsed.reasons) ? parsed.reasons : fallback).map(item => [String(item.id), String(item.reason || '').trim()]));
-    return matches.map(match => Object.assign({}, match, {
-      reason: reasonMap.get(String(match.consultant.id)) || reasonFallback(match, form)
-    }));
-  } catch (e) {
-    console.warn('Expert match reason fallback:', e.message || e);
-    return matches.map(match => Object.assign({}, match, { reason: reasonFallback(match, form) }));
+/* The reader's filters, applied only when they set one. */
+function passesFilters(c, form) {
+  const budget = Number(String(form.budget || '').replace(/[^\d]/g, '')) || 0;
+  if (form.budget) {
+    const price = priceOf(c);
+    if (/free/i.test(String(form.budget))) { if (price > 0) return false; }
+    else if (budget && price > budget) return false;
   }
+  if (form.language) {
+    const spoken = cleanPhrase(textOf([c.languages, c.language, c.preferred_language]));
+    if (spoken && !spoken.includes(cleanPhrase(form.language))) return false;
+  }
+  return true;
 }
 
 module.exports = async function handler(req, res) {
@@ -571,56 +317,49 @@ module.exports = async function handler(req, res) {
       page_context: body.page_context || body.context || '',
       limit: Math.max(1, Math.min(Number(body.limit || 8) || 8, 12))
     };
-    const question = [form.goal, form.stage, form.sector, form.page_context].filter(Boolean).join(' ');
-    const [consultants, contextRows] = await Promise.all([fetchConsultants(), ragContext(question)]);
-    const intent = await inferIntent(form, contextRows);
-    /* Correct obvious typos against the words the profiles use, so "loigstics"
-       still finds the logistics manager. */
-    intent.terms = correctTerms(intent.terms || [], profileVocabulary(consultants));
-    /* No weighted score decides anything. Relevance is a bucket - what they say
-       they do, then their credentials, then a passing mention - and the rating
-       orders people within a bucket. Nobody is carried to the top by one stray
-       signal, and a stated specialist is never buried under a bio mention. */
+    /* Search, plainly. The goal is the query: if a word the reader typed appears
+       anywhere in a profile, that consultant is shown; if it does not, they are
+       not. Their filters then narrow it, and the rating decides the order.
+
+       Everything that used to sit here - a generous intent expansion, weighted
+       signals, relevance tiers - kept deciding things the reader had not asked
+       for. "event management" became logistics, budgeting and risk management,
+       which matched nearly every profile, and the result was everybody, every
+       time. The reader's own words are the whole query now. */
+    const consultants = await fetchConsultants();
+    const terms = goalTerms(form, profileVocabulary(consultants));
+    if (!terms.length) {
+      return json(res, 200, { ok: true, terms, matches: [], consultants: [], sources: [] });
+    }
+
     const ratingOf = c => Number(c.rating || c.average_rating || 0) || 0;
     const reviewsOf = c => Number(c.reviews || c.review_count || 0) || 0;
     const ranked = consultants
-      .map(c => scoreConsultant(c, form, intent))
-      .filter(item => (item.signals || []).length > 0)
+      .map(c => ({ consultant: c, hits: profileHits(c, terms) }))
+      .filter(item => item.hits.length && passesFilters(item.consultant, form))
       .sort((a, b) => {
-        /* Relevance decides the bucket; the rating only orders within one. */
-        if (a.tier !== b.tier) return a.tier - b.tier;
         const byRating = ratingOf(b.consultant) - ratingOf(a.consultant);
         if (byRating) return byRating;
-        /* Same rating: more reviews is the sturdier one. Unrated consultants keep
-           a stable order rather than shuffling between identical requests. */
         const byReviews = reviewsOf(b.consultant) - reviewsOf(a.consultant);
         if (byReviews) return byReviews;
+        /* Unrated consultants keep a stable order rather than shuffling between
+           identical searches. */
         return String(a.consultant.name || '').localeCompare(String(b.consultant.name || ''));
       })
       .slice(0, form.limit);
 
-    /* The intent step expands a goal generously - "event management" becomes
-       logistics, budgeting, marketing, risk management - and those generic terms
-       brush against nearly every profile. Matching on them is useful for finding
-       someone when nothing better exists; it is noise when it pads a good result
-       with everybody else. So a bare mention only fills a thin list. */
-    const strong = ranked.filter(item => item.tier <= 2);
-    const relevant = strong.length >= 3 ? strong : ranked;
-    const matches = (await enrichReasons(relevant, intent, form)).map(match => ({
+    const matches = ranked.map(match => ({
       consultant: publicConsultant(match.consultant),
-      rating: Number(match.consultant.rating || match.consultant.average_rating || 0) || 0,
-      reviews: Number(match.consultant.reviews || match.consultant.review_count || 0) || 0,
-      hits: match.hits,
-      badges: badgesFromSignals(match.signals),
-      signals: match.signals,
-      reason: match.reason || reasonFallback(match, form)
+      rating: ratingOf(match.consultant),
+      reviews: reviewsOf(match.consultant),
+      hits: match.hits.slice(0, 6)
     }));
     return json(res, 200, {
       ok: true,
-      intent,
+      terms,
       matches,
       consultants: matches.map(match => match.consultant),
-      sources: uniqueSources(contextRows)
+      sources: []
     });
   } catch (e) {
     console.error('Expert match error:', e);
