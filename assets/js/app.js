@@ -290,16 +290,16 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
   async function renderDisputesFromSupabase(btn){
     var token=++disputeRenderToken,m=$('adash-main'),c=client();if(!m)return;
     if(btn){try{document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(item){item.classList.remove('on')});btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
-    if(m.dataset.guidcyTruthView!=='disputes')m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:20px;color:var(--muted)">Loading live Supabase disputes...</div>';
+    if(m.dataset.guidcyTruthView!=='disputes')m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:20px;color:var(--muted)">Loading disputes…</div>';
     m.dataset.guidcyTruthView='disputes';
-    if(!c){m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:24px;color:#b91c1c">Supabase is not connected. No cached dispute data is displayed.</div>';return}
+    if(!c){m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:24px;color:#b91c1c">Disputes cannot be loaded right now. Please refresh and try again.</div>';return}
     try{
       var result=await c.from('disputes').select('*').eq('is_deleted',false).order('created_at',{ascending:false}).limit(300);
       if(result.error&&/is_deleted|column/i.test(String(result.error.message||result.error.details||'')))result=await c.from('disputes').select('*').order('created_at',{ascending:false}).limit(300);
       if(result.error)throw result.error;if(token!==disputeRenderToken)return;
       var rows=result.data||[],open=rows.filter(function(row){return !/^(resolved|rejected|closed)$/i.test(String(row.status||''))}).length;
       var cards=rows.map(function(row){var closed=/^(resolved|rejected|closed)$/i.test(String(row.status||''));return '<div class="gadmin-case-card" data-dispute-status="'+h(row.status||'Open')+'"><div class="gadmin-case-head"><div><div class="gadmin-case-code">'+h(row.dispute_code||row.id)+'</div><div class="gadmin-case-title">'+h(row.issue_type||'Dispute')+'</div><div class="gadmin-case-meta">'+h(row.name||'—')+' · '+h(row.email||'—')+'<br>Consultant: '+h(row.consultant_name||'—')+' · Booking: '+h(row.booking_id||row.booking_reference||'—')+'<br>Created: '+h(row.created_at?new Date(row.created_at).toLocaleString('en-IN'):'—')+'</div></div><span class="status-pill '+(closed?'sp-done':'sp-pending')+'">'+h(row.status||'Open')+'</span></div><div class="gadmin-case-body">'+h(String(row.details||'').slice(0,240))+'</div><div class="gadmin-case-controls" style="justify-content:flex-end;display:flex;gap:8px"><button class="btn btn-blue" onclick="window.guidcyOpenDisputeThreadModal(\''+h(row.id)+'\',\'admin\')">Open · View &amp; Manage</button><button class="btn" style="border-color:#FCA5A5;color:#B91C1C" onclick="window.guidcyDeleteDispute(\''+h(row.id)+'\')">Delete</button></div></div>'}).join('');
-      m.innerHTML='<div class="dash-title">Disputes</div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"><div class="gadmin-mini-stat"><strong>'+rows.length+'</strong><span>Total from Supabase</span></div><div class="gadmin-mini-stat"><strong>'+open+'</strong><span>Active</span></div><div class="gadmin-mini-stat"><strong>'+(rows.length-open)+'</strong><span>Resolved / Closed</span></div></div><div class="gadmin-case-toolbar" style="margin-bottom:12px"><button class="btn" onclick="window.guidcyRenderDisputeAdminList()">Refresh from Supabase</button></div>'+(cards||'<div class="gadmin-case-card" style="text-align:center;color:var(--muted);padding:28px">No disputes in Supabase</div>');
+      m.innerHTML='<div class="dash-title">Disputes</div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"><div class="gadmin-mini-stat"><strong>'+rows.length+'</strong><span>Total</span></div><div class="gadmin-mini-stat"><strong>'+open+'</strong><span>Active</span></div><div class="gadmin-mini-stat"><strong>'+(rows.length-open)+'</strong><span>Resolved / Closed</span></div></div><div class="gadmin-case-toolbar" style="margin-bottom:12px"><button class="btn" onclick="window.guidcyRenderDisputeAdminList()">Refresh</button></div>'+(cards||'<div class="gadmin-case-card" style="text-align:center;color:var(--muted);padding:28px">No disputes yet</div>');
     }catch(error){if(token!==disputeRenderToken)return;console.error('Live dispute query failed:',error);m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:24px;color:#b91c1c">Could not read disputes from Supabase. Cached or browser-stored cases are not displayed.</div>'}
   }
   window.guidcyRenderDisputesFromSupabase=renderDisputesFromSupabase;
@@ -309,11 +309,11 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
     if(!key){toastSafe('Enter your Dispute ID','red');return false}
     if(out){out.classList.add('on');out.textContent='Checking Supabase...'}
     try{
-      if(!c)throw new Error('Supabase is not connected');
+      if(!c)throw new Error('Disputes cannot be loaded right now');
       var result=await c.rpc('track_dispute',{p_code:key});if(result.error)throw result.error;var row=result.data&&result.data[0]||null;
-      if(out)out.innerHTML=row?'<strong>Dispute found</strong><br><br><strong>ID:</strong> '+h(row.dispute_code)+'<br><strong>Issue type:</strong> '+h(row.issue_type||'—')+'<br><strong>Preferred resolution:</strong> '+h(row.preferred_resolution||'—')+'<br><strong>Status:</strong> '+h(row.status||'—')+(row.admin_comment?'<br><strong>Admin comment:</strong> '+h(row.admin_comment):''):'No dispute found in Supabase for that Dispute ID.';
+      if(out)out.innerHTML=row?'<strong>Dispute found</strong><br><br><strong>ID:</strong> '+h(row.dispute_code)+'<br><strong>Issue type:</strong> '+h(row.issue_type||'—')+'<br><strong>Preferred resolution:</strong> '+h(row.preferred_resolution||'—')+'<br><strong>Status:</strong> '+h(row.status||'—')+(row.admin_comment?'<br><strong>Admin comment:</strong> '+h(row.admin_comment):''):'No dispute found for that Dispute ID.';
       return !!row;
-    }catch(error){console.error('Supabase dispute tracking failed:',error);if(out)out.textContent='Could not check Supabase right now. Please try again.';return false}
+    }catch(error){console.error('Supabase dispute tracking failed:',error);if(out)out.textContent='Could not check that right now. Please try again.';return false}
   };
   window.guidcyTrackDisputeFromSupabase=window.gdispTrack;
   window.guidcyCheckDispute=window.gdispTrack;
@@ -336,7 +336,7 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
       +'</table></div></section>';
   }
   async function loadConsultantPayoutGroups(){
-    var c=client();if(!c)throw new Error('Supabase is not connected');
+    var c=client();if(!c)throw new Error('Disputes cannot be loaded right now');
     var results=await Promise.all([c.from('bookings').select('*').order('created_at',{ascending:false}),c.from('consultants').select('*'),c.from('consultant_bank_details').select('*')]);
     if(results[0].error)throw results[0].error;
     var allBookings=results[0].data||[],bookings=allBookings.filter(paidBooking),cancelledBookings=allBookings.filter(paidCancelledBooking),consultants=results[1].error?[]:(results[1].data||[]),banks=results[2].error?[]:(results[2].data||[]);
@@ -3421,7 +3421,7 @@ async function saveUserGoalTracker(){
     updated_at:new Date().toISOString()
   };
   const res=await supabaseRest('user_goals?select=*',{method:'POST',body:payload,prefer:'return=representation',timeoutMs:20000});
-  if(!res.ok){console.error('Goal tracker save failed:',res);toast('Goal not saved. Please run the Supabase SQL first.','red');return;}
+  if(!res.ok){console.error('Goal tracker save failed:',res);toast('Goal could not be saved. Please try again.','red');return;}
   toast('Goal tracker saved ✓','green');
   await renderUserGoalTracker();
 }
@@ -7386,7 +7386,7 @@ body{overflow-x:hidden}
           <div style="font-size:28px;margin-bottom:10px">⚠️</div>
           <div style="font-weight:600;margin-bottom:6px;color:#991B1B">Could not fetch recommendations</div>
           <p style="font-size:13px;color:#7F1D1D;max-width:400px;margin:0 auto">${safe(e.message)}</p>
-          ${(e.message.includes('OPENAI_API_KEY')||e.message.includes('OpenAI'))?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">Add OPENAI_API_KEY in Vercel → Project Settings → Environment Variables → Redeploy</p>':''}
+          ${(e.message.includes('OPENAI_API_KEY')||e.message.includes('OpenAI'))?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">This assistant is temporarily unavailable. Please try again shortly.</p>':''}
         </div>`;
         if(btn){btn.disabled=false;btn.textContent='✨ Find My Best Matches';}
         return;
@@ -10455,7 +10455,7 @@ body{overflow-x:hidden}
     var el=document.getElementById(targetId); if(!el)return;
     var best=ranked.slice(0,4), similar=ranked.slice(4,8);
     if(!ranked.length){el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-title">No matching experts found yet</div><div class="guidcy-match-empty" style="margin-top:14px">Try a broader goal such as “marketing”, “career guidance”, “startup funding”, or “college admission”.</div></div>';return;}
-    var sub=ranked.some(function(x){return x&&x._rag})?'Matched with Guidcy RAG, your goal, and live approved consultant profiles.':'Matched using your goal, stage, budget, language, urgency and sector from live approved consultants.';
+    var sub=ranked.some(function(x){return x&&x._rag})?'Matched to your goal from consultant profiles on Guidcy.':'Matched to your goal, stage, budget, language, urgency and sector.';
     el.innerHTML='<div class="guidcy-match-results '+(home?'home-results':'')+'"><div class="guidcy-result-head"><div><div class="guidcy-result-title">Best expert matches for you</div><div class="guidcy-result-sub">'+sub+'</div></div><div class="guidcy-result-head-actions"><button class="btn" onclick="window.go&&go(\'browse\')">Open Find the Expert →</button><button type="button" class="guidcy-match-close" aria-label="Close suggestions" title="Close suggestions" onclick="window.guidcyCloseExpertMatch&&guidcyCloseExpertMatch()">×</button></div></div><div class="guidcy-match-section-title">Best matching consultants</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+best.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>'+(similar.length?'<div class="guidcy-match-section-title">Similar experts</div><div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:16px">'+similar.map(function(x){return consultantCard(x.c,'')}).join('')+'</div>':'')+'<div class="guidcy-match-section-title">Free resources & webinars</div><div class="guidcy-resource-grid">'+resourceCards(webinars,d)+'</div></div>';
   }
   async function ragExpertMatch(d){
@@ -11475,7 +11475,7 @@ body{overflow-x:hidden}
     // with generated WBN-* ids and appear as extra webinar options.
     let out=[];
     const c=client();
-    if(!c?.from)throw new Error('Supabase is not available');
+    if(!c?.from)throw new Error('This is unavailable right now');
     const response=await c.from('webinars').select('*').order('date',{ascending:false});
     if(response.error)throw response.error;
     if(Array.isArray(response.data))out=response.data;
@@ -11507,7 +11507,7 @@ body{overflow-x:hidden}
   }
   async function fetchRegistrations(showDeleted){
     const c=client();
-    if(!c?.from)throw new Error('Supabase is not available');
+    if(!c?.from)throw new Error('This is unavailable right now');
     let q=c.from('webinar_registrations').select('*').order('registered_at',{ascending:false});
     if(!showDeleted)q=q.or('is_deleted.is.null,is_deleted.eq.false');
     const r=await q;
@@ -12100,7 +12100,7 @@ body{overflow-x:hidden}
   const cfg=()=>{try{return typeof CFG!=='undefined'?CFG:(window.CFG||{})}catch(_){return window.CFG||{}}};
   const uniqueRazorpayTxn=()=> 'GDYMKT-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000);
   const previewJobs=new Set();
-  async function postJSON(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const text=await r.text(); let data=null; try{data=text?JSON.parse(text):null}catch(_){data={raw:text}} if(!r.ok){let msg=(data&&data.error)||text||('HTTP '+r.status); if(/Missing Razorpay environment variable/i.test(msg))msg='Razorpay payment is not configured on Vercel. Add the Razorpay server environment variables, then redeploy.'; throw new Error(msg)} return data}
+  async function postJSON(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const text=await r.text(); let data=null; try{data=text?JSON.parse(text):null}catch(_){data={raw:text}} if(!r.ok){let msg=(data&&data.error)||text||('HTTP '+r.status); if(/Missing Razorpay environment variable/i.test(msg))msg='Online payment is temporarily unavailable. Please try again shortly.'; throw new Error(msg)} return data}
   function submitRazorpayForm(){throw new Error('Legacy Razorpay redirect form is disabled. Use Standard Checkout.')}
   async function loadPdfLib(){if(window.PDFLib&&window.PDFLib.PDFDocument)return window.PDFLib; await new Promise((resolve,reject)=>{const old=document.querySelector('script[data-gmkt-pdf-lib]'); if(old){old.addEventListener('load',resolve,{once:true}); old.addEventListener('error',reject,{once:true}); return} const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'; s.async=true; s.dataset.gmktPdfLib='1'; s.onload=resolve; s.onerror=()=>reject(new Error('PDF preview library could not load.')); document.head.appendChild(s)}); if(!window.PDFLib||!window.PDFLib.PDFDocument)throw new Error('PDF preview library could not load.'); return window.PDFLib}
   async function buildPreviewPdf(file,pageLimit){const lib=await loadPdfLib(); const bytes=await file.arrayBuffer(); const src=await lib.PDFDocument.load(bytes,{ignoreEncryption:true}); const total=src.getPageCount(); if(!total)throw new Error('Preview unavailable. Please try again.'); const wanted=Math.max(1,Math.min(MAX_PREVIEW_PAGES,Number(pageLimit||3))); const take=Math.min(wanted,total); const out=await lib.PDFDocument.create(); const pages=await out.copyPages(src,Array.from({length:take},(_,i)=>i)); pages.forEach(p=>out.addPage(p)); const previewBytes=await out.save(); return {blob:new Blob([previewBytes],{type:'application/pdf'}),pageCount:total,previewPages:take}}
@@ -12180,7 +12180,7 @@ body{overflow-x:hidden}
   function validateFile(input){const f=input?.files?.[0]; if(!f)return false; if(f.type!=='application/pdf'&&!/\.pdf$/i.test(f.name)){toastSafe('Only PDF notes are allowed.','red'); input.value=''; return false} if(f.size>MAX_MB*1024*1024){toastSafe('Please upload a PDF file up to 15 MB only.','red'); input.value=''; return false} return true}
   async function submitUpload(ev){ev.preventDefault(); if(!logged())return openUpload(); const f=$('gmkt-file')?.files?.[0]; if(!validateFile($('gmkt-file')))return; const free=$('gmkt-is-free').value==='true'; const price=free?0:Number($('gmkt-note-price').value||0); const previewLimit=Math.max(1,Math.min(MAX_PREVIEW_PAGES,Number($('gmkt-preview-pages')?.value||3))); if(!free&&price<=0){toastSafe('Paid notes must have a price greater than 0.','red');return} if(price<0){toastSafe('Price must be 0 or positive.','red');return} if(!Number.isFinite(previewLimit)||previewLimit<1){toastSafe('Choose at least 1 preview page.','red');return} const c=sbc(); if(!c){toastSafe('Unable to upload notes. Please try again.','red');return} const stamp=Date.now(); const cleanName=f.name.replace(/[^a-z0-9.\-_]/gi,'_'); const path=uid()+'/'+stamp+'-'+cleanName; const previewPath=uid()+'/'+stamp+'-preview-'+cleanName.replace(/\.pdf$/i,'')+'-first-'+previewLimit+'-pages.pdf'; const btn=ev.target.querySelector('button[type="submit"]'); const old=btn.textContent; btn.disabled=true; btn.textContent='Creating '+previewLimit+'-page preview...'; let fullUploaded=false, previewUploaded=false; try{const preview=await buildPreviewPdf(f,previewLimit); btn.textContent='Uploading full PDF securely...'; const up=await c.storage.from('marketplace-notes-private').upload(path,f,{contentType:'application/pdf',upsert:false}); if(up.error)throw up.error; fullUploaded=true; btn.textContent='Uploading preview PDF...'; const pup=await c.storage.from('marketplace-previews').upload(previewPath,preview.blob,{contentType:'application/pdf',upsert:false,cacheControl:'31536000'}); /* preview paths carry a timestamp so they are immutable - cache for a year    instead of the 1h default, which was re-downloading every preview hourly */ if(pup.error)throw pup.error; previewUploaded=true; const payload={uploader_id:uid(),uploader_name:$('gmkt-uploader').value.trim()||name(),title:$('gmkt-title').value.trim(),category:$('gmkt-category').value.trim(),description:$('gmkt-desc').value.trim(),tags:($('gmkt-tags').value||'').split(',').map(x=>x.trim()).filter(Boolean),course_exam:$('gmkt-course').value.trim(),institution:$('gmkt-inst').value.trim(),price,is_free:free,file_path:path,preview_file_path:previewPath,preview_pdf_path:previewPath,preview_bucket:'marketplace-previews',preview_status:'ready',preview_pages:preview.previewPages,preview_page_count:preview.previewPages,page_count:preview.pageCount,file_size_mb:Number((f.size/1024/1024).toFixed(2)),status:'active',updated_at:new Date().toISOString()}; btn.textContent='Publishing notes...'; const ins=await c.from('marketplace_notes').insert(payload).select('*').single(); if(ins.error)throw ins.error; toastSafe('Notes published successfully with '+preview.previewPages+' preview page'+(preview.previewPages===1?'.':'s.'),'green'); closeModal(); await render();}catch(e){console.error(e); try{if(fullUploaded)await c.storage.from('marketplace-notes-private').remove([path]); if(previewUploaded)await c.storage.from('marketplace-previews').remove([previewPath]);}catch(_){} toastSafe(e.message&&/preview/i.test(e.message)?e.message:'Unable to upload notes. Please try again.','red')}finally{btn.disabled=false;btn.textContent=old}}
   async function getNote(id){let n=(window.__gmktNotes||[]).find(x=>String(x.id)===String(id)); if(n)return n; const c=sbc(); if(!c)return null; const {data}=await c.from('marketplace_notes').select('*').eq('id',id).single(); return data||null}
-  async function ensurePreviewForNote(id,silent){const n=await getNote(id); if(!n)return null; if(n.preview_file_path||n.preview_pdf_path)return n; if(!canManage(n))return null; if(previewJobs.has(id))return null; previewJobs.add(id); const c=sbc(); try{if(!c)throw new Error('Supabase is not ready.'); const signed=await c.storage.from('marketplace-notes-private').createSignedUrl(n.file_path,180); if(signed.error)throw signed.error; const pdf=await fetch(signed.data.signedUrl); if(!pdf.ok)throw new Error('Original PDF could not be opened for preview.'); const blob=await pdf.blob(); const limit=Math.max(1,Math.min(MAX_PREVIEW_PAGES,Number(n.preview_pages||n.preview_page_count||3))); const preview=await buildPreviewPdf(blob,limit); const cleanName=String((n.file_path||n.id+'.pdf').split('/').pop()||n.id+'.pdf').replace(/[^a-z0-9.\-_]/gi,'_').replace(/\.pdf$/i,''); const previewPath=String(n.uploader_id||uid())+'/'+Date.now()+'-preview-'+cleanName+'-first-'+preview.previewPages+'-pages.pdf'; const up=await c.storage.from('marketplace-previews').upload(previewPath,preview.blob,{contentType:'application/pdf',upsert:false,cacheControl:'31536000'}); if(up.error)throw up.error; const patch={preview_file_path:previewPath,preview_pdf_path:previewPath,preview_bucket:'marketplace-previews',preview_status:'ready',preview_pages:preview.previewPages,preview_page_count:preview.previewPages,page_count:preview.pageCount,last_preview_regenerated_at:new Date().toISOString(),updated_at:new Date().toISOString()}; const saved=await c.from('marketplace_notes').update(patch).eq('id',n.id).select('*').single(); if(saved.error)throw saved.error; const updated=saved.data||Object.assign({},n,patch); window.__gmktNotes=(window.__gmktNotes||[]).map(x=>String(x.id)===String(id)?updated:x); if(!silent)toastSafe('Preview generated successfully.','green'); return updated}catch(e){console.error(e); if(!silent)toastSafe(e.message||'Preview unavailable. Please try again.','red'); return null}finally{previewJobs.delete(id)}}
+  async function ensurePreviewForNote(id,silent){const n=await getNote(id); if(!n)return null; if(n.preview_file_path||n.preview_pdf_path)return n; if(!canManage(n))return null; if(previewJobs.has(id))return null; previewJobs.add(id); const c=sbc(); try{if(!c)throw new Error('Not ready yet. Please try again.'); const signed=await c.storage.from('marketplace-notes-private').createSignedUrl(n.file_path,180); if(signed.error)throw signed.error; const pdf=await fetch(signed.data.signedUrl); if(!pdf.ok)throw new Error('Original PDF could not be opened for preview.'); const blob=await pdf.blob(); const limit=Math.max(1,Math.min(MAX_PREVIEW_PAGES,Number(n.preview_pages||n.preview_page_count||3))); const preview=await buildPreviewPdf(blob,limit); const cleanName=String((n.file_path||n.id+'.pdf').split('/').pop()||n.id+'.pdf').replace(/[^a-z0-9.\-_]/gi,'_').replace(/\.pdf$/i,''); const previewPath=String(n.uploader_id||uid())+'/'+Date.now()+'-preview-'+cleanName+'-first-'+preview.previewPages+'-pages.pdf'; const up=await c.storage.from('marketplace-previews').upload(previewPath,preview.blob,{contentType:'application/pdf',upsert:false,cacheControl:'31536000'}); if(up.error)throw up.error; const patch={preview_file_path:previewPath,preview_pdf_path:previewPath,preview_bucket:'marketplace-previews',preview_status:'ready',preview_pages:preview.previewPages,preview_page_count:preview.previewPages,page_count:preview.pageCount,last_preview_regenerated_at:new Date().toISOString(),updated_at:new Date().toISOString()}; const saved=await c.from('marketplace_notes').update(patch).eq('id',n.id).select('*').single(); if(saved.error)throw saved.error; const updated=saved.data||Object.assign({},n,patch); window.__gmktNotes=(window.__gmktNotes||[]).map(x=>String(x.id)===String(id)?updated:x); if(!silent)toastSafe('Preview generated successfully.','green'); return updated}catch(e){console.error(e); if(!silent)toastSafe(e.message||'Preview unavailable. Please try again.','red'); return null}finally{previewJobs.delete(id)}}
   function previewBlock(n){const url=previewUrl(n); if(url){return '<div class="gmkt-preview-box"><b>Preview pages</b><p style="color:#64748B;font-size:13px">This is a seller-selected preview-only PDF. Full PDF access is available only after login and successful purchase/download.</p>'+detailPreviewPages(url,n.title)+'<button class="btn btn-blue" style="margin-top:12px" data-gmkt-action="preview" data-gmkt-id="'+esc(n.id)+'">Open Full Preview</button></div>'} if(canManage(n))return '<div class="gmkt-preview-box"><b>Preview pages</b><div class="gmkt-page-preview" style="min-height:96px;margin-top:10px">Generating preview from the uploaded PDF...</div><button class="btn btn-blue" style="margin-top:12px" data-gmkt-action="generate" data-gmkt-id="'+esc(n.id)+'">Generate Preview</button></div>'; return '<div class="gmkt-preview-box"><b>Preview pages</b><div class="gmkt-page-preview" style="min-height:96px;margin-top:10px">Preview unavailable. The seller needs to regenerate the preview.</div></div>'}
   async function openDetails(id){const n=await getNote(id); if(!n){toastSafe('Unable to open notes. Please try again.','red');return} const paid=Number(n.price||0)>0&&!n.is_free; const needsPreview=!(n.preview_file_path||n.preview_pdf_path)&&canManage(n); const m=ensureModal(); const d=$('gmkt-modal-body').parentElement; if(d)d.classList.remove('gmkt-full-dialog'); $('gmkt-modal-body').innerHTML='<h2 style="font-family:Cormorant Garamond,serif;font-size:36px;margin:0 36px 8px 0">'+esc(n.title)+'</h2><div class="gmkt-meta">'+esc(n.category)+' · by '+esc(n.uploader_name||'Guidcy user')+' · '+(paid?rupee(n.price):'Free')+'</div><p style="color:#40566D;line-height:1.7">'+esc(n.description)+'</p>'+previewBlock(n)+'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"><button class="btn '+(paid?'btn-blue':'btn-green')+'" onclick="GuidcyMarketplace.buyOrDownload(\''+esc(n.id)+'\')">'+(paid?'Buy Now':'Download Free')+'</button><button class="btn" onclick="GuidcyMarketplace.reportNote(\''+esc(n.id)+'\')">Report Notes</button>'+(canManage(n)?'<button class="btn btn-blue" onclick="GuidcyMarketplace.openEdit(&quot;'+esc(n.id)+'&quot;)">Edit Listing</button><button class="btn" style="color:#B91C1C;border-color:#FECACA" onclick="GuidcyMarketplace.deleteNote(&quot;'+esc(n.id)+'&quot;)">Delete Notes</button>':'')+'</div>'; m.classList.add('on'); document.body.style.overflow='hidden'; renderPdfPreviews($('gmkt-modal-body')); if(needsPreview)setTimeout(async()=>{const updated=await ensurePreviewForNote(id,true); if(updated&&$('gmkt-modal')?.classList.contains('on'))openDetails(id)},80)}
   async function openPreview(id){let n=await getNote(id); if(!n){toastSafe('Unable to open preview. Please try again.','red');return} if(!(n.preview_file_path||n.preview_pdf_path)&&canManage(n)){toastSafe('Generating preview...','blue'); n=await ensurePreviewForNote(id,true)||n} const url=previewUrl(n); const paid=Number(n.price||0)>0&&!n.is_free; const m=ensureModal(); $('gmkt-modal-body').parentElement.classList.add('gmkt-full-dialog'); $('gmkt-modal-body').innerHTML='<div class="gmkt-full-head"><div><h2>'+esc(n.title)+'</h2><div class="gmkt-meta">'+esc(n.category)+' · by '+esc(n.uploader_name||'Guidcy user')+' · '+(paid?rupee(n.price):'Free')+'</div></div><div class="gmkt-full-actions"><button class="btn" data-gmkt-action="details" data-gmkt-id="'+esc(n.id)+'">Details</button><button class="btn '+(paid?'btn-blue':'btn-green')+'" data-gmkt-action="buy" data-gmkt-id="'+esc(n.id)+'">'+(paid?'Buy Now':'Download Free')+'</button>'+(url?'<a class="btn" target="_blank" rel="noopener" href="'+esc(url)+'">Open PDF</a>':'')+'</div></div>'+(url?'<div class="gmkt-full-preview-scroll">'+detailPreviewPages(url,n.title)+'</div>':'<div class="gmkt-page-preview" style="flex:1;min-height:360px">Preview unavailable. The seller needs to regenerate the preview.</div>'); m.classList.add('on'); document.body.style.overflow='hidden'; renderPdfPreviews($('gmkt-modal-body'))}
@@ -12698,7 +12698,7 @@ body{overflow-x:hidden}
   async function token(c){try{return (await c?.auth?.getSession?.())?.data?.session?.access_token||''}catch(_){return ''}}
   async function directInvoke(c,payload){
     var url=clean(window.CFG&&CFG.supabase_url).replace(/\/$/,''), key=clean(window.CFG&&CFG.supabase_key);
-    if(!url||!key)throw new Error('Supabase email configuration missing');
+    if(!url||!key)throw new Error('Email service is unavailable right now');
     var res=await fetch(url+'/functions/v1/send-guidcy-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:key,Authorization:'Bearer '+((await token(c))||key)},body:JSON.stringify(payload)});
     var text=await res.text(), data={}; try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}}
     if(!res.ok)throw new Error(data.error||data.message||text||('Email function failed with status '+res.status));
@@ -14343,7 +14343,7 @@ body{overflow-x:hidden}
   function setBusy(btn,busy,text){if(!btn)return;if(busy){btn.dataset.oldText=btn.innerHTML;btn.disabled=true;btn.innerHTML=text||'Submitting...'}else{btn.disabled=false;if(btn.dataset.oldText)btn.innerHTML=btn.dataset.oldText}}
   function recentlySubmitted(kind,sig){var now=Date.now();var prev=lastSubmit[kind]||{sig:'',at:0};if(prev.sig===sig && now-prev.at<8000)return true;lastSubmit[kind]={sig:sig,at:now};return false}
   async function insertRow(table,row,noReturn){
-    var c=sbClient();if(!c)throw new Error('Supabase client is not configured on this page.');
+    var c=sbClient();if(!c)throw new Error('This page is not ready yet. Please refresh and try again.');
     if(noReturn){var r0=await c.from(table).insert(row);if(r0.error)throw r0.error;return row}
     var res=await c.from(table).insert(row).select('*').single();if(res.error)throw res.error;return res.data;
   }
@@ -18711,7 +18711,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function withTimeout(promise,label,ms){
     return Promise.race([
       promise,
-      new Promise(function(_,reject){ setTimeout(function(){ reject(new Error((label||'Login')+' timed out. Please check your internet connection and Supabase Auth settings.')); }, ms||LOGIN_TIMEOUT_MS); })
+      new Promise(function(_,reject){ setTimeout(function(){ reject(new Error((label||'Login')+' timed out. Please check your internet connection and try again.')); }, ms||LOGIN_TIMEOUT_MS); })
     ]);
   }
   function setBtnLoading(btn,on){
@@ -19495,7 +19495,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	  async function invokeGuidcyEmailDirect(c,payload){
 	    const url=String(window.CFG?.supabase_url||'').replace(/\/$/,'');
 	    const key=String(window.CFG?.supabase_key||'');
-	    if(!url||!key)throw new Error('Supabase email configuration missing');
+	    if(!url||!key)throw new Error('Email service is unavailable right now');
 	    const token=await edgeAccessToken(c)||key;
 	    const res=await fetch(url+'/functions/v1/send-guidcy-email',{
 	      method:'POST',
@@ -21677,7 +21677,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var c=client();
     var direct=directUrl(n?.file_url||n?.download_url||n?.file_path);
     if(direct)return {url:direct,path:n?.file_path||n?.file_url||''};
-    if(!c)throw new Error('Supabase is not ready.');
+    if(!c)throw new Error('Not ready yet. Please try again.');
     async function restObjectUrl(bucket,path){
       var base=(window.CFG?.supabase_url||window.SUPABASE_URL||'').replace(/\/$/,'');
       var key=window.CFG?.supabase_key||window.SUPABASE_ANON_KEY||'';
@@ -22953,7 +22953,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   async function invokeSupabaseDirect(c,payload){
     var url=clean(window.CFG&&CFG.supabase_url).replace(/\/$/,''),key=clean(window.CFG&&CFG.supabase_key);
-    if(!url||!key)throw new Error('Supabase email configuration missing');
+    if(!url||!key)throw new Error('Email service is unavailable right now');
     var res=await fetch(url+'/functions/v1/send-guidcy-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:key,Authorization:'Bearer '+((await token(c))||key)},body:JSON.stringify(payload)});
     var text=await res.text(),data={};try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}}
     if(!res.ok)throw new Error(data.error||data.message||text||('Email function failed with status '+res.status));
@@ -22962,7 +22962,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   async function invokeVercel(payload){
     var res=await fetch('/api/send-guidcy-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var text=await res.text(),data={};try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}}
-    if(!res.ok)throw new Error(data.error||data.message||text||('Vercel email API failed with status '+res.status));
+    if(!res.ok)throw new Error(data.error||data.message||text||('Email service failed with status '+res.status));
     return data||{ok:true,provider:'vercel_resend'};
   }
 
@@ -22979,9 +22979,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     safeLog('info','send_start',{type:payload.type||'unknown',role:payload.recipientRole||'user',has_recipient:!!payload.to,related_table:payload.relatedTable||null});
     try{
       var errors=[],res=null;
-      try{res=await invokeSupabaseFunction(c,payload)}catch(e1){errors.push('supabase_invoke: '+clean(e1&&e1.message||e1));safeLog('warn','supabase_invoke_failed',{error:errors[errors.length-1].slice(0,180)})}
-      if(!res)try{res=await invokeSupabaseDirect(c,payload)}catch(e2){errors.push('supabase_direct: '+clean(e2&&e2.message||e2));safeLog('warn','supabase_direct_failed',{error:errors[errors.length-1].slice(0,180)})}
-      if(!res)try{res=await invokeVercel(payload)}catch(e3){errors.push('vercel_api: '+clean(e3&&e3.message||e3));safeLog('warn','vercel_api_failed',{error:errors[errors.length-1].slice(0,180)})}
+      try{res=await invokeSupabaseFunction(c,payload)}catch(e1){errors.push('primary: '+clean(e1&&e1.message||e1));safeLog('warn','supabase_invoke_failed',{error:errors[errors.length-1].slice(0,180)})}
+      if(!res)try{res=await invokeSupabaseDirect(c,payload)}catch(e2){errors.push('fallback: '+clean(e2&&e2.message||e2));safeLog('warn','supabase_direct_failed',{error:errors[errors.length-1].slice(0,180)})}
+      if(!res)try{res=await invokeVercel(payload)}catch(e3){errors.push('api: '+clean(e3&&e3.message||e3));safeLog('warn','vercel_api_failed',{error:errors[errors.length-1].slice(0,180)})}
       if(!res)throw new Error(errors.join(' | ')||'email_provider_failed');
       if(res.ok===false)throw new Error(res.error||'email_provider_failed');
       await markFlag(c,payload);
@@ -23026,7 +23026,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 
   async function fetchConsultantRow(id){
     var c=client();
-    if(!c?.from)throw new Error('Supabase is not ready');
+    if(!c?.from)throw new Error('Not ready yet. Please try again.');
     var r=await c.from('consultants').select('*').eq('id',id).maybeSingle();
     if(r.error)throw r.error;
     return r.data||null;
@@ -23093,7 +23093,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     id=clean(id);
     if(!id){toast('Consultant profile could not be found.','red');return false}
     var c=client();
-    if(!c?.from){toast('Supabase is not ready. Please try again.','red');return false}
+    if(!c?.from){toast('Not ready yet. Please try again.','red');return false}
     try{
       var before=null;
       try{before=await fetchConsultantRow(id)}catch(_){}
@@ -23141,7 +23141,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var reason=clean($('guidcy-reject-reason')?.value);
     if(!reason){toast('Please enter rejection reason.','red');return false}
     var c=client();
-    if(!c?.from){toast('Supabase is not ready. Please try again.','red');return false}
+    if(!c?.from){toast('Not ready yet. Please try again.','red');return false}
     try{
       var before=null;
       try{before=await fetchConsultantRow(id)}catch(_){}
@@ -23387,7 +23387,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var out=await oldSaveUser.apply(this,arguments);
       try{
         var u=currentUser(); if(u&&u.id){var p=window.__guidcyPendingExperience.patch; await patchTable('profiles','id',u.id,p); try{window.currentProfile=Object.assign({},currentProfile()||{},p)}catch(_){} safeToast('Experience saved','green');}
-      }catch(e){console.error('Experience save failed',e);safeToast('Profile saved, but experience could not be saved. Please run the latest Supabase SQL migration.','blue')}
+      }catch(e){console.error('Experience save failed',e);safeToast('Profile saved, but your work experience could not be saved. Please try again.','blue')}
       return out;
     };
     window.saveUserProfile.__guidcyExperience=true;
@@ -23403,7 +23403,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         if(consId)await patchTable('consultants','id',consId,p);
         try{window.currentProfile=Object.assign({},currentProfile()||{},p);window.curCons=Object.assign({},window.curCons||{},p)}catch(_){}
         safeToast('Experience saved','green');
-      }catch(e){console.error('Consultant experience save failed',e);safeToast('Profile saved, but experience could not be saved. Please run the latest Supabase SQL migration.','blue')}
+      }catch(e){console.error('Consultant experience save failed',e);safeToast('Profile saved, but your work experience could not be saved. Please try again.','blue')}
       return out;
     };
     window.saveConsProfile.__guidcyExperience=true;
@@ -23619,7 +23619,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	      setCurrentProfileSafe(Object.assign({},cp,updates,row||{}));
 	      return row||updates;
 	    }
-	    throw new Error('Supabase is not ready. Please try again.');
+	    throw new Error('Not ready yet. Please try again.');
 	  }
 	  function syncDashAvatarFromProfile(){
 	    var cp=currentProfileSafe()||{},u=currentUserSafe()||{},url=cp.avatar_url||cp.profile_image_url||'';
@@ -24688,7 +24688,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return out;
   }
   async function update(table,column,value,payload){
-    var c=client(); if(!c?.from) throw new Error('Supabase is not ready.');
+    var c=client(); if(!c?.from) throw new Error('Not ready yet. Please try again.');
     var result=await c.from(table).update(payload).eq(column,value).select('*');
     if(result.error) throw result.error;
     return Array.isArray(result.data)?result.data[0]:result.data;
@@ -30044,7 +30044,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
             '<div><label>Salary to (₹)</label><input id="gc-r-max" type="number" min="0" value="'+esc(j.max_budget||'')+'"></div>'+
             '<div class="full"><label>About the role</label><textarea id="gc-r-desc" rows="4" required>'+esc(j.description||'')+'</textarea></div>'+
             '<div class="full"><label>What you will do</label><textarea id="gc-r-resp" rows="4">'+esc(j.responsibilities||'')+'</textarea></div>'+
-            '<div class="full"><label>Skills (comma separated)</label><input id="gc-r-skills" value="'+esc(j.required_skills||'')+'" placeholder="React, Supabase, SQL"></div>'+
+            '<div class="full"><label>Skills (comma separated)</label><input id="gc-r-skills" value="'+esc(j.required_skills||'')+'" placeholder="React, Node.js, SQL"></div>'+
             '<div class="full"><label>Screening question (optional)</label><input id="gc-r-question" value="'+esc(j.additional_question||'')+'"></div>'+
             '<div><label>Status</label><select id="gc-r-status">'+opts(['approved','pending','closed'],clean(j.status)||'approved')+'</select></div>'+
             '<div><label>Highlight</label><select id="gc-r-flags">'+
