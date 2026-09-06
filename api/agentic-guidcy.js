@@ -5,7 +5,11 @@ const {
   setCors
 } = require('../lib/rag-utils');
 
-const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://lsthngfxehayeqyctkla.supabase.co').replace(/\/$/, '');
+/* Same trailing-/rest/v1 trap as expert-match had: take the origin only. */
+const SUPABASE_URL = (function () {
+  const raw = String(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://lsthngfxehayeqyctkla.supabase.co').trim().replace(/^['"]|['"]$/g, '');
+  try { return new URL(raw).origin; } catch (_) { return 'https://lsthngfxehayeqyctkla.supabase.co'; }
+})();
 const GUIDCY_PUBLIC_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4';
 const SUPABASE_REST_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || GUIDCY_PUBLIC_ANON_KEY;
 

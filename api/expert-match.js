@@ -4,13 +4,11 @@ const {
   json,
   readBody,
   setCors,
+  supabaseFetch,
   uniqueSources,
   validateQuestion
 } = require('../lib/rag-utils');
 
-const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://lsthngfxehayeqyctkla.supabase.co').replace(/\/$/, '');
-const GUIDCY_PUBLIC_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzdGhuZ2Z4ZWhheWVxeWN0a2xhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTgyNzcsImV4cCI6MjA5MjY5NDI3N30.kKTzunZl1JGLNswkPZUBOy9xD8G9FyIGbx0Oh6msIo4';
-const SUPABASE_REST_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || GUIDCY_PUBLIC_ANON_KEY;
 
 const STOP_WORDS = new Set([
   'and','for','the','with','from','that','this','need','want','help','best','good','find','your','about','into',
@@ -358,25 +356,14 @@ function parseJson(text, fallback) {
   try { return JSON.parse(clean.slice(start, end + 1)); } catch (_) { return fallback; }
 }
 
-async function supabaseRest(path, options = {}) {
-  const response = await fetch(`${SUPABASE_URL}${path.startsWith('/') ? path : `/${path}`}`, {
-    method: options.method || 'GET',
-    headers: Object.assign({
-      apikey: SUPABASE_REST_KEY,
-      Authorization: `Bearer ${SUPABASE_REST_KEY}`,
-      'Content-Type': 'application/json'
-    }, options.headers || {}),
-    body: options.body
-  });
-  const text = await response.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
-  if (!response.ok) {
-    const message = typeof data === 'string' ? data : (data && (data.message || data.error?.message || data.error)) || 'Supabase request failed';
-    throw Object.assign(new Error(message), { status: response.status, data });
-  }
-  return data;
-}
+/* Was building its own base URL and only stripping a trailing slash. The
+   SUPABASE_URL env carries a "/rest/v1" suffix - which is why razorpay-utils
+   normalises it - so every call here asked for /rest/v1/rest/v1/... and Supabase
+   answered "Invalid path specified in request URL". Zero consultants were ever
+   fetched, so the matcher returned no matches and the browser quietly fell back
+   to keyword ranking. supabaseFetch takes the URL's origin and is already the
+   shared helper for these endpoints. */
+const supabaseRest = supabaseFetch;
 
 async function fetchConsultants() {
   const attempts = [
