@@ -598,7 +598,15 @@ module.exports = async function handler(req, res) {
         return String(a.consultant.name || '').localeCompare(String(b.consultant.name || ''));
       })
       .slice(0, form.limit);
-    const matches = (await enrichReasons(ranked, intent, form)).map(match => ({
+
+    /* The intent step expands a goal generously - "event management" becomes
+       logistics, budgeting, marketing, risk management - and those generic terms
+       brush against nearly every profile. Matching on them is useful for finding
+       someone when nothing better exists; it is noise when it pads a good result
+       with everybody else. So a bare mention only fills a thin list. */
+    const strong = ranked.filter(item => item.tier <= 2);
+    const relevant = strong.length >= 3 ? strong : ranked;
+    const matches = (await enrichReasons(relevant, intent, form)).map(match => ({
       consultant: publicConsultant(match.consultant),
       rating: Number(match.consultant.rating || match.consultant.average_rating || 0) || 0,
       reviews: Number(match.consultant.reviews || match.consultant.review_count || 0) || 0,

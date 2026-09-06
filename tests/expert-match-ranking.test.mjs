@@ -145,3 +145,31 @@ test('the tier is visible as a signal, so an order can be explained', () => {
   assert.match(api, /addSignal\(signals, 'focus'[^)]*, 0, /,
     'it carries no weight - it marks the bucket, it does not score');
 });
+
+/* The intent step expands a goal generously - "event management" became
+   logistics, budgeting, marketing, risk management, timeline creation - and
+   those brush against nearly every profile. Combined with rating-only ordering
+   that produced "everyone, alphabetically", which is why the same names showed
+   up under every search. */
+test('a bare mention only fills a thin list', () => {
+  const from = api.indexOf('const strong = ranked.filter');
+  const to = api.indexOf('const matches =', from);
+  assert.ok(from > -1 && to > from, 'the relevance gate must still be there');
+  const block = api.slice(from, to);
+
+  const pick = new Function('ranked', block + '\nreturn relevant;');
+  const t = tier => ({ tier });
+
+  // enough real matches: the padding is dropped
+  assert.deepEqual(pick([t(1), t(1), t(2), t(3), t(3)]).map(x => x.tier), [1, 1, 2],
+    'weak mentions must not pad a good result with everybody else');
+  // too few: a weak match beats an empty page
+  assert.deepEqual(pick([t(1), t(3), t(3)]).map(x => x.tier), [1, 3, 3]);
+  assert.deepEqual(pick([t(3)]).map(x => x.tier), [3], 'one weak match is better than nothing');
+  assert.deepEqual(pick([]).map(x => x.tier), []);
+});
+
+test('the results sent out are the gated ones', () => {
+  assert.match(api, /enrichReasons\(relevant, intent, form\)/,
+    'gating the list and then sending the ungated one would be a silent no-op');
+});
