@@ -13732,7 +13732,16 @@ body{overflow-x:hidden}
   }
 
   /* ── Render webinar cards ─────────────────────────────────────────── */
-  window.wbnRender=function(){
+  /* The card description is clamped to two lines; this un-clamps the one the
+   reader asked to see. Delegated through the inline handler so it survives a
+   re-render of the grid. */
+window.wbnToggleDesc=function(btn){
+  var d=btn&&btn.previousElementSibling;
+  if(!d||!d.classList.contains('wbn-card-desc'))return;
+  var open=d.classList.toggle('wbn-desc-open');
+  btn.textContent=open?'View less':'View more';
+};
+window.wbnRender=function(){
     var list=_webinars.slice();
     var cat=(byId('wbn-filter-cat')&&byId('wbn-filter-cat').value)||'';
     if(cat.trim())list=list.filter(function(w){return w.cat===cat.trim()});
@@ -13753,11 +13762,12 @@ body{overflow-x:hidden}
       var paid=!!(w.isPaid||w.priceAmount>0||w.priceType==='paid');
       var priceText=paid?'₹'+Number(w.priceAmount||0).toLocaleString('en-IN'):'Free';
       var seatsLabel=sl<=0?'Fully booked':sl<=10?sl+' seats left':priceText+' entry';
-      return '<div class="wbn-card" data-wbn-id="'+w.id+'" onclick="wbnOpenReg(\''+w.id+'\')">'+
+      return '<div class="wbn-card" data-wbn-id="'+w.id+'">'+
         '<div class="wbn-card-banner"></div><div class="wbn-card-body">'+
         '<div class="wbn-card-cat">'+w.cat+'</div>'+
         '<div class="wbn-card-title">'+w.title+badge+'</div>'+
         '<div class="wbn-card-desc">'+(w.desc||'')+'</div>'+
+        (String(w.desc||'').length>110?'<button type="button" class="wbn-desc-more" onclick="wbnToggleDesc(this)">View more</button>':'')+
         '<div style="display:inline-flex;margin:0 0 12px;padding:5px 11px;border-radius:999px;background:'+ (paid?'#FFF7ED':'var(--green-l)') +';color:'+ (paid?'#92400E':'var(--green-d)') +';font-size:12px;font-weight:700;border:1px solid '+ (paid?'#FED7AA':'#B7F0BE') +'">'+priceText+'</div>'+
         '<div class="wbn-card-meta">'+
           '<div class="wbn-meta-item"><span class="wbn-meta-icon">📅</span>'+fmtDate(w.date)+'</div>'+
@@ -14061,11 +14071,6 @@ body{overflow-x:hidden}
       e.preventDefault();e.stopImmediatePropagation();
       var id=regBtn.getAttribute('data-wbn-register')||(regBtn.closest('.wbn-card')&&regBtn.closest('.wbn-card').getAttribute('data-wbn-id'));
       if(id)window.wbnOpenReg(id);return;
-    }
-    var card=e.target.closest&&e.target.closest('.wbn-card[data-wbn-id]');
-    if(card&&!e.target.closest('.wbn-edit-btn,.wbn-delete-btn,.wbn-register-btn')){
-      e.preventDefault();e.stopImmediatePropagation();
-      window.wbnOpenReg(card.getAttribute('data-wbn-id'));return;
     }
   },true);
 

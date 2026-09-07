@@ -1,0 +1,51 @@
+/* Three UI regressions, each with a single cause:
+ *  - a webinar description clamped to two lines with no way to read the rest;
+ *  - the whole webinar card acting as the register button;
+ *  - the mobile dashboard "Menu" strip disappearing once open, so the drawer
+ *    could not be closed by tapping it again.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const app = readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../assets/css/patches.css', import.meta.url), 'utf8');
+
+/* The renderer that actually runs is the last window.wbnRender assignment. */
+const live = app.slice(app.lastIndexOf('window.wbnRender=function(){'));
+
+test('only the register button opens registration, not the card', () => {
+  const card = live.slice(live.indexOf('<div class="wbn-card"'), live.indexOf('wbn-card-banner'));
+  assert.ok(!card.includes('onclick'), 'the card element must not carry an onclick');
+  assert.ok(live.includes('data-wbn-register='), 'the register button keeps its hook');
+  assert.ok(
+    !app.includes(".wbn-card[data-wbn-id]')"),
+    'the delegated handler must no longer open registration for any click on a card'
+  );
+});
+
+test('a long description gets a View more toggle that un-clamps it', () => {
+  assert.match(live, /String\(w\.desc\|\|''\)\.length>\d+\?'<button[^']*wbn-desc-more/);
+  assert.match(css, /\.wbn-card-desc\.wbn-desc-open[\s\S]*?-webkit-line-clamp:unset!important/);
+
+  /* The toggle itself, run against a stub element. */
+  const fn = new Function('window', app.slice(app.indexOf('window.wbnToggleDesc=function'), app.lastIndexOf('window.wbnRender=function(){')) + 'return window.wbnToggleDesc;')({});
+  const classes = new Set(['wbn-card-desc']);
+  const desc = { classList: { contains: (c) => classes.has(c), toggle: (c) => (classes.has(c) ? (classes.delete(c), false) : (classes.add(c), true)) } };
+  const btn = { previousElementSibling: desc, textContent: 'View more' };
+  fn(btn);
+  assert.ok(classes.has('wbn-desc-open'));
+  assert.equal(btn.textContent, 'View less');
+  fn(btn);
+  assert.ok(!classes.has('wbn-desc-open'));
+  assert.equal(btn.textContent, 'View more');
+});
+
+test('the dashboard Menu strip stays tappable while the drawer is open', () => {
+  const block = css.slice(css.indexOf('guidcy-webinar-desc-and-dash-toggle'));
+  assert.match(block, /body:not\(\.gmob-open\)\.guidcy-dash-drawer-open \.dash-mobile-toggle[\s\S]*?pointer-events:auto!important/);
+  /* body is position:fixed while open, so the strip has to be pinned, not sticky. */
+  assert.match(block, /position:fixed!important;top:60px!important/);
+  /* ...and the drawer starts below it, so it never covers a menu row. */
+  assert.match(block, /\.dash-side\{\s*top:124px!important/);
+});
