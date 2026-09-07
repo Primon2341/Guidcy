@@ -72,6 +72,25 @@ function closeDashboardMenu(which){
  unlockDashboardScroll();
  }
 
+/* The Menu strip is hidden while the drawer is open, and the only other way out
+ * is the strip of overlay beside it, which is easy to miss on a narrow phone.
+ * So the drawer carries its own close button. Added on open rather than in the
+ * markup: one place instead of three, and it survives a repaint of the side. */
+function ensureDrawerCloseButton(side,which){
+ if(!side||side.querySelector('.dash-side-close'))return;
+ var button=document.createElement('button');
+ button.type='button';
+ button.className='dash-side-close';
+ button.setAttribute('aria-label','Close menu');
+ button.textContent='\u2715';
+ button.addEventListener('click',function(event){
+ event.preventDefault();
+ event.stopPropagation();
+ closeDashboardMenu(which);
+ });
+ side.insertBefore(button,side.firstChild);
+ }
+
 function openDashboardMenu(which){
  var page=pageFor(which);
  if(!page)return;
@@ -84,7 +103,7 @@ function openDashboardMenu(which){
  overlay.className='dash-overlay';
  page.appendChild(overlay);
  }
- if(side)side.classList.add('on');
+ if(side){side.classList.add('on');ensureDrawerCloseButton(side,which);}
  overlay.classList.add('on');
  setToggleState(which,true);
  document.documentElement.classList.add('guidcy-dash-drawer-locked');

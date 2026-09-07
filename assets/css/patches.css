@@ -2968,3 +2968,22 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   font:inherit;font-size:12px;font-weight:700;color:var(--blue-d,#1E72BE);cursor:pointer;
 }
 .wbn-desc-more:hover{text-decoration:underline}
+
+/* === guidcy-dash-drawer-close === */
+/* Only inside the mobile drawer - on a desktop the sidebar is always on screen
+   and has nothing to close. */
+.dash-side-close{display:none}
+@media(max-width:900px){
+  #page-user-dash .dash-side.on .dash-side-close,
+  #page-cons-dash .dash-side.on .dash-side-close,
+  #page-admin-dash .dash-side.on .dash-side-close{
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    position:sticky!important;top:0!important;align-self:flex-end!important;
+    flex:0 0 auto!important;margin:8px 10px 0 auto!important;
+    width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;
+    border:1px solid var(--border,#e2e8f0)!important;border-radius:50%!important;
+    background:#fff!important;color:#0f172a!important;
+    font-size:16px!important;line-height:1!important;cursor:pointer!important;
+    z-index:6!important;
+  }
+}
