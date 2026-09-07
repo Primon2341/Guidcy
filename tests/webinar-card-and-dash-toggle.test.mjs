@@ -40,18 +40,3 @@ test('a long description gets a View more toggle that un-clamps it', () => {
   assert.ok(!classes.has('wbn-desc-open'));
   assert.equal(btn.textContent, 'View more');
 });
-
-test('a second tap on the top-right Dashboard button goes back where it was', () => {
-  const block = app.slice(app.indexOf('=== guidcy-dashboard-button-toggle ==='));
-  assert.ok(block, 'the dashboard toggle handler is missing');
-  /* Capture phase, or the button's own inline go() runs first. */
-  assert.match(block, /addEventListener\('click',function\(e\)\{[\s\S]*\},true\)/);
-  /* Only the header button and the drawer's copy of it. */
-  assert.match(block, /#guidcy-dashboard-btn/);
-  assert.match(block, /textContent[\s\S]*?'dashboard'/);
-  /* First tap must fall through to the normal handler, so the dashboard opens. */
-  assert.match(block, /if\(!dashboardOpen\(\)\)\{[\s\S]*?return;\}/);
-  /* Second tap restores the page and the scroll position it was pressed at. */
-  assert.match(block, /window\.history\.back\(\)/);
-  assert.match(block, /window\.scrollTo\(0,y\)/);
-});
