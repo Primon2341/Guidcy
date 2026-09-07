@@ -2962,7 +2962,9 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   display:block!important;-webkit-line-clamp:unset!important;overflow:visible!important;
 }
 .wbn-desc-more{
-  display:inline-block;margin:-10px 0 14px;padding:0;border:0;background:none;
+  /* Its own line directly under the text it belongs to - inline it would sit
+     next to the price pill and read as part of it. */
+  display:block;width:fit-content;margin:-12px 0 14px;padding:0;border:0;background:none;
   font:inherit;font-size:12px;font-weight:700;color:var(--blue-d,#1E72BE);cursor:pointer;
 }
 .wbn-desc-more:hover{text-decoration:underline}
