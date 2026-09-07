@@ -2954,7 +2954,7 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   margin:-6px 0 12px;font-size:12px;line-height:1.5;color:var(--muted);
 }
 
-/* === guidcy-webinar-desc-and-dash-toggle === */
+/* === guidcy-webinar-card === */
 /* A webinar description is clamped to two lines, so anything longer could not
    be read at all. "View more" un-clamps that one card in place. */
 .wbn-card-desc.wbn-desc-open,

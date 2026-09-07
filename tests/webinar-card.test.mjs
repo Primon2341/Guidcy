@@ -1,8 +1,6 @@
-/* Three UI regressions, each with a single cause:
- *  - a webinar description clamped to two lines with no way to read the rest;
- *  - the whole webinar card acting as the register button;
- *  - the mobile dashboard "Menu" strip disappearing once open, so the drawer
- *    could not be closed by tapping it again.
+/* Two webinar-card regressions, each with a single cause:
+ *  - a description clamped to two lines with no way to read the rest;
+ *  - the whole card acting as the register button.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
