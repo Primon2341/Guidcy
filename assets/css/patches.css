@@ -2987,3 +2987,11 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
     z-index:6!important;
   }
 }
+
+/* === guidcy-dash-signout-gap === */
+/* The nav stretched to fill the sidebar and Sign out was pushed to the very
+   bottom, so a band of empty white sat between the last item and it. Sign out
+   now follows the nav. The nav still shrinks and scrolls when it is the taller
+   of the two, so a long list cannot push Sign out out of reach. */
+#page-user-dash .side-nav,#page-cons-dash .side-nav,#page-admin-dash .side-nav{flex:0 1 auto!important;padding-bottom:12px!important}
+#page-user-dash .side-logout,#page-cons-dash .side-logout,#page-admin-dash .side-logout{margin-top:0!important}
