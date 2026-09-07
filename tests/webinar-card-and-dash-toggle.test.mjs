@@ -41,11 +41,17 @@ test('a long description gets a View more toggle that un-clamps it', () => {
   assert.equal(btn.textContent, 'View more');
 });
 
-test('the dashboard Menu strip stays tappable while the drawer is open', () => {
-  const block = css.slice(css.indexOf('guidcy-webinar-desc-and-dash-toggle'));
-  assert.match(block, /body:not\(\.gmob-open\)\.guidcy-dash-drawer-open \.dash-mobile-toggle[\s\S]*?pointer-events:auto!important/);
-  /* body is position:fixed while open, so the strip has to be pinned, not sticky. */
-  assert.match(block, /position:fixed!important;top:60px!important/);
-  /* ...and the drawer starts below it, so it never covers a menu row. */
-  assert.match(block, /\.dash-side\{\s*top:124px!important/);
+test('a second tap on the top-right Dashboard button goes back where it was', () => {
+  const block = app.slice(app.indexOf('=== guidcy-dashboard-button-toggle ==='));
+  assert.ok(block, 'the dashboard toggle handler is missing');
+  /* Capture phase, or the button's own inline go() runs first. */
+  assert.match(block, /addEventListener\('click',function\(e\)\{[\s\S]*\},true\)/);
+  /* Only the header button and the drawer's copy of it. */
+  assert.match(block, /#guidcy-dashboard-btn/);
+  assert.match(block, /textContent[\s\S]*?'dashboard'/);
+  /* First tap must fall through to the normal handler, so the dashboard opens. */
+  assert.match(block, /if\(!dashboardOpen\(\)\)\{[\s\S]*?return;\}/);
+  /* Second tap restores the page and the scroll position it was pressed at. */
+  assert.match(block, /window\.history\.back\(\)/);
+  assert.match(block, /window\.scrollTo\(0,y\)/);
 });

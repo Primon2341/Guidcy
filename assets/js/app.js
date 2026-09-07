@@ -32136,3 +32136,42 @@ window.guidcyGoSignupFromLogin=function(){
     window.guidcyInstallBookingFinancialLifecycleUi();
   }
 })();
+
+/* === guidcy-dashboard-button-toggle === */
+/* The top-right Dashboard button was one-way. On a phone there is no browser
+ * chrome to go back with, so once the dashboard opened the reader was stuck on
+ * it. A second tap on the same button now returns to where they were when they
+ * pressed it the first time - page and scroll position - which is what a
+ * toggle like this does everywhere else.
+ *
+ * Capture phase, so it runs before the button's own inline go() handler. Scoped
+ * to the header and the mobile drawer's copy of it (syncMobileAuthArea clones
+ * nav-right into #gmob-auth-area, ids included), so no other "Dashboard"
+ * labelled control is affected. */
+(function(){
+  var BTN='#guidcy-dashboard-btn,#nav-right button,#gmob-auth-area button,#gmob-auth-btns button';
+  var OPEN='#page-user-dash,#page-cons-dash,#page-admin-dash';
+  var origin=null;
+
+  function dashboardOpen(){
+    return !!document.querySelector(OPEN.split(',').map(function(s){return s+'.on,'+s+'.active'}).join(','));
+  }
+
+  document.addEventListener('click',function(e){
+    var btn=e&&e.target&&e.target.closest&&e.target.closest(BTN);
+    if(!btn||String(btn.textContent||'').trim().toLowerCase()!=='dashboard')return;
+
+    /* First tap: let it open, but remember what it is covering. */
+    if(!dashboardOpen()){origin={y:window.scrollY||window.pageYOffset||0};return;}
+
+    e.preventDefault();e.stopImmediatePropagation();
+    try{window.closeMobDrawer&&window.closeMobDrawer()}catch(_){}
+    var y=origin?origin.y:0;origin=null;
+    if(window.history.length>1){
+      window.history.back();
+      /* renderPage() scrolls to the top on every route change, so the position
+         has to be put back after it has run. */
+      setTimeout(function(){try{window.scrollTo(0,y)}catch(_){}},260);
+    }else if(typeof window.go==='function'){window.go('home');}
+  },true);
+})();
