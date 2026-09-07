@@ -350,3 +350,59 @@ function finishPointer(event){
 
  try{logOut=window.logOut}catch(_){}
 })();
+
+/* === guidcy-dashboard-button-toggle ===
+   The header Dashboard button was a one-way door: it opened the reader's
+   dashboard and left no way back to whatever they were looking at. It is now a
+   toggle, and closing is simply the Back the button skipped - history.back()
+   pops the entry the first click pushed, so the previous route is restored by
+   the app's own popstate handler. Nothing about routing is hardcoded: the route
+   comes off the button the role logic already rendered, and the page restored
+   is whichever entry preceded it. No reload, no extra history entry (opening
+   pushes one, closing pops the same one), and Back/Forward keep working because
+   the button is now using them. */
+(function(){
+ 'use strict';
+ if(window.__GUIDCY_DASH_BTN_TOGGLE__)return;
+ window.__GUIDCY_DASH_BTN_TOGGLE__=true;
+
+ var DASH={'user-dash':1,'cons-dash':1,'admin-dash':1};
+ /* Set while the dashboard entry this button pushed is the current one, so a
+    dashboard reached any other way (deep link, refresh) keeps its old
+    behaviour rather than backing out of the site. */
+ var opened=null;
+
+ function routeOf(btn){
+  var m=String(btn.getAttribute('onclick')||'').match(/go\(\s*['"]([\w-]+)['"]\s*\)/);
+  return m?m[1]:'';
+ }
+ function currentRoute(){
+  var el=document.querySelector('.page.on');
+  return el?String(el.id||'').replace(/^page-/,''):'';
+ }
+
+ /* Capture phase: this owns the click, so the button's own go(...) never runs
+    a second navigation. */
+ document.addEventListener('click',function(e){
+  if(!e||!e.target||!e.target.closest)return;
+  var btn=e.target.closest('#guidcy-dashboard-btn');
+  if(!btn)return;
+  var route=routeOf(btn);
+  if(!route||!DASH[route])return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+
+  if(opened&&opened.route===route&&currentRoute()===route){
+   var y=opened.y;
+   opened=null;
+   history.back();
+   /* renderPage() sends every route to the top; put the reader back where
+      they were reading instead. */
+   if(y)setTimeout(function(){try{window.scrollTo(0,y)}catch(_){}},120);
+   return;
+  }
+
+  opened={route:route,y:window.scrollY||window.pageYOffset||0};
+  if(typeof window.go==='function')window.go(route);
+ },true);
+})();
