@@ -44,6 +44,8 @@ var TAP_TIME_LIMIT=850;
  var page=pageFor(which);
  var toggle=page&&page.querySelector('.dash-mobile-toggle');
  if(toggle)toggle.setAttribute('aria-expanded',open?'true':'false');
+ var header=document.getElementById('guidcy-dashboard-btn');
+ if(header)header.setAttribute('aria-expanded',open?'true':'false');
  }
 
  function unlockDashboardScroll(){
@@ -67,6 +69,7 @@ function closeDashboardMenu(which){
  var overlay=page.querySelector('.dash-overlay');
  if(side)side.classList.remove('on','open');
  if(overlay)overlay.classList.remove('on','open');
+ page.classList.remove('guidcy-dashboard-menu-host');
  setToggleState(name,false);
  });
  unlockDashboardScroll();
@@ -96,6 +99,7 @@ function openDashboardMenu(which){
  if(!page)return;
  try{if(typeof window.closeMobDrawer==='function')window.closeMobDrawer()}catch(_){}
  closeDashboardMenu();
+ if(window.innerWidth<=900)page.classList.add('guidcy-dashboard-menu-host');
  var side=page.querySelector('.dash-side');
  var overlay=page.querySelector('.dash-overlay');
  if(!overlay){
@@ -219,7 +223,13 @@ function finishPointer(event){
  if(isBlockedGesture(button))return;
  if(isDuplicateActivation(button))return;
  window.__GUIDCY_LAST_POINTER_AT_V6__=Date.now();
+ var fromPublicPage=!pageFor(which).classList.contains('on');
  closeDashboardMenu(which);
+ if(fromPublicPage&&typeof PAGE_URLS!=='undefined'&&typeof window.go==='function'){
+ window.go(PAGE_URLS[dashboardPages[which].replace(/^page-/,'')]+'?tab='+encodeURIComponent(section));
+ window.__GUIDCY_LAST_POINTER_AT_V6__=0;
+ return;
+ }
  var switcher=window[dashboardSwitchers[which]];
  if(typeof switcher==='function'){
  var result=switcher(section,button);
@@ -245,6 +255,7 @@ function finishPointer(event){
  window.addEventListener('popstate',function(){closeDashboardMenu()});
  window.addEventListener('pageshow',function(){closeDashboardMenu()});
  window.addEventListener('resize',function(){if(window.innerWidth>900)closeDashboardMenu()});
+ document.addEventListener('keydown',function(event){if(event.key==='Escape')closeDashboardMenu()});
 
  function closeAllTransientUi(){
  try{if(typeof window.closeMobDrawer==='function')window.closeMobDrawer()}catch(_){}
@@ -373,7 +384,8 @@ function finishPointer(event){
  var opened=null;
 
  function routeOf(btn){
-  var m=String(btn.getAttribute('onclick')||'').match(/go\(\s*['"]([\w-]+)['"]\s*\)/);
+ if(btn.dataset&&btn.dataset.dashboardRoute)return btn.dataset.dashboardRoute;
+ var m=String(btn.getAttribute('onclick')||'').match(/go\(\s*['"]([\w-]+)['"]\s*\)/);
   return m?m[1]:'';
  }
  function currentRoute(){
@@ -390,9 +402,17 @@ function finishPointer(event){
   var route=routeOf(btn);
   if(!route||!DASH[route])return;
   e.preventDefault();
-  e.stopImmediatePropagation();
+ e.stopImmediatePropagation();
 
-  if(opened&&opened.route===route&&currentRoute()===route){
+ if(window.innerWidth<=900){
+ var page=document.getElementById('page-'+route);
+ var side=page&&page.querySelector('.dash-side');
+ if(side&&side.classList.contains('on'))window.guidcyCloseDashboardMenu();
+ else if(typeof window.openDashMenu==='function')window.openDashMenu(route.replace(/-dash$/,''));
+ return;
+ }
+
+ if(opened&&opened.route===route&&currentRoute()===route){
    var y=opened.y;
    opened=null;
    history.back();

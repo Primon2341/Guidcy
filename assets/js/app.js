@@ -29086,6 +29086,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var target=page&&canonicalPage(page);
       if(!target||!target.url)return;
       element.dataset.guidcyRouteBoundV6='1';
+      if(element.id==='guidcy-dashboard-btn')element.dataset.dashboardRoute=target.page;
       element.onclick=null;
       element.removeAttribute('onclick');
       element.addEventListener('click',function(event){

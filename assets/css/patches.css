@@ -2805,14 +2805,8 @@ body.guidcy-dash-drawer-open #mobile-burger{visibility:hidden!important;pointer-
    dashboard drawer above. */
 body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:none!important}
 
-@media(max-width:900px){
-  /* Decorative motion is intentionally static on small screens so scrolling,
-     drawer gestures and checkout keep the main thread available.
-     opacity:1 is essential here, not cosmetic: .how-item starts at opacity:0 and
-     is only revealed BY the animation, so cancelling the animation without
-     restoring opacity left the whole "How Guidcy Works" section invisible on
-     phones. The prefers-reduced-motion rule above gets this right; this one did
-     not. */
+@media(prefers-reduced-motion:reduce){
+ /* Keep revealed content visible when the user requests reduced motion. */
   #page-home .guidcy-growth-logo-chip,
   #page-home .guidcy-growth-visual::before,
   #page-home .how-grid::before,
@@ -2901,30 +2895,15 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
    centre and end, under their own labels. */
 .step-item:last-child{flex:0 0 auto}
 
-/* Dashboard panel refresh: content changes, the panel does not blink.
-   The busy bar rides on the panel's top edge while a render is in flight, so
-   the reader keeps the table they were looking at instead of watching it
-   vanish and return. The swap fade is short enough to read as "updated"
-   rather than as an animation. */
-/* Any region can carry the bar, so anchor it on the busy class itself
-   rather than naming each container. Applied only while a render is in
-   flight, and position:relative does not move anything in flow. */
+/* Keep panel content during refresh; the global top bar owns loading feedback. */
 .guidcy-panel-busy{position:relative}
 .guidcy-panel-busy::before{
-  content:"";position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,transparent,var(--blue,#2563EB),transparent);
-  background-size:40% 100%;background-repeat:no-repeat;
-  animation:guidcy-panel-progress 1.1s ease-in-out infinite;z-index:2;
-}
-@keyframes guidcy-panel-progress{
-  0%{background-position:-40% 0}
-  100%{background-position:140% 0}
+ content:none;
 }
 .guidcy-panel-swap{animation:guidcy-panel-fade .18s ease-out}
 @keyframes guidcy-panel-fade{from{opacity:.55}to{opacity:1}}
 /* Respect a reader who has asked for less motion. */
 @media(prefers-reduced-motion:reduce){
-  .guidcy-panel-busy::before{animation:none;background:var(--blue,#2563EB);background-size:100% 100%}
   .guidcy-panel-swap{animation:none}
 }
 
@@ -3002,3 +2981,21 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
    of the two, so a long list cannot push Sign out out of reach. */
 #page-user-dash .side-nav,#page-cons-dash .side-nav,#page-admin-dash .side-nav{flex:0 1 auto!important;padding-bottom:12px!important}
 #page-user-dash .side-logout,#page-cons-dash .side-logout,#page-admin-dash .side-logout{margin-top:0!important}
+
+/* The header owns mobile dashboard navigation, using the original role sidebar. */
+@media(max-width:900px){
+ #page-user-dash .dash-mobile-toggle,#page-cons-dash .dash-mobile-toggle,#page-admin-dash .dash-mobile-toggle{display:none!important}
+ /* Lift the whole drawer container above page stacking contexts, including the hero. */
+ .page.guidcy-dashboard-menu-host{position:relative!important;z-index:2147483600!important}
+ .page.guidcy-dashboard-menu-host:not(.on){display:block!important;position:fixed!important;inset:0 auto auto 0!important;width:0!important;height:0!important;min-height:0!important;overflow:visible!important;background:transparent!important}
+ .page.guidcy-dashboard-menu-host:not(.on) .dash-wrap{min-height:0!important;overflow:visible!important}
+ .page.guidcy-dashboard-menu-host:not(.on) .dash-main{display:none!important}
+ body.guidcy-dash-drawer-open #main-nav{z-index:2147483641!important}
+ body.guidcy-dash-drawer-open #mobile-burger{visibility:visible!important;pointer-events:auto!important}
+ #main-nav #nav-right #guidcy-dashboard-btn{max-width:none!important;min-width:86px;padding:7px 10px!important;font-size:12px!important;text-overflow:clip!important}
+ body.guidcy-dash-drawer-open .grag-launcher,body.guidcy-dash-drawer-open .grag-panel{visibility:hidden!important;pointer-events:none!important}
+ #page-user-dash .dash-main,#page-cons-dash .dash-main,#page-admin-dash .dash-main{padding:16px!important;min-width:0!important}
+ .goal-tracker-wrap>*{min-width:0;max-width:100%;box-sizing:border-box}
+ .goal-title,.goal-note-box,.goal-task span,.goal-consultant,.goal-empty{min-width:0;overflow-wrap:anywhere;white-space:normal}
+ .goal-tracker-wrap input,.goal-tracker-wrap select,.goal-tracker-wrap textarea{min-width:0;max-width:100%;box-sizing:border-box}
+}

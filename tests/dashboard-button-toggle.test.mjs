@@ -12,12 +12,14 @@ assert.ok(start > 0, 'dashboard button toggle block is missing from controllers.
 /* Slice from the IIFE itself: the marker sits inside its comment. */
 const block = source.slice(source.indexOf('(function', start));
 
-function mount({ currentPageId = 'page-home' } = {}) {
-  const calls = { go: [], back: 0, scrolled: [] };
-  const state = { pageId: currentPageId };
+function mount({ currentPageId = 'page-home', width = 1200 } = {}) {
+ const calls = { go: [], back: 0, scrolled: [], menus: [] };
+ const state = { pageId: currentPageId };
+ let menuOpen = false;
   let onClick = null;
 
-  const doc = {
+ const doc = {
+ getElementById() { return { querySelector() { return { classList: { contains() { return menuOpen; } } }; } }; },
     addEventListener(type, fn, capture) {
       if (type === 'click' && capture === true) onClick = fn;
     },
@@ -25,7 +27,10 @@ function mount({ currentPageId = 'page-home' } = {}) {
       return sel === '.page.on' ? { id: state.pageId } : null;
     },
   };
-  const win = {
+ const win = {
+ innerWidth: width,
+ openDashMenu(role) { menuOpen = true; calls.menus.push(role); },
+ guidcyCloseDashboardMenu() { menuOpen = false; calls.menus.push('close'); },
     scrollY: 0,
     go(page) { calls.go.push(page); state.pageId = 'page-' + page; },
     scrollTo(x, y) { calls.scrolled.push(y); },
@@ -73,6 +78,22 @@ test('first click opens the dashboard, second click pops the entry it pushed', (
 
   ui.flushTimers();
   assert.deepEqual(ui.calls.scrolled, [420], 'the previous page comes back where it was left');
+});
+
+test('mobile toggles the existing role menu without navigation', () => {
+ for (const width of [320, 375, 390, 430, 900]) {
+ for (const role of ['user', 'cons', 'admin']) {
+ for (const currentPageId of ['page-browse', 'page-'+role+'-dash']) {
+ const ui = mount({ width, currentPageId });
+ ui.clickDashboard(role+'-dash');
+ ui.clickDashboard(role+'-dash');
+ assert.deepEqual(ui.calls.menus, [role, 'close']);
+ assert.deepEqual(ui.calls.go, []);
+ assert.equal(ui.calls.back, 0);
+ assert.equal(ui.state.pageId, currentPageId);
+ }
+ }
+ }
 });
 
 test('a dashboard opened any other way still just navigates', () => {
