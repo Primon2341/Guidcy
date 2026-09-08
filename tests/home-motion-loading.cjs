@@ -11,6 +11,18 @@ module.exports = async function verifyHomeMotionAndLoading(page) {
  await page.waitForTimeout(220);
  assert.notEqual(await number.evaluate(el => getComputedStyle(el).transform), before.transform, 'homepage animation must move at ' + width);
  assert.notEqual(await page.locator('#page-home .guidcy-growth-logo-chip').evaluate(el => getComputedStyle(el).animationName), 'none');
+ const chips = page.locator('#page-home .guidcy-growth-logo-chip, #page-home .guidcy-mix-chip');
+ const positions = await chips.evaluateAll(els => els.map(el => ({ transform: getComputedStyle(el).transform, display: getComputedStyle(el).display })));
+ assert.ok(positions.length >= 5);
+ assert.ok(positions.every(el => el.display !== 'none'), 'all floating labels are visible at ' + width);
+ await page.waitForTimeout(260);
+ const moved = await chips.evaluateAll(els => els.map(el => getComputedStyle(el).transform));
+ positions.forEach((el, i) => assert.notEqual(moved[i], el.transform, 'logo/label ' + i + ' must move at ' + width));
+ if (width <= 430) {
+ await page.locator('#page-home .guidcy-growth-visual').screenshot({ path: '/private/tmp/guidcy-floating-icons-' + width + '.png' });
+ const fit = await chips.evaluateAll(els => els.every(el => { const rect = el.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth; }));
+ assert.ok(fit, 'floating labels fit at ' + width);
+ }
  }
  await page.locator('#page-home .how-grid').screenshot({ path: '/private/tmp/guidcy-home-animation.png' });
  await page.emulateMedia({ reducedMotion: 'reduce' });

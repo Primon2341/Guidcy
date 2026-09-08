@@ -84,6 +84,13 @@ const server = http.createServer((req, res) => {
  assert.equal(page.url(), before);
  assert.equal(await page.locator('.dash-mobile-toggle:visible').count(), 0);
  assert.equal(await page.locator('.dash-side:visible').count(), 1);
+ const spacing = await page.locator(dash + ' .dash-side').evaluate(side => {
+ const avatar = side.querySelector('.dash-av').getBoundingClientRect();
+ const close = side.querySelector('.dash-side-close').getBoundingClientRect();
+ return { gap: avatar.top - side.getBoundingClientRect().top, overlaps: avatar.left < close.right && avatar.right > close.left && avatar.top < close.bottom && avatar.bottom > close.top };
+ });
+ assert.ok(spacing.gap >= 8 && spacing.gap <= 16, role + ': compact profile gap at ' + width);
+ assert.equal(spacing.overlaps, false, 'close button must not cover profile photo');
  assert.equal(await page.locator('#page-about.on').count(), 1);
  await page.screenshot({ path: '/private/tmp/guidcy-menu-' + role + '-' + width + '.png' });
  await button.click();

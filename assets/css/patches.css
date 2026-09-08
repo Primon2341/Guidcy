@@ -135,7 +135,7 @@
 @keyframes guidcyHowNumFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes guidcyHowShine{0%,65%{transform:translateX(-80%) rotate(18deg)}100%{transform:translateX(80%) rotate(18deg)}}
 @media(max-width:900px){
-  .guidcy-growth-logo-chip{position:relative!important;left:auto!important;top:auto!important;transform:none!important;margin:0 auto 18px!important;width:150px!important;height:82px!important}
+.guidcy-growth-logo-chip{position:relative!important;left:auto!important;top:auto!important;transform:none;margin:0 auto 18px!important;width:150px!important;height:82px!important}
   @keyframes guidcyLogoPanelFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
   .guidcy-growth-visual::before{top:6px;width:190px;height:190px}
 }
@@ -216,13 +216,13 @@
     box-sizing:border-box!important;
     overflow:hidden!important;
   }
-  .guidcy-growth-logo-chip{
+.guidcy-growth-logo-chip{
     position:relative!important;
     left:auto!important;
     right:auto!important;
     top:auto!important;
     bottom:auto!important;
-    transform:none!important;
+    transform:none;
     margin:0 auto 14px!important;
     width:112px!important;
     min-width:112px!important;
@@ -2965,7 +2965,7 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   #page-admin-dash .dash-side.on .dash-side-close{
     display:flex!important;align-items:center!important;justify-content:center!important;
     position:sticky!important;top:0!important;align-self:flex-end!important;
-    flex:0 0 auto!important;margin:8px 10px 0 auto!important;
+  flex:0 0 auto!important;margin:8px 10px -44px auto!important;
     width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;
     border:1px solid var(--border,#e2e8f0)!important;border-radius:50%!important;
     background:#fff!important;color:#0f172a!important;
@@ -2985,6 +2985,8 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 /* The header owns mobile dashboard navigation, using the original role sidebar. */
 @media(max-width:900px){
  #page-user-dash .dash-mobile-toggle,#page-cons-dash .dash-mobile-toggle,#page-admin-dash .dash-mobile-toggle{display:none!important}
+ #page-user-dash .dash-user-block,#page-cons-dash .dash-user-block,#page-admin-dash .dash-user-block{padding-top:12px!important}
+ #page-home .guidcy-mix-chip{display:inline-flex!important;position:relative!important;inset:auto!important;max-width:100%;box-sizing:border-box;margin:8px 4px 12px 0;padding:8px 12px;white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
  /* Lift the whole drawer container above page stacking contexts, including the hero. */
  .page.guidcy-dashboard-menu-host{position:relative!important;z-index:2147483600!important}
  .page.guidcy-dashboard-menu-host:not(.on){display:block!important;position:fixed!important;inset:0 auto auto 0!important;width:0!important;height:0!important;min-height:0!important;overflow:visible!important;background:transparent!important}
