@@ -482,6 +482,8 @@ body.gmob-open{overflow:hidden}
 .wbn-meta-icon{font-size:14px;flex-shrink:0}
 .wbn-card-speaker{display:flex;align-items:center;gap:10px;padding:12px;background:var(--surface2);border-radius:12px;margin-bottom:16px}
 .wbn-speaker-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:600;border:2px solid transparent;flex-shrink:0}
+.wbn-speaker-av{position:relative;overflow:hidden}
+.wbn-speaker-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .wbn-speaker-name{font-size:13px;font-weight:600;color:var(--ink)}
 .wbn-speaker-role{font-size:11px;color:var(--muted)}
 .wbn-card-footer{display:flex;justify-content:space-between;align-items:center}
@@ -2974,19 +2976,21 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
   }
 }
 
-/* === guidcy-dash-signout-gap === */
-/* The nav stretched to fill the sidebar and Sign out was pushed to the very
-   bottom, so a band of empty white sat between the last item and it. Sign out
-   now follows the nav. The nav still shrinks and scrolls when it is the taller
-   of the two, so a long list cannot push Sign out out of reach. */
-#page-user-dash .side-nav,#page-cons-dash .side-nav,#page-admin-dash .side-nav{flex:0 1 auto!important;padding-bottom:12px!important}
+/* The sidebar owns scrolling, including admin groups outside .side-nav.
+   Sign out follows the menu without a stretched blank gap. */
+#page-user-dash .side-nav,#page-cons-dash .side-nav,#page-admin-dash .side-nav{flex:0 0 auto!important;overflow:visible!important;max-height:none!important;padding-bottom:12px!important}
 #page-user-dash .side-logout,#page-cons-dash .side-logout,#page-admin-dash .side-logout{margin-top:0!important}
+#page-user-dash .dash-side,#page-cons-dash .dash-side,#page-admin-dash .dash-side{overflow-y:auto!important}
+#page-user-dash .dash-side>*,#page-cons-dash .dash-side>*,#page-admin-dash .dash-side>*{flex-shrink:0!important}
+
+/* Floating homepage stickers were removed; retain only the opportunity board. */
+#page-home .guidcy-growth-visual{padding-top:0!important}
+#page-home .guidcy-growth-visual::before{content:none!important}
 
 /* The header owns mobile dashboard navigation, using the original role sidebar. */
 @media(max-width:900px){
  #page-user-dash .dash-mobile-toggle,#page-cons-dash .dash-mobile-toggle,#page-admin-dash .dash-mobile-toggle{display:none!important}
  #page-user-dash .dash-user-block,#page-cons-dash .dash-user-block,#page-admin-dash .dash-user-block{padding-top:12px!important}
- #page-home .guidcy-mix-chip{display:inline-flex!important;position:relative!important;inset:auto!important;max-width:100%;box-sizing:border-box;margin:8px 4px 12px 0;padding:8px 12px;white-space:normal;overflow-wrap:anywhere;vertical-align:middle}
  /* Lift the whole drawer container above page stacking contexts, including the hero. */
  .page.guidcy-dashboard-menu-host{position:relative!important;z-index:2147483600!important}
  .page.guidcy-dashboard-menu-host:not(.on){display:block!important;position:fixed!important;inset:0 auto auto 0!important;width:0!important;height:0!important;min-height:0!important;overflow:visible!important;background:transparent!important}

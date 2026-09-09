@@ -12,6 +12,14 @@ const css = readFileSync(new URL('../assets/css/patches.css', import.meta.url), 
 /* The renderer that actually runs is the last window.wbnRender assignment. */
 const live = app.slice(app.lastIndexOf('window.wbnRender=function(){'));
 
+test('published webinar cards omit registration totals without removing registration controls', () => {
+ const metadata = live.slice(live.indexOf('<div class="wbn-card-meta">'), live.indexOf('<div class="wbn-card-speaker">'));
+ assert.doesNotMatch(metadata, /registered|regCount\(/);
+ assert.ok(live.includes('data-wbn-register='));
+ assert.ok(app.includes('<th>Registrations</th>'), 'admin registration totals remain available');
+ assert.doesNotMatch(app, /wbn-meta-item[^\n]* registered<\/div>/);
+});
+
 test('only the register button opens registration, not the card', () => {
   const card = live.slice(live.indexOf('<div class="wbn-card"'), live.indexOf('wbn-card-banner'));
   assert.ok(!card.includes('onclick'), 'the card element must not carry an onclick');

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 
 module.exports = async function verifyHomeMotionAndLoading(page) {
  await page.emulateMedia({ reducedMotion: 'no-preference' });
- for (const width of [320, 375, 390, 430, 1280]) {
+ for (const width of [320, 375, 390, 430, 768, 1024, 1280]) {
  await page.setViewportSize({ width, height: 812 });
  const number = page.locator('#page-home .how-num').first();
  await number.evaluate(el => el.scrollIntoView({ block: 'center' }));
@@ -10,19 +10,12 @@ module.exports = async function verifyHomeMotionAndLoading(page) {
  assert.equal(before.name, 'guidcyHowNumFloat', 'homepage animation at ' + width);
  await page.waitForTimeout(220);
  assert.notEqual(await number.evaluate(el => getComputedStyle(el).transform), before.transform, 'homepage animation must move at ' + width);
- assert.notEqual(await page.locator('#page-home .guidcy-growth-logo-chip').evaluate(el => getComputedStyle(el).animationName), 'none');
- const chips = page.locator('#page-home .guidcy-growth-logo-chip, #page-home .guidcy-mix-chip');
- const positions = await chips.evaluateAll(els => els.map(el => ({ transform: getComputedStyle(el).transform, display: getComputedStyle(el).display })));
- assert.ok(positions.length >= 5);
- assert.ok(positions.every(el => el.display !== 'none'), 'all floating labels are visible at ' + width);
- await page.waitForTimeout(260);
- const moved = await chips.evaluateAll(els => els.map(el => getComputedStyle(el).transform));
- positions.forEach((el, i) => assert.notEqual(moved[i], el.transform, 'logo/label ' + i + ' must move at ' + width));
- if (width <= 430) {
- await page.locator('#page-home .guidcy-growth-visual').screenshot({ path: '/private/tmp/guidcy-floating-icons-' + width + '.png' });
- const fit = await chips.evaluateAll(els => els.every(el => { const rect = el.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth; }));
- assert.ok(fit, 'floating labels fit at ' + width);
- }
+ assert.equal(await page.locator('#page-home .guidcy-growth-logo-chip, #page-home .guidcy-mix-chip, #page-home .guidcy-mix-orb').count(), 0, 'floating stickers must be removed at ' + width);
+ const visual = page.locator('#page-home .guidcy-growth-visual');
+ assert.equal(await visual.evaluate(el => getComputedStyle(el).paddingTop), '0px');
+ assert.equal(await visual.evaluate(el => getComputedStyle(el, '::before').content), 'none');
+ assert.equal(await visual.locator('.guidcy-mix-board').count(), 1);
+ if ([320, 768, 1280].includes(width)) await visual.screenshot({ path: '/private/tmp/guidcy-home-no-stickers-' + width + '.png' });
  }
  await page.locator('#page-home .how-grid').screenshot({ path: '/private/tmp/guidcy-home-animation.png' });
  await page.emulateMedia({ reducedMotion: 'reduce' });

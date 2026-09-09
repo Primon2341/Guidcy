@@ -91,6 +91,13 @@ const server = http.createServer((req, res) => {
  });
  assert.ok(spacing.gap >= 8 && spacing.gap <= 16, role + ': compact profile gap at ' + width);
  assert.equal(spacing.overlaps, false, 'close button must not cover profile photo');
+ const navScroll = await page.locator(dash + ' .side-nav').evaluate(el => ({ overflow: getComputedStyle(el).overflowY, client: el.clientHeight, scroll: el.scrollHeight }));
+ assert.equal(navScroll.overflow, 'visible', role + ': no nested menu scrollbar at ' + width);
+ assert.ok(navScroll.scroll <= navScroll.client + 1, role + ': menu is not height-clipped');
+ const signout = page.locator(dash + ' .side-logout button[onclick="logOut()"]');
+ await signout.scrollIntoViewIfNeeded();
+ assert.ok(await signout.evaluate(el => { const r=el.getBoundingClientRect(); return r.top >= 60 && r.bottom <= innerHeight; }), 'last menu control is reachable');
+ await page.locator(dash + ' .dash-side').evaluate(el => { el.scrollTop=0; });
  assert.equal(await page.locator('#page-about.on').count(), 1);
  await page.screenshot({ path: '/private/tmp/guidcy-menu-' + role + '-' + width + '.png' });
  await button.click();
@@ -141,6 +148,10 @@ const server = http.createServer((req, res) => {
  console.log(await page.evaluate(() => ({ url: location.href, active: document.querySelector('.page.on')?.id, body: document.body.className })));
  throw error;
  });
+ assert.equal(await page.locator(dash + ' .side-nav').evaluate(el => getComputedStyle(el).overflowY), 'visible', 'desktop has one sidebar scrollbar');
+ await page.locator(dash + ' .side-logout button[onclick="logOut()"]').scrollIntoViewIfNeeded();
+ await page.screenshot({ path: '/private/tmp/guidcy-sidebar-desktop-' + role + '.png' });
+ if (role === 'user') await require('./webinar-publisher-browser.cjs')(page);
  console.log(role + ': toggle, ' + links.length + ' role links, page selection, Back/Forward, 320-430px passed');
  await context.close();
  }

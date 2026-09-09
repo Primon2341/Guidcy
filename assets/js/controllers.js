@@ -300,7 +300,7 @@ function finishPointer(event){
  }
 
  function showHomeAfterLogout(){
- window.__guidcyLogoutInProgressUntil=Date.now()+5000;
+ window.__guidcyAuthUser=null;
  try{window.__GUIDCY_RESET_ROUTE_AFTER_LOGOUT_V6__&&window.__GUIDCY_RESET_ROUTE_AFTER_LOGOUT_V6__()}catch(_){}
  try{window.__GUIDCY_SET_ROUTE_INTENT_V6__&&window.__GUIDCY_SET_ROUTE_INTENT_V6__('/')}catch(_){}
  try{history.replaceState({page:'home'},'','/')}catch(_){}
@@ -323,8 +323,11 @@ function finishPointer(event){
  }
 
  var logoutPromise=null;
+ window.guidcyWaitForLogout=function(){return logoutPromise||Promise.resolve()};
  window.logOut=function(){
  if(logoutPromise)return logoutPromise;
+ window.__guidcySignedOut=true;
+ window.__guidcyAuthEpoch=(window.__guidcyAuthEpoch||0)+1;
  logoutPromise=(async function(){
  closeAllTransientUi();
  clearSessionUiState();
@@ -335,10 +338,8 @@ function finishPointer(event){
  try{client=window.guidcyGetSupabaseClient&&window.guidcyGetSupabaseClient()}catch(_){}
  if(client&&client.auth&&typeof client.auth.signOut==='function'){
  try{
- await Promise.race([
- client.auth.signOut({scope:'local'}),
- new Promise(function(resolve){setTimeout(resolve,3500)})
- ]);
+ var result=await client.auth.signOut({scope:'local'});
+ if(result&&result.error)throw result.error;
  }catch(error){
  console.warn('Supabase sign-out cleanup failed; local UI session was still cleared:',error);
  }
@@ -354,7 +355,7 @@ function finishPointer(event){
  }
  try{(window.toast||window.showToast||function(){})('Signed out','blue')}catch(_){}
  })().finally(function(){
- setTimeout(function(){logoutPromise=null},400);
+ logoutPromise=null;
  });
  return logoutPromise;
  };
