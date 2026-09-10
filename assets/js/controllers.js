@@ -277,7 +277,7 @@ function finishPointer(event){
  'guidcy_admin_dash_tab','guidcy_admin_last_view','guidcy_login_return_v6',
  'guidcy_login_return_v6_at','guidcy_pending_route','guidcy_pending_after_login',
  'guidcy_pending_return','guidcy_post_login_return','guidcy_claude_last_page',
- 'guidcy_claude_last_dash_tab'
+ 'guidcy_claude_last_dash_tab','guidcy_oauth_login_pending'
  ];
 
  function clearSessionUiState(){

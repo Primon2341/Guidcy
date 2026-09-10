@@ -46,7 +46,8 @@ function boot({ page = 'login', consultantFormVisible = true, loginType = 'user'
     'page-signup': { classList: { contains: c => page === 'signup' && c === 'on' } },
     'su-cons-form': { style: { display: consultantFormVisible ? '' : 'none' } },
   };
-  const store = {};
+ const store = {};
+ const session = {};
   const domReady = [];
   const ctx = vm.createContext({
     console: { warn() {}, error() {} },
@@ -56,11 +57,16 @@ function boot({ page = 'login', consultantFormVisible = true, loginType = 'user'
       addEventListener: (_e, fn) => { domReady.push(fn) } },
     location: { hash, search, origin: 'https://guidcy.example', pathname: '/' + page },
     history: { replaceState() {} },
-    localStorage: {
+ localStorage: {
       getItem: k => (k in store ? store[k] : null),
       setItem: (k, v) => { store[k] = String(v) },
-      removeItem: k => { delete store[k] },
-    },
+ removeItem: k => { delete store[k] },
+ },
+ sessionStorage: {
+ getItem: k => session[k] || null,
+ setItem: (k, v) => { session[k] = String(v); },
+ removeItem: k => { delete session[k]; },
+ },
   });
   ctx.window = ctx;
   ctx.__GUIDCY_REQUESTED_URL_V6__ = requestedUrl;
@@ -72,12 +78,47 @@ function boot({ page = 'login', consultantFormVisible = true, loginType = 'user'
   ctx.loadProfile = async () => { loaded.push(ctx.currentUser); };
   vm.runInContext(block, ctx);
   domReady.forEach(fn => fn());   // simulate DOMContentLoaded
-  return { ctx, client, writes, toasts, loaded, store };
+ return { ctx, client, writes, toasts, loaded, store, session };
 }
 
 const googleUser = (over = {}) => ({
   id: 'uid-1', email: 'a@b.com', app_metadata: { provider: 'google' },
   user_metadata: { full_name: 'Aarav Shah', avatar_url: 'http://pic' }, ...over,
+});
+
+test('Google login completes through the shared return-page handler exactly once', async () => {
+ const user = googleUser();
+ const t = boot({ currentUser: user });
+ let prepared = 0, completed = 0;
+ t.ctx.guidcyPrepareOAuthLogin = async () => { prepared++; };
+ t.ctx.guidcyFinishLogin = async () => { completed++; };
+ t.ctx.currentProfile = { id: user.id, role: 'user' };
+ await t.ctx.gSignIn();
+ assert.equal(prepared, 1);
+ assert.equal(t.ctx.guidcyOAuthLoginPending(), true);
+ await t.ctx.loadProfile();
+ await t.ctx.loadProfile();
+ assert.equal(completed, 1);
+ assert.equal(t.ctx.guidcyOAuthLoginPending(), false);
+});
+
+test('passive profile loads and expired Google attempts do not redirect', async () => {
+ const user = googleUser();
+ const t = boot({ currentUser: user });
+ let completed = 0;
+ t.ctx.guidcyFinishLogin = async () => { completed++; };
+ t.ctx.currentProfile = { id: user.id, role: 'user' };
+ await t.ctx.loadProfile();
+ t.session.guidcy_oauth_login_pending = String(Date.now() - 11 * 60 * 1000);
+ await t.ctx.loadProfile();
+ assert.equal(completed, 0);
+});
+
+test('failed Google authorization clears its pending return marker', async () => {
+ const t = boot({});
+ t.client.auth.signInWithOAuth = async () => ({ error: new Error('OAuth unavailable') });
+ await t.ctx.gSignIn();
+ assert.equal(t.ctx.guidcyOAuthLoginPending(), false);
 });
 
 test('signup page sends the tab the user is actually on', async () => {

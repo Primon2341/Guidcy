@@ -10,14 +10,21 @@ const fixture = vm.runInNewContext(source.slice(start, source.indexOf('\n(async'
 const authFixture = fixture + `
 (function(){
  var original=window.supabase.createClient;
- var state=window.__authTest={session:null,signIns:0,signOuts:0,holdLogout:false,events:[]};
+ var state=window.__authTest={session:JSON.parse(sessionStorage.getItem('__authTestOAuthSession')||'null'),signIns:0,signOuts:0,holdLogout:false,events:[]};
  var listeners=[];
  function emit(event){state.events.push(event);listeners.forEach(function(fn){fn(event,state.session)})}
+ state.emit=emit;
  window.supabase.createClient=function(){
  var c=original.apply(this,arguments),from=c.from;
  c.from=function(table){var q=from(table);if(table==='profiles')q.or=function(){return q.eq('id',window.__guidcyTestProfile.id)};return q};
  c.auth.getSession=function(){return Promise.resolve({data:{session:state.session},error:null})};
  c.auth.getUser=function(){return Promise.resolve({data:{user:state.session&&state.session.user},error:null})};
+ c.auth.signInWithOAuth=async function(options){
+ var user=Object.assign({},window.__guidcyTestAuthUser,{app_metadata:{provider:'google'}});
+ sessionStorage.setItem('__authTestOAuthSession',JSON.stringify({user:user,access_token:'offline-google-token'}));
+ location.assign(options.options.redirectTo+'?code=offline-google-code');
+ return {error:null};
+ };
  c.auth.onAuthStateChange=function(fn){listeners.push(fn);queueMicrotask(function(){fn('INITIAL_SESSION',state.session)});return {data:{subscription:{unsubscribe:function(){listeners=listeners.filter(function(x){return x!==fn})}}}}};
  c.auth.signInWithPassword=async function(credentials){
  state.signIns++;
@@ -29,7 +36,7 @@ const authFixture = fixture + `
  c.auth.signOut=async function(){
  state.signOuts++;
  if(state.holdLogout)await new Promise(function(resolve){state.finishLogout=resolve});
- state.session=null;emit('SIGNED_OUT');return {error:null};
+ state.session=null;sessionStorage.removeItem('__authTestOAuthSession');emit('SIGNED_OUT');return {error:null};
  };
  return c;
  };
@@ -84,7 +91,14 @@ const server = http.createServer((req, res) => {
  }
  };
  async function enterLogin() {
- await page.evaluate(() => window.go('login'));
+ if (!(await page.locator('#page-login').evaluate(el => el.classList.contains('on')))) {
+ if (width < 900) {
+ await page.locator('#mobile-burger').click();
+ await page.locator('#gmob-auth-btns').getByRole('button', { name: /^(Log in|Sign in)$/i }).click();
+ } else {
+ await page.locator('#nav-right').getByRole('button', { name: /^(Log in|Sign in)$/i }).click();
+ }
+ }
  await page.locator('#li-' + ({ user: 'u', consultant: 'c', admin: 'a' }[role])).click().catch(async error => {
  console.log(JSON.stringify(await page.evaluate(() => ({ path: location.href, active: document.querySelector('.page.on')?.id, log: window.__routeTestLog })), null, 2));
  throw error;
@@ -92,7 +106,7 @@ const server = http.createServer((req, res) => {
  await page.locator('#li-email').fill(await page.evaluate(() => window.__guidcyTestAuthUser.email));
  await page.locator('#li-pass').fill('test-password');
  }
- for (const target of ['/find-experts?q=career', '/marketplace?category=Career', '/webinars?category=Career', '/find-jobs?query=design']) {
+ for (const target of ['/', '/find-experts?q=career', '/marketplace?category=Career', '/webinars?category=Career', '/find-jobs?query=design']) {
  await page.goto(origin + target);
  await page.waitForFunction(() => window.__guidcyAuthReadyFired && window.doLogin);
  await enterLogin();
@@ -159,6 +173,35 @@ const server = http.createServer((req, res) => {
  assert.equal(await page.evaluate(() => window.__authTest.session), null);
  assert.equal(await page.evaluate(() => window.currentUser), null);
  assert.equal(new URL(page.url()).pathname, '/login');
+ if (role !== 'admin') {
+ for (const target of ['/', '/find-experts?q=career', '/marketplace?category=Career', '/webinars?category=Career', '/find-jobs?query=design', null]) {
+ await page.goto(origin + (target || '/login'));
+ await page.waitForFunction(() => window.__guidcyAuthReadyFired && window.doLogin);
+ await enterLogin();
+ await page.locator('#page-login .goog-btn').click();
+ const expected = new URL(target || defaultPath, origin);
+ await page.waitForFunction(({ pathname, search }) => {
+ const aliases = { '/find-experts': '/browse', '/webinars': '/webinar', '/find-jobs': '/jobs' };
+ return !!window.currentUser && (location.pathname === pathname || location.pathname === aliases[pathname]) && (pathname.endsWith('dashboard') || location.search === search);
+ }, { pathname: expected.pathname, search: expected.search });
+ assert.equal(await page.evaluate(() => window.currentProfile.role), role);
+ assert.equal(await page.evaluate(() => sessionStorage.getItem('guidcy_oauth_login_pending')), null);
+ const expectedPage = ({ '/': 'home', '/find-experts': 'browse', '/marketplace': 'marketplace', '/webinars': 'webinar', '/find-jobs': 'jobs', '/dashboard': 'user-dash', '/consultant-dashboard': 'cons-dash' })[expected.pathname];
+ await page.locator('#page-' + expectedPage + '.on').waitFor({ state: 'visible' });
+ assert.equal(await page.locator('#guidcy-already-logged-in-modal:visible').count(), 0);
+ if (target === '/') await page.screenshot({ path: '/private/tmp/guidcy-login-return-' + role + '-' + width + '.png' });
+ const returnedPath = new URL(page.url()).pathname;
+ await page.evaluate(() => { window.go('about'); window.__authTest.emit('SIGNED_IN'); window.__authTest.emit('TOKEN_REFRESHED'); });
+ await page.waitForTimeout(1000);
+ assert.equal(new URL(page.url()).pathname, '/about', 'passive auth events must not replay the login destination');
+ await page.goBack();
+ await page.waitForFunction(path => location.pathname === path, returnedPath);
+ await page.goForward();
+ await page.waitForFunction(() => location.pathname === '/about');
+ await page.evaluate(() => window.logOut());
+ }
+ console.log(role + ' at ' + width + ': Google callback returns, default, passive events and Back/Forward passed');
+ }
  assert.deepEqual(browserErrors, [], 'authentication/navigation must not cause browser errors');
  console.log(role + ' at ' + width + ': return routes, logout, first re-login, Back/Forward, defaults, invalid password and wrong-role rejection passed');
  await context.close();

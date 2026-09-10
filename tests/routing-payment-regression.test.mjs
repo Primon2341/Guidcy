@@ -206,14 +206,15 @@ test('tab return repairs a stale background route replay before it becomes the v
 
 test('passive Supabase auth events update session state without owning navigation', () => {
   const initialAuth = section(app, 'async function initAuth(){', 'async function loadProfile(){');
-  assert.match(initialAuth, /previousUserId=String\(\(currentUser&&currentUser\.id\)\|\|''\)/);
-  assert.match(initialAuth, /isNewSignIn=event==='SIGNED_IN'&&\(!previousUserId\|\|previousUserId!==nextUserId\)/);
-  assert.match(initialAuth, /if\(isNewSignIn\)[\s\S]*go\(role==='consultant'/);
+ assert.doesNotMatch(initialAuth, /go\(role===|access_token/);
+ assert.match(initialAuth, /queueMicrotask\(async\(\)=>/);
+ assert.doesNotMatch(initialAuth, /onAuthStateChange\(async/);
 
   const routerAuth = section(app, 'function installAuthListener(){', "window.addEventListener('popstate'");
   assert.match(routerAuth, /previousAuthId=\(authUser&&authUser\.id\)\|\|''/);
   assert.match(routerAuth, /previousAuthId&&authUser&&previousAuthId===authUser\.id\)return/);
-  assert.match(routerAuth, /event==='TOKEN_REFRESHED'\|\|event==='USER_UPDATED'\)return/);
+ assert.match(routerAuth, /event==='TOKEN_REFRESHED'\|\|event==='USER_UPDATED'\)return/);
+ assert.match(routerAuth, /guidcyOAuthLoginPending\(\)\)return/);
 
   const bookingPending = section(app, 'function savePendingAction(action)', 'async function fetchConsultantContact');
   assert.doesNotMatch(bookingPending, /onAuthStateChange/);

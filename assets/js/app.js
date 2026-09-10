@@ -1886,22 +1886,11 @@ async function initAuth(){
  try{
  const{data:{session}}=await sb.auth.getSession();
  if(authEpoch===(window.__guidcyAuthEpoch||0)&&!window.__guidcySignedOut&&session?.user){currentUser=session.user;window.currentUser=currentUser;await loadProfile();updateNav();}
-    // Handle OAuth token in URL hash
-    if(window.location.hash.includes('access_token')){
-      setTimeout(async()=>{
-        const{data:{session:s}}=await sb.auth.getSession();
-        if(s?.user){currentUser=s.user;window.currentUser=currentUser;await loadProfile();updateNav();
-          const role=currentProfile?.role||'user';
-          go(role==='consultant'?'cons-dash':role==='admin'?'admin-dash':'user-dash');
-        }
-      },800);
-    }
-    sb.auth.onAuthStateChange(async(event,session)=>{
+ sb.auth.onAuthStateChange((event,session)=>{
       if(event==='PASSWORD_RECOVERY'){
         setTimeout(()=>{try{openSetNewPasswordModal()}catch(_){}},300);
         return;
       }
-      const previousUserId=String((currentUser&&currentUser.id)||'');
       // IMPORTANT: Supabase fires SIGNED_IN before the selected login tab has been
       // compared with the stored account role. During that check, do not load the
       // profile, update navigation, render a route, or expose the footer.
@@ -1911,17 +1900,18 @@ async function initAuth(){
         window.currentUser=currentUser;
         return;
       }
-      if(session?.user){
-        const nextUserId=String(session.user.id||'');
-        const isNewSignIn=event==='SIGNED_IN'&&(!previousUserId||previousUserId!==nextUserId);
-        currentUser=session.user; window.currentUser=currentUser; await loadProfile(); updateNav();
-        if(isNewSignIn){
-          const role=currentProfile?.role||'user';
-          setTimeout(()=>{
-            if(window.__guidcyAuthRoleChecking || Date.now()<Number(window.__guidcyStayOnLoginUntil||0))return;
-            go(role==='consultant'?'cons-dash':role==='admin'?'admin-dash':'user-dash');
-          },150);
-        }
+ if(session?.user){
+ if(window.__guidcySignedOut)return;
+ const eventEpoch=window.__guidcyAuthEpoch||0;
+ currentUser=session.user; window.currentUser=currentUser;
+ // Do not hold Supabase's auth callback open while profile/return work calls the client.
+ queueMicrotask(async()=>{
+ try{
+ if(eventEpoch!==(window.__guidcyAuthEpoch||0)||window.__guidcySignedOut)return;
+ await loadProfile();
+ if(eventEpoch===(window.__guidcyAuthEpoch||0)&&window.currentUser?.id===session.user.id)updateNav();
+ }catch(e){console.warn('Auth profile refresh failed:',e)}
+ });
       }else{currentUser=null;currentProfile=null;loggedIn=null;window.currentUser=null;window.currentProfile=null;window.loggedIn=null;updateNav();}
     });
   }catch(e){console.warn('Auth init error',e);}finally{try{window.__guidcyFireAuthReady&&window.__guidcyFireAuthReady()}catch(_){}}
@@ -12326,7 +12316,7 @@ body{overflow-x:hidden}
   function closeModal(){const m=$('gmkt-modal'); if(m){m.classList.remove('on'); const d=m.querySelector('.gmkt-dialog'); if(d)d.classList.remove('gmkt-full-dialog')} document.body.style.overflow=''} function closeAuth(){const m=$('gmkt-auth-modal'); if(m)m.classList.remove('on'); document.body.style.overflow=''}
   document.addEventListener('click',function(e){const b=e.target.closest('[data-gmkt-action]'); if(!b)return; const id=b.getAttribute('data-gmkt-id'), action=b.getAttribute('data-gmkt-action'); if(!id)return; e.preventDefault(); e.stopPropagation(); if(action==='preview')openPreview(id); else if(action==='details')openDetails(id); else if(action==='buy')buyOrDownload(id); else if(action==='generate')ensurePreviewForNote(id,false).then(()=>render()); else if(action==='edit')openEdit(id); else if(action==='delete')deleteNote(id);});
   window.GuidcyMarketplace={render,renderList,openUpload,submitUpload,validateFile,togglePrice,toggleEditPrice,openDetails,openPreview,openEdit,submitEdit,buyOrDownload,deleteNote,generatePreview:ensurePreviewForNote,closeModal,closeAuth,goAuth:function(p){closeAuth(); setTimeout(()=>{try{go(p)}catch(_){location.href=p==='signup'?'/get-started':'/login'}},60)},reportNote,submitReport,admin,markPayout,seller,purchases,redownload};
-  document.addEventListener('DOMContentLoaded',()=>{addNav();injectDashNav();wrapRoutes();scheduleMarketplaceHydration();setTimeout(()=>{addNav();injectDashNav();wrapRoutes();if(location.pathname.replace(/\/$/,'')==='/marketplace'||location.hash==='#marketplace'||new URLSearchParams(location.search).get('flow')==='marketplace'){if(window.go)go('marketplace');else render()}restorePending();handleRazorpayReturn()},400)});
+  document.addEventListener('DOMContentLoaded',()=>{addNav();injectDashNav();wrapRoutes();scheduleMarketplaceHydration();setTimeout(()=>{addNav();injectDashNav();wrapRoutes();if(location.pathname.replace(/\/$/,'')==='/marketplace'){if(window.renderPage)window.renderPage('marketplace');else render()}else if(location.hash==='#marketplace'||new URLSearchParams(location.search).get('flow')==='marketplace'){if(window.go)go('marketplace');else render()}restorePending();handleRazorpayReturn()},400)});
   window.addEventListener('load',scheduleMarketplaceHydration);
   window.addEventListener('pageshow',scheduleMarketplaceHydration);
   window.addEventListener('popstate',()=>{if(location.pathname.replace(/\/$/,'')==='/marketplace'){if(window.renderPage)window.renderPage('marketplace');else render()}scheduleMarketplaceHydration()});
@@ -12916,9 +12906,10 @@ body{overflow-x:hidden}
     return h?{known:true,page:h,path:path,tab:tab,url:path+(u.search||'')+location.hash}:{known:false,page:'home',path:path,tab:tab,url:path+(u.search||'')};
   }
   var bootInfo=infoFor(bootPath);
-  function targetInfo(){
-    var now=infoFor(currentUrl());
-    if(Date.now()<bootUntil&&bootInfo.known&&bootInfo.page!=='home'&&now.page==='home'&&cleanPath(location.pathname)==='/')return bootInfo;
+ function targetInfo(){
+ var now=infoFor(currentUrl());
+ if(window.__GUIDCY_REQUESTED_URL_V6__&&window.__GUIDCY_REQUESTED_URL_V6__!==bootPath)return now;
+ if(Date.now()<bootUntil&&bootInfo.known&&bootInfo.page!=='home'&&now.page==='home'&&cleanPath(location.pathname)==='/')return bootInfo;
     return now;
   }
   function activePage(){var el=document.querySelector('.page.on,.page.active');return el&&el.id?el.id.replace(/^page-/,''):''}
@@ -21468,9 +21459,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(btn.hasAttribute('data-job-save')||label==='log in'||label.includes('saved jobs')){
       if(btn.hasAttribute('data-job-save')){
         savePending({type:'job_save',action:'save_job',jobId:btn.getAttribute('data-job-save'),returnPage:'jobs',returnUrl:'/find-jobs',query:($('job-q')?.value||$('job-search')?.value||'')});
-      }else if(location.pathname.replace(/\/$/,'')==='/find-jobs'){
-        savePending({type:'return_only',returnPage:'jobs',returnUrl:'/find-jobs'});
-      }
+ }
     }
   },true);
 
@@ -22731,8 +22720,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
           if(protectedPages[currentRoute().page])renderFromUrl('signed-out',{force:true});
           return;
         }
-        if(event==='SIGNED_IN'){
-          authPromise=Promise.resolve(authUser);
+ if(event==='SIGNED_IN'){
+ authPromise=Promise.resolve(authUser);
+ if(window.guidcyOAuthLoginPending&&window.guidcyOAuthLoginPending())return;
           if(previousAuthId&&authUser&&previousAuthId===authUser.id)return;
           if(window.__guidcyAuthRoleChecking || Date.now()<Number(window.__guidcyStayOnLoginUntil||0))return;
           var pending=consumePendingDestination();
@@ -28368,7 +28358,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var url=new URL(raw,location.origin);
       if(url.origin!==location.origin)return '';
       var path=url.pathname.replace(/\/+$/,'')||'/';
-      if(path==='/'||path==='/login'||path==='/signup'||path==='/get-started')return '';
+ if(path==='/login'||path==='/signup'||path==='/get-started')return '';
       return url.pathname+url.search+url.hash;
     }catch(e){return ''}
   }
@@ -28406,7 +28396,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   function clearReturn(){
     try{
-      [returnKey,returnTimeKey,'guidcy_pending_route','guidcy_pending_after_login','guidcy_pending_return','guidcy_post_login_return',
+ [returnKey,returnTimeKey,'guidcy_oauth_login_pending','guidcy_pending_route','guidcy_pending_after_login','guidcy_pending_return','guidcy_post_login_return',
  'guidcy_login_return_url_final','guidcy_login_return_url_final_at','guidcy_login_return_url_v5','guidcy_login_return_url_at_v5','guidcy_login_return_url_v4','guidcy_login_return_url_at_v4']
         .forEach(function(key){sessionStorage.removeItem(key)});
     }catch(e){}
@@ -28973,6 +28963,12 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   return dashboardUrl('swUD',dashboards.swUD.fallback);
  }
  var loginPromise=null;
+ window.guidcyPrepareOAuthLogin=async function(){
+ var before=readReturn()||safeSameSitePath(pathWithSearch());
+ if(typeof window.guidcyWaitForLogout==='function')await window.guidcyWaitForLogout();
+ window.__guidcyAuthEpoch=(window.__guidcyAuthEpoch||0)+1;
+ if(before)saveReturn(before,false);
+ };
  window.guidcyFinishLogin=async function(){
  try{
  if(typeof window.guidcyRestorePendingAction==='function'&&await window.guidcyRestorePendingAction()){
@@ -31463,8 +31459,14 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 (function(){
   'use strict';
 
-  var PENDING_ROLE_KEY='guidcy_oauth_pending_role';
-  var PENDING_TTL_MS=10*60*1000;
+ var PENDING_ROLE_KEY='guidcy_oauth_pending_role';
+ var PENDING_LOGIN_KEY='guidcy_oauth_login_pending';
+ var PENDING_TTL_MS=10*60*1000;
+
+ function clearPendingLogin(){try{sessionStorage.removeItem(PENDING_LOGIN_KEY)}catch(_){}}
+ window.guidcyOAuthLoginPending=function(){
+ try{var at=Number(sessionStorage.getItem(PENDING_LOGIN_KEY)||0);return at>0&&Date.now()-at<PENDING_TTL_MS}catch(_){return false}
+ };
 
   function sbc(){try{return window.sb||(typeof sb!=='undefined'?sb:null)}catch(_){return null}}
   function toastSafe(m,c){try{(window.toast||function(){})(m,c||'blue')}catch(_){}}
@@ -31545,8 +31547,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       toastSafe('Admin accounts must sign in with email and password.','red');
       return;
     }
-    setPendingRole(role);
-    try{
+ try{
+ if(typeof window.guidcyPrepareOAuthLogin==='function')await window.guidcyPrepareOAuthLogin();
+ setPendingRole(role);
+ try{sessionStorage.setItem(PENDING_LOGIN_KEY,String(Date.now()))}catch(_){}
       /* Same-origin callback: works on localhost and on every Vercel domain
          without a build-time constant. Add each origin to Supabase →
          Authentication → URL Configuration → Redirect URLs. */
@@ -31556,7 +31560,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       });
       if(res&&res.error)throw res.error;
     }catch(e){
-      try{localStorage.removeItem(PENDING_ROLE_KEY)}catch(_){}
+ try{localStorage.removeItem(PENDING_ROLE_KEY)}catch(_){}
+ clearPendingLogin();
       console.error('Google sign-in could not start:',e);
       toastSafe('Google sign-in could not be started. Please try again or use your email and password.','red');
     }
@@ -31616,8 +31621,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(role==='consultant')await seedConsultantRecord(c,user,name);
   }
 
-  var origLoadProfile=window.loadProfile;
-  window.loadProfile=async function(){
+ var origLoadProfile=window.loadProfile;
+ window.loadProfile=async function(){
+ var authEpoch=window.__guidcyAuthEpoch||0;
     try{
       var user=window.currentUser;
       var c=sbc();
@@ -31628,7 +31634,16 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         if(role)await seedGoogleProfile(c,user,role);
       }
     }catch(e){console.warn('Google profile seed skipped:',e);}
-    return origLoadProfile?origLoadProfile.apply(this,arguments):undefined;
+ var result=origLoadProfile?await origLoadProfile.apply(this,arguments):undefined;
+ // Finish an explicit OAuth login once, only after the account profile is ready.
+ if(authEpoch===(window.__guidcyAuthEpoch||0)&&!window.__guidcySignedOut&&
+    user&&window.currentUser&&user.id===window.currentUser.id&&window.currentProfile&&
+    window.currentProfile.id===user.id&&window.guidcyOAuthLoginPending()&&
+    /^\/(?:login|signup|get-started)\/?$/.test(location.pathname)&&typeof window.guidcyFinishLogin==='function'){
+ clearPendingLogin();
+ await window.guidcyFinishLogin();
+ }
+ return result;
   };
 
   /* ── cancelled / failed sign-in: clean the URL and say why ── */
@@ -31659,7 +31674,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
 
   function reportAuthError(){
-    if(!pendingAuthError)return;
+ if(!pendingAuthError)return;
+ clearPendingLogin();
     var err=pendingAuthError; pendingAuthError=null;
     try{if(typeof window.go==='function')window.go('login')}catch(_){}
     /* After the boot re-renders (the latest fires at ~400ms), or the toast
