@@ -2449,10 +2449,29 @@ body.guidcy-razorpay-opening #page-payment .green-btn{opacity:.88;transform:tran
     content-visibility:auto;
     contain-intrinsic-size:auto 260px;
   }
-  #gmob-drawer.open{
-    height:calc(100dvh - 62px)!important;
-    max-height:calc(100dvh - 62px)!important;
-  }
+ #gmob-drawer.open{
+ width:min(78vw,280px)!important;
+ max-width:78vw!important;
+ height:calc(100dvh - 62px)!important;
+ max-height:calc(100dvh - 62px)!important;
+ }
+ #gmob-drawer .gmob-head{padding:12px;min-height:68px;gap:8px}
+ #gmob-drawer .gmob-logo-wrap{min-width:0}
+ #gmob-drawer .gmob-brand{display:flex;flex-direction:column;min-width:0;gap:2px}
+ #gmob-drawer .gmob-logo-text{line-height:1.1;letter-spacing:0}
+ #gmob-drawer .gmob-tagline{font-size:12px;line-height:1.4;letter-spacing:0;color:#fff;overflow-wrap:anywhere}
+ #gmob-drawer .gmob-head .gmob-close-btn{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;border-radius:50%!important;justify-content:center!important;text-align:center!important}
+ #gmob-drawer .gmob-section-lbl{padding:10px 12px;letter-spacing:0}
+ #gmob-drawer .gmob-body .gmob-item{min-height:48px;padding:8px 12px!important;gap:10px;font-size:14px!important;border-radius:0!important}
+ #gmob-drawer .gmob-icon{width:30px;height:30px;border-radius:8px;font-size:16px}
+ #gmob-drawer .gmob-label{min-width:0;overflow-wrap:anywhere}
+ #gmob-drawer #gmob-auth-btns{padding:12px!important}
+ #gmob-drawer .gmob-footer{padding:12px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ #gmob-drawer .gmob-footer-lbl{margin-bottom:8px;letter-spacing:0}
+ #gmob-drawer .gmob-email-row{font-size:12px;gap:6px;margin-bottom:10px;overflow-wrap:anywhere}
+ #gmob-drawer .gmob-email-row svg{flex-shrink:0}
+ #gmob-drawer .gmob-socials{gap:8px}
+ #gmob-drawer .gmob-social{width:44px;height:44px;border-radius:8px}
   #gmob-drawer.open .gmob-body{
     flex:1 1 auto!important;
     min-height:0!important;

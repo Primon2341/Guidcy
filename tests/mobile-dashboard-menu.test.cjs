@@ -41,6 +41,7 @@ const server = http.createServer((req, res) => {
  });
  const page = await context.newPage();
  await page.goto(origin + '/about');
+ await require('./main-mobile-menu.cjs')(page, role);
  const button = page.locator('#nav-right #guidcy-dashboard-btn');
  await button.waitFor();
  await page.waitForTimeout(1600);
