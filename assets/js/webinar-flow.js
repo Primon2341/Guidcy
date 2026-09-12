@@ -1688,6 +1688,13 @@
   async function loadMyWebinars(force) {
     var key = accountId() + '|' + accountEmail();
     if (!force && myWebinars.loadedFor === key && Date.now() - myWebinars.loadedAt < MY_WEBINARS_CACHE_MS) return myWebinars.items;
+    // the router replays dashboard renders; one fetch serves all of them
+    if (myWebinars.inflight && myWebinars.inflightFor === key) return myWebinars.inflight;
+    myWebinars.inflightFor = key;
+    myWebinars.inflight = fetchMyWebinars(key).finally(function () { myWebinars.inflight = null; });
+    return myWebinars.inflight;
+  }
+  async function fetchMyWebinars(key) {
     var db = client();
     if (!db || !db.from || (!accountId() && !accountEmail())) return [];
     var registrations = [];
@@ -1843,6 +1850,14 @@
   function myWebinarsPanel() {
     return byId(myWebinars.panel === 'swCD' ? 'cdash-main' : 'udash-main');
   }
+  /* Is My Webinars the tab the user currently has selected in this panel? */
+  function myWebinarsSelected(panel) {
+    var page = panel.closest('.page');
+    var button = page && page.querySelector('.side-btn.on,.side-btn.active');
+    var urlTab = '';
+    try { urlTab = new URLSearchParams(location.search).get('tab') || ''; } catch (_) {}
+    return !!(page && page.classList.contains('on') && button && button.dataset.dashSection === 'my-webinars' && (!urlTab || urlTab === 'my-webinars'));
+  }
   function paintMyWebinars() {
     var panel = myWebinarsPanel();
     if (!panel) return;
@@ -1959,6 +1974,14 @@
   var homeTitles = { 'udash-main': 'upcoming sessions', 'cdash-main': 'overview' };
   async function injectUpcomingHome(panel) {
     var title = lower(panel.querySelector('.dash-title') && panel.querySelector('.dash-title').textContent);
+    /* Opening the dashboard starts its default tab's render before ours; when
+       that slow render lands after our cards it wipes them. Paint again from
+       cache while My Webinars is still the selected tab. */
+    if (title !== 'my webinars' && myWebinars.loadedAt && myWebinarsSelected(panel) && !panel.querySelector('.guidcy-dash-loading')) {
+      myWebinars.panel = panel.id === 'cdash-main' ? 'swCD' : 'swUD';
+      paintMyWebinars();
+      return;
+    }
     if (title !== homeTitles[panel.id] || panel.querySelector('#gmw-home') || panel.querySelector('.guidcy-dash-loading')) return;
     if (!accountId() && !accountEmail()) return;
     var placeholder = document.createElement('div');
