@@ -1,0 +1,81 @@
+/* Login-only presentation. Existing IDs and sign-in handlers are retained. */
+#page-login{background:#f3f8ff;color:#102033}
+#page-login .form-page{width:100%;max-width:460px!important;padding:20px 20px 28px!important}
+#page-login .form-card{padding:18px 20px!important;border:1px solid #e0edfc;border-radius:18px!important;background:#fff;box-shadow:0 10px 36px rgba(37,106,177,.08)}
+#page-login .login-icon{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#page-login .login-admin-entry{margin:-12px -12px 4px 0}
+#page-login #li-a{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 8px!important;font-size:12px!important;font-weight:500;color:#526b88;letter-spacing:0}
+#page-login #li-a .login-icon{width:16px;height:16px;color:#0874cd}
+#page-login #li-a .login-chevron{width:12px;height:12px}
+#page-login #li-a.on,#page-login #li-a:hover{color:#066dcc}
+#page-login .form-logo-wrap{margin:0 0 4px;gap:6px!important}
+#page-login .form-logo-wrap img{height:52px!important;width:auto;max-width:180px!important;object-fit:contain}
+#page-login .guidcy-form-logo-tagline{font-size:12px!important;line-height:1.4!important;letter-spacing:0!important}
+#page-login .login-brand-note{margin:0 0 12px;text-align:center;font-size:11px;line-height:1.5;color:#6c83a0;word-spacing:8px;letter-spacing:0}
+#page-login .form-title{font-size:28px;font-weight:600;line-height:1.15;letter-spacing:0;margin:0 0 6px}
+#page-login .form-sub{font-size:13px;line-height:1.5;color:#607b9d;margin:0 0 14px}
+#page-login .type-tabs{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px!important;padding:3px;margin:0 0 14px;border:1px solid #d8e8fb;border-radius:16px;background:#f7faff;overflow:visible!important}
+#page-login .type-tabs .type-tab{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:62px;padding:7px!important;border:1px solid transparent;border-radius:13px;font-size:16px!important;text-align:left;color:#405772;box-shadow:none}
+#page-login .type-tabs .type-tab.on{background:#e8f2ff;color:#0672d4;border-color:#5da0ff;box-shadow:0 0 0 2px rgba(98,162,255,.12)}
+#page-login .type-tabs .type-tab:hover{background:#edf5ff}
+#page-login .type-tabs .login-icon{width:22px;height:22px}
+#page-login .login-role-copy{display:flex;flex-direction:column;min-width:0;gap:3px}
+#page-login .login-role-copy strong{font-weight:600;font-size:14px;line-height:1.3}
+#page-login .login-role-copy small{font-size:10px;line-height:1.4;font-weight:400;color:#607997;overflow-wrap:anywhere}
+#page-login .goog-btn{min-height:44px;border:1px solid #cfe1f5;border-radius:999px;font-size:14px;font-weight:500;gap:8px;padding:9px 14px;margin:0;box-shadow:0 3px 10px rgba(42,81,127,.06)}
+#page-login .goog-btn svg{width:20px;height:20px;flex-shrink:0}
+#page-login .or-line{margin:12px 0;color:#69819c;font-size:13px}
+#page-login .or-line::before,#page-login .or-line::after{background:#d8e4f1}
+#page-login .field{margin:0 0 12px}
+#page-login .field label{font-size:11px;letter-spacing:0;line-height:1.4;color:#536c88;margin-bottom:6px}
+#page-login .login-input{position:relative}
+#page-login .login-input>.login-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#607791;z-index:1;pointer-events:none}
+#page-login .field input{width:100%;height:44px;min-width:0;padding:9px 14px 9px 44px!important;border:1px solid #cbdff4;border-radius:8px;font-size:15px;background:#fff;color:#263d58}
+#page-login .field input::placeholder{color:#8a94a2;opacity:1}
+#page-login .field input:focus{border-color:#398be1;box-shadow:0 0 0 3px rgba(50,131,221,.1)}
+#page-login .guidcy-pass-wrap{display:block;position:relative;width:100%}
+#page-login .field #li-pass{padding-right:88px!important}
+#page-login .guidcy-pass-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;right:6px!important;min-width:72px;min-height:44px;padding:0 6px!important;font-size:13px;color:#0672d4;background:transparent;border:0}
+#page-login .guidcy-pass-toggle::before{content:'';width:18px;height:18px;flex:0 0 auto;background:#607791;mask:url('/assets/icons/eye.svg') center/contain no-repeat;-webkit-mask:url('/assets/icons/eye.svg') center/contain no-repeat}
+#page-login form>div[style]{margin-top:-6px!important;margin-bottom:10px!important}
+#page-login form>div[style] button{font-size:13px!important;min-height:32px}
+#page-login .primary-btn{display:flex;align-items:center;justify-content:center;gap:12px;min-height:44px;padding:10px 16px;font-size:14px;border-radius:999px;background:#1b79cb;box-shadow:0 5px 14px rgba(24,112,196,.1)}
+#page-login .primary-btn:hover{background:#106ab9}
+#page-login .primary-btn:not(:disabled)::after{content:'';width:20px;height:20px;background:currentColor;mask:url('/assets/icons/arrow-right.svg') center/contain no-repeat;-webkit-mask:url('/assets/icons/arrow-right.svg') center/contain no-repeat}
+#page-login .switch-txt{font-size:13px;line-height:1.6;margin-top:12px;color:#68809c}
+#page-login .switch-txt button{font-size:13px;color:#006dcc;line-height:1.6}
+#page-login .login-benefits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;gap:0}
+#page-login .login-benefits>div{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:0 6px;min-width:0;font-size:10px;line-height:1.45;color:#566f8f}
+#page-login .login-benefits>div+div{border-left:1px solid #e3edf8}
+#page-login .login-benefit-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 auto;border-radius:50%;color:#0874cc;background:#e6f1ff}
+#page-login .login-benefits>div:nth-child(2) .login-benefit-icon{background:#e6faf0;color:#08a766}
+#page-login .login-benefits>div:nth-child(3) .login-benefit-icon{background:#f5edff;color:#a05ae5}
+#page-login button:focus-visible{outline:2px solid #287fce;outline-offset:3px}
+@media(max-width:560px){
+ #page-login .form-page{padding:14px 12px 22px!important}
+ #page-login .form-card{padding:14px 16px 16px!important}
+ #page-login .login-admin-entry{margin:-8px -6px 0 0}
+ #page-login .form-logo-wrap img{height:48px!important}
+ #page-login .guidcy-form-logo-tagline{font-size:12px!important}
+ #page-login .login-brand-note{font-size:11px;margin-bottom:12px;word-spacing:5px}
+ #page-login .form-title{font-size:28px}
+ #page-login .form-sub{font-size:13px;margin-bottom:14px}
+ #page-login .type-tabs{margin-bottom:14px}
+ #page-login .type-tabs .type-tab{gap:8px;padding:7px!important;min-height:62px}
+ #page-login .type-tabs .login-icon{width:23px;height:23px}
+ #page-login .login-role-copy strong{font-size:14px}
+ #page-login .login-role-copy small{font-size:10px}
+ #page-login .goog-btn{font-size:14px}
+ #page-login .or-line{margin:12px 0}
+ #page-login .field input{font-size:16px}
+ #page-login .login-benefits{margin-top:16px}
+ #page-login .login-benefits>div{flex-direction:column;text-align:center;gap:6px;padding:0 6px;font-size:10px}
+ #page-login .login-benefit-icon{width:30px;height:30px}
+ #page-login .login-benefit-icon .login-icon{width:20px;height:20px}
+}
+@media(max-width:360px){
+ #page-login .type-tabs .type-tab{gap:5px;padding:7px 5px!important}
+ #page-login .type-tabs .login-icon{width:19px;height:19px}
+ #page-login .login-role-copy strong{font-size:13px}
+ #page-login .form-title{font-size:26px}
+}

@@ -28523,8 +28523,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(!root||!root.classList.contains('on'))return '';
     var title=clean(root.querySelector('.dash-title')&&root.querySelector('.dash-title').textContent).toLowerCase();
     var titles={
-      swUD:{'my purchased notes':'marketplace','purchased notes':'marketplace','upcoming sessions':'upcoming','goal tracker':'goals','session history':'history','payment history':'payments','notifications':'notifications','my reviews':'reviews','profile & settings':'settings','account settings':'settings'},
-      swCD:{'earnings':'earnings','profile & settings':'settings','account settings':'settings','my marketplace':'marketplace','overview':'overview','booking requests':'requests','my schedule':'schedule'},
+      swUD:{'my webinars':'my-webinars','my purchased notes':'marketplace','purchased notes':'marketplace','upcoming sessions':'upcoming','goal tracker':'goals','session history':'history','payment history':'payments','notifications':'notifications','my reviews':'reviews','profile & settings':'settings','account settings':'settings'},
+      swCD:{'my webinars':'my-webinars','earnings':'earnings','profile & settings':'settings','account settings':'settings','my marketplace':'marketplace','overview':'overview','booking requests':'requests','my schedule':'schedule'},
       swAD:{'disputes':'disputes','dispute management':'disputes','marketplace':'marketplace','promo codes':'promo-codes','webinar registrations':'webinar-registrations','analytics':'overview'}
     };
     return (titles[name]&&titles[name][title])||'';
@@ -28561,8 +28561,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   var dashboardRequestVersion={swUD:0,swCD:0,swAD:0};
   var dashboardReplayScheduled={swUD:false,swCD:false,swAD:false};
   var dashboardTitles={
-    swUD:{upcoming:'Upcoming sessions',goals:'User Goal Tracker',history:'Session history',saved:'Saved consultants',payments:'Payment history',notifications:'Notifications',reviews:'My reviews',settings:'Account settings',marketplace:'My purchased notes'},
-    swCD:{overview:'Overview',requests:'Booking Requests','my-bookings':'My bookings',schedule:'Availability & Pricing',earnings:'Earnings',reviews:'Client reviews',webinars:'Webinar history',notifications:'Notifications',settings:'Account settings',marketplace:'My Marketplace','marketplace-purchases':'Purchased notes','webinar-history':'Webinar history','webinar-preferences':'Webinar preferences'},
+    swUD:{upcoming:'Upcoming sessions',goals:'User Goal Tracker',history:'Session history',saved:'Saved consultants',payments:'Payment history',notifications:'Notifications',reviews:'My reviews',settings:'Account settings',marketplace:'My purchased notes','my-webinars':'My Webinars'},
+    swCD:{overview:'Overview','my-webinars':'My Webinars',requests:'Booking Requests','my-bookings':'My bookings',schedule:'Availability & Pricing',earnings:'Earnings',reviews:'Client reviews',webinars:'Webinar history',notifications:'Notifications',settings:'Account settings',marketplace:'My Marketplace','marketplace-purchases':'Purchased notes','webinar-history':'Webinar history','webinar-preferences':'Webinar preferences'},
     swAD:{overview:'Analytics',consultants:'Manage Consultants',users:'Users',bookings:'All bookings & payments',payments:'Payment settings',disputes:'Disputes','marketing-strip':'Marketing strip',marketplace:'Marketplace','marketplace-payouts':'Marketplace Payouts','webinar-payouts':'Webinar Payouts','consultant-earnings':'Consultant Earnings',payouts:'Consultant Payouts','promo-codes':'Promo codes','webinar-registrations':'Webinar Registrations',featured:'Featured Consultants',referrals:'Referral Program'}
   };
   function showDashboardLoading(name,tab){
@@ -28576,6 +28576,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
        locked public controller intentionally cannot be overwritten, so route
        them explicitly once their renderers are available. */
     if(name==='swUD'&&tab==='saved'&&typeof window.guidcyRenderSavedConsultants==='function')return window.guidcyRenderSavedConsultants(button);
+    if((name==='swUD'||name==='swCD')&&tab==='my-webinars'&&typeof window.guidcyRenderMyWebinars==='function')return window.guidcyRenderMyWebinars(name,button);
     if(name==='swAD'&&tab==='disputes'&&typeof window.guidcyRenderDisputeAdminList==='function')return window.guidcyRenderDisputeAdminList(button);
     if(name==='swAD'&&tab==='promo-codes'&&typeof window.guidcyRenderPromoAdmin==='function')return window.guidcyRenderPromoAdmin(button);
     if(name==='swAD'&&tab==='webinar-registrations'&&typeof window.guidcyRenderWebinarRegistrationsAdmin==='function')return window.guidcyRenderWebinarRegistrationsAdmin();

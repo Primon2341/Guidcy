@@ -42,7 +42,7 @@ const authFixture = fixture + `
  };
 })();`;
 const root = path.resolve(__dirname, '..', 'public');
-const types = { '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg' };
+const types = { '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
  let file = path.join(root, new URL(req.url, 'http://localhost').pathname);
  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html');
@@ -90,6 +90,7 @@ const server = http.createServer((req, res) => {
  throw error;
  }
  };
+ let checkedAdminEntry = false;
  async function enterLogin() {
  if (!(await page.locator('#page-login').evaluate(el => el.classList.contains('on')))) {
  if (width < 900) {
@@ -98,6 +99,10 @@ const server = http.createServer((req, res) => {
  } else {
  await page.locator('#nav-right').getByRole('button', { name: /^(Log in|Sign in)$/i }).click();
  }
+ }
+ if (!checkedAdminEntry) {
+ await require('./login-admin-entry.cjs')(page, width);
+ checkedAdminEntry = true;
  }
  await page.locator('#li-' + ({ user: 'u', consultant: 'c', admin: 'a' }[role])).click().catch(async error => {
  console.log(JSON.stringify(await page.evaluate(() => ({ path: location.href, active: document.querySelector('.page.on')?.id, log: window.__routeTestLog })), null, 2));

@@ -27,6 +27,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/></noscript>
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/patches.css">
+<link rel="stylesheet" href="/assets/css/login.css">
 
 
 <!-- PDF.js / Mammoth (resume + notes parsing) are lazy-loaded on first use via guidcyLoadScript() -->
@@ -331,26 +332,34 @@
 <div id="page-login" class="page">
   <div class="form-page">
     <div class="form-card">
+      <div class="login-admin-entry">
+        <button type="button" class="type-tab" id="li-a" onclick="swLoginType('admin')" aria-label="Admin sign in"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#lock-keyhole"/></svg><span>Admin Login</span><svg class="login-icon login-chevron" aria-hidden="true"><use href="/assets/icons/login.svg#chevron-right"/></svg></button>
+      </div>
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
         <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
         <div class="guidcy-form-logo-tagline" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;line-height:1;text-align:center;background:linear-gradient(90deg,#0B4A9B,#2E8B1F);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Guidance Made Simple</div>
       </div>
+      <p class="login-brand-note">Learn &middot; Connect &middot; Grow</p>
       <div class="form-title">Welcome back</div>
       <div class="form-sub">Sign in to continue your journey</div>
       <div class="type-tabs">
-        <button class="type-tab on" id="li-u" onclick="swLoginType('user')">User</button>
-        <button class="type-tab" id="li-c" onclick="swLoginType('consultant')">Consultant</button>
-        <button class="type-tab" id="li-a" onclick="swLoginType('admin')">Admin</button>
+        <button type="button" class="type-tab on" id="li-u" onclick="swLoginType('user')"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#user-round"/></svg><span class="login-role-copy"><strong>User</strong><small>Learn, explore and connect</small></span></button>
+        <button type="button" class="type-tab" id="li-c" onclick="swLoginType('consultant')"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#users-round"/></svg><span class="login-role-copy"><strong>Consultant</strong><small>Share your expertise</small></span></button>
       </div>
       <button type="button" class="goog-btn" onclick="gSignIn()"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</button>
       <div class="or-line">or</div>
       <form autocomplete="on" onsubmit="event.preventDefault();return false;">
-        <div class="field"><label>Email</label><input type="email" id="li-email" autocomplete="username" placeholder="you@example.com"/></div>
-        <div class="field"><label>Password</label><input type="password" placeholder="••••••••" id="li-pass" autocomplete="current-password"/></div>
+        <div class="field"><label for="li-email">Email</label><div class="login-input"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#mail"/></svg><input type="email" id="li-email" autocomplete="username" placeholder="you@example.com"/></div></div>
+        <div class="field"><label for="li-pass">Password</label><div class="login-input"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#lock-keyhole"/></svg><input type="password" placeholder="••••••••" id="li-pass" autocomplete="current-password"/></div></div>
         <div style="text-align:right;margin-top:-8px;margin-bottom:14px"><button type="button" style="background:none;border:none;font-size:12px;color:var(--blue);cursor:pointer;font-weight:500" onclick="openForgotPasswordModal()">Forgot password?</button></div>
         <button type="submit" class="primary-btn" onclick="doLogin()">Sign in</button>
       </form>
-      <div class="switch-txt">No account? <button type="button" onclick="guidcyGoSignupFromLogin()">Create one free</button></div>
+      <div class="switch-txt">New to Guidcy? <button type="button" onclick="guidcyGoSignupFromLogin()">Create a free account</button></div>
+      <div class="login-benefits">
+        <div><span class="login-benefit-icon"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#users-round"/></svg></span><span>Find Experts</span></div>
+        <div><span class="login-benefit-icon"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#briefcase-business"/></svg></span><span>Access opportunities</span></div>
+        <div><span class="login-benefit-icon"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#chart-no-axes-column-increasing"/></svg></span><span>Grow Your Career</span></div>
+      </div>
     </div>
   </div>
 </div>
@@ -555,6 +564,9 @@
         <button class="side-btn" data-dash-section="history" onclick="swUD('history',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Session history
         </button>
+        <button class="side-btn" data-dash-section="my-webinars" onclick="swUD('my-webinars',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/><path d="M8 21h8"/></svg>My Webinars
+        </button>
         <button class="side-btn" data-dash-section="saved" onclick="swUD('saved',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved consultants
         </button>
@@ -605,6 +617,9 @@
         </button>
         <button class="side-btn" data-dash-section="my-bookings" onclick="swCD('my-bookings',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>My bookings
+        </button>
+        <button class="side-btn" data-dash-section="my-webinars" onclick="swCD('my-webinars',this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9l5 2.5-5 2.5z"/><path d="M8 21h8"/></svg>My Webinars
         </button>
         <button class="side-btn" data-dash-section="schedule" onclick="swCD('schedule',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Availability

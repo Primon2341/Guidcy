@@ -174,7 +174,7 @@ test('the already-registered notice leaves the registration form usable', () => 
   // dismissing puts the cursor back in the email field
   assert.match(webinarFlow, /close\.onclick = function \(\) \{ clearAlreadyRegisteredNotice\(\); focusRegistrationEmail\(\); \}/);
   // and a stale notice never greets the next attempt
-  assert.match(webinarFlow, /clearAlreadyRegisteredNotice\(\);\n      return originalOpenRegistration/);
+  assert.match(webinarFlow, /clearAlreadyRegisteredNotice\(\);\n      signedInUser\(\)\.then/);
   const submitAt = webinarFlow.indexOf('async function submitWebinarRegistration()');
   assert.match(webinarFlow.slice(submitAt, submitAt + 220), /clearAlreadyRegisteredNotice\(\)/);
 });

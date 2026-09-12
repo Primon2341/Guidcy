@@ -8,10 +8,10 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 
 test('the login page hands off to the shared handler, not a hardcoded role', () => {
-  assert.match(html, /No account\? <button type="button" onclick="guidcyGoSignupFromLogin\(\)">Create one free<\/button>/);
+  assert.match(html, /New to Guidcy\? <button type="button" onclick="guidcyGoSignupFromLogin\(\)">Create a free account<\/button>/);
   // The nav "Get started" CTA at the top of index.html still hardcodes
   // consultant on purpose; only the login switch had to follow the tab.
-  const switchLine = html.split('\n').find((l) => l.includes('Create one free'));
+  const switchLine = html.split('\n').find((l) => l.includes('onclick="guidcyGoSignupFromLogin()"'));
   assert.ok(!/swType\(/.test(switchLine), 'the login switch must not pick a role itself');
   assert.ok(!/setTimeout/.test(switchLine), 'the 50ms swType race must be gone');
 });

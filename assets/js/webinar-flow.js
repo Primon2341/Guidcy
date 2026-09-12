@@ -232,6 +232,7 @@
     }
     var patch = {
       webinar_id: webinar.id,
+      user_id: accountId() || null,
       webinar_title: webinarTitle(webinar),
       name: details.name,
       email: lower(details.email),
@@ -481,7 +482,7 @@
       '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">' +
       (alreadyRegistered
         ? 'This webinar is already paid for with ' + escapeHtml(registration.email || 'this email') + ', so no new payment was taken and Razorpay was not opened.'
-        : 'Your webinar registration is confirmed. Choose an action below when you are ready.') + '</div>' +
+        : 'You’re registered! 🎉 Your webinar registration is confirmed and saved under My Webinars in your dashboard.') + '</div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">' +
       '<div class="pay-sum-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:600;text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
       '<div class="pay-sum-row"><span style="color:var(--muted)">Date</span><span>' + escapeHtml(formatDate(webinar.date || webinar.webinar_date)) + '</span></div>' +
@@ -489,7 +490,8 @@
       '<div class="pay-sum-row"><span style="color:var(--muted)">Registration ID</span><span style="word-break:break-all;text-align:right">' + escapeHtml(registration.id) + '</span></div>' +
       '</div>' +
       '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
-      '<button class="btn btn-blue" type="button" onclick="guidcyWebinarPaymentOutcomeAction(\'webinars\')">View webinars</button>' +
+      '<button class="btn btn-blue" type="button" onclick="guidcyWebinarPaymentOutcomeAction(\'my-webinars\')">View in My Webinars</button>' +
+      '<button class="btn" type="button" onclick="guidcyWebinarPaymentOutcomeAction(\'webinars\')">View webinars</button>' +
       '<button class="btn" type="button" onclick="guidcyWebinarPaymentOutcomeAction(\'stay\')">Stay on Payment page</button>' +
       '</div></div>';
     document.body.appendChild(popup);
@@ -498,6 +500,13 @@
   window.guidcyWebinarPaymentOutcomeAction = function (action) {
     var popup = byId('booking-confirm-popup');
     if (popup) popup.remove();
+    if (action === 'my-webinars') {
+      var state = paymentState();
+      clearPaymentState();
+      window.__guidcyPaymentFlowLock = false;
+      openMyWebinarsTab(state && state.webinar && state.webinar.id);
+      return;
+    }
     if (action === 'webinars') {
       clearPaymentState();
       window.__guidcyPaymentFlowLock = false;
@@ -591,6 +600,7 @@
       state.completed = true;
       state.blocking = true;
       savePaymentState(state);
+      invalidateMyWebinars();
       window.lastWebinarRegistration = state.registration;
       ensurePaymentPage();
       setPaymentStatus('success',
@@ -705,6 +715,11 @@
       if (webinarHasEnded(webinar)) throw new Error('This webinar has already ended.');
       paid = webinar.is_paid === true || lower(webinar.price_type) === 'paid' || Number(webinar.price_amount || 0) > 0;
       var registration = await prepareRegistration(webinar, details, paid);
+      // a free row is inserted already confirmed, so only a pre-existing seat counts here
+      if (!paid && registration.__alreadyConfirmed) {
+        showAlreadyRegisteredBox(webinar, registration.email || details.email);
+        return;
+      }
       if (paid) {
         /* Already paid for with this email. Sending them to the payment page and
            then popping "Payment successful" read as a charge that never happened -
@@ -729,12 +744,8 @@
       registration = freeResult.registration || registration;
       if (!isConfirmedRegistration(registration)) throw new Error('Free registration could not be confirmed.');
       await sendWebinarEmails(registration, webinar);
-      var form = byId('wbn-reg-form');
-      var success = byId('wbn-reg-success');
-      var message = byId('wbn-reg-success-msg');
-      if (form) form.style.display = 'none';
-      if (success) success.classList.add('on');
-      if (message) message.textContent = 'You registered for "' + webinarTitle(webinar) + '". The meeting link will be sent before the session.';
+      invalidateMyWebinars();
+      showSuccessBox('You’re registered! 🎉', 'You registered for "' + webinarTitle(webinar) + '". The meeting link will be sent before the session.', 'Close', webinar.id);
       toast('Registration confirmed.', 'green');
       try {
         window.wbnLoad && await window.wbnLoad();
@@ -752,15 +763,233 @@
     }
   }
 
+  /* ── Account gate ────────────────────────────────────────────────────
+     Every webinar CTA (cards, dashboards, search, the agent) ends up in
+     wbnOpenReg, so the "must have a Guidcy account" rule lives here and
+     nowhere else. A signed-out visitor gets the sign-up prompt instead of the
+     form; the webinar they wanted is remembered in sessionStorage (same tab
+     as the login round-trip, 30-minute ceiling) and reopened after the
+     existing login / signup / OAuth completion hooks fire. */
+  var INTENT_KEY = 'guidcy_webinar_intent_v1';
+  var INTENT_MAX_AGE_MS = 30 * 60 * 1000;
+  var resumingWebinarIntent = false;
+
+  function accountUser() {
+    var user = window.currentUser;
+    return user && user.id && !window.__guidcySignedOut ? user : null;
+  }
+
+  /* currentUser is filled asynchronously on boot, so an early click must ask
+     Supabase before treating a signed-in visitor as signed-out. */
+  async function signedInUser() {
+    if (accountUser()) return accountUser();
+    if (window.loggedIn && currentProfile().email) return { email: currentProfile().email, user_metadata: {} };
+    try {
+      var c = client();
+      var result = c && c.auth && c.auth.getSession ? await c.auth.getSession() : null;
+      var user = result && result.data && result.data.session && result.data.session.user;
+      if (user && !window.__guidcySignedOut) {
+        window.currentUser = user;
+        try { currentUser = user; } catch (_) {}
+        try { typeof window.loadProfile === 'function' && await window.loadProfile(); } catch (_) {}
+        return user;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function saveIntent(id) {
+    try { sessionStorage.setItem(INTENT_KEY, JSON.stringify({ webinarId: clean(id), at: Date.now() })); } catch (_) {}
+  }
+  function readIntent() {
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(INTENT_KEY) || 'null');
+      if (saved && saved.webinarId && Date.now() - Number(saved.at || 0) < INTENT_MAX_AGE_MS) return clean(saved.webinarId);
+    } catch (_) {}
+    clearIntent();
+    return '';
+  }
+  function clearIntent() {
+    try { sessionStorage.removeItem(INTENT_KEY); } catch (_) {}
+  }
+
+  function showAccountGate(webinar) {
+    var old = byId('guidcy-webinar-account-gate');
+    if (old) old.remove();
+    var popup = document.createElement('div');
+    popup.id = 'guidcy-webinar-account-gate';
+    popup.className = 'modal-overlay on';
+    popup.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="guidcy-webinar-gate-title" style="max-width:460px;text-align:center">' +
+      '<button class="modal-close" type="button" aria-label="Close" onclick="guidcyWebinarAccountAction(\'close\')">×</button>' +
+      '<div style="width:64px;height:64px;border-radius:50%;background:var(--blue-l);border:2px solid var(--blue-m);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px">🎟️</div>' +
+      '<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--blue);margin-bottom:6px">Reserve your seat with Guidcy</div>' +
+      '<div id="guidcy-webinar-gate-title" style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:10px">Create your free Guidcy account to reserve your seat</div>' +
+      (webinar ? '<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:10px">' + escapeHtml(webinarTitle(webinar)) + '</div>' : '') +
+      '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:20px">Your Guidcy account lets you manage your webinar registrations, receive event updates and meeting details, and access your registered webinars from one place.</div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+      '<button class="btn btn-blue" type="button" style="width:100%;padding:12px" onclick="guidcyWebinarAccountAction(\'signup\')">Create Account</button>' +
+      '<button class="btn" type="button" style="width:100%" onclick="guidcyWebinarAccountAction(\'signin\')">Already have an account? Sign In</button>' +
+      '</div></div>';
+    document.body.appendChild(popup);
+    setTimeout(function () { try { popup.querySelector('.btn-blue').focus(); } catch (_) {} }, 50);
+  }
+
+  window.guidcyWebinarAccountAction = function (action) {
+    var popup = byId('guidcy-webinar-account-gate');
+    if (popup) popup.remove();
+    if (action === 'close') { clearIntent(); return; }
+    var page = action === 'signin' ? 'login' : 'signup';
+    if (typeof window.go === 'function') window.go(page); else location.href = '/' + page;
+    // webinar attendees are users; the signup page opens on the Consultant tab by default
+    if (page === 'signup') setTimeout(function () { try { window.swType && window.swType('user'); } catch (_) {} }, 50);
+  };
+
+  function setValue(id, value) {
+    var input = byId(id);
+    if (input && !clean(input.value) && value) input.value = value;
+  }
+  /* Registration identity is the account email - that is what "already
+     registered" and the DB uniqueness index are keyed on - so it cannot be
+     edited. Everything else is a convenience prefill. */
+  function prefillRegistrationForm(user) {
+    var profile = currentProfile();
+    var meta = user.user_metadata || {};
+    setValue('wbn-reg-name', profile.full_name || meta.full_name || meta.name || '');
+    setValue('wbn-reg-phone', profile.phone || meta.phone || '');
+    var email = byId('wbn-reg-email');
+    var accountEmail = lower(user.email || profile.email);
+    if (email && accountEmail) {
+      email.value = accountEmail;
+      email.readOnly = true;
+      email.style.background = 'var(--surface2)';
+    }
+    return accountEmail;
+  }
+
+  /* The success panel is shared markup; its texts are written before every
+     use so an "already registered" message never survives into a fresh
+     registration and vice versa. */
+  function setSuccessBox(title, message, buttonLabel, myWebinarsId) {
+    var box = byId('wbn-reg-success');
+    if (!box) return;
+    var heading = box.querySelector('.wbn-success-title');
+    var text = byId('wbn-reg-success-msg');
+    var button = box.querySelector('button');
+    if (heading) heading.textContent = title;
+    if (text) text.textContent = message;
+    if (button) button.textContent = buttonLabel;
+    // a fresh registration gets a direct way back to it: Dashboard → My Webinars
+    var view = byId('gmw-success-view');
+    if (view) view.remove();
+    if (myWebinarsId && button) {
+      view = document.createElement('button');
+      view.id = 'gmw-success-view';
+      view.className = 'btn btn-blue';
+      view.type = 'button';
+      view.style.cssText = 'margin:14px 8px 0 0';
+      view.textContent = 'View in My Webinars';
+      view.onclick = function () { openMyWebinarsTab(myWebinarsId); };
+      button.parentNode.insertBefore(view, button);
+    }
+  }
+  function showSuccessBox(title, message, buttonLabel, myWebinarsId) {
+    setSuccessBox(title, message, buttonLabel, myWebinarsId);
+    var form = byId('wbn-reg-form');
+    var box = byId('wbn-reg-success');
+    if (form) form.style.display = 'none';
+    if (box) box.classList.add('on');
+  }
+
+  function showAlreadyRegisteredBox(webinar, email) {
+    showSuccessBox('✓ You’re already registered',
+      email + ' is registered for "' + webinarTitle(webinar) + '". Your meeting link is emailed before the session.',
+      'View webinar details');
+  }
+
+  /* Signed-in user already holds a confirmed seat: show that instead of the
+     form so a refresh / back / second click can never register them again. */
+  async function showExistingRegistration(id, email) {
+    var existing = null;
+    try { existing = await findActiveRegistration(id, email); } catch (_) { return false; }
+    if (!existing || !isConfirmedRegistration(existing) || clean(window.__guidcyCurrentWebinarId) !== clean(id)) return false;
+    var webinar = null;
+    try { webinar = await webinarById(id); } catch (_) {}
+    showAlreadyRegisteredBox(webinar || { title: existing.webinar_title }, email);
+    return true;
+  }
+
   var originalOpenRegistration = window.wbnOpenReg;
   if (typeof originalOpenRegistration === 'function') {
     window.wbnOpenReg = function (id) {
+      var self = this, args = arguments;
       window.__guidcyCurrentWebinarId = id;
       // a notice left over from a previous attempt must not greet the next one
       clearAlreadyRegisteredNotice();
-      return originalOpenRegistration.apply(this, arguments);
+      signedInUser().then(async function (user) {
+        if (!user) {
+          resumingWebinarIntent = false;
+          saveIntent(id);
+          var webinar = null;
+          try { webinar = await webinarById(id); } catch (_) {}
+          showAccountGate(webinar);
+          return;
+        }
+        originalOpenRegistration.apply(self, args);
+        var email = prefillRegistrationForm(user);
+        var modal = byId('wbn-reg-modal');
+        /* the original re-enters wbnOpenReg once the list has loaded, so the
+           resume flag is only spent once the modal is actually on screen */
+        if (!modal || !modal.classList.contains('on') || !email) return;
+        var resume = resumingWebinarIntent;
+        resumingWebinarIntent = false;
+        setSuccessBox('You’re registered!', 'Check your email for the meeting link.', 'Close');
+        if (await showExistingRegistration(id, email)) return;
+        // came back from sign-up / sign-in: finish without a second click when the form is complete
+        var details = registrationFormDetails();
+        if (resume && details.name && details.email && details.phone) window.wbnSubmitReg();
+      });
     };
   }
+
+  /* After sign-up / sign-in, go straight back to the remembered webinar and
+     reopen its registration - never the dashboard or home page. */
+  async function resumeWebinarIntent() {
+    var id = readIntent();
+    if (!id || !(await signedInUser())) return false;
+    clearIntent();
+    if (typeof window.go === 'function') window.go('webinar'); else location.href = '/webinars';
+    setTimeout(function () {
+      resumingWebinarIntent = true;
+      try { window.wbnOpenReg(id); } catch (_) { resumingWebinarIntent = false; }
+      setTimeout(function () { resumingWebinarIntent = false; }, 10000);
+    }, 700);
+    return true;
+  }
+  window.guidcyResumeWebinarIntent = resumeWebinarIntent;
+
+  // password + Google sign-in both finish through guidcyFinishLogin
+  var originalFinishLogin = window.guidcyFinishLogin;
+  window.guidcyFinishLogin = async function () {
+    if (readIntent() && await resumeWebinarIntent()) return true;
+    return typeof originalFinishLogin === 'function' ? originalFinishLogin.apply(this, arguments) : true;
+  };
+  // sign-up routes to the dashboard itself ~700ms after the account exists
+  var originalSignup = window.doSignup;
+  if (typeof originalSignup === 'function') {
+    window.doSignup = async function () {
+      var out = await originalSignup.apply(this, arguments);
+      if (readIntent()) setTimeout(resumeWebinarIntent, 900);
+      return out;
+    };
+    // the app re-wraps doSignup unless these markers are present
+    Object.keys(originalSignup).forEach(function (key) { window.doSignup[key] = originalSignup[key]; });
+  }
+  // auth completed some other way (e.g. OAuth reload): still honour the intent once
+  window.addEventListener('load', function () {
+    var oauthPending = false;
+    try { oauthPending = !!(window.guidcyOAuthLoginPending && window.guidcyOAuthLoginPending()); } catch (_) {}
+    if (readIntent() && !oauthPending) setTimeout(resumeWebinarIntent, 1500);
+  });
   window.wbnSubmitReg = submitWebinarRegistration;
   window.wbnSubmitReg.__guidcyPaymentPageFlow = true;
   /* app.js wraps wbnSubmitReg to fire the registration emails the moment the submit
@@ -1430,6 +1659,328 @@
     var now = new Date();
     dateInput.min = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
+
+  /* ── My Webinars ─────────────────────────────────────────────────────
+     The attendee view: every webinar this account registered for, in both
+     the user and consultant dashboards. Consultants' own published webinars
+     stay in "Webinar history"; this list is only what they registered to
+     attend. Registrations are matched by account id first, email second
+     (rows older than the user_id column). Supabase is the only source:
+     nothing is cached beyond one minute in memory. */
+  var MY_WEBINARS_CACHE_MS = 60 * 1000;
+  var JOIN_WINDOW_MS = 60 * 60 * 1000;
+  var myWebinars = { items: [], loadedAt: 0, loadedFor: '', filter: 'upcoming', pendingDetail: '', panel: '' };
+
+  function accountId() { return clean(window.currentUser && window.currentUser.id); }
+  function accountEmail() { return lower((window.currentUser && window.currentUser.email) || currentProfile().email); }
+  function invalidateMyWebinars() { myWebinars.loadedAt = 0; }
+
+  async function rowsIn(table, column, values, select) {
+    var db = client();
+    values = (values || []).filter(Boolean);
+    if (!db || !db.from || !values.length) return [];
+    try {
+      var response = await db.from(table).select(select || '*').in(column, values);
+      return (response && response.data) || [];
+    } catch (_) { return []; }
+  }
+
+  async function loadMyWebinars(force) {
+    var key = accountId() + '|' + accountEmail();
+    if (!force && myWebinars.loadedFor === key && Date.now() - myWebinars.loadedAt < MY_WEBINARS_CACHE_MS) return myWebinars.items;
+    var db = client();
+    if (!db || !db.from || (!accountId() && !accountEmail())) return [];
+    var registrations = [];
+    if (accountId()) registrations = registrations.concat((await db.from('webinar_registrations').select('*').eq('user_id', accountId())).data || []);
+    if (accountEmail()) registrations = registrations.concat((await db.from('webinar_registrations').select('*').ilike('email', accountEmail())).data || []);
+    /* one card per webinar: the confirmed row wins, then the newest */
+    var byWebinar = {};
+    dedupeRegistrations(registrations).forEach(function (row) {
+      if (!isConfirmedRegistration(row) && paymentStatus(row) !== 'refunded') return;
+      var id = registrationWebinarId(row);
+      if (!id) return;
+      var current = byWebinar[id];
+      if (!current || (isConfirmedRegistration(row) && !isConfirmedRegistration(current)) ||
+          new Date(row.registered_at || 0) > new Date(current.registered_at || 0)) byWebinar[id] = row;
+    });
+    var ids = Object.keys(byWebinar);
+    var webinars = await rowsIn('webinars', 'id', ids);
+    var meetings = await rowsIn('webinar_meetings', 'webinar_id', ids, 'webinar_id,meet_link');
+    var hostIds = webinars.map(function (w) { return clean(w.created_by); });
+    var hostEmails = webinars.map(function (w) { return lower(w.publisher_email); });
+    var profiles = (await rowsIn('profiles', 'id', hostIds, 'id,email,avatar_url,full_name'))
+      .concat(await rowsIn('profiles', 'email', hostEmails, 'id,email,avatar_url,full_name'));
+    var consultants = await rowsIn('consultants', 'profile_id', profiles.map(function (p) { return p.id; }), 'id,profile_id');
+    var items = ids.map(function (id) {
+      var registration = byWebinar[id];
+      var webinar = webinars.find(function (w) { return clean(w.id) === id; }) || null;
+      var meeting = meetings.find(function (m) { return clean(m.webinar_id) === id; });
+      var host = webinar && profiles.find(function (p) {
+        return (clean(webinar.created_by) && p.id === webinar.created_by) || (lower(webinar.publisher_email) && lower(p.email) === lower(webinar.publisher_email));
+      });
+      var consultant = host && consultants.find(function (c) { return c.profile_id === host.id; });
+      var link = clean((meeting && meeting.meet_link) || (webinar && webinar.meet_link));
+      var amount = Number(registration.amount_paid || registration.payment_amount || 0);
+      var status;
+      if (!webinar || paymentStatus(registration) === 'refunded') status = 'cancelled';
+      else if (webinarHasEnded(webinar)) status = 'completed';
+      else status = 'upcoming';
+      return {
+        id: id,
+        registration: registration,
+        webinar: webinar || { id: id, title: registration.webinar_title || 'Webinar' },
+        startsAt: webinar ? webinarStartsAt(webinar) : null,
+        status: status,
+        link: link,
+        paid: amount > 0,
+        amount: amount,
+        avatar: host && host.avatar_url,
+        consultantId: consultant && consultant.id
+      };
+    });
+    myWebinars.items = items;
+    myWebinars.loadedAt = Date.now();
+    myWebinars.loadedFor = key;
+    return items;
+  }
+
+  function isLiveNow(item) {
+    if (item.status !== 'upcoming' || !item.startsAt) return false;
+    var start = item.startsAt.getTime();
+    return Date.now() >= start - JOIN_WINDOW_MS;
+  }
+  function sortedMyWebinars(filter) {
+    var rank = { upcoming: 0, completed: 1, cancelled: 2 };
+    return myWebinars.items.filter(function (item) { return filter === 'all' || item.status === filter; }).sort(function (a, b) {
+      if (a.status !== b.status) return rank[a.status] - rank[b.status];
+      var at = a.startsAt ? a.startsAt.getTime() : 0, bt = b.startsAt ? b.startsAt.getTime() : 0;
+      return a.status === 'upcoming' ? at - bt : bt - at;   // nearest first; most recently completed first
+    });
+  }
+  function myWebinarCounts() {
+    var counts = { registered: myWebinars.items.length, upcoming: 0, completed: 0, cancelled: 0 };
+    myWebinars.items.forEach(function (item) { counts[item.status]++; });
+    return counts;
+  }
+
+  function statusPill(item) {
+    if (item.status === 'cancelled') return '<span class="status-pill sp-cancelled">🔴 Cancelled</span>';
+    if (item.status === 'completed') return '<span class="status-pill sp-done">✓ Completed</span>';
+    return '<span class="status-pill sp-upcoming">' + (isLiveNow(item) ? '🟢 Live soon' : '🟢 Upcoming') + '</span>';
+  }
+  function priceLabel(item) {
+    return item.paid ? money(item.amount) + ' • Paid' : 'Free';
+  }
+  function refundLabel(item) {
+    if (item.status !== 'cancelled' || !item.paid) return '';
+    return paymentStatus(item.registration) === 'refunded' ? ' · Refunded' : ' · Refund Pending';
+  }
+  function modeLabel(item) {
+    return /meet\.google\.com/i.test(item.link) ? 'Google Meet / Online' : 'Online';
+  }
+  function speakerAvatar(item, size) {
+    var name = clean(item.webinar.speaker || item.webinar.publisher_name || 'Host');
+    var initials = name.split(/\s+/).map(function (part) { return part[0] || ''; }).join('').slice(0, 2).toUpperCase() || 'H';
+    var style = 'width:' + size + 'px;height:' + size + 'px;background:var(--blue-l);color:var(--blue-d);border-color:var(--blue-m)';
+    return '<span class="wbn-speaker-av" style="' + style + '">' + (item.avatar
+      ? '<img src="' + escapeHtml(item.avatar) + '" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">'
+      : escapeHtml(initials)) + '</span>';
+  }
+  function thumbClass(item) {
+    var text = clean(item.webinar.category || item.webinar.title);
+    var sum = 0;
+    for (var i = 0; i < text.length; i++) sum += text.charCodeAt(i);
+    return ['', 't1', 't2'][sum % 3];
+  }
+  function joinButton(item, extraClass) {
+    if (item.status !== 'upcoming' || !item.link) return '';
+    var hot = isLiveNow(item);
+    return '<a class="btn ' + (hot ? 'gmw-join-hot' : 'btn-blue') + ' ' + (extraClass || '') + '" href="' + escapeHtml(item.link) + '" target="_blank" rel="noopener">' + (hot ? 'Join now' : 'Join Webinar') + '</a>';
+  }
+  function whenLabel(item) {
+    var w = item.webinar;
+    return formatDate(w.date) + (w.time ? ' • ' + formatTime(w.time).replace(' IST', '') : '');
+  }
+
+  function myWebinarCard(item) {
+    var w = item.webinar;
+    return '<article class="gmw-card" data-gmw-id="' + escapeHtml(item.id) + '">' +
+      '<div class="gmw-thumb ' + thumbClass(item) + '"><span class="gmw-cat">' + escapeHtml(w.category || 'Webinar') + '</span>' + statusPill(item) + '</div>' +
+      '<div class="gmw-body">' +
+      '<div class="gmw-title">' + escapeHtml(webinarTitle(w)) + '</div>' +
+      '<div class="gmw-speaker">' + speakerAvatar(item, 32) + '<span>' + escapeHtml(w.speaker || w.publisher_name || 'Guidcy host') + (w.speaker_role ? '<small>' + escapeHtml(w.speaker_role) + '</small>' : '') + '</span></div>' +
+      (item.status === 'cancelled'
+        ? '<div class="gmw-cancel-note">Webinar Cancelled' + escapeHtml(refundLabel(item)) + '</div>'
+        : '<div class="gmw-meta"><span>📅 ' + escapeHtml(formatDate(w.date)) + '</span><span>🕐 ' + escapeHtml(formatTime(w.time)) + '</span><span>⏱ ' + escapeHtml(w.duration || '—') + '</span><span>💻 ' + escapeHtml(modeLabel(item)) + '</span></div>') +
+      '<div class="gmw-foot"><span class="gmw-price">' + escapeHtml(priceLabel(item)) + '</span>' +
+      '<div class="gmw-actions"><button class="btn" type="button" onclick="guidcyMyWebinarsAction(\'details\',\'' + escapeHtml(item.id) + '\')">View Details</button>' + joinButton(item) + '</div></div>' +
+      '</div></article>';
+  }
+
+  function myWebinarsHtml() {
+    var counts = myWebinarCounts();
+    var tabs = ['all', 'upcoming', 'completed', 'cancelled'];
+    var list = sortedMyWebinars(myWebinars.filter);
+    var empty = {
+      all: 'You have not registered for any webinar yet.',
+      upcoming: 'No upcoming webinars. Explore upcoming sessions and learn directly from experts.',
+      completed: 'No completed webinars yet.',
+      cancelled: 'No cancelled webinars.'
+    }[myWebinars.filter];
+    return '<div class="dash-title">My Webinars</div>' +
+      '<div class="gmw-summary">' +
+      '<span><b>' + counts.registered + '</b> Registered</span><span><b>' + counts.upcoming + '</b> Upcoming</span><span><b>' + counts.completed + '</b> Completed</span>' +
+      (counts.cancelled ? '<span><b>' + counts.cancelled + '</b> Cancelled</span>' : '') +
+      '</div>' +
+      '<div class="gmw-tabs" role="tablist">' + tabs.map(function (tab) {
+        return '<button class="gmw-tab' + (tab === myWebinars.filter ? ' on' : '') + '" type="button" role="tab" aria-selected="' + (tab === myWebinars.filter) + '" onclick="guidcyMyWebinarsAction(\'filter\',\'' + tab + '\')">' + tab.charAt(0).toUpperCase() + tab.slice(1) + '</button>';
+      }).join('') + '</div>' +
+      (list.length
+        ? '<div class="gmw-grid">' + list.map(myWebinarCard).join('') + '</div>'
+        : '<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">' + escapeHtml(empty) + '</div><button class="btn btn-blue" type="button" style="margin-top:12px" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>');
+  }
+
+  function myWebinarsPanel() {
+    return byId(myWebinars.panel === 'swCD' ? 'cdash-main' : 'udash-main');
+  }
+  function paintMyWebinars() {
+    var panel = myWebinarsPanel();
+    if (!panel) return;
+    panel.innerHTML = myWebinarsHtml();
+    if (myWebinars.pendingDetail) {
+      var id = myWebinars.pendingDetail;
+      myWebinars.pendingDetail = '';
+      openMyWebinarDetail(id);
+    }
+  }
+
+  window.guidcyRenderMyWebinars = async function (name, button) {
+    myWebinars.panel = name === 'swCD' ? 'swCD' : 'swUD';
+    var panel = myWebinarsPanel();
+    if (!panel) return;
+    if (button) { try { window.closeDashMenu && window.closeDashMenu(name === 'swCD' ? 'cons' : 'user'); } catch (_) {} }
+    if (!panel.querySelector('.gmw-grid')) panel.innerHTML = '<div class="dash-title">My Webinars</div><div class="guidcy-dash-loading">Loading your webinars…</div>';
+    try {
+      await loadMyWebinars(!!button);
+    } catch (error) {
+      console.warn('My Webinars failed to load:', error);
+      panel.innerHTML = '<div class="dash-title">My Webinars</div><div class="guidcy-wbn-empty">Could not load your webinars. <button class="btn" type="button" onclick="guidcyMyWebinarsAction(\'reload\')">Try again</button></div>';
+      return;
+    }
+    paintMyWebinars();
+  };
+
+  function findMyWebinar(id) {
+    return myWebinars.items.find(function (item) { return item.id === clean(id); });
+  }
+  function closeMyWebinarDetail() {
+    var old = byId('gmw-detail');
+    if (old) old.remove();
+  }
+  function openMyWebinarDetail(id) {
+    var item = findMyWebinar(id);
+    if (!item) return;
+    closeMyWebinarDetail();
+    var w = item.webinar, r = item.registration;
+    var field = function (label, value) { return value ? '<div><small>' + label + '</small>' + escapeHtml(value) + '</div>' : ''; };
+    var access;
+    if (item.status === 'cancelled') access = '<div class="gmw-cancel-note">Webinar Cancelled' + escapeHtml(refundLabel(item)) + '</div>';
+    else if (item.status === 'completed') access = '<div style="color:var(--muted)">This webinar has ended.</div>';
+    else if (item.link) access = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span>Your meeting link is ready.</span>' + joinButton(item) + '</div>';
+    else access = '<div style="color:var(--muted)">Meeting details will be available here once they are published by the host.</div>';
+    var popup = document.createElement('div');
+    popup.id = 'gmw-detail';
+    popup.className = 'modal-overlay on';
+    popup.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="gmw-detail-title" style="max-width:600px">' +
+      '<button class="modal-close" type="button" aria-label="Close" onclick="guidcyMyWebinarsAction(\'close\')">×</button>' +
+      '<div class="gmw-thumb ' + thumbClass(item) + '" style="border-radius:12px;margin:0 0 14px"><span class="gmw-cat">' + escapeHtml(w.category || 'Webinar') + '</span>' + statusPill(item) + '</div>' +
+      '<div id="gmw-detail-title" class="gmw-title" style="font-size:22px;margin-bottom:10px">' + escapeHtml(webinarTitle(w)) + '</div>' +
+      '<div class="gmw-speaker" style="margin-bottom:12px">' + speakerAvatar(item, 40) + '<span>' + escapeHtml(w.speaker || w.publisher_name || 'Guidcy host') + (w.speaker_role ? '<small>' + escapeHtml(w.speaker_role) + '</small>' : '') + '</span>' +
+      (item.consultantId ? '<button class="bk-btn blue" type="button" style="margin-left:auto" onclick="guidcyMyWebinarsAction(\'speaker\',\'' + escapeHtml(item.consultantId) + '\')">View speaker profile</button>' : '') + '</div>' +
+      (w.description ? '<p style="font-size:13.5px;color:var(--ink2);line-height:1.7;margin:0">' + escapeHtml(w.description) + '</p>' : '') +
+      '<div class="gmw-detail-list">' +
+      field('Date', item.status === 'cancelled' ? '' : formatDate(w.date)) + field('Start time', w.time && formatTime(w.time)) + field('Duration', w.duration) +
+      field('Category', w.category) + field('Platform', item.status === 'cancelled' ? '' : modeLabel(item)) + field('Registered on', formatDate(r.registered_at || r.created_at)) +
+      field('Payment', priceLabel(item) + (item.paid && (r.razorpay_payment_id || r.payment_id) ? ' · ' + (r.razorpay_payment_id || r.payment_id) : '')) + field('Registration ID', r.id) +
+      '</div>' +
+      '<div class="gmw-access">' + access + '</div>' +
+      '</div>';
+    document.body.appendChild(popup);
+    popup.addEventListener('click', function (event) { if (event.target === popup) closeMyWebinarDetail(); });
+  }
+
+  /* Dashboard → My Webinars, optionally landing on one webinar's details.
+     Direct history writes between pages are refused by the app, so go the
+     way every other module does: open the dashboard, then pick the tab with
+     its own sidebar button so the route controller treats it as a click. */
+  function openMyWebinarsTab(detailId) {
+    var consultant = lower(currentProfile().role || window.loggedIn) === 'consultant';
+    var page = consultant ? 'cons-dash' : 'user-dash';
+    myWebinars.pendingDetail = clean(detailId);
+    invalidateMyWebinars();
+    document.querySelectorAll('#wbn-reg-modal,#booking-confirm-popup').forEach(function (el) {
+      el.classList.remove('on');
+      if (el.id === 'booking-confirm-popup') el.remove(); else el.style.display = 'none';
+    });
+    if (typeof window.go === 'function') window.go(page); else { location.href = consultant ? '/consultant-dashboard?tab=my-webinars' : '/dashboard?tab=my-webinars'; return; }
+    setTimeout(function () {
+      var button = document.querySelector('#page-' + page + ' .side-btn[data-dash-section="my-webinars"]');
+      var open = window[consultant ? 'swCD' : 'swUD'];
+      if (typeof open === 'function') open('my-webinars', button || null);
+      window.scrollTo(0, 0);
+    }, 150);
+  }
+  window.guidcyOpenMyWebinars = openMyWebinarsTab;
+
+  window.guidcyMyWebinarsAction = function (action, value) {
+    if (action === 'filter') { myWebinars.filter = value; paintMyWebinars(); return; }
+    if (action === 'details') { openMyWebinarDetail(value); return; }
+    if (action === 'close') { closeMyWebinarDetail(); return; }
+    if (action === 'reload') { invalidateMyWebinars(); window.guidcyRenderMyWebinars(myWebinars.panel, null); return; }
+    if (action === 'open') { openMyWebinarsTab(value); return; }
+    if (action === 'speaker') { closeMyWebinarDetail(); try { window.openProfile && window.openProfile(value, -1); } catch (_) {} return; }
+    if (action === 'explore') { if (typeof window.go === 'function') window.go('webinar'); else location.href = '/webinars'; }
+  };
+
+  /* Compact "Upcoming Webinars" block on each dashboard home tab. The home
+     renderers repaint their panel more than once, so watch the panel and add
+     the block whenever the home title is showing without it. */
+  function upcomingHomeHtml(items) {
+    return '<section class="gmw-home" id="gmw-home"><div class="gmw-home-head"><b>Upcoming Webinars</b></div>' +
+      (items.length
+        ? items.map(function (item) {
+          var w = item.webinar;
+          return '<div class="gmw-home-row"><div style="min-width:0"><div class="gmw-title">' + escapeHtml(webinarTitle(w)) + '</div><div class="gmw-meta"><span>' + escapeHtml(whenLabel(item)) + '</span><span>' + escapeHtml(w.speaker || w.publisher_name || '') + '</span></div></div>' +
+            '<div class="gmw-actions"><button class="btn" type="button" onclick="guidcyMyWebinarsAction(\'open\',\'' + escapeHtml(item.id) + '\')">View Details</button>' + joinButton(item) + '</div></div>';
+        }).join('') + '<button class="gmw-home-link" type="button" onclick="guidcyMyWebinarsAction(\'open\')">View All Webinars →</button>'
+        : '<div style="padding:14px 0 4px"><div style="font-size:14.5px;font-weight:700;color:var(--ink)">No upcoming webinars</div><div style="font-size:13px;color:var(--muted);margin:4px 0 12px">Explore upcoming sessions and learn directly from experts.</div><button class="btn btn-blue" type="button" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>') +
+      '</section>';
+  }
+  var homeTitles = { 'udash-main': 'upcoming sessions', 'cdash-main': 'overview' };
+  async function injectUpcomingHome(panel) {
+    var title = lower(panel.querySelector('.dash-title') && panel.querySelector('.dash-title').textContent);
+    if (title !== homeTitles[panel.id] || panel.querySelector('#gmw-home') || panel.querySelector('.guidcy-dash-loading')) return;
+    if (!accountId() && !accountEmail()) return;
+    var placeholder = document.createElement('div');
+    placeholder.id = 'gmw-home';
+    panel.appendChild(placeholder);
+    try { await loadMyWebinars(); } catch (_) { placeholder.remove(); return; }
+    if (!placeholder.parentNode) return;
+    placeholder.outerHTML = upcomingHomeHtml(sortedMyWebinars('upcoming').slice(0, 3));
+  }
+  function watchDashboardHome() {
+    ['udash-main', 'cdash-main'].forEach(function (id) {
+      var panel = byId(id);
+      if (!panel || panel.__gmwWatched) return;
+      panel.__gmwWatched = true;
+      var timer = null;
+      new MutationObserver(function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { injectUpcomingHome(panel); }, 150);
+      }).observe(panel, { childList: true });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', watchDashboardHome);
 
   document.addEventListener('DOMContentLoaded', function () {
     setMinimumWebinarDate();
