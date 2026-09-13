@@ -388,7 +388,7 @@ function minifyDeployableCss(relPath){
   fs.writeFileSync(full, output.styles, "utf8");
   console.log(`Optimized: ${relPath} (${(source.length-output.styles.length).toLocaleString()} bytes removed)`);
 }
-["assets/css/base.css","assets/css/patches.css"].forEach(minifyDeployableCss);
+["assets/css/base.css","assets/css/patches.css","assets/css/fonts.css"].forEach(minifyDeployableCss);
 
 // Cache-bust core.js/app.js/base.css/patches.css with a hash of their own
 // content. Without this, browsers and CDN edges can keep serving a stale
@@ -410,7 +410,8 @@ function cacheBustAssets(html){
  "assets/js/ui-refresh.js",
  "assets/vendor/supabase.js",
     "assets/css/base.css",
-    "assets/css/patches.css"
+    "assets/css/patches.css",
+    "assets/css/fonts.css"
   ].forEach(relPath => {
     const version = assetVersionTag(relPath);
     if(!version) return;

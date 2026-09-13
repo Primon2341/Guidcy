@@ -4,6 +4,105 @@
 <script defer src="/assets/js/core.js"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>
+/* Route-aware first paint.
+   Every route lives in this one document and page-home is the one marked "on",
+   so a refresh on /dashboard or /webinars painted the Home page and swapped it
+   out only after app.js (~2MB) had parsed and the route restorer ran - the
+   flash. Resolve the requested page from the URL before anything renders:
+   show that page's static shell from the first frame, restore the cached
+   logged-in header so it does not blink through the logged-out state, and get
+   out of the way the moment the app renders any page itself. */
+(function(){
+  var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
+  var pages={'/home':'home','/browse':'browse','/find-experts':'browse','/experts':'browse','/consultants':'browse',
+    '/find-jobs':'jobs','/jobs':'jobs','/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers',
+    '/marketplace':'marketplace','/categories':'categories','/blog':'blog','/webinars':'webinar','/webinar':'webinar',
+    '/career-ai-finder':'smart-finder','/career-ai':'smart-finder','/smart-finder':'smart-finder',
+    '/funds-grants':'opportunities','/opportunities':'opportunities','/login':'login','/signup':'signup','/get-started':'signup',
+    '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund',
+    '/disclaimer':'disclaimer','/help-center':'help','/help':'help','/support':'help','/dispute-resolution':'dispute','/dispute':'dispute',
+    '/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash','/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
+    '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
+    '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'};
+  /* Pages app.js builds on first visit: nothing static to show, so show a skeleton. */
+  var dynamic={jobs:1,marketplace:1,blog:1,'smart-finder':1,meeting:1};
+  var page=pages[path]||(/^\/(?:consultant|book)\/[^/]+$/.test(path)?'profile':'');
+  var root=document.documentElement;
+  var style=null;
+  if(page&&page!=='home'){
+    root.setAttribute('data-guidcy-boot',page);
+    style=document.createElement('style');
+    style.textContent='html[data-guidcy-boot] .page.on{display:none!important}'+
+      (dynamic[page]?'html[data-guidcy-boot] #guidcy-boot-skeleton{display:block}':'html[data-guidcy-boot] #page-'+page+'{display:block!important}');
+    document.head.appendChild(style);
+  }
+
+  /* Header: the logged-in markup the app last rendered, keyed to the current
+     Supabase session's user, so the header never shows "Log in" to a signed-in
+     visitor while the profile round-trip is in flight. */
+  var NAV_KEY='guidcy_nav_cache';
+  function sessionUserId(){
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k=localStorage.key(i);
+        if(/^sb-.*-auth-token$/.test(k)){var t=JSON.parse(localStorage.getItem(k)||'null');return t&&t.user&&t.user.id||''}
+      }
+    }catch(_){}
+    return '';
+  }
+  var cachedNav=null,cachedProfile=null;
+  try{var c=JSON.parse(localStorage.getItem(NAV_KEY)||'null');var uid=sessionUserId();if(c&&uid&&c.uid===uid&&c.html){cachedNav=c.html;cachedProfile=c}else if(c&&!uid)localStorage.removeItem(NAV_KEY)}catch(_){}
+  function watchNav(nr){
+    new MutationObserver(function(){
+      try{
+        var uid=sessionUserId(),chip=nr.querySelector('.avatar-chip');
+        if(uid&&nr.querySelector('.avatar-chip,img'))localStorage.setItem(NAV_KEY,JSON.stringify({uid:uid,html:nr.innerHTML,name:chip&&chip.title||'',initials:chip&&chip.textContent.trim()||''}));
+        else localStorage.removeItem(NAV_KEY);
+      }catch(_){}
+    }).observe(nr,{childList:true});
+  }
+  /* Dashboard sidebar: the static shell says "User"; put the cached name back. */
+  function fillSidebar(){
+    if(!cachedProfile||!cachedProfile.name)return;
+    ['udash','cdash'].forEach(function(prefix){
+      var name=document.getElementById(prefix+'-name'),av=document.getElementById(prefix+'-av');
+      if(name)name.textContent=cachedProfile.name;
+      if(av&&cachedProfile.initials&&!av.querySelector('img'))av.textContent=cachedProfile.initials;
+    });
+  }
+
+  var done=!page||page==='home',navDone=false,sidebarDone=false;
+  function finish(){
+    if(done)return;
+    done=true;
+    root.removeAttribute('data-guidcy-boot');
+    try{style&&style.remove()}catch(_){}
+  }
+  function isShown(el){return el&&el.nodeType===1&&el.classList&&el.classList.contains('page')&&(el.classList.contains('on')||el.classList.contains('active'))}
+  var mo=new MutationObserver(function(list){
+    if(!navDone){
+      var nr=document.getElementById('nav-right');
+      if(nr){navDone=true;if(cachedNav)nr.innerHTML=cachedNav;watchNav(nr)}
+    }
+    if(!sidebarDone&&(page==='user-dash'||page==='cons-dash')){
+      var av=document.getElementById(page==='user-dash'?'udash-name':'cdash-name');
+      if(av){sidebarDone=true;fillSidebar()}
+    }
+    if(done){if(navDone&&(sidebarDone||page!=='user-dash'&&page!=='cons-dash'))mo.disconnect();return}
+    for(var i=0;i<list.length;i++){
+      var m=list[i],t=m.target;
+      /* The app took over: a page other than the static default is on, or
+         Home itself was switched off. */
+      if(m.type==='attributes'){if(t.id==='page-home'?!isShown(t):isShown(t)){finish();break}}
+      else for(var j=0;j<m.addedNodes.length;j++){var n=m.addedNodes[j];if(n.id!=='page-home'&&isShown(n)){finish();break}}
+    }
+  });
+  mo.observe(root,{attributes:true,attributeFilter:['class'],childList:true,subtree:true});
+  /* Never hold the boot shell forever if the app fails to render. */
+  window.addEventListener('load',function(){setTimeout(finish,8000)});
+})();
+</script>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -21,10 +120,12 @@
 <meta name="description" content="Guidcy is an expert consultation marketplace where users can browse verified consultants, book sessions, pay online, and join through Google Meet."/>
 <meta name="robots" content="index, follow"/>
 <link rel="canonical" href="https://www.guidcy.com/"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'"/>
-<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/></noscript>
+<!-- Fonts are self-hosted (assets/fonts) so a refresh paints with the brand fonts
+     straight from the same-origin cache instead of flashing a fallback while a
+     remote Google Fonts stylesheet round-trips. -->
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/dm-sans.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/cormorant-garamond.woff2">
+<link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/patches.css">
 <link rel="stylesheet" href="/assets/css/login.css">
@@ -61,8 +162,10 @@
 <script defer src="/assets/js/controllers.js"></script>
 <script defer src="/assets/js/webinar-flow.js"></script>
 <script defer src="/assets/js/ui-refresh.js"></script>
-<!-- Vercel Web Analytics: page views + visitors, cookie-less. Enable under Vercel → guidcy → Analytics. -->
-<script defer src="/_vercel/insights/script.js"></script>
+<!-- Vercel Web Analytics: page views + visitors, cookie-less. Enable under Vercel → guidcy → Analytics.
+     Only on the deployed hosts: a plain static server (local dev, the test harness) answers this
+     path with index.html, which the browser then fails to parse as a script. -->
+<script>if(/(^|\.)guidcy\.com$|\.vercel\.app$/.test(location.hostname)){var s=document.createElement('script');s.defer=true;s.src='/_vercel/insights/script.js';document.head.appendChild(s)}</script>
 <!-- === END GUIDCY REQUESTED HOME LAYOUT FIXES === -->
 
 
@@ -116,6 +219,9 @@
     <button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},50)">Get started</button>
   </div>
 </nav>
+
+<!-- Shown only while a JS-built page (jobs, marketplace, blog, finder) is still being constructed on a refresh. -->
+<div id="guidcy-boot-skeleton" aria-hidden="true"><div class="gbs-bar" style="width:38%"></div><div class="gbs-bar" style="width:62%"></div><div class="gbs-grid"><div class="gbs-card"></div><div class="gbs-card"></div><div class="gbs-card"></div></div></div>
 
 <!-- ════ HOME ════ -->
 <div id="page-home" class="page on">

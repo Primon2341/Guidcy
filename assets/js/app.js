@@ -494,6 +494,124 @@ window.CFG = CFG;
   }
 })();
 
+/* Installed before the Supabase client is created (it was at the end of this
+   bundle): parse-time modules fire their first reads while this file is still
+   executing, and those went out before the shared-read layer existed - the
+   duplicate consultants/webinars/opportunities requests seen on every boot. */
+/* === guidcy-supabase-request-dedupe ===
+   Opening a dashboard fired ~77 Supabase requests, the last landing about 11
+   seconds in, on a page that was otherwise ready in under a second. Most were
+   duplicates: nineteen /consultants reads, sixteen /home_opportunities_cache,
+   fourteen /profiles - different modules independently asking for the same rows,
+   each paying a full round trip (~450ms to the Tokyo region).
+
+   This collapses identical concurrent GETs onto one request, and serves a very
+   short cache to the repeats that arrive just after. Reads only: anything that
+   writes, and anything on the auth endpoints, is passed straight through. The
+   window is deliberately small so a genuine refresh still hits the network. */
+
+(function(){
+  'use strict';
+  if(window.__GUIDCY_SUPABASE_REQUEST_DEDUPE__)return;
+  window.__GUIDCY_SUPABASE_REQUEST_DEDUPE__=true;
+
+  /* Measured on the live dashboard: 51 reads but only 20 distinct queries - the
+     31 duplicates arrive in waves seconds apart (the restorer ladders re-issuing
+     the same query), so a 1.5s window missed almost all of them. Widen it, and
+     keep it safe by dropping a table's cached reads the moment anything writes
+     to that table - so a refresh after a booking change is never stale. */
+  var TTL_MS=8000;
+  var MAX_ENTRIES=160;
+  var inflight=new Map();        // key -> Promise<Response>
+  var recent=new Map();          // key -> {at, response, table}
+
+  function tableOf(url){
+    var m=String(url).match(/\/rest\/v1\/([^/?]+)/);
+    return m?m[1]:'';
+  }
+  function invalidateTable(table){
+    if(!table)return;
+    recent.forEach(function(v,k){if(v.table===table)recent.delete(k)});
+    if((table==='consultants'||table==='profiles')&&typeof window.guidcyInvalidateConsultantSourceCache==='function')window.guidcyInvalidateConsultantSourceCache();
+  }
+  window.guidcyInvalidateReadCache=function(table){
+    if(table)invalidateTable(table); else recent.clear();
+  };
+
+  function isDedupableRead(url,init){
+    var method=String((init&&init.method)||'GET').toUpperCase();
+    if(method!=='GET')return false;
+    if(!/\/rest\/v1\//.test(url))return false;      // PostgREST reads only
+    if(/\/auth\/v1\//.test(url))return false;       // never touch auth
+    if(init&&init.body)return false;
+    return true;
+  }
+  function keyFor(url,init){
+    /* Identity, plus the headers that change the shape of the same URL's
+       answer: Accept (.single() wants one object, not an array), Range
+       (.range() pagination) and Prefer (count=exact). */
+    var parts=[];
+    try{
+      var h=(init&&init.headers)||{};
+      var get=function(n){
+        if(typeof Headers!=='undefined'&&h instanceof Headers)return h.get(n)||'';
+        return h[n]||h[n.toLowerCase()]||'';
+      };
+      parts=['Authorization','Accept','Range','Prefer'].map(get);
+    }catch(_){}
+    var normalized=url; try{normalized=decodeURIComponent(url)}catch(_){}   // '%2C' and ',' are the same query
+    return normalized+'\n'+parts.join('\n');          // never share across identities
+  }
+  function prune(){
+    if(recent.size<=MAX_ENTRIES)return;
+    var cutoff=Date.now()-TTL_MS;
+    recent.forEach(function(v,k){if(v.at<cutoff)recent.delete(k)});
+    while(recent.size>MAX_ENTRIES)recent.delete(recent.keys().next().value);
+  }
+
+  var nativeFetch=window.fetch;
+  if(typeof nativeFetch!=='function')return;
+
+  var wrapped=function(input,init){
+    var url;
+    try{url=String((input&&input.url)||input||'')}catch(_){return nativeFetch.apply(this,arguments)}
+    if(!isDedupableRead(url,init)){
+      // A write invalidates every cached read of that table, immediately.
+      try{
+        var method=String((init&&init.method)||'GET').toUpperCase();
+        if(method!=='GET'&&/\/rest\/v1\//.test(url))invalidateTable(tableOf(url));
+      }catch(_){}
+      return nativeFetch.apply(this,arguments);
+    }
+
+    var key=keyFor(url,init);
+    var hit=recent.get(key);
+    if(hit&&Date.now()-hit.at<TTL_MS){
+      try{return Promise.resolve(hit.response.clone())}catch(_){}
+    }
+    var live=inflight.get(key);
+    if(live){
+      // Share the one request already on the wire; each caller gets its own body.
+      return live.then(function(r){return r.clone()});
+    }
+    var p=nativeFetch.apply(this,arguments).then(function(resp){
+      try{
+        if(resp&&resp.ok){recent.set(key,{at:Date.now(),response:resp.clone(),table:tableOf(url)});prune()}
+      }catch(_){}
+      inflight.delete(key);
+      return resp;
+    },function(err){
+      inflight.delete(key);
+      throw err;
+    });
+    inflight.set(key,p);
+    return p.then(function(r){return r.clone()});
+  };
+  wrapped.__guidcyDedupe=true;
+  try{window.fetch=wrapped}catch(_){}
+})();
+
+
 /* ─── SUPABASE INIT ─── */
 let sb = null;
 if(CFG.supabase_url && CFG.supabase_key){
@@ -18137,16 +18255,16 @@ document.addEventListener('DOMContentLoaded',function(){
     var el=document.createElement('section'); el.id=SECTION_ID; el.className='guidcy-growth-section';
     el.innerHTML='<div class="guidcy-growth-wrap"><div><div class="guidcy-growth-kicker">✨ Everything in one place</div><h2 class="guidcy-growth-title">One profile. <span>All Guidcy tools.</span></h2><p class="guidcy-growth-copy">Guidcy brings Home, Find the Expert, Jobs, Categories, Blog, Webinars, Funds & Grants Finder, and Career & College AI Finder into one clean platform without confusing users across different names.</p><div class="guidcy-growth-grid"><div class="guidcy-growth-card" data-page="webinar"><div class="guidcy-growth-ico">🎙️</div><div><h3>Publish & join webinars</h3><p>Consultants can publish webinars, while learners can discover sessions that match their interests.</p></div></div><div class="guidcy-growth-card" data-page="jobs"><div class="guidcy-growth-ico">💼</div><div><h3>Find Jobs + Career & College AI</h3><p>Search jobs and use Career & College AI Finder from the same platform without switching tabs.</p></div></div><div class="guidcy-growth-card" data-page="smart-finder"><div class="guidcy-growth-ico">🤖</div><div><h3>Career & College AI Finder</h3><p>Get profile-based suggestions for jobs, colleges, career direction and admission options.</p></div></div><div class="guidcy-growth-card" data-page="opportunities"><div class="guidcy-growth-ico">🏆</div><div><h3>Funds & Grants Finder</h3><p>Find hackathons, scholarships, grants, competitions and startup programs, then save them for later.</p></div></div></div><div class="guidcy-growth-actions"><button class="btn btn-blue" id="guidcy-growth-smart-btn">Try Career & College AI Finder →</button><button class="btn" id="guidcy-growth-webinar-btn">Explore Webinars</button><button class="btn" id="guidcy-growth-jobs-btn">Search Jobs</button><button class="btn" id="guidcy-growth-opp-btn">Funds & Grants Finder →</button></div></div><div class="guidcy-growth-visual"><div class="guidcy-mix-board"><span class="guidcy-mix-dot d1"></span><span class="guidcy-mix-dot d2"></span><span class="guidcy-mix-dot d3"></span><div id="guidcy-mixed-home-opps"><div class="guidcy-mix-empty">Loading daily opportunities…</div></div></div></div></div>';
     strip.insertAdjacentElement('afterend',el);
-    el.querySelectorAll('.guidcy-growth-card').forEach(function(card){card.addEventListener('click',function(){var p=card.getAttribute('data-page'); if(p==='opportunities')goOpp(); else if(p==='jobs')window.location.href='/jobs'; else goPage(p);});});
+    el.querySelectorAll('.guidcy-growth-card').forEach(function(card){card.addEventListener('click',function(){var p=card.getAttribute('data-page'); if(p==='opportunities')goOpp(); else goPage(p);});});
     var sb=document.getElementById('guidcy-growth-smart-btn'); if(sb)sb.onclick=function(){goPage('smart-finder')};
     var wb=document.getElementById('guidcy-growth-webinar-btn'); if(wb)wb.onclick=function(){goPage('webinar')};
-    var jb=document.getElementById('guidcy-growth-jobs-btn'); if(jb)jb.onclick=function(){window.location.href='/jobs'};
+    var jb=document.getElementById('guidcy-growth-jobs-btn'); if(jb)jb.onclick=function(){goPage('jobs')};
     var ob=document.getElementById('guidcy-growth-opp-btn'); if(ob)ob.onclick=goOpp;
   }
   function render(items){
     var box=document.getElementById('guidcy-mixed-home-opps'); if(!box)return;
     items=uniq(items).filter(function(o){return o&&clean(o.title,90)&&url(o)!=='#'}).slice(0,5);
-    if(!items.length){box.innerHTML='<div class="guidcy-mix-empty">Daily mixed opportunities are not loaded yet.<br><button class="btn btn-blue" style="margin-top:12px" onclick="location.href=\'/opportunities\'">Open Funds & Grants Finder</button></div>';return;}
+    if(!items.length){box.innerHTML='<div class="guidcy-mix-empty">Daily mixed opportunities are not loaded yet.<br><button class="btn btn-blue" style="margin-top:12px" onclick="(window.go||function(){location.href=\'/opportunities\'})(\'opportunities\')">Open Funds & Grants Finder</button></div>';return;}
     box.innerHTML=items.map(function(o,i){var b=badge(o,i);var meta=[o.category,o.country,clean(o.desc||o.snippet||o.description,62)].filter(Boolean).join(' · ');return '<div class="guidcy-mix-row" role="button" tabindex="0" data-url="'+esc(url(o))+'"><div class="guidcy-mix-ico">'+esc(icon(o))+'</div><div><div class="guidcy-mix-name">'+esc(clean(o.title,70))+'</div><div class="guidcy-mix-meta">'+esc(meta)+'</div></div><div class="guidcy-mix-badge '+esc(b[1])+'">'+esc(b[0])+'</div></div>'}).join('');
     box.querySelectorAll('.guidcy-mix-row').forEach(function(row){function open(){var u=row.getAttribute('data-url'); if(u&&u!=='#')window.open(u,'_blank','noopener')} row.onclick=open; row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}});
   }
@@ -31201,112 +31319,6 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 })();
 
 
-
-/* === guidcy-supabase-request-dedupe ===
-   Opening a dashboard fired ~77 Supabase requests, the last landing about 11
-   seconds in, on a page that was otherwise ready in under a second. Most were
-   duplicates: nineteen /consultants reads, sixteen /home_opportunities_cache,
-   fourteen /profiles - different modules independently asking for the same rows,
-   each paying a full round trip (~450ms to the Tokyo region).
-
-   This collapses identical concurrent GETs onto one request, and serves a very
-   short cache to the repeats that arrive just after. Reads only: anything that
-   writes, and anything on the auth endpoints, is passed straight through. The
-   window is deliberately small so a genuine refresh still hits the network. */
-
-(function(){
-  'use strict';
-  if(window.__GUIDCY_SUPABASE_REQUEST_DEDUPE__)return;
-  window.__GUIDCY_SUPABASE_REQUEST_DEDUPE__=true;
-
-  /* Measured on the live dashboard: 51 reads but only 20 distinct queries - the
-     31 duplicates arrive in waves seconds apart (the restorer ladders re-issuing
-     the same query), so a 1.5s window missed almost all of them. Widen it, and
-     keep it safe by dropping a table's cached reads the moment anything writes
-     to that table - so a refresh after a booking change is never stale. */
-  var TTL_MS=8000;
-  var MAX_ENTRIES=160;
-  var inflight=new Map();        // key -> Promise<Response>
-  var recent=new Map();          // key -> {at, response, table}
-
-  function tableOf(url){
-    var m=String(url).match(/\/rest\/v1\/([^/?]+)/);
-    return m?m[1]:'';
-  }
-  function invalidateTable(table){
-    if(!table)return;
-    recent.forEach(function(v,k){if(v.table===table)recent.delete(k)});
-    if((table==='consultants'||table==='profiles')&&typeof window.guidcyInvalidateConsultantSourceCache==='function')window.guidcyInvalidateConsultantSourceCache();
-  }
-  window.guidcyInvalidateReadCache=function(table){
-    if(table)invalidateTable(table); else recent.clear();
-  };
-
-  function isDedupableRead(url,init){
-    var method=String((init&&init.method)||'GET').toUpperCase();
-    if(method!=='GET')return false;
-    if(!/\/rest\/v1\//.test(url))return false;      // PostgREST reads only
-    if(/\/auth\/v1\//.test(url))return false;       // never touch auth
-    if(init&&init.body)return false;
-    return true;
-  }
-  function keyFor(url,init){
-    var auth='';
-    try{
-      var h=(init&&init.headers)||{};
-      if(typeof Headers!=='undefined'&&h instanceof Headers)auth=h.get('Authorization')||'';
-      else if(h&&typeof h==='object')auth=h.Authorization||h.authorization||'';
-    }catch(_){}
-    return url+'\n'+auth;                            // never share across identities
-  }
-  function prune(){
-    if(recent.size<=MAX_ENTRIES)return;
-    var cutoff=Date.now()-TTL_MS;
-    recent.forEach(function(v,k){if(v.at<cutoff)recent.delete(k)});
-    while(recent.size>MAX_ENTRIES)recent.delete(recent.keys().next().value);
-  }
-
-  var nativeFetch=window.fetch;
-  if(typeof nativeFetch!=='function')return;
-
-  var wrapped=function(input,init){
-    var url;
-    try{url=String((input&&input.url)||input||'')}catch(_){return nativeFetch.apply(this,arguments)}
-    if(!isDedupableRead(url,init)){
-      // A write invalidates every cached read of that table, immediately.
-      try{
-        var method=String((init&&init.method)||'GET').toUpperCase();
-        if(method!=='GET'&&/\/rest\/v1\//.test(url))invalidateTable(tableOf(url));
-      }catch(_){}
-      return nativeFetch.apply(this,arguments);
-    }
-
-    var key=keyFor(url,init);
-    var hit=recent.get(key);
-    if(hit&&Date.now()-hit.at<TTL_MS){
-      try{return Promise.resolve(hit.response.clone())}catch(_){}
-    }
-    var live=inflight.get(key);
-    if(live){
-      // Share the one request already on the wire; each caller gets its own body.
-      return live.then(function(r){return r.clone()});
-    }
-    var p=nativeFetch.apply(this,arguments).then(function(resp){
-      try{
-        if(resp&&resp.ok){recent.set(key,{at:Date.now(),response:resp.clone(),table:tableOf(url)});prune()}
-      }catch(_){}
-      inflight.delete(key);
-      return resp;
-    },function(err){
-      inflight.delete(key);
-      throw err;
-    });
-    inflight.set(key,p);
-    return p.then(function(r){return r.clone()});
-  };
-  wrapped.__guidcyDedupe=true;
-  try{window.fetch=wrapped}catch(_){}
-})();
 
 /* === guidcy-global-page-loading-indicator === */
 

@@ -956,3 +956,24 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
 }
 
   .gmkt-card-preview{height:190px;background:#F8FBFF;border-bottom:1px solid #E5EEF7;position:relative;overflow:hidden}.gmkt-card-preview iframe{width:100%;height:260px;border:0;background:#fff;transform:scale(.78);transform-origin:top left;width:128%;pointer-events:none}.gmkt-card-preview .gmkt-preview-missing{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:#64748B;font-size:12px}.gmkt-preview-open{position:absolute;right:10px;bottom:10px;border:1px solid #D8E5F0;background:#fff;color:#1E72BE;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(15,23,42,.12)}.gmkt-full-dialog{max-width:min(1180px,96vw);height:92vh}.gmkt-full-dialog .gmkt-dialog-inner{height:100%;display:flex;flex-direction:column}.gmkt-full-frame{flex:1;min-height:0;width:100%;border:1px solid #D8E5F0;border-radius:14px;background:#fff}.gmkt-full-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-right:42px;margin-bottom:14px}.gmkt-full-head h2{font-family:Cormorant Garamond,serif;font-size:34px;margin:0;color:#0f172a}.gmkt-full-actions{display:flex;gap:10px;flex-wrap:wrap}@media(max-width:900px){.gmkt-card-preview{height:220px}.gmkt-full-dialog{height:94vh}.gmkt-full-head{display:block}.gmkt-full-head h2{font-size:28px}.gmkt-full-actions{margin-top:10px}}
+
+/* ── Refresh / loading stability ──
+   Reserve space for content that is still loading so sections do not collapse
+   to zero and jump open when data lands, and give empty panels a quiet skeleton
+   instead of a bare "Loading..." line. */
+#guidcy-boot-skeleton{display:none;max-width:1180px;margin:0 auto;padding:48px 24px}
+.gbs-bar,.gbs-card{background:linear-gradient(90deg,#EEF2F6 25%,#F6F8FA 50%,#EEF2F6 75%);background-size:200% 100%;animation:gbs-shimmer 1.4s ease-in-out infinite;border-radius:10px}
+.gbs-bar{height:22px;margin-bottom:14px}
+.gbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:28px}
+.gbs-card{height:200px;border-radius:16px}
+@keyframes gbs-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+#cons-grid:empty,#browse-grid:empty,#wbn-cards:empty,#gmkt-grid:empty,#cats-full-grid:empty,#reviews-grid:empty{min-height:280px}
+.dash-main:empty,.guidcy-panel-skeleton{position:relative;min-height:220px}
+.guidcy-panel-skeleton>:not(.dash-title){visibility:hidden}
+.dash-main:empty::before,.dash-main:empty::after,.guidcy-panel-skeleton::before,.guidcy-panel-skeleton::after{content:"";position:absolute;left:0;right:0;border-radius:10px;background:linear-gradient(90deg,#EEF2F6 25%,#F6F8FA 50%,#EEF2F6 75%);background-size:200% 100%;animation:gbs-shimmer 1.4s ease-in-out infinite}
+.dash-main:empty::after,.guidcy-panel-skeleton::after{top:0;height:22px;width:45%}
+.dash-main:empty::before,.guidcy-panel-skeleton::before{top:40px;height:130px}
+.guidcy-panel-skeleton:has(.dash-title){min-height:280px}
+.guidcy-panel-skeleton:has(.dash-title)::after{top:60px}
+.guidcy-panel-skeleton:has(.dash-title)::before{top:100px}
+@media (prefers-reduced-motion:reduce){.gbs-bar,.gbs-card,.dash-main:empty::before,.dash-main:empty::after,.guidcy-panel-skeleton::before,.guidcy-panel-skeleton::after{animation:none}}

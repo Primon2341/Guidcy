@@ -106,12 +106,20 @@
                 pendingTimer = 0;
                 setBusy(target, false);
                 native.set.call(target, value);
+                target.classList.add('guidcy-panel-skeleton');
+                target.setAttribute('aria-busy', 'true');
               }, STALE_MS);
               return;
             }
             clearPending();
             setBusy(target, false);
             native.set.call(target, value);
+            /* An empty panel keeps its placeholder, but drawn as a quiet skeleton
+               rather than a bare "Loading..." line; the real markup clears it. */
+            var skeleton = isPlaceholder(value);
+            target.classList.toggle('guidcy-panel-skeleton', skeleton);
+            if (skeleton) target.setAttribute('aria-busy', 'true'); else target.removeAttribute('aria-busy');
+            if (skeleton) return;
             /* One short fade on the swap, restarted on each render. */
             target.classList.remove('guidcy-panel-swap');
             void target.offsetWidth;
