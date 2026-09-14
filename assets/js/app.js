@@ -6777,8 +6777,8 @@ cancelBooking=async function(bookingId,role){
     }).join('');
   }
 
-  async function fetchJobsPage(q,loc,page){
-    const r=await fetch(`/api/jobs?q=${encodeURIComponent(q)}&location=${encodeURIComponent(loc)}&page=${page}`);
+  async function fetchJobsPage(q,loc,page,signal){
+    const r=await fetch(`/api/jobs?q=${encodeURIComponent(q)}&location=${encodeURIComponent(loc)}&page=${page}`,{signal});
     const j=await r.json();
     if(!r.ok||j.error)throw new Error(j.error||'Failed');
     return j.jobs||[];
@@ -6790,7 +6790,11 @@ cancelBooking=async function(bookingId,role){
     page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
       <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,5vw,42px);font-weight:500;margin-bottom:6px">Find Your Next Job</h1>
       <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Live listings from across the web. Click any job to apply directly on the employer's site.</p>
-      <div style="background:var(--surface);border:1.5px solid var(--border2);border-radius:18px;padding:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.06)">
+      <div class="jobs-companion-rail" data-state="idle" data-position="left" data-pose="wave">
+        <div class="jobs-thought" role="status" aria-live="polite" aria-atomic="true">Ready to find your next role?</div>
+        <div class="jobs-peek-window" aria-hidden="true"><div class="jobs-character"><span class="jobs-character-art"></span></div></div>
+      </div>
+      <div class="jobs-character-search-bar" style="background:var(--surface);border:1.5px solid var(--border2);border-radius:18px;padding:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.06)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted);flex-shrink:0;margin-left:8px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input id="job-q" placeholder="Job title or keyword..." style="flex:1;min-width:120px;border:none;background:transparent;font-size:15px;font-family:inherit;outline:none;color:var(--ink);padding:8px 4px" onkeydown="if(event.key==='Enter'){event.preventDefault();window._runJobSearch&&window._runJobSearch(1);}"/>
         <select id="job-loc" style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-family:inherit;font-size:13px;background:var(--surface)">
@@ -6817,9 +6821,13 @@ cancelBooking=async function(bookingId,role){
       <div id="jobs-saved-area" style="display:none"></div>
       <div id="jobs-main-area"></div>
     </div>`;
+    const companion=window.guidcyCreateJobsCompanion(page);
+    let searchSequence=0,searchController=null,searchPending=false;
+    window.clearJobFilters=clearJobFilters;
     setTimeout(()=>{try{window.guidcyUpdateSavedJobsBadge&&guidcyUpdateSavedJobsBadge();window.guidcyUpdateJobSaveButtons&&guidcyUpdateJobSaveButtons();}catch(_){}},120);
 
     function renderJobsCache(area){
+      if(searchPending)return;
       area=area||$('jobs-main-area');
       const q=_jobsCache.q||($('job-q')?.value||'').trim();
       const loc=_jobsCache.loc||$('job-loc')?.value||'India';
@@ -6846,6 +6854,7 @@ cancelBooking=async function(bookingId,role){
       }else{
         setTimeout(()=>{try{refreshJobConsultantsForCache(false);}catch(_){}},80);
       }
+      companion.set(filteredJobs.length?'results':'empty',filteredJobs.length);
       persistJobsState();
     }
     async function refreshJobConsultantsForCache(force){
@@ -6890,8 +6899,17 @@ cancelBooking=async function(bookingId,role){
 
     window._runJobSearch=async function(pageNum){
       pageNum=pageNum||1;
-      const q=($('job-q')?.value||'').trim(),loc=$('job-loc')?.value||'India';
-      if(!q){safeToast('Please enter a job title or keyword','red');return;}
+      const q=pageNum>1?_jobsCache.q:($('job-q')?.value||'').trim();
+      const loc=pageNum>1?_jobsCache.loc:($('job-loc')?.value||'India');
+      if(!q){companion.set('prompt');$('job-q')?.focus();return;}
+      const sequence=++searchSequence;
+      if(searchController)searchController.abort();
+      searchController=new AbortController();
+      const controller=searchController;
+      const timeout=setTimeout(()=>controller.abort(),25000);
+      searchPending=true;
+      companion.set(pageNum>1?'more':'searching');
+      window.guidcyJobsShowSearch&&window.guidcyJobsShowSearch();
       const btn=$('job-search-btn'),area=$('jobs-main-area');
       if(pageNum===1){
         _jobsCache={q,loc,jobs:[],page:1,hasMore:false};
@@ -6903,11 +6921,17 @@ cancelBooking=async function(bookingId,role){
         if(loadMore){loadMore.disabled=true;loadMore.textContent='Loading more...';}
       }
       let newJobs=[],apiError='';
-      try{newJobs=await fetchJobsPage(q,loc,pageNum);}catch(e){apiError=e.message||'Failed to load jobs.';}
+      try{newJobs=await fetchJobsPage(q,loc,pageNum,controller.signal);}catch(e){apiError=e.name==='AbortError'?'The search took too long. Please try again.':(e.message||'Failed to load jobs.');}finally{clearTimeout(timeout);}
+      if(sequence!==searchSequence||!area.isConnected)return;
+      searchPending=false;
       if(btn){btn.disabled=false;btn.textContent='Search';}
+      if(apiError)companion.set('error');
+      if(apiError&&pageNum>1){
+        const loadMore=$('jobs-load-more');if(loadMore){loadMore.disabled=false;loadMore.textContent='Try loading more again';}
+        return;
+      }
       if(apiError&&pageNum===1){
-        let hint=apiError.includes('RAPIDAPI_KEY')?`<div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:14px 16px;font-size:13px;color:#92400E;margin-bottom:20px">⚠️ <b>RAPIDAPI_KEY not set.</b> Add it in Vercel → Project Settings → Environment Variables → Redeploy. <a href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch" target="_blank" style="color:#92400E;font-weight:600">Get free key →</a></div>`:'';
-        if(area)area.innerHTML=hint+`<div style="text-align:center;padding:40px;background:var(--surface2);border-radius:16px"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-weight:600;margin-bottom:6px">Could not load jobs</div><p style="color:var(--muted);font-size:13px">${safe(apiError)}</p></div>`;
+        if(area)area.innerHTML=`<div style="text-align:center;padding:40px;background:var(--surface2);border-radius:16px"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-weight:600;margin-bottom:6px">Could not load jobs</div><p style="color:var(--muted);font-size:13px">Please try your search again in a moment.</p><button class="btn" onclick="window._runJobSearch(1)">Try again</button></div>`;
         return;
       }
       _jobsCache.jobs=[..._jobsCache.jobs,...newJobs];
@@ -6923,6 +6947,7 @@ cancelBooking=async function(bookingId,role){
       };
       window._renderFilteredJobs();
       const allCons=await consPromise;
+      if(sequence!==searchSequence||!area.isConnected)return;
       _jobsRecCache=rankedJobConsultants(allCons,recKws,_jobsCache.jobs,q).slice(0,6);
       consRecs(_jobsRecCache,$('cons-rec-grid'));
       persistJobsState();

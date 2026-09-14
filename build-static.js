@@ -377,7 +377,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
+["assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -388,7 +388,7 @@ function minifyDeployableCss(relPath){
   fs.writeFileSync(full, output.styles, "utf8");
   console.log(`Optimized: ${relPath} (${(source.length-output.styles.length).toLocaleString()} bytes removed)`);
 }
-["assets/css/base.css","assets/css/patches.css","assets/css/fonts.css"].forEach(minifyDeployableCss);
+["assets/css/jobs-search.css","assets/css/base.css","assets/css/patches.css","assets/css/fonts.css"].forEach(minifyDeployableCss);
 
 // Cache-bust core.js/app.js/base.css/patches.css with a hash of their own
 // content. Without this, browsers and CDN edges can keep serving a stale
@@ -403,6 +403,8 @@ function assetVersionTag(relPath){
 }
 function cacheBustAssets(html){
   [
+ "assets/js/jobs-search.js",
+ "assets/css/jobs-search.css",
  "assets/js/core.js",
  "assets/js/app.js",
  "assets/js/shared-search.js",
