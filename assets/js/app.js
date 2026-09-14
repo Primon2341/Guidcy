@@ -16009,8 +16009,17 @@ function applyFilters(data){
   });
 }
 
+/* Keep each surface's companion independent when navigating between Jobs and Funds & Grants. */
+function setOppCompanion(state,count){
+  const page=gid('page-opportunities');
+  if(page&&window.guidcyCreateOpportunitiesCompanion){
+    window.guidcyCreateOpportunitiesCompanion(page).set(state,count);
+  }
+}
+
 /* ── Loading skeleton ── */
 function showLoading(){
+  setOppCompanion('searching');
   const area=gid('opp-results-area');
   if(!area)return;
   area.innerHTML=`<div class="opp-loading">${Array(6).fill('<div class="opp-skeleton"></div>').join('')}</div>`;
@@ -16018,6 +16027,7 @@ function showLoading(){
 
 /* ── Error state ── */
 function showErrorState(msg){
+  setOppCompanion('error');
   const area=gid('opp-results-area');
   if(!area)return;
   area.innerHTML=`
@@ -16031,6 +16041,7 @@ function showErrorState(msg){
 
 /* Keep the results area empty until a real search or admin result is available. */
 function showWelcomeState(){
+  setOppCompanion('idle');
   const area=gid('opp-results-area');
   const stats=gid('opp-stats-bar');
   if(area)area.replaceChildren();
@@ -16039,6 +16050,7 @@ function showWelcomeState(){
 
 /* ── Render results grid ── */
 async function renderResults(data){
+  const renderRequestId=_opportunitySearchRequestId,renderTab=_currentTab;
   const area=gid('opp-results-area');
   const stats=gid('opp-stats-bar');
   if(!area)return;
@@ -16056,6 +16068,7 @@ async function renderResults(data){
     if(!Array.isArray(_savedCache))_savedCache=[];
     if(!Array.isArray(_trackedCache))_trackedCache=[];
   }
+  if(renderRequestId!==_opportunitySearchRequestId||renderTab!==_currentTab)return;
   if(!data||!data.length){
     // Tab-specific suggestion buttons in the no-results state
     const emptyBtns=_currentTab==='startup'
@@ -16069,19 +16082,23 @@ async function renderResults(data){
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${emptyBtnHtml}</div>
     </div>`;
     if(stats)stats.innerHTML='';
+    setOppCompanion('empty');
     return;
   }
   if(stats)stats.innerHTML=`<span>Showing <strong>${data.length}</strong> results${_currentQuery?' for "<strong>'+esc(_currentQuery)+'</strong>"':''}</span>`;
   area.innerHTML=`<div class="opp-grid">${data.map(opp=>opp.type==='startup'?renderStartupCard(opp):renderStudentCard(opp)).join('')}</div>`;
+  setOppCompanion('results',data.length);
 }
 
 /* ── Saved tab (user-specific) ── */
 async function renderSavedTab(){
+  const renderRequestId=_opportunitySearchRequestId;
   const area=gid('opp-results-area');
   const stats=gid('opp-stats-bar');
   if(!area)return;
 
   if(!isLoggedIn()){
+    setOppCompanion('signIn');
     area.innerHTML=`<div class="opp-empty">
       <div style="font-size:40px;margin-bottom:12px">🔐</div>
       <div style="font-size:16px;font-weight:600;margin-bottom:6px">Login required</div>
@@ -16093,12 +16110,15 @@ async function renderSavedTab(){
   }
 
   // Show skeleton while loading from Supabase
+  setOppCompanion('savedLoading');
   area.innerHTML=`<div class="opp-loading">${Array(3).fill('<div class="opp-skeleton"></div>').join('')}</div>`;
 
   const saved=await getSaved();
   const tracked=await getTracked();
+  if(renderRequestId!==_opportunitySearchRequestId||_currentTab!=='saved')return;
 
   if(!saved.length){
+    setOppCompanion('savedEmpty');
     area.innerHTML=`<div class="opp-empty">
       <div style="font-size:40px;margin-bottom:12px">🔖</div>
       <div style="font-size:16px;font-weight:600;margin-bottom:6px">No saved opportunities yet</div>
@@ -16130,6 +16150,7 @@ async function renderSavedTab(){
   }).join('');
 
   area.innerHTML=trackerHtml+`<div class="opp-grid">${html}</div>`;
+  setOppCompanion('saved');
 }
 
 /* ── Sync quick-button visibility to current tab ── */
@@ -16149,6 +16170,9 @@ function setOppTabVisualState(tab){
 
 /* ── Tabs ── */
 function oppSetTab(tab){
+  clearTimeout(_searchTimer);
+  ++_opportunitySearchRequestId;
+  if(_activeOpportunitySearch){_activeOpportunitySearch.abort();_activeOpportunitySearch=null;}
   _currentTab=tab;
   _savedCache=null; _trackedCache=null;
   setOppTabVisualState(tab);
@@ -16177,6 +16201,7 @@ window.oppLiveSearch=function(){
 
 /* ── Main search (Tavily + cache) ── */
 window.oppDoSearch=async function(){
+  clearTimeout(_searchTimer);
   if(_currentTab==='saved'){renderSavedTab();return;}
 
   const q=(gid('opp-search-input')?.value||'').trim();

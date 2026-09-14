@@ -1,31 +1,31 @@
-/* Companion only. Original jobs page controls, typography and cards keep their own styles. */
-#page-jobs .jobs-companion-rail { height:100px; position:relative; overflow:hidden; pointer-events:none; mix-blend-mode:multiply; }
-#page-jobs .jobs-peek-window { position:absolute; width:96px; height:100px; bottom:0; left:0; overflow:hidden; }
-#page-jobs .jobs-character { position:absolute; width:96px; height:96px; bottom:-6px; left:0; transform:translateY(0); transition:transform .28s ease-in,opacity .22s ease; }
-#page-jobs .jobs-character-art { display:block; width:100%; height:100%; background:url('/assets/images/guidcy-boy-poses.png') 0 0 / 300% 100% no-repeat; }
-#page-jobs [data-pose="look"] .jobs-character-art { background-position:50% 0; }
-#page-jobs [data-pose="wave"] .jobs-character-art { background-position:100% 0; }
-#page-jobs [data-position="center"] .jobs-peek-window { left:calc(50% - 48px); }
-#page-jobs [data-position="right"] .jobs-peek-window { left:calc(100% - 96px); }
-#page-jobs .jobs-thought { position:absolute; bottom:35px; left:96px; width:185px; padding:10px 13px; color:#23476c; background:#f5faff; border:1px solid #b8d9fa; border-radius:22px; font-size:12px; line-height:1.4; transition:opacity .18s ease,transform .2s ease; }
-#page-jobs .jobs-thought::before,#page-jobs .jobs-thought::after { content:''; position:absolute; bottom:-9px; left:7px; width:7px; height:7px; background:#f5faff; border:1px solid #b8d9fa; border-radius:50%; }
-#page-jobs .jobs-thought::after { width:4px; height:4px; bottom:-15px; left:0; }
-#page-jobs [data-position="center"] .jobs-thought { left:calc(50% + 48px); }
-#page-jobs [data-position="right"] .jobs-thought { left:auto; right:96px; }
-#page-jobs [data-position="right"] .jobs-thought::before { left:auto; right:7px; }
-#page-jobs [data-position="right"] .jobs-thought::after { left:auto; right:0; }
-#page-jobs .is-hiding .jobs-character { transform:translateY(105%); opacity:0; }
-#page-jobs .is-hiding .jobs-thought { opacity:0; transform:translateY(8px); }
-#page-jobs .jobs-character-search-bar { position:relative; z-index:1; }
+/* Companion only. Original page controls, typography and cards keep their own styles. */
+:is(#page-jobs, #page-opportunities) .jobs-companion-rail { height:100px; position:relative; overflow:hidden; pointer-events:none; mix-blend-mode:multiply; }
+:is(#page-jobs, #page-opportunities) .jobs-peek-window { position:absolute; width:96px; height:100px; bottom:0; left:0; overflow:hidden; }
+:is(#page-jobs, #page-opportunities) .jobs-character { position:absolute; width:96px; height:96px; bottom:-6px; left:0; transform:translateY(0); transition:transform .28s ease-in,opacity .22s ease; }
+:is(#page-jobs, #page-opportunities) .jobs-character-art { display:block; width:100%; height:100%; background:url('/assets/images/guidcy-boy-poses.png') 0 0 / 300% 100% no-repeat; }
+:is(#page-jobs, #page-opportunities) [data-pose="look"] .jobs-character-art { background-position:50% 0; }
+:is(#page-jobs, #page-opportunities) [data-pose="wave"] .jobs-character-art { background-position:100% 0; }
+:is(#page-jobs, #page-opportunities) [data-position="center"] .jobs-peek-window { left:calc(50% - 48px); }
+:is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-peek-window { left:calc(100% - 96px); }
+:is(#page-jobs, #page-opportunities) .jobs-thought { position:absolute; bottom:35px; left:96px; width:185px; padding:10px 13px; color:#23476c; background:#f5faff; border:1px solid #b8d9fa; border-radius:22px; font-size:12px; line-height:1.4; transition:opacity .18s ease,transform .2s ease; }
+:is(#page-jobs, #page-opportunities) .jobs-thought::before,:is(#page-jobs, #page-opportunities) .jobs-thought::after { content:''; position:absolute; bottom:-9px; left:7px; width:7px; height:7px; background:#f5faff; border:1px solid #b8d9fa; border-radius:50%; }
+:is(#page-jobs, #page-opportunities) .jobs-thought::after { width:4px; height:4px; bottom:-15px; left:0; }
+:is(#page-jobs, #page-opportunities) [data-position="center"] .jobs-thought { left:calc(50% + 48px); }
+:is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-thought { left:auto; right:96px; }
+:is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-thought::before { left:auto; right:7px; }
+:is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-thought::after { left:auto; right:0; }
+:is(#page-jobs, #page-opportunities) .is-hiding .jobs-character { transform:translateY(105%); opacity:0; }
+:is(#page-jobs, #page-opportunities) .is-hiding .jobs-thought { opacity:0; transform:translateY(8px); }
+:is(#page-jobs, #page-opportunities) .jobs-character-search-bar { position:relative; z-index:1; }
 @media(max-width:560px) {
-  #page-jobs .jobs-peek-window,#page-jobs .jobs-character { width:86px; }
-  #page-jobs .jobs-character { height:86px; bottom:-5px; }
-  #page-jobs .jobs-companion-rail { height:90px; }
-  #page-jobs .jobs-thought { width:calc(100% - 96px); max-width:185px; left:90px; font-size:11px; }
-  #page-jobs [data-position="right"] .jobs-peek-window,#page-jobs [data-position="center"] .jobs-peek-window { left:calc(100% - 86px); }
-  #page-jobs [data-position="right"] .jobs-thought,#page-jobs [data-position="center"] .jobs-thought { left:auto; right:90px; }
+  :is(#page-jobs, #page-opportunities) .jobs-peek-window,:is(#page-jobs, #page-opportunities) .jobs-character { width:86px; }
+  :is(#page-jobs, #page-opportunities) .jobs-character { height:86px; bottom:-5px; }
+  :is(#page-jobs, #page-opportunities) .jobs-companion-rail { height:90px; }
+  :is(#page-jobs, #page-opportunities) .jobs-thought { width:calc(100% - 96px); max-width:185px; left:90px; font-size:11px; }
+  :is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-peek-window,:is(#page-jobs, #page-opportunities) [data-position="center"] .jobs-peek-window { left:calc(100% - 86px); }
+  :is(#page-jobs, #page-opportunities) [data-position="right"] .jobs-thought,:is(#page-jobs, #page-opportunities) [data-position="center"] .jobs-thought { left:auto; right:90px; }
 }
 @media(prefers-reduced-motion:reduce) {
-  #page-jobs .jobs-character,#page-jobs .jobs-thought { transition:none; }
-  #page-jobs .is-hiding .jobs-character,#page-jobs .is-hiding .jobs-thought { transform:none; opacity:1; }
+  :is(#page-jobs, #page-opportunities) .jobs-character,:is(#page-jobs, #page-opportunities) .jobs-thought { transition:none; }
+  :is(#page-jobs, #page-opportunities) .is-hiding .jobs-character,:is(#page-jobs, #page-opportunities) .is-hiding .jobs-thought { transform:none; opacity:1; }
 }

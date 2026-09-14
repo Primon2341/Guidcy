@@ -1,13 +1,15 @@
 /* Search-state companion: duck below the bar, relocate while hidden, then peek out. */
 (function () {
   'use strict';
-  let disposePrevious = null;
-  window.guidcyCreateJobsCompanion = function (page) {
-    if (disposePrevious) disposePrevious();
+  const companions = new WeakMap();
+  window.guidcyCreateSearchCompanion = function (page, options = {}) {
     const rail = page.querySelector('.jobs-companion-rail');
+    const previous = companions.get(page);
+    if (previous && previous.rail === rail) return previous.controller;
+    if (previous) previous.controller.dispose();
     const thought = rail.querySelector('.jobs-thought');
-    const input = page.querySelector('#job-q');
-    const results = page.querySelector('#jobs-main-area');
+    const input = page.querySelector(options.input || '#job-q');
+    const results = page.querySelector(options.results || '#jobs-main-area');
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const mobile = window.matchMedia('(max-width: 560px)');
     const listeners = new AbortController();
@@ -21,7 +23,8 @@
       searching: 'I’m finding jobs for you…',
       more: 'Looking for more opportunities…',
       empty: 'No matches yet. Try another search?',
-      error: 'A little hiccup. Let’s try again.'
+      error: 'A little hiccup. Let’s try again.',
+      ...options.messages
     };
     function visible() {
       return page.isConnected && !document.hidden && (page.classList.contains('on') || page.classList.contains('active'));
@@ -51,7 +54,7 @@
       if (disposed) return;
       const changed = state !== nextState;
       state = nextState;
-      busy = state === 'searching' || state === 'more';
+      busy = state === 'searching' || state === 'more' || state === 'savedLoading';
       rail.dataset.state = state;
       results.setAttribute('aria-busy', String(busy));
       const message = state === 'results'
@@ -68,7 +71,7 @@
     input.addEventListener('input', function () {
       if (!busy) set(input.value.trim() ? 'typing' : 'idle');
     }, { signal: listeners.signal });
-    page.querySelector('#job-loc').addEventListener('change', function () {
+    page.querySelector(options.location || '#job-loc')?.addEventListener('change', function () {
       if (!busy) set('location');
     }, { signal: listeners.signal });
     const observer = new MutationObserver(syncMotion);
@@ -78,10 +81,28 @@
     mobile.addEventListener('change', function () {
       rail.dataset.position = 'left'; step = 0; syncMotion();
     }, { signal: listeners.signal });
-    disposePrevious = function () {
+    function dispose() {
       disposed = true; stop(); listeners.abort(); observer.disconnect();
-    };
+    }
+    const controller = { set, dispose };
+    companions.set(page, { rail, controller });
     set('idle');
-    return { set };
+    return controller;
   };
+  window.guidcyCreateJobsCompanion = page => window.guidcyCreateSearchCompanion(page);
+  window.guidcyCreateOpportunitiesCompanion = page => window.guidcyCreateSearchCompanion(page, {
+    input: '#opp-search-input',
+    results: '#opp-results-area',
+    location: '#opp-filter-country',
+    messages: {
+      idle: 'Let’s find your next opportunity!',
+      typing: 'Thinking about funds and grants…',
+      searching: 'I’m finding opportunities for you…',
+      empty: 'No matches yet. Try another keyword?',
+      savedLoading: 'Opening your saved opportunities…',
+      saved: 'Your saved opportunities, all in one place.',
+      savedEmpty: 'Save an opportunity to find it here.',
+      signIn: 'Sign in to see your saved opportunities.'
+    }
+  });
 })();
