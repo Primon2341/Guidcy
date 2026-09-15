@@ -4546,8 +4546,7 @@ function guidcyPlaceFooterAfterPages(){
     const footer=document.querySelector('.footer');
     if(!footer)return;
     const pages=Array.from(document.querySelectorAll('.page'));
-    const active=document.querySelector('.page.on,.page.active');
-    const lastPage=active||pages[pages.length-1];
+    const lastPage=pages[pages.length-1];
     footer.hidden=false;
     footer.style.display='';
     footer.style.visibility='';
@@ -6460,13 +6459,8 @@ cancelBooking=async function(bookingId,role){
   const JOBS_STATE_KEY='guidcy_jobs_last_state_v1';
   const JOBS_EXTERNAL_KEY='guidcy_jobs_external_open_v1';
   let _restoringJobsState=false;
-  try{
-    const nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')||[])[0];
-    if(nav&&nav.type==='reload'){
-      let ext=null;try{ext=JSON.parse(sessionStorage.getItem(JOBS_EXTERNAL_KEY)||'null')}catch(_){}
-      if(!(ext&&ext.ts&&Date.now()-Number(ext.ts)<30*60*1000))sessionStorage.removeItem(JOBS_STATE_KEY);
-    }
-  }catch(_){}
+  // Keep the tab's bounded search data on ordinary reloads too. readJobsState
+  // already expires it; deleting it here stranded the restored DOM as inert.
   function jobsSessionGet(k){try{return JSON.parse(sessionStorage.getItem(k)||'null')}catch(_){return null}}
   function jobsSessionSet(k,v){try{sessionStorage.setItem(k,JSON.stringify(v))}catch(_){}}
   function jobsSessionRemove(k){try{sessionStorage.removeItem(k)}catch(_){}}
@@ -7280,8 +7274,8 @@ body{overflow-x:hidden}
     removeGoogleBtns();setTimeout(removeGoogleBtns,400);
     setTimeout(loadHomeStats,800);
     setTimeout(ensureAdminOnBoot,500);
-    // Fix blog class inconsistency (active vs on)
-    document.querySelectorAll('#page-blog').forEach(el=>el.classList.add('on'));
+    // Route visibility belongs to the router. Activating Blog here also exposed
+    // its viewport-height shell below the current page/footer on every boot.
     // Inject browse filter toggle after browse initialises
     setTimeout(injectBrowseFilterToggle,600);
     setTimeout(injectBrowseFilterToggle,1500);
@@ -20577,6 +20571,26 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return null;
   }
 
+  // Compare the visible account state, not serialized markup: the router adds
+  // binding attributes/removes onclick after rendering. Keep existing buttons
+  // (and their listeners/focus) when the account has not changed.
+  function syncNavContents(area,html){
+    if(!area)return;
+    const template=document.createElement('template');template.innerHTML=html;
+    const next=Array.from(template.content.children),old=Array.from(area.children);
+    function appearance(el){
+      return JSON.stringify([el.tagName,el.id,el.className,el.textContent.trim(),
+        el.getAttribute('style')||'',el.getAttribute('title')||'',el.getAttribute('aria-label')||'']);
+    }
+    if(next.length!==old.length||next.some((el,i)=>appearance(el)!==appearance(old[i]))){
+      area.replaceChildren(template.content);
+    }
+    // Cached markup is presentation only; reconnect its actions in this document.
+    next.forEach((el,i)=>{
+      const live=area.children[i],handler=el.getAttribute('onclick');
+      if(handler&&!live.onclick&&!live.hasAttribute('data-guidcy-route-bound-v6'))live.setAttribute('onclick',handler);
+    });
+  }
   /* 1) Single source of truth for the top Dashboard button. */
   function renderSingleDashboardButton(){
     if(!window.__guidcySignedOut&&!window.__guidcyAuthReadyFired)return;
@@ -20587,8 +20601,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     const u=getGlobalUser() || {};
     const logged=!!(role || isLoggedSync());
     if(!logged){
-      nr.innerHTML = '<button class="btn" onclick="go(\'login\')">Log in</button><button class="btn btn-blue" onclick="go(\'signup\');setTimeout(()=>{try{swType(\'consultant\')}catch(e){}},50)">Get started</button>';
-      syncMobileAuthArea();
+      const guestHtml = '<button class="btn" onclick="go(\'login\')">Log in</button><button class="btn btn-blue" onclick="go(\'signup\');setTimeout(()=>{try{swType(\'consultant\')}catch(e){}},50)">Get started</button>';
+      syncNavContents(nr,guestHtml);
+      window.guidcyStoreNavShell&&window.guidcyStoreNavShell(guestHtml);
+      syncMobileAuthArea(guestHtml);
       return;
     }
     const route=dashboardRouteForRole(role);
@@ -20597,13 +20613,14 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     const av=avatarUrlForProfile(p,u);
     const avatarStyle = role==='admin' ? 'background:#FFF0F0;color:#7f1d1d;border-color:#f87171' : role==='consultant' ? 'background:#F7F0E6;color:#8B6E3F;border-color:#C9A96E' : 'background:#EBF4FF;color:#1E72BE;border-color:#1E72BE33';
     const navHtml = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button>'+avatarChipHtml(av,ini,avatarStyle,route,name);
-    if(nr.innerHTML!==navHtml)nr.innerHTML=navHtml;
-    syncMobileAuthArea();
+    syncNavContents(nr,navHtml);
+    window.guidcyStoreNavShell&&window.guidcyStoreNavShell(navHtml);
+    syncMobileAuthArea(navHtml);
   }
-  function syncMobileAuthArea(){
+  function syncMobileAuthArea(html){
     try{
       const nr=$('nav-right');
-      ['gmob-auth-area','gmob-auth-btns'].forEach(id=>{const area=$(id); if(area && nr) area.innerHTML = nr.innerHTML;});
+      ['gmob-auth-area','gmob-auth-btns'].forEach(id=>{const area=$(id); if(area && nr) syncNavContents(area,html);});
     }catch(_){ }
   }
   window.guidcyRenderSingleDashboardButton = renderSingleDashboardButton;
@@ -22962,44 +22979,15 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     try{
       var footer=document.querySelector('.footer');
       if(!footer)return;
+      // All route pages share this footer. Keep it after the route collection,
+      // including while the URL shell is visible but auth has not activated it.
+      var pages=document.querySelectorAll('.page'),last=pages[pages.length-1];
+      if(last&&footer.previousElementSibling!==last)last.insertAdjacentElement('afterend',footer);
       footer.hidden=false;
-      footer.style.display='';
-      footer.style.visibility='';
-      footer.style.opacity='';
-      var route=currentPage();
-      if(!route){
-        var path=cleanPath(location.pathname);
-        if(path==='/careers'||path==='/find-work'||path==='/work'||path==='/guidcy-work')route='careers';
-        else if(path==='/find-jobs'||path==='/jobs')route='jobs';
-        else if(path==='/funds-grants'||path==='/opportunities')route='opportunities';
-        else if(path==='/career-ai-finder'||path==='/career-ai'||path==='/smart-finder')route='smart-finder';
-      }
-      try{if(route==='careers'&&!document.getElementById('page-careers')&&typeof window.guidcyEnsureCareersPage==='function')window.guidcyEnsureCareersPage()}catch(_){}
-      var active=route?document.getElementById('page-'+route):document.querySelector('.page.on,.page.active');
-      var pages=Array.from(document.querySelectorAll('.page'));
-      var anchor=active||pages[pages.length-1];
-      if(route&&(!active||!(active.classList.contains('on')||active.classList.contains('active')))){
-        setTimeout(placeFooter,80);
-        return;
-      }
-      if(anchor&&anchor.parentNode){if(footer.previousElementSibling!==anchor)anchor.insertAdjacentElement('afterend',footer)}
-      else document.body.appendChild(footer);
-      var toast=document.getElementById('toastbar');
-      if(toast)document.body.appendChild(toast);
+      footer.style.display='';footer.style.visibility='';footer.style.opacity='';
       window.__guidcyAllowFooterReady=true;
-      requestAnimationFrame(function(){
-        try{
-          var current=document.querySelector('.page.on,.page.active')||anchor;
-          if(current&&current.parentNode&&footer.previousElementSibling!==current){
-            current.insertAdjacentElement('afterend',footer);
-          }
-          document.documentElement.classList.add('guidcy-app-ready');
-          document.body.classList.add('guidcy-footer-ready');
-        }catch(_){
-          document.documentElement.classList.add('guidcy-app-ready');
-          document.body.classList.add('guidcy-footer-ready');
-        }
-      });
+      document.documentElement.classList.add('guidcy-app-ready');
+      document.body.classList.add('guidcy-footer-ready');
     }catch(_){}
   }
   window.guidcyPlaceFooterAfterPages=placeFooter;

@@ -63,3 +63,49 @@ backend RLS remain authoritative.
 Browser tests use controlled SDK/API fixtures. They do not charge cards, modify
 production data, or test live Google/provider availability. Run the static build
 before browser tests; Playwright and Chrome must be available locally.
+
+## Repeated refresh and layout follow-up (2026-09-15)
+
+The menu was not identical at first paint: Marketplace and Career & College AI
+Finder were appended after boot. Auth callbacks also replaced the account
+buttons repeatedly because router binding attributes made their serialized HTML
+look different. The complete menu now lives in `index.html`; the account renderer
+compares visible state and preserves unchanged nodes and listeners. Header cache
+restoration runs just after the closing nav tag, rather than racing the parser.
+Only the account renderer writes that cache, using markup with reconnectable
+navigation actions.
+
+`page-shell.js` previously overwrote a good region with an empty snapshot when
+saving during revalidation. It also treated `aria-busy="false"` as busy, which
+excluded completed finder results. Find Jobs also explicitly deleted its existing
+search-data cache on ordinary reloads, preventing the live renderer from
+reconnecting cached results; that deletion is removed, retaining its existing
+expiry and external-link return behavior. The shell cache now checks the value, retains valid pending
+regions with their original expiry, and releases temporary height reservations
+when live markup takes over in `ui-refresh.js`.
+
+Mobile frame inspection caught a second visible page below the footer: a legacy
+DOMContentLoaded callback unconditionally activated Blog on every route. That
+callback is removed. Both footer placement helpers now keep the shared footer
+after the complete route collection instead of moving it after whichever page
+happens to be active during startup. No overflow clipping or height cap was added.
+
+Find Jobs (`#jobs-main-area`) and Career & College AI Finder (`#sf-results`) each
+had an empty static results container permanently marked as a skeleton before a
+search was submitted. Their idle markup is now empty without a loading class;
+the existing search handlers still render their own pending/results/error states.
+The optional shell-capture helper no longer marks these idle search regions busy.
+
+Additional browser coverage:
+- `repeated-refresh-layout-browser.test.cjs`: four consecutive reloads of seven
+  public routes and each dashboard role at 390px and 1280px; unchanged menu node
+  identity during restoration, single visible route, account actions, interrupted
+  cache writes (including aria-busy=false), and released cached heights.
+- `finder-layout-browser.test.cjs`: real UI submissions against local API
+  fixtures for jobs and both AI modes; zero-height idle results without pseudo
+  skeletons; footer boundaries on 21 public routes at mobile and desktop sizes,
+  including opening/closing the mobile menu.
+
+These checks use local Chrome and fixtures; they do not deploy the changes or
+exercise live payment/OAuth providers. Screenshots are written outside the repo
+under `/private/tmp`.

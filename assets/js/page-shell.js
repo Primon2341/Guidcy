@@ -40,7 +40,7 @@
  window.guidcyClearRefreshCache=function(){
   window.__guidcyRestoredOwner='';
   try{sessionStorage.removeItem(KEY);localStorage.removeItem('guidcy_nav_cache')}catch(_){}
-  document.querySelectorAll('[data-guidcy-restored]').forEach(function(n){n.replaceChildren();n.removeAttribute('inert');n.removeAttribute('data-guidcy-restored')});
+  document.querySelectorAll('[data-guidcy-restored]').forEach(function(n){n.replaceChildren();if(n.__guidcyRestoreMinHeight!==undefined){n.style.minHeight=n.__guidcyRestoreMinHeight;delete n.__guidcyRestoreMinHeight}n.removeAttribute('inert');n.removeAttribute('data-guidcy-restored')});
  };
  window.guidcySavePageShell=function(){
   try{
@@ -51,16 +51,24 @@
    if(['login','signup','payment','confirm','meeting','review'].indexOf(id)>=0)return;
    var uid=owner(),isPrivate=/-dash$/.test(id);
    if(isPrivate&&(!uid||!window.currentUser||window.currentUser.id!==uid))return;
+   var cache=read(),previous=cache[route()];
+   if(previous&&(previous.uid!==uid||previous.page!==id||Date.now()-previous.at>TTL))previous=null;
    var entry={at:Date.now(),uid:uid,page:id,regions:{},height:page.getBoundingClientRect().height};
    regions.forEach(function(key){
     var el=document.getElementById(key);
-    if(el&&page.contains(el)&&el.firstChild&&!el.hasAttribute('aria-busy')&&!el.hasAttribute('data-guidcy-restored'))entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height};
+    if(!el||!page.contains(el))return;
+    if(el.getAttribute('aria-busy')==='true'||el.hasAttribute('data-guidcy-restored')){
+     // Reloading during revalidation must not overwrite the last good region.
+     var saved=previous&&previous.regions[key];
+     if(saved&&Date.now()-(saved.at||previous.at)<=TTL)entry.regions[key]=Object.assign({},saved,{at:saved.at||previous.at});
+    }else if(el.firstChild&&!el.classList.contains('guidcy-panel-skeleton')){
+     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now()};
+    }
    });
    entry.identity={};
    if(uid)identity.forEach(function(key){var n=document.getElementById(key);if(n&&page.contains(n))entry.identity[key]={html:cleanHtml(n),style:n.getAttribute('style')||'',className:n.className}});
    entry.controls={};
    controls.forEach(function(key){var field=document.getElementById(key);if(field&&page.contains(field))entry.controls[key]=field.value});
-   var cache=read();
    Object.keys(cache).forEach(function(k){if(Date.now()-cache[k].at>TTL||cache[k].uid!==uid)delete cache[k]});
    cache[route()]=entry;
    var keys=Object.keys(cache).sort(function(a,b){return cache[a].at-cache[b].at});
@@ -82,14 +90,14 @@
   Object.keys(entry.regions||{}).forEach(function(key){
    if(regions.indexOf(key)<0)return;
    var el=document.getElementById(key),saved=entry.regions[key];
-   if(!el||!page.contains(el))return;
+   if(!el||!page.contains(el)||Date.now()-(saved.at||entry.at)>TTL)return;
    el.innerHTML=saved.html;
    el.classList.remove('guidcy-panel-skeleton','guidcy-panel-busy','guidcy-panel-swap');
    el.removeAttribute('aria-busy');
    el.setAttribute('data-guidcy-restored','');
    el.setAttribute('inert','');
    // Reserve the last measured region while its data revalidates.
-   if(saved.height>0)el.style.minHeight=Math.min(saved.height,2400)+'px';
+   if(saved.height>0){el.__guidcyRestoreMinHeight=el.style.minHeight;el.style.minHeight=Math.min(saved.height,2400)+'px'}
   });
  };
  window.addEventListener('pagehide',window.guidcySavePageShell);

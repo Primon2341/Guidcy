@@ -81,6 +81,7 @@
             setBusy(target, false);
             // Preserve focused controls and mounted descendants for identical data.
             if(native.get.call(target)!==String(value))native.set.call(target, value);
+            if(target.__guidcyRestoreMinHeight!==undefined){target.style.minHeight=target.__guidcyRestoreMinHeight;delete target.__guidcyRestoreMinHeight}
             target.removeAttribute('inert');
             target.removeAttribute('data-guidcy-restored');
             /* An empty panel keeps its placeholder, but drawn as a quiet skeleton

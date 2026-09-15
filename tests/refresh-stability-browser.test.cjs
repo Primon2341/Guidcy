@@ -52,7 +52,7 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
    shells.push(await page.evaluate(id=>{
     var el=document.getElementById('page-'+id).cloneNode(true);el.className='page';
     el.querySelectorAll('script,[data-auth-retry]').forEach(n=>n.remove());
-    el.querySelectorAll('#jobs-main-area,#gmkt-grid,#gc-list,#sf-results,#cons-rec-grid').forEach(n=>{n.innerHTML='';n.classList.add('guidcy-panel-skeleton');n.setAttribute('aria-busy','true')});
+    el.querySelectorAll('#gmkt-grid,#gc-list,#cons-rec-grid').forEach(n=>{n.innerHTML='';n.classList.add('guidcy-panel-skeleton');n.setAttribute('aria-busy','true')});
     return el.outerHTML;
    },id));
   }

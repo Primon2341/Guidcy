@@ -53,15 +53,22 @@
   }
   var cachedNav=null,cachedProfile=null;
   try{var c=JSON.parse(localStorage.getItem(NAV_KEY)||'null');var uid=sessionUserId();if(c&&uid&&c.uid===uid&&c.html){cachedNav=c.html;cachedProfile=c}else if(c&&!uid)localStorage.removeItem(NAV_KEY)}catch(_){}
-  function watchNav(nr){
-    new MutationObserver(function(){
-      try{
-        var uid=sessionUserId(),chip=nr.querySelector('.avatar-chip');
-        if(uid&&nr.querySelector('.avatar-chip,img'))localStorage.setItem(NAV_KEY,JSON.stringify({uid:uid,html:nr.innerHTML,name:chip&&chip.title||'',initials:chip&&chip.textContent.trim()||''}));
-        else localStorage.removeItem(NAV_KEY);
-      }catch(_){}
-    }).observe(nr,{childList:true});
-  }
+  // Called immediately after the closing nav tag: the parser has finished its
+  // children, so it cannot append guest buttons after the restored account UI.
+  window.guidcyRestoreNavShell=function(){
+    var nr=document.getElementById('nav-right');
+    if(nr&&cachedNav){
+      nr.innerHTML=cachedNav;
+      nr.querySelectorAll('[data-guidcy-route-bound-v6]').forEach(function(el){el.removeAttribute('data-guidcy-route-bound-v6')});
+    }
+  };
+  window.guidcyStoreNavShell=function(html){
+    try{
+      var uid=sessionUserId(),nr=document.getElementById('nav-right'),chip=nr&&nr.querySelector('.avatar-chip');
+      if(uid&&chip)localStorage.setItem(NAV_KEY,JSON.stringify({uid:uid,html:html,name:chip.title||'',initials:chip.textContent.trim()}));
+      else localStorage.removeItem(NAV_KEY);
+    }catch(_){}
+  };
   /* Dashboard sidebar: the static shell says "User"; put the cached name back. */
   function fillSidebar(){
     if(!cachedProfile||!cachedProfile.name)return;
@@ -72,7 +79,7 @@
     });
   }
 
-  var done=!page||page==='home',navDone=false,sidebarDone=false;
+  var done=!page||page==='home',sidebarDone=false;
   function finish(){
     if(done)return;
     done=true;
@@ -81,15 +88,11 @@
   }
   function isShown(el){return el&&el.nodeType===1&&el.classList&&el.classList.contains('page')&&(el.classList.contains('on')||el.classList.contains('active'))}
   var mo=new MutationObserver(function(list){
-    if(!navDone){
-      var nr=document.getElementById('nav-right');
-      if(nr){navDone=true;if(cachedNav)nr.innerHTML=cachedNav;watchNav(nr)}
-    }
     if(!sidebarDone&&(page==='user-dash'||page==='cons-dash')){
       var av=document.getElementById(page==='user-dash'?'udash-name':'cdash-name');
       if(av){sidebarDone=true;fillSidebar()}
     }
-    if(done){if(navDone&&(sidebarDone||page!=='user-dash'&&page!=='cons-dash'))mo.disconnect();return}
+    if(done){if(sidebarDone||page!=='user-dash'&&page!=='cons-dash')mo.disconnect();return}
     for(var i=0;i<list.length;i++){
       var m=list[i],t=m.target;
       /* The app took over: a page other than the static default is on, or
@@ -218,13 +221,16 @@
     <button class="nav-link" onclick="go('browse');closeMobileMenu()">Find the Expert</button>
     <button class="nav-link" onclick="go('jobs');closeMobileMenu()">Find Jobs</button>
     <button class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</button><button class="nav-link" onclick="go('blog');closeMobileMenu()">Blog</button>
+    <button class="nav-link" data-guidcy-marketplace-nav="1" onclick="go('marketplace');closeMobileMenu()">Marketplace</button>
     <button class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</button><button class="nav-link" onclick="go('opportunities');closeMobileMenu()">Funds &amp; Grants Finder</button>
+    <button class="nav-link" data-sf-link="1" onclick="go('smart-finder');closeMobileMenu()">Career &amp; College AI Finder</button>
   </div>
   <div class="nav-right" id="nav-right">
     <button class="btn" onclick="go('login')">Log in</button>
     <button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},50)">Get started</button>
   </div>
 </nav>
+<script>window.guidcyRestoreNavShell();</script>
 
 <!-- Shown only while a JS-built page (jobs, marketplace, blog, finder) is still being constructed on a refresh. -->
 <div id="guidcy-boot-skeleton" aria-hidden="true"><div class="gbs-bar" style="width:38%"></div><div class="gbs-bar" style="width:62%"></div><div class="gbs-grid"><div class="gbs-card"></div><div class="gbs-card"></div><div class="gbs-card"></div></div></div>
@@ -2241,7 +2247,7 @@
         <button id="job-tab-saved" class="guidcy-job-tab" onclick="window.guidcyJobsShowSaved&amp;&amp;guidcyJobsShowSaved()" style="border:1px solid var(--border);background:#fff;color:var(--ink2);border-radius:100px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Saved Jobs</button>
       </div>
       <div id="jobs-saved-area" style="display:none"></div>
-      <div id="jobs-main-area" aria-busy="true" class="guidcy-panel-skeleton"></div>
+      <div id="jobs-main-area"></div>
     </div></div>
 <div id="page-marketplace" class="page"><div class="gmkt-wrap"><section class="gmkt-hero"><div><h1>Marketplace</h1><p>Buy, download, and sell useful PDF notes on Guidcy. Sellers choose how many opening pages buyers can preview before purchase, then paid notes unlock full access after login and payment.</p><div class="gmkt-actions"><button class="btn btn-blue" onclick="GuidcyMarketplace.openUpload()">Sell Your Notes</button><button class="btn" onclick="GuidcyMarketplace.render()">Refresh Notes</button></div></div><div class="gmkt-panel"><b>Secure notes flow</b><p style="color:#64748B;line-height:1.6;margin:8px 0 0">Only PDFs up to 15 MB are accepted.</p></div></section><div class="gmkt-filters"><input id="gmkt-search" placeholder="Search notes, subject, exam..." oninput="GuidcyMarketplace.renderList()"><select id="gmkt-cat" onchange="GuidcyMarketplace.renderList()"><option value="all">All categories</option><option value="career">Career</option></select><select id="gmkt-price" onchange="GuidcyMarketplace.renderList()"><option value="all">Free / Paid / All</option><option value="free">Free</option><option value="paid">Paid</option></select><select id="gmkt-sort" onchange="GuidcyMarketplace.renderList()"><option value="latest">Latest</option><option value="popular">Popular</option><option value="price-low">Price Low to High</option><option value="price-high">Price High to Low</option></select></div><div id="gmkt-grid" class="gmkt-grid guidcy-panel-skeleton" aria-busy="true"></div></div></div>
 <div id="page-smart-finder" class="page">
@@ -2336,7 +2342,7 @@
       </div>
 
       <!-- Results area -->
-      <div id="sf-results" style="margin-top:32px" class="guidcy-panel-skeleton" aria-busy="true"></div>
+      <div id="sf-results" style="margin-top:32px"></div>
     </div></div>
 <div id="page-blog" class="page"><div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1><div id="blog-list"></div></div></div>
 
