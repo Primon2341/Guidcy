@@ -35,16 +35,16 @@ module.exports = async function verifyHomeMotionAndLoading(page) {
  panel.innerHTML = '<div>Updated expert results</div>';
  });
  });
- await page.waitForFunction(() => document.getElementById('guidcy-page-loader')?.classList.contains('on'));
+ await page.waitForTimeout(200);
  const loading = await page.evaluate(() => {
  const panel = document.getElementById('browse-grid');
  return { count: document.querySelectorAll('#guidcy-page-loader').length, busy: panel.classList.contains('guidcy-panel-busy'), secondary: getComputedStyle(panel, '::before').content, content: panel.textContent };
  });
- assert.deepEqual(loading, { count: 1, busy: true, secondary: 'none', content: 'Existing expert results' });
+ assert.deepEqual(loading, { count: 0, busy: true, secondary: 'none', content: 'Existing expert results' });
  await page.evaluate(() => window.__uiLoaderTest);
  await page.waitForFunction(() => !document.getElementById('guidcy-page-loader')?.classList.contains('on'));
  assert.equal(await page.locator('#browse-grid').textContent(), 'Updated expert results');
  await page.unroute('**/api/ui-loader-regression');
  await page.evaluate(() => window.scrollTo(0, 0));
- console.log('Homepage motion, reduced motion, and single top loading bar passed');
+ console.log('Homepage motion, reduced motion, and quiet panel revalidation passed');
 };

@@ -281,6 +281,7 @@ function finishPointer(event){
  ];
 
  function clearSessionUiState(){
+ if(window.guidcyClearRefreshCache)window.guidcyClearRefreshCache();
  sessionUiKeys.forEach(function(key){
  try{sessionStorage.removeItem(key)}catch(_){}
  try{localStorage.removeItem(key)}catch(_){}

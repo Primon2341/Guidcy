@@ -619,6 +619,7 @@ if(CFG.supabase_url && CFG.supabase_key){
 }
 // CRITICAL: expose on window so every script block and override can access it as window.sb
 window.sb = sb;
+if(sb && window.guidcyConfigureAuthClient)window.guidcyConfigureAuthClient(sb);
 
 /* `sb` is captured once, here, and used directly by hundreds of call sites. If the SDK
    was not available at this moment (a failed or still-loading vendor script) it would
@@ -632,6 +633,7 @@ function guidcyBindSupabaseClient(){
     if(window.supabase && window.supabase.createClient && CFG.supabase_url && CFG.supabase_key){
       sb = window.supabase.createClient(CFG.supabase_url, CFG.supabase_key);
       window.sb = sb;
+      if(window.guidcyConfigureAuthClient)window.guidcyConfigureAuthClient(sb);
       return true;
     }
   }catch(e){ console.warn('Supabase rebind failed', e); }
@@ -666,6 +668,7 @@ window.guidcyGetSupabaseClient = function(){
       var created = window.supabase.createClient(url, key);
       window.__guidcySupabaseClient = created;
       if(!window.sb) window.sb = created;
+      if(window.guidcyConfigureAuthClient)window.guidcyConfigureAuthClient(created);
       return created;
     }
   }catch(_){}
@@ -819,6 +822,7 @@ window.guidcyOnAuthReady = function(fn){
 window.__guidcyFireAuthReady = function(){
   if(window.__guidcyAuthReadyFired)return;
   window.__guidcyAuthReadyFired = true;
+  window.dispatchEvent(new Event('guidcy:auth-ready'));
   var cbs = window.__guidcyAuthReadyCallbacks.splice(0);
   cbs.forEach(function(fn){ try{fn()}catch(e){console.warn('guidcyOnAuthReady callback failed',e)} });
 };
@@ -1588,7 +1592,7 @@ function getPageFromPath(){
     '/dispute':'dispute','/dispute.html':'dispute',
     '/dispute-resolution':'dispute','/dispute-resolution.html':'dispute',
 
-    '/dashboard':'user-dash','/dashboard.html':'user-dash',
+    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/dashboard.html':'user-dash',
     '/user-dashboard':'user-dash','/user-dashboard.html':'user-dash',
     '/user-dash':'user-dash','/user-dash.html':'user-dash',
 
@@ -1675,9 +1679,11 @@ function renderPage(page){
   // Removing and immediately re-adding `on` restarted the page fade animation
   // on every duplicate refresh render, which looked like repeated blinking.
   document.querySelectorAll('.page').forEach(p=>{if(p!==el)p.classList.remove('on','active')});
-  el.classList.add('on'); window.scrollTo(0,0);
+  const alreadyVisible=el.classList.contains('on');
+  el.classList.add('on'); if(!alreadyVisible)window.scrollTo(0,0);
   page=targetPage;
 
+  if(/^(user|cons|admin)-dash$/.test(page)&&window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
   ({
     /* Resolve at render time. The Featured Experts controller replaces
        window.initHome later in this file; capturing the original function here
@@ -1692,9 +1698,9 @@ function renderPage(page){
     'smart-finder':()=>{try{ if(typeof buildSmartFinderPage==='function') buildSmartFinderPage(); }catch(e){}},
     'opportunities':()=>{try{ if(typeof initOpportunitiesFinder==='function') initOpportunitiesFinder(); }catch(e){}},
     marketplace:()=>{try{ if(window.GuidcyMarketplace&&typeof window.GuidcyMarketplace.render==='function') window.GuidcyMarketplace.render(); }catch(e){}},
-    'user-dash':()=>swUD(new URLSearchParams(location.search).get('tab')||'upcoming',null),
-    'cons-dash':()=>swCD(new URLSearchParams(location.search).get('tab')||'overview',null),
-    'admin-dash':()=>swAD(location.pathname.replace(/\/$/,'')==='/admin/webinar-registrations'?'webinar-registrations':(new URLSearchParams(location.search).get('tab')||'overview'),null)
+    'user-dash':()=>swUD((new URLSearchParams(location.search).get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'upcoming',null),
+    'cons-dash':()=>swCD((new URLSearchParams(location.search).get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'overview',null),
+    'admin-dash':()=>swAD(location.pathname.replace(/\/$/,'')==='/admin/webinar-registrations'?'webinar-registrations':((new URLSearchParams(location.search).get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'overview'),null)
   })[page]?.();
 }
 function go(page){
@@ -1999,12 +2005,16 @@ function makeGoogleCalendarLink(bk){
    AUTH — SUPABASE (with demo fallback)
 ═══════════════════════════════════════════ */
 async function initAuth(){
- if(!sb){try{window.__guidcyFireAuthReady&&window.__guidcyFireAuthReady()}catch(_){}return;}
+ if(!sb||window.__guidcyAuthInitializing)return;
+ window.__guidcyAuthInitializing=true;
  const authEpoch=window.__guidcyAuthEpoch||0;
  try{
- const{data:{session}}=await sb.auth.getSession();
+ const{data:{session},error}=await sb.auth.getSession();
+ if(error)throw error;
  if(authEpoch===(window.__guidcyAuthEpoch||0)&&!window.__guidcySignedOut&&session?.user){currentUser=session.user;window.currentUser=currentUser;await loadProfile();updateNav();}
+ if(!window.__guidcyMainAuthSubscribed){
  sb.auth.onAuthStateChange((event,session)=>{
+      if(event==='TOKEN_REFRESHED')return;
       if(event==='PASSWORD_RECOVERY'){
         setTimeout(()=>{try{openSetNewPasswordModal()}catch(_){}},300);
         return;
@@ -2026,13 +2036,17 @@ async function initAuth(){
  queueMicrotask(async()=>{
  try{
  if(eventEpoch!==(window.__guidcyAuthEpoch||0)||window.__guidcySignedOut)return;
+ if(event==='INITIAL_SESSION'&&window.__guidcyAuthReadyFired)return;
  await loadProfile();
  if(eventEpoch===(window.__guidcyAuthEpoch||0)&&window.currentUser?.id===session.user.id)updateNav();
  }catch(e){console.warn('Auth profile refresh failed:',e)}
  });
       }else{currentUser=null;currentProfile=null;loggedIn=null;window.currentUser=null;window.currentProfile=null;window.loggedIn=null;updateNav();}
     });
-  }catch(e){console.warn('Auth init error',e);}finally{try{window.__guidcyFireAuthReady&&window.__guidcyFireAuthReady()}catch(_){}}
+    window.__guidcyMainAuthSubscribed=true;
+ }
+  try{window.__guidcyFireAuthReady&&window.__guidcyFireAuthReady()}catch(_){}
+  }catch(e){console.warn('Auth init error',e);window.guidcyAuthRestoreFailed&&window.guidcyAuthRestoreFailed(e);}finally{window.__guidcyAuthInitializing=false}
 }
 
 async function loadProfile(){
@@ -3299,7 +3313,8 @@ function updateConfirmPage(){
    USER DASHBOARD
 ═══════════════════════════════════════════ */
 async function swUD(view,btn){
-  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
+  if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;
   const requestId=(Number(window.__guidcyUDRequestId)||0)+1;
   window.__guidcyUDRequestId=requestId;
@@ -3592,7 +3607,8 @@ async function saveUserProfile(){
    CONSULTANT DASHBOARD
 ═══════════════════════════════════════════ */
 async function swCD(view,btn){
-  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons');}
   const m=document.getElementById('cdash-main');if(!m)return;
 
   // ── 1. Update sidebar IMMEDIATELY from currentProfile (no await needed) ──
@@ -4122,7 +4138,8 @@ function guidcyAdminLoadFailed(main,title,tab,error){
 window.guidcyAdminLoadFailed=guidcyAdminLoadFailed;
 
 async function swAD(view,btn){
-  if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('admin');}
+  if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+  if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('admin');}
   const m=document.getElementById('adash-main');if(!m)return;
 
   if(view==='overview'){
@@ -4536,7 +4553,7 @@ function guidcyPlaceFooterAfterPages(){
     footer.style.visibility='';
     footer.style.opacity='';
     if(lastPage&&lastPage.parentNode){
-      lastPage.insertAdjacentElement('afterend',footer);
+      if(footer.previousElementSibling!==lastPage)lastPage.insertAdjacentElement('afterend',footer);
     }else{
       document.body.appendChild(footer);
     }
@@ -4548,11 +4565,11 @@ function guidcyPlaceFooterAfterPages(){
 guidcyPlaceFooterAfterPages();
 initAuth();
 const initialPage=getPageFromPath();
-const initialPathWithSearch=(window.location.pathname||'/')+(window.location.search||'');
+const initialPathWithSearch=(window.location.pathname||'/')+(window.location.search||'')+(window.location.hash||'');
 window.__guidcyInitialPathWithSearch=initialPathWithSearch;
 window.__guidcyInitialRouteExpires=Date.now()+15000;
 const preserveInitialUrl=!!window.location.search || /^\/(admin\/webinar-registrations|consultant\/|book\/)/.test(window.location.pathname||'');
-history.replaceState({page:initialPage}, '', preserveInitialUrl ? initialPathWithSearch : (PAGE_URLS[initialPage] || window.location.pathname || '/'));
+history.replaceState({page:initialPage}, '', initialPathWithSearch);
 renderPage(initialPage);
 // Handle browser Back/Forward buttons
 window.addEventListener('popstate', function(e){
@@ -4808,7 +4825,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
 
 const __guidcyOriginalSwCD=window.swCD;
 window.swCD=async function(view,btn){
-  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons');}
   if(view!=='notifications')return __guidcyOriginalSwCD(view,btn);
   const m=document.getElementById('cdash-main');if(!m)return;
   const name=currentProfile?.full_name||'Consultant';
@@ -5157,7 +5174,7 @@ function queueUserRefundSave(){clearTimeout(window._guidcyRefundSaveTimer);windo
 const _guidcyOriginalSwUDSettingsFinal=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUDSettingsFinal(view,btn);
-  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
   m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
 };
@@ -5170,7 +5187,7 @@ function queueConsultantPayoutSave(consId){clearTimeout(window.__guidcyPayoutSav
 const _guidcyOriginalSwCDSettingsFinal=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCDSettingsFinal(view,btn);
-  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons');}
   const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
   try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
   const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';const rateVal=c?.video_price??c?.rate??c?.price??2000;const freeChecked=Number(rateVal||0)<=0;
@@ -5376,7 +5393,7 @@ function queueUserRefundSave(){clearTimeout(window.__guidcyRefundSaveTimer);wind
 const _guidcyOriginalSwUDSettingsSecondary=swUD;
 swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUDSettingsSecondary(view,btn);
-  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('user');}
+  if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
   m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
 };
@@ -5389,7 +5406,7 @@ function queueConsultantPayoutSave(consId){clearTimeout(window.__guidcyPayoutSav
 const _guidcyOriginalSwCDSettingsSecondary=swCD;
 swCD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwCDSettingsSecondary(view,btn);
-  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons');}
+  if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons');}
   const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
   try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
   const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';
@@ -5501,7 +5518,7 @@ cancelBooking=async function(bookingId,role){
     const originalSwCD=window.swCD;
     window.swCD=async function(view,btn){
       if(view!=='settings') return originalSwCD(view,btn);
-      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{closeDashMenu('cons');}catch(_){ } }
+      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{window.closeDashMenu&&window.closeDashMenu('cons');}catch(_){ } }
       const m=q('cdash-main'); if(!m) return;
       m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
       const c=await getOwnConsultant() || {};
@@ -5778,7 +5795,7 @@ cancelBooking=async function(bookingId,role){
     const oldSwCD = swCD;
     swCD = async function(view, btn){
       if(view !== 'settings') return oldSwCD(view, btn);
-      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{closeDashMenu('cons');}catch(_){ } }
+      if(btn){ document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); try{window.closeDashMenu&&window.closeDashMenu('cons');}catch(_){ } }
       const m=el('cdash-main'); if(!m) return;
       m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
       const c = await getOwnConsultant() || {};
@@ -5982,7 +5999,7 @@ cancelBooking=async function(bookingId,role){
   const oldSwUD=window.swUD||swUD;
   window.swUD=async function(view,btn){
     if(view!=='settings') return oldSwUD(view,btn);
-    if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('user');}catch(_){}}
+    if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('user');}catch(_){}}
     const m=id('udash-main'); if(!m)return; const cp=currentProfileSafe()||{}; const name=cp.full_name||'Guest';
     m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:860px;display:grid;grid-template-columns:1fr 1fr;gap:18px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
@@ -6005,7 +6022,7 @@ cancelBooking=async function(bookingId,role){
   const oldSwCD=window.swCD||swCD;
   window.swCD=async function(view,btn){
     if(view!=='settings') return oldSwCD(view,btn);
-    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('cons');}catch(_){}}
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons');}catch(_){}}
     const m=id('cdash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
     const c=await loadOwnConsultant()||{}; const cp=currentProfileSafe()||{}; const consId=c.id||''; const name=c.name||cp.full_name||'Consultant'; const rate=money(c.video_price??c.price??c.rate,2000);
     m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
@@ -6114,7 +6131,7 @@ cancelBooking=async function(bookingId,role){
         setCU(data.user); const profile=await window.guidcyEnsureAdminProfile(data.user);
         try{updateNav()}catch(_){}
         try{toast('Welcome back!','green')}catch(_){}
-        setTimeout(()=>{try{go(profile?.role==='admin'?'admin-dash':profile?.role==='consultant'?'cons-dash':'user-dash')}catch(_){location.href=profile?.role==='admin'?'/admin':'/dashboard'}},250);
+        setTimeout(()=>{try{go(profile?.role==='admin'?'admin-dash':profile?.role==='consultant'?'cons-dash':'user-dash')}catch(_){window.guidcyNavigate(profile?.role==='admin'?'/admin':'/dashboard')}},250);
       }else{
         const role=(loginType==='admin'||isAdminEmail(email)||email.toLowerCase().includes('admin'))?'admin':(loginType==='consultant'?'consultant':'user');
         setCP({full_name:role==='admin'?'Admin':(role==='consultant'?'Consultant':'User'),role,avatar_initials:role==='admin'?'AD':(role==='consultant'?'CN':'US')});
@@ -6187,7 +6204,7 @@ cancelBooking=async function(bookingId,role){
   window.CATEGORIES_FULL=MAIN_CATEGORIES;
   function gid(id){return document.getElementById(id)}
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function pageForPath(){const p=(location.pathname||'/').replace(/\/+$/,'')||'/';const map={'':'home','/':'home','/home':'home','/index.html':'home','/browse':'browse','/find-experts':'browse','/experts':'browse','/consultants':'browse','/jobs':'jobs','/find-jobs':'jobs','/login':'login','/signup':'signup','/get-started':'signup','/categories':'categories','/blog':'blog','/webinar':'webinar','/webinars':'webinar','/smart-finder':'smart-finder','/smartfinder':'smart-finder','/career-ai-finder':'smart-finder','/career-ai':'smart-finder','/opportunities':'opportunities','/funds-grants':'opportunities','/marketplace':'marketplace','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/help':'help','/help-center':'help','/support':'help','/dispute':'dispute','/dispute-resolution':'dispute','/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash','/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash','/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash','/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers','/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review'};if(map[p])return map[p];if(/^\/consultant\/[^/]+$/.test(p)||/^\/book\/[^/]+$/.test(p))return 'profile';const h=(location.hash||'').replace('#','').trim();return h||'home'}
+  function pageForPath(){const p=(location.pathname||'/').replace(/\/+$/,'')||'/';const map={'':'home','/':'home','/home':'home','/index.html':'home','/browse':'browse','/find-experts':'browse','/experts':'browse','/consultants':'browse','/jobs':'jobs','/find-jobs':'jobs','/login':'login','/signup':'signup','/get-started':'signup','/categories':'categories','/blog':'blog','/webinar':'webinar','/webinars':'webinar','/smart-finder':'smart-finder','/smartfinder':'smart-finder','/career-ai-finder':'smart-finder','/career-ai':'smart-finder','/opportunities':'opportunities','/funds-grants':'opportunities','/marketplace':'marketplace','/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/help':'help','/help-center':'help','/support':'help','/dispute':'dispute','/dispute-resolution':'dispute','/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash','/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash','/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash','/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers','/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review'};if(map[p])return map[p];if(/^\/consultant\/[^/]+$/.test(p)||/^\/book\/[^/]+$/.test(p))return 'profile';const h=(location.hash||'').replace('#','').trim();return h||'home'}
   window.PAGE_URLS=Object.assign(window.PAGE_URLS||{}, {
   home:'/',browse:'/browse','find-experts':'/find-experts',experts:'/find-experts',consultants:'/find-experts',jobs:'/find-jobs',categories:'/categories',blog:'/blog',marketplace:'/marketplace',
   careers:'/careers',work:'/careers','find-work':'/careers',
@@ -6204,7 +6221,7 @@ cancelBooking=async function(bookingId,role){
   window.guidcyAddBlogPost=function(){const t=gid('blog-title')?.value.trim(),b=gid('blog-body')?.value.trim();if(!t||!b){try{toast('Please add blog title and content','red')}catch(e){}return}const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');posts.unshift({title:t,body:b,date:new Date().toLocaleDateString('en-IN'),comments:[]});localStorage.setItem('guidcy_blog_posts',JSON.stringify(posts));renderBlog();try{toast('Blog published','green')}catch(e){}}
   window.guidcyAddComment=function(i){const input=gid('comment-'+i);const txt=input?.value.trim();if(!txt)return;const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');posts[i].comments=posts[i].comments||[];posts[i].comments.push({name:(window.currentProfile&&currentProfile.full_name)||'Guest',text:txt});localStorage.setItem('guidcy_blog_posts',JSON.stringify(posts));renderBlog()}
   function paintAvatar(el,url,initials){if(!el)return;if(url){el.classList.add('has-photo');el.style.backgroundImage=`url("${url}")`;el.textContent='';}else{el.classList.remove('has-photo');el.style.backgroundImage='';el.textContent=initials||'';}}
-  function refreshDashPhoto(){const cp=window.currentProfile||{};const name=cp.full_name||'User';const initials=cp.avatar_initials||(window.mkInitials?mkInitials(name):name.slice(0,2).toUpperCase());paintAvatar(gid('udash-av'),cp.avatar_url,initials);paintAvatar(gid('cdash-av'),cp.avatar_url,initials);const n=gid('udash-name');if(n)n.textContent=name;const cn=gid('cdash-name');if(cn)cn.textContent=name;}
+  function refreshDashPhoto(){if(!window.__guidcyAuthReadyFired)return;const cp=window.currentProfile||{};const name=cp.full_name||'User';const initials=cp.avatar_initials||(window.mkInitials?mkInitials(name):name.slice(0,2).toUpperCase());paintAvatar(gid('udash-av'),cp.avatar_url,initials);paintAvatar(gid('cdash-av'),cp.avatar_url,initials);const n=gid('udash-name');if(n)n.textContent=name;const cn=gid('cdash-name');if(cn)cn.textContent=name;}
   const oldSwUD=window.swUD; if(oldSwUD) window.swUD=async function(v,b){const r=await oldSwUD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldSwCD=window.swCD; if(oldSwCD) window.swCD=async function(v,b){const r=await oldSwCD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldUpdateNav=window.updateNav; window.updateNav=function(){try{oldUpdateNav&&oldUpdateNav()}catch(e){}setTimeout(refreshDashPhoto,30)};
@@ -6240,7 +6257,7 @@ cancelBooking=async function(bookingId,role){
   function normalizeUrl(u){u=String(u||'').trim(); if(!u)return ''; if(!/^https?:\/\//i.test(u))u='https://'+u; return u;}
 
   // 1) Remove About from menu everywhere and keep Jobs SPA navigation.
-  function cleanNav(){document.querySelectorAll('.nav-link').forEach(b=>{const t=(b.textContent||'').trim().toLowerCase(); if(t==='about')b.remove(); if(t==='jobs')b.onclick=()=>{try{go('jobs')}catch(e){location.href='/jobs'}};});}
+  function cleanNav(){document.querySelectorAll('.nav-link').forEach(b=>{const t=(b.textContent||'').trim().toLowerCase(); if(t==='about')b.remove(); if(t==='jobs')b.onclick=()=>{try{go('jobs')}catch(e){window.guidcyNavigate('/jobs')}};});}
 
 	  // 2) Google login/signup was intentionally removed; Google Meet/calendar links remain separate.
 	  window.gSignIn=async function(){try{toast('Google login has been removed. Please use email and password.','blue')}catch(e){}};
@@ -6252,6 +6269,7 @@ cancelBooking=async function(bookingId,role){
   // 4) Profile/dashboard name + image rendering.
   function paintAvatar(el,url,txt){if(!el)return;url=String(url||''); if(url){el.style.backgroundImage=`url("${url}")`;el.style.backgroundSize='cover';el.style.backgroundPosition='center';el.textContent='';}else{el.style.backgroundImage='';el.textContent=txt||'';}}
   window.refreshGuidcyProfileUI=function(){
+    if(!window.__guidcyAuthReadyFired)return;
     const p=cp(), u=cu();
     const name=p.full_name || (u?.user_metadata?.full_name||u?.user_metadata?.name) || (u?.email?u.email.split('@')[0]:'User');
     const av=p.avatar_url || u?.user_metadata?.avatar_url || u?.user_metadata?.picture || '';
@@ -6390,12 +6408,8 @@ cancelBooking=async function(bookingId,role){
   /* ── 4. TRUST STRIP — real DB counts with fallback ── */
   async function fetchHomeStats(){
     const strip=$('home-trust-strip');if(!strip)return;
-    // Always show the strip immediately with fallback values
+    // Keep the last figures while current counts revalidate.
     const eEl=$('ts-experts'), cEl=$('ts-cats'), sEl=$('ts-sessions'), uEl=$('ts-users');
-    if(eEl) eEl.textContent='0';
-    if(cEl) cEl.textContent='0';
-    if(sEl) sEl.textContent='0';
-    if(uEl) uEl.textContent='0';
     strip.style.display='';
     // Try to update with real DB counts if Supabase is connected
     const sb=getSB();if(!sb)return;
@@ -6405,6 +6419,8 @@ cancelBooking=async function(bookingId,role){
         sb.from('bookings').select('id',{count:'exact',head:true}),
         sb.from('profiles').select('id',{count:'exact',head:true})
       ]);
+      if(cR?.error||bR?.error||uR?.error)return;
+      strip.removeAttribute('inert');strip.removeAttribute('data-guidcy-restored');
       const experts=cR?.count||(cR?.data||[]).length||0,sessions=bR?.count||0,totalUsers=uR?.count||0;
       const catSet=new Set();(cR?.data||[]).forEach(c=>{const k=(c.category||c.specialty||'').trim();if(k)catSet.add(k.toLowerCase());});
       // Always show database values only; never show fake marketing numbers
@@ -6787,7 +6803,7 @@ cancelBooking=async function(bookingId,role){
   async function buildJobsPage(){
     let page=$('page-jobs');
     if(!page){page=document.createElement('div');page.id='page-jobs';page.className='page';document.body.appendChild(page);}
-    page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
+    if(!page.querySelector('#job-q'))page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
       <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,5vw,42px);font-weight:500;margin-bottom:6px">Find Your Next Job</h1>
       <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Live listings from across the web. Click any job to apply directly on the employer's site.</p>
       <div class="jobs-companion-rail" data-state="idle" data-position="left" data-pose="wave">
@@ -6987,7 +7003,7 @@ cancelBooking=async function(bookingId,role){
 
   const _prevRenderPage=window.renderPage;
   window.renderPage=function(page){
-    if(page==='jobs'){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on','active'));buildJobsPage().then(()=>{const jp=$('page-jobs');if(jp)jp.classList.add('on');window.scrollTo(0,0);});return;}
+    if(page==='jobs'){document.querySelectorAll('.page').forEach(p=>{if(p.id!=='page-jobs')p.classList.remove('on','active')});buildJobsPage().then(()=>{const jp=$('page-jobs');if(jp)jp.classList.add('on');window.scrollTo(0,0);});return;}
     return _prevRenderPage?_prevRenderPage(page):null;
   };
   const _prevGo=window.go;
@@ -7337,7 +7353,7 @@ body{overflow-x:hidden}
     async function openPaidCheckout(n,u){if(window.guidcyStartRazorpayMarketplace)return window.guidcyStartRazorpayMarketplace(n&&n.id);var txn=txnId();var pending=await paidOrder(n,u,txn);say('Opening Razorpay payment...','blue');var data=await postJSON('/api/create-order',{flow:'marketplace',orderId:pending.id});if(!data||!data.order)throw new Error('Unable to initiate payment.');throw new Error('Razorpay checkout is still loading. Please try again.')}
     async function record(n,o,u){try{await client().from('marketplace_download_logs').insert({note_id:n.id,user_id:u.id,order_id:o?.id||null})}catch(_){}try{await client().from('marketplace_notes').update({downloads_count:Number(n.downloads_count||0)+1,updated_at:new Date().toISOString()}).eq('id',n.id)}catch(_){}}
     function pending(id){var p={type:'marketplace_buy_or_download',action:'marketplace_buy_or_download',noteId:id,returnPage:'marketplace',returnUrl:'/marketplace',createdAt:Date.now()};try{sessionStorage.setItem('guidcy_pending_marketplace_action',JSON.stringify(p));sessionStorage.setItem('guidcy_pending_action',JSON.stringify(p));sessionStorage.setItem('guidcyPendingAction',JSON.stringify(p))}catch(_){}}
-    async function download(id){var n=await getNote(id);if(!n){say('Technical error while downloading. Please try again in a moment.','red');return false}var u=await authUser();if(!u?.id){pending(id);try{window.GuidcyMarketplace?.closeModal?.()}catch(_){}say('Login/Signup to download the Notes','blue');setTimeout(function(){try{window.go?go('login'):location.href='/login'}catch(_){location.href='/login'}},120);return false}var o=await order(n.id,u);if(!o){if(isPaid(n)){try{return await openPaidCheckout(n,u)}catch(e){console.error('paid notes checkout failed',e);say('Unable to open secure payment. Please try again.','red');return false}}try{o=await freeOrder(n,u)}catch(e){console.error(e);say('Technical error while downloading. Please try again in a moment.','red');return false}}try{var res=await resolveBlob(n);await record(n,o,u);trigger(res.blob,n,res.path);say('Downloading your notes...','green');return true}catch(e){console.error(e);say('Technical error while downloading. Please try again in a moment.','red');return false}}
+    async function download(id){var n=await getNote(id);if(!n){say('Technical error while downloading. Please try again in a moment.','red');return false}var u=await authUser();if(!u?.id){pending(id);try{window.GuidcyMarketplace?.closeModal?.()}catch(_){}say('Login/Signup to download the Notes','blue');setTimeout(function(){try{window.go?go('login'):window.guidcyNavigate('/login')}catch(_){window.guidcyNavigate('/login')}},120);return false}var o=await order(n.id,u);if(!o){if(isPaid(n)){try{return await openPaidCheckout(n,u)}catch(e){console.error('paid notes checkout failed',e);say('Unable to open secure payment. Please try again.','red');return false}}try{o=await freeOrder(n,u)}catch(e){console.error(e);say('Technical error while downloading. Please try again in a moment.','red');return false}}try{var res=await resolveBlob(n);await record(n,o,u);trigger(res.blob,n,res.path);say('Downloading your notes...','green');return true}catch(e){console.error(e);say('Technical error while downloading. Please try again in a moment.','red');return false}}
     function install(){var gm=window.GuidcyMarketplace;if(!gm)return;if(!gm.__guidcyFriendlyDownloadBoot){if(typeof gm.buyOrDownload==='function'&&!window.__guidcyOldMarketplaceBuy)window.__guidcyOldMarketplaceBuy=gm.buyOrDownload;gm.buyOrDownload=download;gm.redownload=download;gm.secureDownload=function(n){return download(n&&n.id?n.id:n)};gm.__guidcyFriendlyDownloadBoot=true}}
     document.addEventListener('click',function(e){var btn=e.target&&e.target.closest&&e.target.closest('[data-gmkt-action="buy"][data-gmkt-id],button[onclick*="GuidcyMarketplace.buyOrDownload"],button[onclick*="GuidcyMarketplace.redownload"]');if(!btn)return;var id=btn.getAttribute('data-gmkt-id')||((btn.getAttribute('onclick')||'').match(/(?:buyOrDownload|redownload)\(['"]([^'"]+)['"]\)/)||[])[1]||'';if(!id)return;e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();download(id)},true);
     window.guidcyDownloadMarketplaceNote=download;
@@ -7354,7 +7370,7 @@ body{overflow-x:hidden}
   async function buildSmartFinderPage(){
     let page=$('page-smart-finder');
     if(!page){page=document.createElement('div');page.id='page-smart-finder';page.className='page';document.body.appendChild(page);}
-    page.innerHTML=`
+    if(!page.querySelector('#sf-mode-job'))page.innerHTML=`
     <div style="max-width:860px;margin:0 auto;padding:40px 16px 80px">
 
       <!-- Header -->
@@ -9174,7 +9190,7 @@ body{overflow-x:hidden}
   function regCountFor(w){w=norm(w);var rs=regsLocal();return rs.filter(function(r){return String(r.wid||r.webinar_id||'')===String(w.id)||String(r.webinarTitle||r.webinar_title||'')===String(w.title)}).length}
   function statusPill(s){return s==='completed'?'<span class="status-pill sp-done">Completed</span>':s==='live'?'<span class="status-pill sp-upcoming">Live</span>':'<span class="status-pill sp-pending">Upcoming</span>'}
   function fmtDate(w){w=norm(w);try{return new Date(w.date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return w.date||'—'}}
-  async function renderWebinarHistory(btn){ensureDashboardButton();if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(e){}}var m=byId('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';var list=await myWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Published webinar list</div><div style="font-size:12px;color:var(--muted)">Shows webinars published by your consultant account across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish new webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(w){w=norm(w);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div><p style="font-size:13px;margin-bottom:18px">Once you publish webinars, their posted/completed history will appear here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish your first webinar</button></div>')}
+  async function renderWebinarHistory(btn){ensureDashboardButton();if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(e){}}var m=byId('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';var list=await myWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Published webinar list</div><div style="font-size:12px;color:var(--muted)">Shows webinars published by your consultant account across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish new webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(w){w=norm(w);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div><p style="font-size:13px;margin-bottom:18px">Once you publish webinars, their posted/completed history will appear here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish your first webinar</button></div>')}
   async function injectOverviewStrip(){
     /* Removed intentionally: webinar history already exists in consultant dashboard. */
     document.querySelectorAll('#guidcy-wbn-overview-strip,.guidcy-wbn-overview-strip').forEach(function(el){el.remove();});
@@ -10628,10 +10644,10 @@ body{overflow-x:hidden}
   function agentTrack(eventType,itemType,itemId,intent,metadata){
     return {ok:true,skipped:true};
   }
-  function agentOpenExpert(id,book,intent){agentTrack(book?'book_expert':'view_expert','consultant',id,intent);try{window.openProfile&&openProfile(id,null);if(book)setTimeout(function(){try{window.startBooking&&startBooking()}catch(e){}},500)}catch(e){try{window.location.href=book?('/book/'+encodeURIComponent(id)):('/consultant/'+encodeURIComponent(id))}catch(_){}}}
-  function agentOpenNote(id,intent){agentTrack('view_note','marketplace_note',id,intent);try{window.go&&go('marketplace');setTimeout(function(){try{window.GuidcyMarketplace&&GuidcyMarketplace.openDetails&&GuidcyMarketplace.openDetails(id)}catch(e){}},650)}catch(e){window.location.href='/marketplace?note='+encodeURIComponent(id)}}
-  function agentOpenWebinar(id,register,intent){agentTrack(register?'register_webinar':'view_webinar','webinar',id,intent);try{window.go&&go('webinar');setTimeout(function(){try{if(id&&window.wbnOpenReg)wbnOpenReg(id)}catch(e){}},850)}catch(e){window.location.href='/webinars'}}
-  function agentRoute(route,eventType,intent){agentTrack(eventType||'refine_search','route',null,intent,{route:route});if(route==='/career-ai-finder'){try{window.go&&go('smart-finder');return}catch(e){}} if(route==='/funds-grants'){try{window.go&&go('opportunities');return}catch(e){}} if(route==='/find-jobs'){try{window.go&&go('jobs');return}catch(e){}} if(route==='/help-center'){try{window.go&&go('help');return}catch(e){}} try{window.location.href=route||'/'}catch(e){}}
+  function agentOpenExpert(id,book,intent){agentTrack(book?'book_expert':'view_expert','consultant',id,intent);try{window.openProfile&&openProfile(id,null);if(book)setTimeout(function(){try{window.startBooking&&startBooking()}catch(e){}},500)}catch(e){try{window.guidcyNavigate(book?('/book/'+encodeURIComponent(id)):('/consultant/'+encodeURIComponent(id)))}catch(_){}}}
+  function agentOpenNote(id,intent){agentTrack('view_note','marketplace_note',id,intent);try{window.go&&go('marketplace');setTimeout(function(){try{window.GuidcyMarketplace&&GuidcyMarketplace.openDetails&&GuidcyMarketplace.openDetails(id)}catch(e){}},650)}catch(e){window.guidcyNavigate('/marketplace?note='+encodeURIComponent(id))}}
+  function agentOpenWebinar(id,register,intent){agentTrack(register?'register_webinar':'view_webinar','webinar',id,intent);try{window.go&&go('webinar');setTimeout(function(){try{if(id&&window.wbnOpenReg)wbnOpenReg(id)}catch(e){}},850)}catch(e){window.guidcyNavigate('/webinars')}}
+  function agentRoute(route,eventType,intent){agentTrack(eventType||'refine_search','route',null,intent,{route:route});if(route==='/career-ai-finder'){try{window.go&&go('smart-finder');return}catch(e){}} if(route==='/funds-grants'){try{window.go&&go('opportunities');return}catch(e){}} if(route==='/find-jobs'){try{window.go&&go('jobs');return}catch(e){}} if(route==='/help-center'){try{window.go&&go('help');return}catch(e){}} try{window.guidcyNavigate(route||'/')}catch(e){}}
   window.guidcyAgentTrack=agentTrack; window.guidcyAgentOpenExpert=agentOpenExpert; window.guidcyAgentOpenNote=agentOpenNote; window.guidcyAgentOpenWebinar=agentOpenWebinar; window.guidcyAgentRoute=agentRoute;
   function agentSection(title,items,renderer,empty){
     return '<div class="guidcy-match-section-title">'+esc(title)+'</div>'+(items&&items.length?'<div class="guidcy-agent-mini-grid">'+items.map(renderer).join('')+'</div>':'<div class="guidcy-match-empty">'+esc(empty||'No live matching item is available right now.')+'</div>');
@@ -11121,7 +11137,7 @@ body{overflow-x:hidden}
 
   const origSwAD=window.swAD;
   window.swAD=async function(view,btn){
-    injectAdminNav(); if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('admin')}
+    injectAdminNav(); if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('admin')}
     const m=$('adash-main'); if(!m)return;
     if(view==='approvals'){
       m.innerHTML='<div class="dash-title">Consultant Approval Requests</div><div style="padding:20px;color:var(--muted)">Loading approval requests...</div>';
@@ -11151,7 +11167,7 @@ body{overflow-x:hidden}
   const origSwCD=window.swCD;
   window.swCD=async function(view,btn){
     if(window.sb&&window.currentUser){
-      try{const {data:c}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).maybeSingle(); if(c&&(c.approval_status==='pending'||c.is_approved===false&&c.approval_status!=='approved')){ if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');closeDashMenu('cons')} const m=$('cdash-main'); if(m){const rejected=c.approval_status==='rejected'; m.innerHTML=`<div class="dash-title">Consultant profile status</div><div class="guidcy-admin-card" style="text-align:center;padding:42px 20px"><div style="font-size:42px;margin-bottom:12px">${rejected?'⚠️':'⏳'}</div><div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--ink);margin-bottom:8px">${rejected?'Your consultant profile was not approved.':'Your consultant profile is under admin review.'}</div><p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto 14px">${rejected?'Please review the reason below and update your profile before contacting Guidcy support.':'You will be visible on Guidcy after approval. Bookings are disabled until approval.'}</p>${rejected&&c.rejection_reason?`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--rs);padding:12px;font-size:13px;color:#9A3412;max-width:560px;margin:0 auto;text-align:left"><b>Reason:</b> ${esc(c.rejection_reason)}</div>`:''}</div>`;} return; }}catch(e){console.warn('Consultant approval dashboard check skipped:',e)}
+      try{const {data:c}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).maybeSingle(); if(c&&(c.approval_status==='pending'||c.is_approved===false&&c.approval_status!=='approved')){ if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons')} const m=$('cdash-main'); if(m){const rejected=c.approval_status==='rejected'; m.innerHTML=`<div class="dash-title">Consultant profile status</div><div class="guidcy-admin-card" style="text-align:center;padding:42px 20px"><div style="font-size:42px;margin-bottom:12px">${rejected?'⚠️':'⏳'}</div><div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--ink);margin-bottom:8px">${rejected?'Your consultant profile was not approved.':'Your consultant profile is under admin review.'}</div><p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto 14px">${rejected?'Please review the reason below and update your profile before contacting Guidcy support.':'You will be visible on Guidcy after approval. Bookings are disabled until approval.'}</p>${rejected&&c.rejection_reason?`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--rs);padding:12px;font-size:13px;color:#9A3412;max-width:560px;margin:0 auto;text-align:left"><b>Reason:</b> ${esc(c.rejection_reason)}</div>`:''}</div>`;} return; }}catch(e){console.warn('Consultant approval dashboard check skipped:',e)}
     }
     return origSwCD.apply(this,arguments);
   };
@@ -11210,7 +11226,7 @@ body{overflow-x:hidden}
   function initials(name){return String(name||'G').trim().split(/\s+/).slice(0,2).map(function(x){return x[0]||''}).join('').toUpperCase()||'G'}
   function card(row,dup){var c=normalizeConsultant(row.consultant||{}); if(!c.id)return ''; var msg=String(row.custom_message||'').trim(); if(!msg&&row.earning_amount) msg=c.name+' earned '+money(row.earning_amount)+(row.earning_month?' in '+row.earning_month:'')+' through Guidcy consultations.'; var img=c.profile_image_url?'<img class="guidcy-strip-avatar" src="'+esc(c.profile_image_url)+'" alt="'+esc(c.name)+'" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;guidcy-strip-avatar-fallback&quot;>'+esc(initials(c.name))+'</div>\'">':'<div class="guidcy-strip-avatar-fallback">'+esc(initials(c.name))+'</div>'; var price=c.price?'<span class="guidcy-strip-chip green">'+money(c.price)+'/session</span>':''; var rating=c.rating?'<span class="guidcy-strip-chip">⭐ '+esc(c.rating)+'</span>':''; var cta=esc(row.cta_text||'Book Session'); var earn=row.earning_amount?'<span class="guidcy-strip-chip">🏆 Earning Highlight</span>':'<span class="guidcy-strip-chip">✨ Featured Consultant</span>'; return '<article class="guidcy-moving-consultant-card" data-consultant-id="'+esc(c.id)+'" data-strip-id="'+esc(row.id||'')+'" tabindex="0" role="button" aria-label="View '+esc(c.name)+' profile"><div class="guidcy-strip-card-top">'+img+'<div><div class="guidcy-strip-name">'+esc(c.name)+'</div><div class="guidcy-strip-category">'+esc(c.category||c.expertise||'Guidcy Expert')+'</div></div></div><div class="guidcy-strip-headline">'+esc(c.headline||c.short_bio||'Book a trusted consultation session on Guidcy.')+'</div><div class="guidcy-strip-meta">'+price+rating+earn+'</div>'+(msg?'<div class="guidcy-strip-message">“'+esc(msg)+'”</div>':'<div class="guidcy-strip-message">Share expertise, guide learners and grow through paid consultation sessions on Guidcy.</div>')+'<div class="guidcy-strip-actions"><button type="button" class="guidcy-strip-cta" data-book-consultant-id="'+esc(c.id)+'">'+cta+'</button><span class="guidcy-strip-view">View profile →</span></div></article>'}
   async function renderStrip(){var host=$('guidcy-marketing-strip-host'); if(!host)return; /* The host lives inside #page-home, so it exists on every route but is only    on screen on the home page. offsetParent is null while an ancestor is    display:none - skip the round trip rather than fetching for something    nobody can see. */ if(!host.offsetParent)return; var rows=await fetchStripRows(true); if(!rows.length){host.style.display='none';host.innerHTML='';return;} var items=rows.map(function(r){return card(r,false)}).filter(Boolean).join(''); if(!items){host.style.display='none';host.innerHTML='';return;} var hasEarn=rows.some(function(r){return Number(r.earning_amount||0)>0 || /earn|earned|earning|₹|rs\.?/i.test(String(r.custom_message||''));}); host.style.display='block';var repeated=items+items+items;host.innerHTML='<section class="guidcy-consultant-strip" aria-label="Featured Guidcy consultants"><div class="guidcy-consultant-strip-head"><div><div class="guidcy-consultant-strip-title">Experts earning and growing on Guidcy</div><div class="guidcy-consultant-strip-sub">Share knowledge. Help others. Grow with Guidcy.</div></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end"><div class="guidcy-consultant-strip-badge">✨ Featured earning stories</div><a class="guidcy-consultant-strip-join" href="#" data-join-consultant-strip="1">Join as Consultant</a></div></div><div class="guidcy-consultant-marquee"><div class="guidcy-consultant-track">'+repeated+'</div></div>'+(hasEarn?'<div class="guidcy-strip-disclaimer">Earnings depend on bookings, pricing, consultant activity and verified payments.</div>':'')+'</section>'; bindStripClicks(host)}
-  function bindStripClicks(host){host.querySelectorAll('.guidcy-moving-consultant-card').forEach(function(el){el.onclick=function(e){if(e.target.closest('[data-book-consultant-id]'))return; var id=el.getAttribute('data-consultant-id'); openConsultant(id,false)}; el.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openConsultant(el.getAttribute('data-consultant-id'),false)}}}); host.querySelectorAll('[data-book-consultant-id]').forEach(function(btn){btn.onclick=function(e){e.preventDefault();e.stopPropagation(); openConsultant(btn.getAttribute('data-book-consultant-id'),true)}}); var join=host.querySelector('[data-join-consultant-strip]'); if(join){join.onclick=function(e){e.preventDefault(); try{navigateTo&&navigateTo('/signup?role=consultant')}catch(_){location.href='/signup?role=consultant'}}}}
+  function bindStripClicks(host){host.querySelectorAll('.guidcy-moving-consultant-card').forEach(function(el){el.onclick=function(e){if(e.target.closest('[data-book-consultant-id]'))return; var id=el.getAttribute('data-consultant-id'); openConsultant(id,false)}; el.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openConsultant(el.getAttribute('data-consultant-id'),false)}}}); host.querySelectorAll('[data-book-consultant-id]').forEach(function(btn){btn.onclick=function(e){e.preventDefault();e.stopPropagation(); openConsultant(btn.getAttribute('data-book-consultant-id'),true)}}); var join=host.querySelector('[data-join-consultant-strip]'); if(join){join.onclick=function(e){e.preventDefault(); try{navigateTo&&navigateTo('/signup?role=consultant')}catch(_){window.guidcyNavigate('/signup?role=consultant')}}}}
   function savePendingBook(id){var obj={type:'book_session',consultantId:id,returnUrl:'/consultant/'+encodeURIComponent(id),route:'/book/'+encodeURIComponent(id),source:'moving_consultant_strip',createdAt:Date.now()}; try{ if(window.guidcySavePendingAction) window.guidcySavePendingAction(obj); else sessionStorage.setItem('guidcy_pending_action',JSON.stringify(obj)); }catch(_){}}
   async function openConsultant(id,book){id=String(id||''); if(!id)return; try{history.pushState({page:book?'book':'profile',consultantId:id},'',(book?'/book/':'/consultant/')+encodeURIComponent(id))}catch(_){ } if(book && !(window.currentUser||(typeof currentUser!=='undefined'&&currentUser))){savePendingBook(id); if(window.toast)toast('Please login to book this consultant.','blue'); if(window.go)setTimeout(function(){go('login')},120); return;} if(window.openProfile){await window.openProfile(id,-1); if(book){setTimeout(function(){try{ if(window.startBooking) window.startBooking(); else if(window.toast) toast('Select a slot to continue booking.','blue'); }catch(e){ if(window.toast)toast('Select a slot to continue booking.','blue');}},450);} return;} if(window.go)go('browse');}
   window.guidcyRenderMarketingStrip=renderStrip;
@@ -11231,7 +11247,7 @@ body{overflow-x:hidden}
   window.guidcyConsultantStripDelete=async function(id){if(!confirm('Remove this consultant from homepage moving strip?'))return; var client=sbc(); if(!client||!isAdmin())return alert('Admin access required.'); var res=await client.from(TABLE).delete().eq('id',id); if(res.error){alert(res.error.message);return} await window.guidcyRenderMarketingAdmin(); renderStrip();};
   window.guidcyConsultantStripSave=async function(){var client=sbc(); if(!client||!isAdmin())return alert('Admin access required.'); var data=payload(); if(!data.consultant_id)return alert('Select an approved consultant.'); if(!data.custom_message)return alert('Custom marketing message is required.'); var c=(window.consultantsById instanceof Map)?window.consultantsById.get(String(data.consultant_id)):null; if(!c)return alert('Selected consultant was not loaded from approved consultant records.'); var res; if(editing.id)res=await client.from(TABLE).update(data).eq('id',editing.id); else {data.created_by=(window.currentUser&&window.currentUser.id)||null; res=await client.from(TABLE).insert(data);} if(res.error){alert(res.error.message);return} setForm(blank()); await window.guidcyRenderMarketingAdmin(); renderStrip();};
   window.guidcyConsultantStripCalculateVerified=async function(){var client=sbc(); if(!client)return alert('System not ready.'); var cid=String(formVal('gcs_consultant')||'').trim(); var month=String(formVal('gcs_month')||'').trim(); if(!cid||!month)return alert('Select consultant and enter month as YYYY-MM.'); var start=new Date(month+'-01T00:00:00'); var end=new Date(start); end.setMonth(end.getMonth()+1); try{var res=await client.from('bookings').select('amount,payment_amount,total_amount,price,consultant_payable,status,payment_status,consultant_id,paid_at,created_at').eq('consultant_id',cid).eq('payment_status','success').in('status',['confirmed','completed']).gte('paid_at',start.toISOString()).lt('paid_at',end.toISOString()); if(res.error)throw res.error; var gross=(res.data||[]).reduce(function(s,b){return s+Number(b.payment_amount||b.total_amount||b.amount||b.price||0)},0); var payable=Math.round(gross*0.85); setVal('gcs_amount',payable||''); var c=(window.consultantsById instanceof Map)?window.consultantsById.get(cid):null; setVal('gcs_msg',(c?c.name:'This consultant')+' earned '+money(payable)+' in '+month+' through verified Guidcy consultations.'); previewAdmin();}catch(e){alert('Unable to calculate verified earning: '+(e.message||e));}}
-  async function renderAdmin(btn){ensureAdminNav(); if(!isAdmin())return; if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}} var m=$('adash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading moving consultant strip control...</div>'; var consultants=await fetchApprovedConsultants(); var rows=await fetchStripRows(false); window.__guidcyConsultantStripRows=rows; var opts='<option value="">Select approved consultant</option>'+consultants.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.name)+' — '+esc(c.category||'Expert')+'</option>'}).join(''); var table=rows.length?'<div class="guidcy-admin-table-wrap"><table class="guidcy-admin-table"><thead><tr><th>Consultant</th><th>Message</th><th>Earning</th><th>Status</th><th>Order</th><th>Dates</th><th>Actions</th></tr></thead><tbody>'+rows.map(function(r){var c=r.consultant||{}; return '<tr><td style="min-width:210px"><div class="guidcy-admin-consultant-option">'+(c.profile_image_url?'<img class="guidcy-admin-consultant-thumb" src="'+esc(c.profile_image_url)+'" loading="lazy">':'<div class="guidcy-admin-consultant-thumb"></div>')+'<div><b>'+esc(c.name||'Missing/Unapproved consultant')+'</b><div style="color:var(--muted);font-size:11px">'+esc(c.category||'')+'</div></div></div></td><td style="min-width:260px">'+esc(r.custom_message)+'</td><td>'+(r.earning_amount?money(r.earning_amount):'—')+'<div style="color:var(--muted);font-size:11px">'+esc(r.earning_month||'')+'</div></td><td><span class="guidcy-status-dot '+(r.is_active?'on':'off')+'">'+(r.is_active?'Active':'Inactive')+'</span></td><td>'+esc(r.display_order||0)+'</td><td><div style="white-space:nowrap">'+esc(r.start_date?String(r.start_date).slice(0,10):'No start')+'</div><div style="white-space:nowrap;color:var(--muted)">'+esc(r.end_date?String(r.end_date).slice(0,10):'No end')+'</div></td><td style="min-width:150px"><button class="guidcy-mini-btn blue" onclick="guidcyConsultantStripEdit(\''+esc(r.id)+'\')">Edit</button><button class="guidcy-mini-btn '+(r.is_active?'':'green')+'" onclick="guidcyConsultantStripToggle(\''+esc(r.id)+'\','+(!r.is_active)+')">'+(r.is_active?'Deactivate':'Activate')+'</button><button class="guidcy-mini-btn red" onclick="guidcyConsultantStripDelete(\''+esc(r.id)+'\')">Remove</button></td></tr>'}).join('')+'</tbody></table></div>':'<div class="guidcy-admin-help">No consultants selected yet. Select approved consultants and add admin-approved messages to show moving profile cards on homepage.</div>'; m.innerHTML='<div class="dash-title">Moving Consultant Strip</div><div class="guidcy-admin-help">Select approved consultants for the homepage moving card strip. Consultant name, image, category, rating and price always come from live approved consultant data. Admin controls only message, CTA, earning amount, order and active status.</div><div class="guidcy-admin-marketing-grid"><div class="guidcy-admin-card"><h3>Add / Edit moving consultant card</h3><input type="hidden" id="gcs_id"><div class="guidcy-admin-field"><label>Approved consultant</label><select id="gcs_consultant" onchange="updateSelectedConsultant&&updateSelectedConsultant();guidcyConsultantStripPreview()">'+opts+'</select><div id="gcs_selected" class="guidcy-strip-admin-selected"></div></div><div class="guidcy-admin-field"><label>Custom admin message</label><textarea id="gcs_msg" oninput="guidcyConsultantStripPreview()" placeholder="Arpit earned ₹10,000 last month by providing consultancy on Guidcy."></textarea></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>Earning amount optional</label><input id="gcs_amount" type="number" placeholder="10000" oninput="guidcyConsultantStripPreview()"></div><div class="guidcy-admin-field"><label>Earning month optional</label><input id="gcs_month" placeholder="2026-05" oninput="guidcyConsultantStripPreview()"></div></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>CTA text</label><input id="gcs_cta" value="Book Session" oninput="guidcyConsultantStripPreview()"></div><div class="guidcy-admin-field"><label>Display order</label><input id="gcs_order" type="number" value="0" oninput="guidcyConsultantStripPreview()"></div></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>Start date</label><input id="gcs_start" type="datetime-local"></div><div class="guidcy-admin-field"><label>End date</label><input id="gcs_end" type="datetime-local"></div></div><label style="display:flex;align-items:center;gap:8px;margin:8px 0 12px;font-size:13px;color:var(--ink)"><input id="gcs_active" type="checkbox" checked> Show this consultant card on homepage</label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-blue" onclick="guidcyConsultantStripSave()">Save card</button><button class="btn" onclick="guidcyConsultantStripReset()">Clear</button><button class="btn" onclick="guidcyConsultantStripCalculateVerified()">Calculate verified earning</button></div><div id="gcs_preview"></div></div><div class="guidcy-admin-card"><h3>Selected moving consultant cards</h3>'+table+'</div></div>'; window.updateSelectedConsultant=updateSelectedConsultant; setForm(blank());}
+  async function renderAdmin(btn){ensureAdminNav(); if(!isAdmin())return; if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}} var m=$('adash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading moving consultant strip control...</div>'; var consultants=await fetchApprovedConsultants(); var rows=await fetchStripRows(false); window.__guidcyConsultantStripRows=rows; var opts='<option value="">Select approved consultant</option>'+consultants.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.name)+' — '+esc(c.category||'Expert')+'</option>'}).join(''); var table=rows.length?'<div class="guidcy-admin-table-wrap"><table class="guidcy-admin-table"><thead><tr><th>Consultant</th><th>Message</th><th>Earning</th><th>Status</th><th>Order</th><th>Dates</th><th>Actions</th></tr></thead><tbody>'+rows.map(function(r){var c=r.consultant||{}; return '<tr><td style="min-width:210px"><div class="guidcy-admin-consultant-option">'+(c.profile_image_url?'<img class="guidcy-admin-consultant-thumb" src="'+esc(c.profile_image_url)+'" loading="lazy">':'<div class="guidcy-admin-consultant-thumb"></div>')+'<div><b>'+esc(c.name||'Missing/Unapproved consultant')+'</b><div style="color:var(--muted);font-size:11px">'+esc(c.category||'')+'</div></div></div></td><td style="min-width:260px">'+esc(r.custom_message)+'</td><td>'+(r.earning_amount?money(r.earning_amount):'—')+'<div style="color:var(--muted);font-size:11px">'+esc(r.earning_month||'')+'</div></td><td><span class="guidcy-status-dot '+(r.is_active?'on':'off')+'">'+(r.is_active?'Active':'Inactive')+'</span></td><td>'+esc(r.display_order||0)+'</td><td><div style="white-space:nowrap">'+esc(r.start_date?String(r.start_date).slice(0,10):'No start')+'</div><div style="white-space:nowrap;color:var(--muted)">'+esc(r.end_date?String(r.end_date).slice(0,10):'No end')+'</div></td><td style="min-width:150px"><button class="guidcy-mini-btn blue" onclick="guidcyConsultantStripEdit(\''+esc(r.id)+'\')">Edit</button><button class="guidcy-mini-btn '+(r.is_active?'':'green')+'" onclick="guidcyConsultantStripToggle(\''+esc(r.id)+'\','+(!r.is_active)+')">'+(r.is_active?'Deactivate':'Activate')+'</button><button class="guidcy-mini-btn red" onclick="guidcyConsultantStripDelete(\''+esc(r.id)+'\')">Remove</button></td></tr>'}).join('')+'</tbody></table></div>':'<div class="guidcy-admin-help">No consultants selected yet. Select approved consultants and add admin-approved messages to show moving profile cards on homepage.</div>'; m.innerHTML='<div class="dash-title">Moving Consultant Strip</div><div class="guidcy-admin-help">Select approved consultants for the homepage moving card strip. Consultant name, image, category, rating and price always come from live approved consultant data. Admin controls only message, CTA, earning amount, order and active status.</div><div class="guidcy-admin-marketing-grid"><div class="guidcy-admin-card"><h3>Add / Edit moving consultant card</h3><input type="hidden" id="gcs_id"><div class="guidcy-admin-field"><label>Approved consultant</label><select id="gcs_consultant" onchange="updateSelectedConsultant&&updateSelectedConsultant();guidcyConsultantStripPreview()">'+opts+'</select><div id="gcs_selected" class="guidcy-strip-admin-selected"></div></div><div class="guidcy-admin-field"><label>Custom admin message</label><textarea id="gcs_msg" oninput="guidcyConsultantStripPreview()" placeholder="Arpit earned ₹10,000 last month by providing consultancy on Guidcy."></textarea></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>Earning amount optional</label><input id="gcs_amount" type="number" placeholder="10000" oninput="guidcyConsultantStripPreview()"></div><div class="guidcy-admin-field"><label>Earning month optional</label><input id="gcs_month" placeholder="2026-05" oninput="guidcyConsultantStripPreview()"></div></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>CTA text</label><input id="gcs_cta" value="Book Session" oninput="guidcyConsultantStripPreview()"></div><div class="guidcy-admin-field"><label>Display order</label><input id="gcs_order" type="number" value="0" oninput="guidcyConsultantStripPreview()"></div></div><div class="guidcy-admin-two"><div class="guidcy-admin-field"><label>Start date</label><input id="gcs_start" type="datetime-local"></div><div class="guidcy-admin-field"><label>End date</label><input id="gcs_end" type="datetime-local"></div></div><label style="display:flex;align-items:center;gap:8px;margin:8px 0 12px;font-size:13px;color:var(--ink)"><input id="gcs_active" type="checkbox" checked> Show this consultant card on homepage</label><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-blue" onclick="guidcyConsultantStripSave()">Save card</button><button class="btn" onclick="guidcyConsultantStripReset()">Clear</button><button class="btn" onclick="guidcyConsultantStripCalculateVerified()">Calculate verified earning</button></div><div id="gcs_preview"></div></div><div class="guidcy-admin-card"><h3>Selected moving consultant cards</h3>'+table+'</div></div>'; window.updateSelectedConsultant=updateSelectedConsultant; setForm(blank());}
   window.guidcyRenderMarketingAdmin=renderAdmin;
   var oldSwAD=window.swAD; if(!window.__guidcyMarketingSwADWrapped){window.__guidcyMarketingSwADWrapped=true; window.swAD=function(view,btn){if(view==='marketing-strip'||view==='moving-consultant-strip')return renderAdmin(btn); return oldSwAD?oldSwAD.apply(this,arguments):undefined};}
   function setupRealtime(){var client=sbc(); if(!client||window.__guidcyConsultantStripRealtime)return; try{window.__guidcyConsultantStripRealtime=client.channel('homepage_consultant_strip_public').on('postgres_changes',{event:'*',schema:'public',table:TABLE},function(){setTimeout(renderStrip,250)}).subscribe()}catch(e){}}
@@ -11415,7 +11431,7 @@ body{overflow-x:hidden}
   }
   function groupRows(rows){function state(b){var s=String(b.session_status||'').toLowerCase(),st=String(b.status||'').toLowerCase(); if(st==='cancelled'||st==='canceled')return 'cancelled'; if(st==='completed')return 'completed'; if(st==='disputed'||st==='no_show')return st; return s||st;}return {upcoming:rows.filter(b=>!isPastSession(b)&&!['completed','cancelled','canceled','no_show','disputed'].includes(state(b))&&['confirmed','pending_payment'].includes(b.status)),past:rows.filter(b=>isPastSession(b)&&!['completed','cancelled','canceled','no_show','disputed'].includes(state(b))&&b.status==='confirmed'),completed:rows.filter(b=>state(b)==='completed'),cancelled:rows.filter(b=>state(b)==='cancelled'||state(b)==='canceled'),review:rows.filter(b=>['disputed','no_show'].includes(state(b))||b.admin_review_status==='pending_review')};}
   async function renderConsultantSessions(btn){
-    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('cons')}catch(_){}}
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(_){}}
     const m=$('cdash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading session lifecycle...</div>';
     const cons=await getConsultantRecord(); if(!cons?.id){m.innerHTML='<div class="dash-title">Booking Requests</div><div style="padding:30px;color:var(--muted)">Consultant profile not found.</div>';return;}
     const rows=await loadConsultantBookings(cons.id); window.__guidcyLastConsultantRows=rows;
@@ -12039,7 +12055,7 @@ body{overflow-x:hidden}
   function statusForCode(c){var now=Date.now(); if(!c.is_active)return 'Inactive'; if(c.start_date&&Date.parse(c.start_date)>now)return 'Scheduled'; if(c.end_date&&Date.parse(c.end_date)<now)return 'Expired'; return 'Active'}
   function csvDownload(name,rows){if(!rows.length){toastMsg('No referral data available to export.','red');return} var keys=Object.keys(rows[0]); var csv=keys.join(',')+'\n'+rows.map(function(r){return keys.map(function(k){return '"'+String(r[k]??'').replace(/"/g,'""')+'"'}).join(',')}).join('\n'); var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href)},1000)}
   async function renderReferralAdmin(btn){
-    injectAdminReferralNav(); if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(_){}}
+    injectAdminReferralNav(); if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
     var m=el('adash-main'); if(!m)return; if(!isAdmin()){m.innerHTML='<div class="dash-title">Referral Program</div><div style="padding:24px;color:#b91c1c">Only admin can access referral tracking.</div>';return}
     m.innerHTML='<div class="dash-title">Referral Program</div><div style="padding:20px;color:var(--muted)">Loading live referral data...</div>';
     try{var data=await fetchReferralRows(); window.__guidcyReferralCodes=data.codes; window.__guidcyReferralRegs=data.regs; var codes=data.codes, regs=data.regs; var by={}; regs.forEach(function(r){var k=r.referral_code_id||r.referral_code; by[k]=by[k]||[]; by[k].push(r)});
@@ -12288,7 +12304,7 @@ body{overflow-x:hidden}
   function ensureAuthModal(){let m=$('gmkt-auth-modal'); if(m)return m; m=document.createElement('div'); m.id='gmkt-auth-modal'; m.className='gmkt-modal gmkt-auth-modal'; m.innerHTML='<div class="gmkt-dialog small"><button class="gmkt-close" onclick="GuidcyMarketplace.closeAuth()">×</button><div class="gmkt-dialog-inner" style="text-align:center"><div style="font-size:42px;margin-bottom:10px">🔐</div><h2 style="font-family:Cormorant Garamond,serif;font-size:32px;margin:0 0 8px;color:#0f172a">Login required</h2><p id="gmkt-auth-msg" style="color:#64748B;line-height:1.65;margin-bottom:18px">Please login or register to continue.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn btn-blue" onclick="GuidcyMarketplace.goAuth(\'login\')">Login</button><button class="btn btn-green" onclick="GuidcyMarketplace.goAuth(\'signup\')">Register</button></div></div></div>'; document.body.appendChild(m); return m;}
   function savePending(action){try{sessionStorage.setItem('guidcy_pending_marketplace_action',JSON.stringify(Object.assign({createdAt:Date.now(),returnRoute:'/marketplace'},action||{})))}catch(_){}}
   function requireLogin(msg,action){savePending(action); closeModal(); const m=ensureAuthModal(); $('gmkt-auth-msg').textContent=msg; m.classList.add('on'); document.body.style.overflow='hidden'; toastSafe(msg,'blue'); return false}
-  function addNav(){try{const goMarket=()=>{window.go?go('marketplace'):location.href='/marketplace'; try{closeMobileMenu()}catch(_){} try{closeMobDrawer()}catch(_){}}; const nav=$('nav-links'); if(nav&&!nav.querySelector('[data-guidcy-marketplace-nav]')){const b=document.createElement('button'); b.className='nav-link'; b.dataset.guidcyMarketplaceNav='1'; b.textContent='Marketplace'; b.onclick=goMarket; const wb=[...nav.querySelectorAll('button')].find(x=>/webinar/i.test(x.textContent||'')); wb?wb.insertAdjacentElement('beforebegin',b):nav.appendChild(b);} ['gmob-drawer','guidcy-mob-drawer'].forEach(id=>{const drawer=$(id); if(!drawer)return; const existing=[...drawer.querySelectorAll('[data-guidcy-marketplace-nav],button,a')].filter(x=>/Marketplace/i.test(x.textContent||'')); existing.forEach((x,i)=>{if(i>0)x.remove()}); if(existing.length)return; const a=document.createElement('button'); a.type='button'; a.className=id==='gmob-drawer'?'gmob-item':'nav-link gmob-item'; a.dataset.guidcyMarketplaceNav='1'; a.onclick=goMarket; if(id==='gmob-drawer')a.innerHTML='<div class="gmob-icon">📚</div><span class="gmob-label">Marketplace</span><span class="gmob-arrow">›</span>'; else a.innerHTML='<div class="gmob-item-icon">📚</div><span class="gmob-item-label">Marketplace</span><span class="gmob-item-arrow">›</span>'; const body=drawer.querySelector('.gmob-body,.guidcy-drawer-links,.mobile-menu-links,.drawer-links')||drawer; const webinar=[...body.querySelectorAll('button,a')].find(x=>/Webinars/i.test(x.textContent||'')); webinar?webinar.insertAdjacentElement('afterend',a):body.appendChild(a);});}catch(e){console.warn(e)}}
+  function addNav(){try{const goMarket=()=>{window.go?go('marketplace'):window.guidcyNavigate('/marketplace'); try{closeMobileMenu()}catch(_){} try{closeMobDrawer()}catch(_){}}; const nav=$('nav-links'); if(nav&&!nav.querySelector('[data-guidcy-marketplace-nav]')){const b=document.createElement('button'); b.className='nav-link'; b.dataset.guidcyMarketplaceNav='1'; b.textContent='Marketplace'; b.onclick=goMarket; const wb=[...nav.querySelectorAll('button')].find(x=>/webinar/i.test(x.textContent||'')); wb?wb.insertAdjacentElement('beforebegin',b):nav.appendChild(b);} ['gmob-drawer','guidcy-mob-drawer'].forEach(id=>{const drawer=$(id); if(!drawer)return; const existing=[...drawer.querySelectorAll('[data-guidcy-marketplace-nav],button,a')].filter(x=>/Marketplace/i.test(x.textContent||'')); existing.forEach((x,i)=>{if(i>0)x.remove()}); if(existing.length)return; const a=document.createElement('button'); a.type='button'; a.className=id==='gmob-drawer'?'gmob-item':'nav-link gmob-item'; a.dataset.guidcyMarketplaceNav='1'; a.onclick=goMarket; if(id==='gmob-drawer')a.innerHTML='<div class="gmob-icon">📚</div><span class="gmob-label">Marketplace</span><span class="gmob-arrow">›</span>'; else a.innerHTML='<div class="gmob-item-icon">📚</div><span class="gmob-item-label">Marketplace</span><span class="gmob-item-arrow">›</span>'; const body=drawer.querySelector('.gmob-body,.guidcy-drawer-links,.mobile-menu-links,.drawer-links')||drawer; const webinar=[...body.querySelectorAll('button,a')].find(x=>/Webinars/i.test(x.textContent||'')); webinar?webinar.insertAdjacentElement('afterend',a):body.appendChild(a);});}catch(e){console.warn(e)}}
   async function listNotes(){const c=sbc(); if(c){try{const {data,error}=await c.from('marketplace_notes').select('*').eq('status','active').order('created_at',{ascending:false});if(!error)return data||[];console.warn(error)}catch(e){console.warn(e)}}const conf=cfg(),base=String(conf.supabase_url||window.SUPABASE_URL||'').replace(/\/$/,''),key=conf.supabase_key||window.SUPABASE_ANON_KEY||'';if(!base||!key)throw new Error('Marketplace data service is still loading');const res=await fetch(base+'/rest/v1/marketplace_notes?select=*&status=eq.active&order=created_at.desc',{headers:{apikey:key,Authorization:'Bearer '+key},cache:'no-store'});if(!res.ok)throw new Error('Marketplace notes could not be loaded');const rows=await res.json();return Array.isArray(rows)?rows:[]}
   function filtered(list){const q=($('gmkt-search')?.value||'').toLowerCase().trim(), cat=$('gmkt-cat')?.value||'all', price=$('gmkt-price')?.value||'all', sort=$('gmkt-sort')?.value||'latest'; let out=[...list]; if(q)out=out.filter(n=>[n.title,n.category,n.description,(n.tags||[]).join(' '),n.course_exam,n.institution,n.uploader_name].join(' ').toLowerCase().includes(q)); if(cat!=='all')out=out.filter(n=>String(n.category||'').toLowerCase()===cat); if(price==='free')out=out.filter(n=>Number(n.price||0)<=0||n.is_free); if(price==='paid')out=out.filter(n=>Number(n.price||0)>0&&!n.is_free); if(sort==='price-low')out.sort((a,b)=>Number(a.price||0)-Number(b.price||0)); else if(sort==='price-high')out.sort((a,b)=>Number(b.price||0)-Number(a.price||0)); else if(sort==='popular')out.sort((a,b)=>Number(b.purchases_count||b.downloads_count||0)-Number(a.purchases_count||a.downloads_count||0)); else out.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)); return out}
   function own(n){return logged()&&String(n.uploader_id||'')===String(uid())}
@@ -12317,7 +12333,7 @@ body{overflow-x:hidden}
   function ensureMarketplaceRealtime(){const c=sbc();if(!c||typeof c.channel!=='function'){clearTimeout(marketplaceLiveRetry);marketplaceLiveRetry=setTimeout(ensureMarketplaceRealtime,350);return}if(marketplaceLiveChannel)return;marketplaceLiveChannel=c.channel('guidcy-live-marketplace-notes').on('postgres_changes',{event:'*',schema:'public',table:'marketplace_notes'},()=>{clearTimeout(marketplaceLiveTimer);marketplaceLiveTimer=setTimeout(()=>render(),80)}).subscribe()}
   async function render(){addNav();ensureMarketplaceShell();ensureMarketplaceRealtime();const run=++marketplaceRenderRun;try{const notes=await listNotes();if(run!==marketplaceRenderRun)return notes;window.__gmktNotes=notes;const sel=$('gmkt-cat'),selected=sel?.value||'all',cats=[...new Set(notes.map(n=>String(n.category||'').trim()).filter(Boolean))].sort();if(sel){sel.innerHTML='<option value="all">All categories</option>'+cats.map(c=>'<option value="'+esc(c.toLowerCase())+'">'+esc(c)+'</option>').join('');if([...sel.options].some(o=>o.value===selected))sel.value=selected}renderList();return notes}catch(e){console.warn('Marketplace hydration delayed',e);if(run===marketplaceRenderRun)setTimeout(()=>{if(marketplaceRouteRequested())render()},500);return []}}
   function marketplaceRouteRequested(){const path=location.pathname.replace(/\/+$/,'')||'/';const page=$('page-marketplace');return path==='/marketplace'||location.hash==='#marketplace'||page?.classList.contains('on')||page?.classList.contains('active')}
-  function scheduleMarketplaceHydration(){[0,120,350,800,1600,3000].forEach(ms=>setTimeout(()=>{if(marketplaceRouteRequested())render()},ms))}
+  function scheduleMarketplaceHydration(){if(marketplaceRouteRequested())render()}
   function uploadForm(){return '<h2 style="font-family:Cormorant Garamond,serif;font-size:34px;margin:0 0 10px">Sell Your Notes</h2><p style="color:#64748B;margin-bottom:18px">Upload PDF notes up to 15 MB. Choose how many opening pages buyers can preview.</p><form class="gmkt-form-grid" onsubmit="GuidcyMarketplace.submitUpload(event)"><div class="gmkt-field"><label>Notes title *</label><input id="gmkt-title" required></div><div class="gmkt-field"><label>Category / subject *</label><input id="gmkt-category" required></div><div class="gmkt-field full"><label>Description *</label><textarea id="gmkt-desc" rows="4" required></textarea></div><div class="gmkt-field"><label>Free or paid</label><select id="gmkt-is-free" onchange="GuidcyMarketplace.togglePrice()"><option value="false">Paid</option><option value="true">Free</option></select></div><div class="gmkt-field"><label>Price ₹ *</label><input id="gmkt-note-price" type="number" min="0" step="1" value="99" required></div><div class="gmkt-field"><label>Preview pages *</label><input id="gmkt-preview-pages" type="number" min="1" max="'+MAX_PREVIEW_PAGES+'" step="1" value="3" required><small>Buyers will see these first pages before purchase.</small></div><div class="gmkt-field"><label>Tags</label><input id="gmkt-tags" placeholder="Gate, MBA, Polymer"></div><div class="gmkt-field"><label>Course / exam optional</label><input id="gmkt-course"></div><div class="gmkt-field"><label>Institution optional</label><input id="gmkt-inst"></div><div class="gmkt-field"><label>Author/uploader name</label><input id="gmkt-uploader" value="'+esc(name())+'"></div><div class="gmkt-field"><label>PDF upload *</label><input id="gmkt-file" type="file" accept="application/pdf,.pdf" required onchange="GuidcyMarketplace.validateFile(this)"></div><div class="gmkt-field full"><label style="display:flex;gap:8px;align-items:flex-start"><input id="gmkt-terms" type="checkbox" required style="width:auto;margin-top:3px"> <span>I confirm that I have the right to upload and sell these notes.</span></label></div><div class="gmkt-field full"><button class="primary-btn" type="submit">Publish Notes</button></div></form>'}
   function openUpload(){if(!logged())return requireLogin('Please login or register to upload and sell your notes.',{type:'marketplace_upload'}); const m=ensureModal(); $('gmkt-modal-body').innerHTML=uploadForm(); m.classList.add('on'); document.body.style.overflow='hidden'}
   function validateFile(input){const f=input?.files?.[0]; if(!f)return false; if(f.type!=='application/pdf'&&!/\.pdf$/i.test(f.name)){toastSafe('Only PDF notes are allowed.','red'); input.value=''; return false} if(f.size>MAX_MB*1024*1024){toastSafe('Please upload a PDF file up to 15 MB only.','red'); input.value=''; return false} return true}
@@ -12458,7 +12474,7 @@ body{overflow-x:hidden}
   async function restorePending(){let a=null; try{a=JSON.parse(sessionStorage.getItem('guidcy_pending_marketplace_action')||'null')}catch(_){} if(!a||!logged())return; sessionStorage.removeItem('guidcy_pending_marketplace_action'); go('marketplace'); setTimeout(()=>{if(a.type==='marketplace_upload')openUpload(); else if(a.noteId)openDetails(a.noteId).then(()=>{if(a.type==='marketplace_buy_or_download')buyOrDownload(a.noteId)})},700)}
   function closeModal(){const m=$('gmkt-modal'); if(m){m.classList.remove('on'); const d=m.querySelector('.gmkt-dialog'); if(d)d.classList.remove('gmkt-full-dialog')} document.body.style.overflow=''} function closeAuth(){const m=$('gmkt-auth-modal'); if(m)m.classList.remove('on'); document.body.style.overflow=''}
   document.addEventListener('click',function(e){const b=e.target.closest('[data-gmkt-action]'); if(!b)return; const id=b.getAttribute('data-gmkt-id'), action=b.getAttribute('data-gmkt-action'); if(!id)return; e.preventDefault(); e.stopPropagation(); if(action==='preview')openPreview(id); else if(action==='details')openDetails(id); else if(action==='buy')buyOrDownload(id); else if(action==='generate')ensurePreviewForNote(id,false).then(()=>render()); else if(action==='edit')openEdit(id); else if(action==='delete')deleteNote(id);});
-  window.GuidcyMarketplace={render,renderList,openUpload,submitUpload,validateFile,togglePrice,toggleEditPrice,openDetails,openPreview,openEdit,submitEdit,buyOrDownload,deleteNote,generatePreview:ensurePreviewForNote,closeModal,closeAuth,goAuth:function(p){closeAuth(); setTimeout(()=>{try{go(p)}catch(_){location.href=p==='signup'?'/get-started':'/login'}},60)},reportNote,submitReport,admin,markPayout,seller,purchases,redownload};
+  window.GuidcyMarketplace={render,renderList,openUpload,submitUpload,validateFile,togglePrice,toggleEditPrice,openDetails,openPreview,openEdit,submitEdit,buyOrDownload,deleteNote,generatePreview:ensurePreviewForNote,closeModal,closeAuth,goAuth:function(p){closeAuth(); setTimeout(()=>{try{go(p)}catch(_){window.guidcyNavigate(p==='signup'?'/get-started':'/login')}},60)},reportNote,submitReport,admin,markPayout,seller,purchases,redownload};
   document.addEventListener('DOMContentLoaded',()=>{addNav();injectDashNav();wrapRoutes();scheduleMarketplaceHydration();setTimeout(()=>{addNav();injectDashNav();wrapRoutes();if(location.pathname.replace(/\/$/,'')==='/marketplace'){if(window.renderPage)window.renderPage('marketplace');else render()}else if(location.hash==='#marketplace'||new URLSearchParams(location.search).get('flow')==='marketplace'){if(window.go)go('marketplace');else render()}restorePending();handleRazorpayReturn()},400)});
   window.addEventListener('load',scheduleMarketplaceHydration);
   window.addEventListener('pageshow',scheduleMarketplaceHydration);
@@ -12766,7 +12782,7 @@ body{overflow-x:hidden}
   function goLogin(){
     try{window.GuidcyMarketplace&&window.GuidcyMarketplace.closeModal&&window.GuidcyMarketplace.closeModal()}catch(_){}
     toast('Login/Signup to download the Notes','blue');
-    setTimeout(function(){try{window.go?go('login'):location.href='/login'}catch(_){location.href='/login'}},120);
+    setTimeout(function(){try{window.go?go('login'):window.guidcyNavigate('/login')}catch(_){window.guidcyNavigate('/login')}},120);
   }
   async function downloadNote(id){
     var n=await getNote(id);
@@ -13030,7 +13046,7 @@ body{overflow-x:hidden}
     '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
     '/help':'help','/help-center':'help','/support':'help',
     '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
+    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
     '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
     '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'
@@ -13039,7 +13055,7 @@ body{overflow-x:hidden}
   function currentUrl(){return (location.pathname||'/')+(location.search||'')}
   function infoFor(raw){
     var u;try{u=new URL(raw||currentUrl(),location.origin)}catch(_){u=new URL(currentUrl(),location.origin)}
-    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||'';
+    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(u.pathname))||'';
     if(routes[path])return {known:true,page:routes[path],path:path,tab:tab,url:path+(u.search||'')};
     var m=path.match(/^\/consultant\/([^/]+)$/);
     if(m)return {known:true,page:'profile',kind:'consultant',id:decodeURIComponent(m[1]),path:path,tab:tab,url:path+(u.search||'')};
@@ -13514,7 +13530,7 @@ body{overflow-x:hidden}
     featuredAdminViewActive=isFeatured;
     const renderEpoch=++featuredAdminRenderEpoch;
     if(isFeatured){
-      if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}
+      if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}
       const main=id('adash-main'); if(main){main.innerHTML='<div class="dash-title">Homepage Featured Experts Control</div><div id="guidcy-feature-admin-box" class="guidcy-feature-admin-box"><div style="padding:18px;color:var(--muted)">Loading featured expert controls...</div></div>';}
       setTimeout(function(){buildFeatureAdmin(renderEpoch)},50); return;
     }
@@ -14491,7 +14507,7 @@ window.wbnRender=function(){
 
   const previousSwAD=window.swAD;
   window.swAD=function(view,btn){
-    if(btn){qsa('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}
+    if(btn){qsa('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}
     if(view==='support'){renderSupportAdmin();return}
     if(view==='disputes'){renderDisputeAdmin();return}
     return previousSwAD?previousSwAD(view,btn):undefined;
@@ -14626,7 +14642,7 @@ window.wbnRender=function(){
   async function allWebinars(){return dedupe(readLocal().concat(await fetchDb()))}
   function isAdmin(){var r=txt(window.loggedIn||((window.currentProfile||{}).role)).toLowerCase();return r==='admin'}
   function ensureAdminButton(){var side=document.querySelector('#page-admin-dash .side-nav');if(!side||byId('admin-webinars-btn'))return;var btn=document.createElement('button');btn.className='side-btn';btn.id='admin-webinars-btn';btn.dataset.adminSection='webinars';btn.setAttribute('onclick',"swAD('webinars',this)");btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M10 15l2 2 4-4"/></svg>Webinar history';var div=side.querySelector('.side-divider');side.insertBefore(btn,div||side.lastElementChild)}
-  async function renderAdminWebinars(btn){ensureAdminButton();if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}var m=byId('adash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';var list=await allWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Admin view shows webinars published by every consultant/admin across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisherLabel(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>')}
+  async function renderAdminWebinars(btn){ensureAdminButton();if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}var m=byId('adash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';var list=await allWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Admin view shows webinars published by every consultant/admin across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisherLabel(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>')}
   async function injectAdminOverviewStrip(){return Promise.resolve()}
   var oldSwAD=window.swAD;
   window.swAD=async function(view,btn){ensureAdminButton();if(view==='webinars')return renderAdminWebinars(btn);var r=oldSwAD?await oldSwAD.apply(this,arguments):undefined;if(view==='overview'||view==='analytics')setTimeout(injectAdminOverviewStrip,100);return r};
@@ -14719,7 +14735,7 @@ window.wbnRender=function(){
 
   async function renderAdmin(btn){
     if(!isAdmin()){return;}
-    if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(e){}}
+    if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}
     var m=byId('adash-main'); if(!m)return;
     m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';
     var list=await allWebinars(), c=counts(list), rc=await regCounts();
@@ -14727,7 +14743,7 @@ window.wbnRender=function(){
   }
 
   async function renderConsultant(btn){
-    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(e){}}
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(e){}}
     var m=byId('cdash-main'); if(!m)return;
     m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';
     var me=currentEmail(), all=await allWebinars();
@@ -14910,7 +14926,7 @@ window.wbnRender=function(){
     if(btn){
       document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){ b.classList.remove('on'); });
       btn.classList.add('on');
-      try{ closeDashMenu('admin'); }catch(e){}
+      try{ window.closeDashMenu&&window.closeDashMenu('admin'); }catch(e){}
     }
     var m = byId('adash-main');
     if(!m) return;
@@ -16765,7 +16781,7 @@ document.addEventListener('DOMContentLoaded',function(){
         notify('Welcome back!','green');
         setTimeout(function(){
           try{ go(actual==='admin'?'admin-dash':actual==='consultant'?'cons-dash':'user-dash'); }
-          catch(_){ location.href=actual==='admin'?'/admin':actual==='consultant'?'/consultant-dashboard':'/dashboard'; }
+          catch(_){ window.guidcyNavigate(actual==='admin'?'/admin':actual==='consultant'?'/consultant-dashboard':'/dashboard'); }
         },220);
         return;
       }
@@ -17896,7 +17912,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return t;
   }
   function validUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
-  function goOpp(){try{if(typeof window.go==='function')window.go('opportunities');else location.href='/opportunities'}catch(e){location.href='/opportunities'}}
+  function goOpp(){try{if(typeof window.go==='function')window.go('opportunities');else window.guidcyNavigate('/opportunities')}catch(e){window.guidcyNavigate('/opportunities')}}
   function iconFor(cat,title){var t=(cat+' '+title).toLowerCase();if(t.includes('scholar'))return '🎓';if(t.includes('hack'))return '🏆';if(t.includes('grant')||t.includes('fund'))return '💰';if(t.includes('fellow'))return '🌱';if(t.includes('intern'))return '🧪';if(t.includes('case'))return '📋';if(t.includes('startup'))return '🚀';return '✨'}
   function badgeFor(o){var d=(o.deadline||'').toLowerCase();if(d.includes('soon')||d.includes('closing'))return ['Closes Soon','soon'];if(d.includes('check')||d.includes('ongoing')||d.includes('open'))return ['Open',''];return ['New','new']}
   function normalize(raw,i){
@@ -17983,7 +17999,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function clean(v,limit){var t=String(v||'').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,' ').replace(/[*_`#>|~]+/g,' ').replace(/\s+/g,' ').trim();if(limit&&t.length>limit)t=t.slice(0,limit).replace(/\s+\S*$/,'')+'…';return t}
   function validUrl(u){try{var x=new URL(String(u||''),location.origin);return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
   function goStartupOpp(){
-    try{if(typeof window.go==='function')window.go('opportunities');else location.href='/opportunities'}catch(e){location.href='/opportunities'}
+    try{if(typeof window.go==='function')window.go('opportunities');else window.guidcyNavigate('/opportunities')}catch(e){window.guidcyNavigate('/opportunities')}
     setTimeout(function(){
       try{if(typeof window.oppSetTab==='function')window.oppSetTab('startup');var inp=document.getElementById('opp-search-input');if(inp)inp.value='startup funding accelerator grants investor events incubation';if(typeof window.oppDoSearch==='function')window.oppDoSearch();}catch(e){}
     },220);
@@ -18282,7 +18298,7 @@ document.addEventListener('DOMContentLoaded',function(){
   var STARTUP_KEY='home_startup';
   var TTL_MS=24*60*60*1000;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-  function goPage(page){try{if(typeof window.go==='function'){window.go(page);return}}catch(e){} window.location.href='/' + page;}
+  function goPage(page){try{if(typeof window.go==='function'){window.go(page);return}}catch(e){} window.guidcyNavigate('/' + page);}
   function goOpp(){try{localStorage.setItem('guidcy_opp_prefill_query','opportunities hackathons scholarships competitions startup grants accelerators');}catch(e){} goPage('opportunities')}
   function goStartup(){try{localStorage.setItem('guidcy_opp_prefill_query','startup grants accelerators pitch competitions funding incubators');}catch(e){} goPage('opportunities')}
   function getClient(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
@@ -18314,7 +18330,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function render(items){
     var box=document.getElementById('guidcy-mixed-home-opps'); if(!box)return;
     items=uniq(items).filter(function(o){return o&&clean(o.title,90)&&url(o)!=='#'}).slice(0,5);
-    if(!items.length){box.innerHTML='<div class="guidcy-mix-empty">Daily mixed opportunities are not loaded yet.<br><button class="btn btn-blue" style="margin-top:12px" onclick="(window.go||function(){location.href=\'/opportunities\'})(\'opportunities\')">Open Funds & Grants Finder</button></div>';return;}
+    if(!items.length){box.innerHTML='<div class="guidcy-mix-empty">Daily mixed opportunities are not loaded yet.<br><button class="btn btn-blue" style="margin-top:12px" onclick="(window.go||function(){window.guidcyNavigate(\'/opportunities\')})(\'opportunities\')">Open Funds & Grants Finder</button></div>';return;}
     box.innerHTML=items.map(function(o,i){var b=badge(o,i);var meta=[o.category,o.country,clean(o.desc||o.snippet||o.description,62)].filter(Boolean).join(' · ');return '<div class="guidcy-mix-row" role="button" tabindex="0" data-url="'+esc(url(o))+'"><div class="guidcy-mix-ico">'+esc(icon(o))+'</div><div><div class="guidcy-mix-name">'+esc(clean(o.title,70))+'</div><div class="guidcy-mix-meta">'+esc(meta)+'</div></div><div class="guidcy-mix-badge '+esc(b[1])+'">'+esc(b[0])+'</div></div>'}).join('');
     box.querySelectorAll('.guidcy-mix-row').forEach(function(row){function open(){var u=row.getAttribute('data-url'); if(u&&u!=='#')window.open(u,'_blank','noopener')} row.onclick=open; row.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}});
   }
@@ -18957,7 +18973,7 @@ document.addEventListener('DOMContentLoaded',function(){
       }
     }catch(e){ console.warn('Pending action restore after login failed:',e); }
     try{ go(safeDashboard(role)); }
-    catch(_){ location.href = role==='admin'?'/admin-dashboard':(role==='consultant'?'/consultant-dashboard':'/dashboard'); }
+    catch(_){ window.guidcyNavigate(role==='admin'?'/admin-dashboard':(role==='consultant'?'/consultant-dashboard':'/dashboard')); }
   }
 
   window.doLogin = async function(){
@@ -19317,7 +19333,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   var requestsRenderToken=0;
   async function renderBookingRequests(btn){
-    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(_){}}
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(_){}}
     var m=$('cdash-main'); if(!m) return;
     /* A status change schedules several overlapping refreshes, and this load runs
        many sequential queries. Without a token an older run could finish last and
@@ -19389,7 +19405,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(r.error)throw r.error; if(!silent)notify('Bank / payout details saved.','green'); setTimeout(function(){renderConsultantBankSettings(null,true)},250)}catch(e){console.error('Payout details save error:',e); if(!silent)notify('Could not save payout details. Please check the fields and try again.','red')}};
   var _bankTimer=null; window.guidcyQueueBankSave=function(){clearTimeout(_bankTimer); _bankTimer=setTimeout(function(){guidcySaveConsultantBankDetails(true)},900)};
   async function renderConsultantBankSettings(btn,insideExisting){
-    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('cons')}catch(_){}}
+    if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(_){}}
     var m=el('cdash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading profile and payout details...</div>';
     var cons=await resolveConsultant(); if(!cons?.id){m.innerHTML='<div class="dash-title">Profile & settings</div><div style="padding:30px;color:var(--muted)">Consultant profile not found.</div>';return}
     var bank=await fetchBankDetails(cons.id)||{}; var name=cons.name||cons.full_name||window.currentProfile?.full_name||'';
@@ -19498,7 +19514,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-cons="'+h(lower(consName+' '+consEmail))+'" data-date="'+h((b.created_at||'').slice(0,10))+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">Booking '+h(b.id||b.booking_id||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+h(bVal(b,['session_type','category'],'Session'))+' · '+h(bVal(b,['date_label','booking_date','session_date','date'],'—'))+' '+h(bVal(b,['time_slot','booking_time','session_time','time'],''))+'</div></div>'+pills+'</div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">User<b>'+h(bVal(b,['user_name','client_name'],'—'))+'<br>'+h(bVal(b,['user_email','client_email'],''))+'</b></div><div class="guidcy-payout-kv">Consultant<b>'+h(consName)+'<br>'+h(consEmail)+'</b></div><div class="guidcy-payout-kv">Booking / session status<b>'+h(cancelled?'Cancelled':b.status||'—')+'<br>'+h(cancelled?'Cancelled':b.session_status||'scheduled')+'</b></div><div class="guidcy-payout-kv">Payment status<b>'+h(payment)+'</b></div>'+(cancelled?'<div class="guidcy-payout-kv">Refund status<b>'+h(refund)+'</b></div>':'')+'<div class="guidcy-payout-kv">Payment gateway txn<b>'+h(b.razorpay_order_id||b.razorpay_payment_id||b.payment_id||'—')+'</b></div><div class="guidcy-payout-kv">User paid<b>'+money(gross)+'</b></div><div class="guidcy-payout-kv">Guidcy commission 15%<b>'+money(comm)+'</b></div><div class="guidcy-payout-kv">Consultant payable<b>'+money(payable)+(cancelled?'<br><span style="font-size:11px;color:#B91C1C">Not eligible after cancellation</span>':'')+'</b></div>'+payoutDetails+'</div>'+renderBankBlock(bank)+'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'+action+'</div></div>';
   }
   async function renderAdminBookingsWithBank(view,btn){
-    if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{closeDashMenu('admin')}catch(_){}}
+    if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
     sessionStorage.setItem('guidcy_admin_last_view',view);
     var m=el('adash-main');if(!m)return;
     var onlyPayout=view==='payouts',title=onlyPayout?'Consultant Payouts':'All bookings & payments';
@@ -19550,7 +19566,7 @@ document.addEventListener('DOMContentLoaded',function(){
   /* Only the buttons that are actually wrong get touched: clearing 'on' from
      every side button on each call produced a burst of attribute mutations that
      every MutationObserver on the page then had to wake up for. */
-  function setSide(kind,view,btn){try{var root=kind==='admin'?'#page-admin-dash':kind==='cons'?'#page-cons-dash':'#page-user-dash';var target=btn||Array.from(document.querySelectorAll(root+' .side-btn')).find(function(b){return (b.getAttribute('onclick')||'').indexOf("'"+view+"'")>-1 || (view==='marketplace'&&/Marketplace|Purchased Notes/i.test(b.textContent||''))});document.querySelectorAll(root+' .side-btn.on').forEach(function(b){if(b!==target)b.classList.remove('on')});if(target&&!target.classList.contains('on'))target.classList.add('on');try{closeDashMenu(kind)}catch(_){}}catch(_){}}
+  function setSide(kind,view,btn){try{var root=kind==='admin'?'#page-admin-dash':kind==='cons'?'#page-cons-dash':'#page-user-dash';var target=btn||Array.from(document.querySelectorAll(root+' .side-btn')).find(function(b){return (b.getAttribute('onclick')||'').indexOf("'"+view+"'")>-1 || (view==='marketplace'&&/Marketplace|Purchased Notes/i.test(b.textContent||''))});document.querySelectorAll(root+' .side-btn.on').forEach(function(b){if(b!==target)b.classList.remove('on')});if(target&&!target.classList.contains('on'))target.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu(kind)}catch(_){}}catch(_){}}
   async function authUser(){try{if(window.currentUser?.id)return window.currentUser;var c=client();if(c?.auth?.getUser){var r=await c.auth.getUser();return r?.data?.user||null}}catch(_){}return null}
   function newer(a,b){if(!a)return b||null;if(!b)return a||null;return new Date(b.updated_at||b.created_at||0)>=new Date(a.updated_at||a.created_at||0)?b:a}
   function bankFromConsultant(cons){if(!cons)return null;var has=cons.account_number||cons.bank_account||cons.bank_name||cons.ifsc_code||cons.bank_ifsc||cons.upi_id||cons.pan_number;if(!has)return null;return {consultant_id:cons.id,consultant_user_id:cons.profile_id,account_holder_name:cons.account_holder_name||cons.name||'',bank_name:cons.bank_name||'',account_number:cons.account_number||cons.bank_account||'',ifsc_code:cons.ifsc_code||cons.bank_ifsc||'',upi_id:cons.upi_id||'',pan_number:cons.pan_number||'',payout_preference:cons.payout_preference||(cons.upi_id?'upi':'bank_transfer'),updated_at:cons.updated_at}}
@@ -19843,7 +19859,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   // Admin Notification Log page removed intentionally.
 
   async function renderNotificationPreferences(btn,scope){
-    if(btn){document.querySelectorAll((scope==='consultant'?'#page-cons-dash':'#page-user-dash')+' .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{closeDashMenu(scope==='consultant'?'cons':'user')}catch(_){}}
+    if(btn){document.querySelectorAll((scope==='consultant'?'#page-cons-dash':'#page-user-dash')+' .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu(scope==='consultant'?'cons':'user')}catch(_){}}
     const main=document.getElementById(scope==='consultant'?'cdash-main':'udash-main'); if(!main)return; const c=client(); const uid=window.currentUser?.id||null;
     let prefs={email_transactional:true,email_marketing:false,whatsapp_transactional:false,whatsapp_marketing:false,sms_otp:true};
     if(c&&uid){try{const r=await c.from('user_notification_preferences').select('*').eq('user_id',uid).maybeSingle(); if(!r.error&&r.data)prefs=Object.assign(prefs,r.data)}catch(_){}}
@@ -20011,7 +20027,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   const userId=()=>window.currentUser?.id||window.loggedInUser?.id||window.currentProfile?.id||null;
   const userRole=()=>clean(window.currentProfile?.role||window.loggedInUser?.role||window.loggedIn||'').toLowerCase();
   const isAdmin=()=>userRole()==='admin' || window.currentProfile?.is_admin===true;
-  function goPage(page){try{if(typeof window.go==='function')window.go(page);else location.href='/' + page;}catch(_){location.href='/' + page;}}
+  function goPage(page){try{if(typeof window.go==='function')window.go(page);else window.guidcyNavigate('/' + page);}catch(_){window.guidcyNavigate('/' + page);}}
 
   function normalizeWebinar(w){w=w||{};return {
     id:clean(w.id||w.webinar_id),
@@ -20563,6 +20579,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 
   /* 1) Single source of truth for the top Dashboard button. */
   function renderSingleDashboardButton(){
+    if(!window.__guidcySignedOut&&!window.__guidcyAuthReadyFired)return;
     const nr=$('nav-right');
     if(!nr) return;
     const role=getRole();
@@ -20579,7 +20596,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     const ini=clean(p.avatar_initials || initials(name));
     const av=avatarUrlForProfile(p,u);
     const avatarStyle = role==='admin' ? 'background:#FFF0F0;color:#7f1d1d;border-color:#f87171' : role==='consultant' ? 'background:#F7F0E6;color:#8B6E3F;border-color:#C9A96E' : 'background:#EBF4FF;color:#1E72BE;border-color:#1E72BE33';
-    nr.innerHTML = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button>'+avatarChipHtml(av,ini,avatarStyle,route,name);
+    const navHtml = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button>'+avatarChipHtml(av,ini,avatarStyle,route,name);
+    if(nr.innerHTML!==navHtml)nr.innerHTML=navHtml;
     syncMobileAuthArea();
   }
   function syncMobileAuthArea(){
@@ -20644,7 +20662,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function isAdmin(){try{return clean(window.currentProfile?.role||window.loggedIn||window.loginType).toLowerCase()==='admin'||window.currentProfile?.is_admin===true}catch(e){return false}}
   function toast(msg,type){try{(window.toast||window.showToast||function(m){alert(m)})(msg,type||'blue')}catch(e){alert(msg)}}
   window.guidcyOpenWebinarRegistrations=function(){
-    if(!isAdmin()){toast('Admin login required to view webinar registrations.','red');try{window.go&&go('login')}catch(e){location.href='/login'}return false}
+    if(!isAdmin()){toast('Admin login required to view webinar registrations.','red');try{window.go&&go('login')}catch(e){window.guidcyNavigate('/login')}return false}
     try{document.querySelectorAll('#wbn-reg-modal,.wbn-modal-overlay,.wbn-delete-modal').forEach(function(el){el.classList.remove('on','is-open','open');el.style.display='none'})}catch(e){}
     try{
       sessionStorage.setItem('guidcy_admin_dash_tab','webinar-registrations');
@@ -21175,7 +21193,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function routeTo(dest,q,cat){
     removeHomeGuidance();
     if(window.hideHeroSuggestions)window.hideHeroSuggestions();
-    if(window.go)window.go(dest.page);else location.href=dest.route;
+    if(window.go)window.go(dest.page);else window.guidcyNavigate(dest.route);
     try{sessionStorage.setItem('guidcy_last_universal_search',JSON.stringify({q:q,cat:cat,page:dest.page,at:Date.now()}))}catch(_){}
     setPageSearch(dest.page,q,cat);
   }
@@ -21323,7 +21341,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
     '/help':'help','/help-center':'help','/support':'help',
     '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
+    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
     '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash',
     '/admin/webinar-registrations':'admin-dash',
@@ -21399,7 +21417,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   async function routeFromLocation(){
     var myGen=++routeGen;
-    var path=cleanPath(location.pathname),page=pageForPath(path),requestedTab=new URLSearchParams(location.search).get('tab')||'';
+    var path=cleanPath(location.pathname),page=pageForPath(path),requestedTab=(new URLSearchParams(location.search).get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'';
     try{
       var original=new URL(window.__guidcyInitialPathWithSearch||'',location.origin);
       var originalPath=cleanPath(original.pathname);
@@ -22051,7 +22069,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       try{window.GuidcyMarketplace?.closeModal?.();window.GuidcyMarketplace?.closeAuth?.()}catch(e){}
       var msg='Login/Signup to download the Notes';
       toast(msg,'blue');
-      setTimeout(function(){try{go('login')}catch(_){location.href='/login'}},120);
+      setTimeout(function(){try{go('login')}catch(_){window.guidcyNavigate('/login')}},120);
       return;
     }
     var old=await unlockedOrder(id);
@@ -22223,7 +22241,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       }catch(_){}
       try{window.GuidcyMarketplace&&window.GuidcyMarketplace.closeModal&&window.GuidcyMarketplace.closeModal()}catch(_){}
       try{(window.toast||window.showToast||alert)('Login/Signup to download the Notes','blue')}catch(_){}
-      setTimeout(function(){try{window.go?go('login'):location.href='/login'}catch(_){location.href='/login'}},80);
+      setTimeout(function(){try{window.go?go('login'):window.guidcyNavigate('/login')}catch(_){window.guidcyNavigate('/login')}},80);
     },true);
   }
 
@@ -22488,7 +22506,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
     '/help':'help','/help-center':'help','/support':'help',
     '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
+    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
     '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
     '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'
@@ -22504,7 +22522,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function pathWithSearch(){return (location.pathname||'/')+(location.search||'')}
   function parsePath(raw){
     var u;try{u=new URL(raw||pathWithSearch(),location.origin)}catch(_){u=new URL(pathWithSearch(),location.origin)}
-    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||'';
+    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(u.pathname))||'';
     if(routeMap[path])return {known:true,page:routeMap[path],path:path,search:u.search||'',tab:tab,url:path+(u.search||'')};
     var m=path.match(/^\/consultant\/([^/]+)$/);
     if(m)return {known:true,page:'profile',kind:'consultant',id:decodeURIComponent(m[1]),path:path,search:u.search||'',url:path+(u.search||'')};
@@ -22612,7 +22630,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
     '/help':'help','/help-center':'help','/support':'help',
     '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
+    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
     '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
     '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'
@@ -22641,7 +22659,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function normalizePage(page){page=String(page||'home');return pageAliases[page]||page}
   function parseUrl(raw){
     var u;try{u=new URL(raw||pathWithSearch(),location.origin)}catch(_){u=new URL(pathWithSearch(),location.origin)}
-    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||'';
+    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(u.pathname))||'';
     if(routeMap[path])return {known:true,page:routeMap[path],path:path,search:u.search||'',tab:tab,url:path+(u.search||'')};
     var m=path.match(/^\/consultant\/([^/]+)$/);
     if(m)return {known:true,page:'profile',kind:'consultant',id:decodeURIComponent(m[1]),path:path,search:u.search||'',tab:tab,url:path+(u.search||'')};
@@ -22679,19 +22697,20 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var authEpoch=window.__guidcyAuthEpoch||0;
     authPromise=(async function(){
       var client=getSupabaseClient();
-      if(!client||!client.auth||!client.auth.getSession){authUser=null;return null}
+      if(!client||!client.auth||!client.auth.getSession){authPromise=null;return undefined}
       try{
         var res=await client.auth.getSession();
         if(authEpoch!==(window.__guidcyAuthEpoch||0)||window.__guidcySignedOut)return window.__guidcyAuthUser||null;
+        if(res&&res.error)throw res.error;
         authUser=(res&&res.data&&res.data.session&&res.data.session.user)||null;
         window.__guidcyAuthResolved=true;
         window.__guidcyAuthUser=authUser;
         return authUser;
       }catch(e){
         console.warn('Guidcy auth restore failed:',e);
-        authUser=null;
-        window.__guidcyAuthResolved=true;
-        return null;
+        authPromise=null;
+        window.guidcyAuthRestoreFailed&&window.guidcyAuthRestoreFailed(e);
+        return undefined;
       }
     })();
     return authPromise;
@@ -22775,6 +22794,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }
     var user=await resolveAuth();
  if(token!==routeToken||info.url!==currentRoute().url)return false;
+    if(protectedPages[info.page]&&user===undefined)return false;
     if(protectedPages[info.page]&&!user){
       savePendingDestination(info);
       if(info.page!=='login'){
@@ -22962,7 +22982,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         setTimeout(placeFooter,80);
         return;
       }
-      if(anchor&&anchor.parentNode)anchor.insertAdjacentElement('afterend',footer);
+      if(anchor&&anchor.parentNode){if(footer.previousElementSibling!==anchor)anchor.insertAdjacentElement('afterend',footer)}
       else document.body.appendChild(footer);
       var toast=document.getElementById('toastbar');
       if(toast)document.body.appendChild(toast);
@@ -24072,12 +24092,13 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	    try{sessionStorage.setItem('guidcy_active_role',profile&&profile.role||'')}catch(_){}
 	    try{typeof updateNav==='function'&&updateNav()}catch(_){}
 	  }
-	  async function queryOne(table, field, value){
+	  async function queryOne(table, field, value, strict){
 	    var sbc=client(); if(!sbc||!value)return null;
 	    try{
 	      var res=await withTimeout(sbc.from(table).select('*').eq(field,value).maybeSingle(),table+' lookup',7000);
+	      if(strict&&res&&res.error)throw res.error;
 	      return res&&res.data&&!res.error?res.data:null;
-	    }catch(_){return null}
+	    }catch(error){if(strict)throw error;return null}
 	  }
 	  function consultantAllowed(row){
 	    if(!row)return false;
@@ -24085,14 +24106,14 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	    if(/reject|suspend|hidden|inactive/.test(status))return false;
 	    return true;
 	  }
-	  async function resolveStoredAccountRole(user){
+	  async function resolveStoredAccountRole(user,strict){
 	    var email=low(user&&user.email), profile=null, consultant=null;
-	    if(user&&user.id) profile=await queryOne('profiles','id',user.id);
-	    if(!profile&&email) profile=await queryOne('profiles','email',email);
+	    if(user&&user.id) profile=await queryOne('profiles','id',user.id,strict);
+	    if(!profile&&email) profile=await queryOne('profiles','email',email,strict);
 	    var attempts=[];
 	    if(user&&user.id) attempts.push(['profile_id',user.id],['id',user.id]);
     for(var i=0;i<attempts.length;i++){
-	      consultant=await queryOne('consultants',attempts[i][0],attempts[i][1]);
+	      consultant=await queryOne('consultants',attempts[i][0],attempts[i][1],strict);
 	      if(consultant)break;
 	    }
 	    var role=low(profile&&profile.role);
@@ -24126,7 +24147,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	  }
 	  async function restoreAfterLogin(role){
 	    try{if(typeof window.guidcyRestorePendingAction==='function'){var restored=await window.guidcyRestorePendingAction();if(restored)return}}catch(e){console.warn('Pending restore failed:',e)}
-	    try{go(safeDashboard(role))}catch(_){location.href=safeRoute(role)}
+	    try{go(safeDashboard(role))}catch(_){window.guidcyNavigate(safeRoute(role))}
 	  }
 	  window.doLogin=async function(){
 	    var email=clean(($('li-email')||{}).value);
@@ -24184,36 +24205,42 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	    });
 	  }
 
-	  var guarding=false, authReadyPromise=null;
+	  var guarding=false, authReadyPromise=null, lastGuardKey='';
 	  async function currentAuth(){
-	    var sbc=client(); if(!sbc)return {user:null};
-	    try{var res=await withTimeout(sbc.auth.getSession(),'Auth session',8000);return {user:res&&res.data&&res.data.session&&res.data.session.user||null}}catch(_){return {user:null}}
+	    var sbc=client(); if(!sbc)return {resolved:false};
+	    try{var res=await sbc.auth.getSession();if(res&&res.error)throw res.error;return {user:res&&res.data&&res.data.session&&res.data.session.user||null,resolved:true}}catch(_){return {resolved:false}}
 	  }
 	  function requestedDashboardRole(){
 	    var path=location.pathname.replace(/\/$/,'')||'/';
-	    if(path==='/admin-dashboard'||path.indexOf('/admin/')===0)return 'admin';
-	    if(path==='/consultant-dashboard')return 'consultant';
-	    if(path==='/dashboard')return 'user';
+	    if(path==='/admin-dashboard'||path.indexOf('/admin-dashboard/')===0||path.indexOf('/admin/')===0)return 'admin';
+	    if(path==='/consultant-dashboard'||path.indexOf('/consultant-dashboard/')===0)return 'consultant';
+	    if(path==='/dashboard'||path.indexOf('/dashboard/')===0)return 'user';
 	    return '';
 	  }
 	  async function guardDashboardRoute(){
 	    if(guarding)return; guarding=true;
+	    var epoch=window.__guidcyAuthEpoch||0;
 	    try{
 	      var need=requestedDashboardRole(); if(!need)return;
 	      var auth=await currentAuth();
+	      if(!auth.resolved||epoch!==(window.__guidcyAuthEpoch||0)||window.__guidcySignedOut)return;
 	      if(!auth.user){
 	        try{sessionStorage.setItem('guidcy_pending_return',location.pathname+location.search)}catch(_){}
 	        toastSafe('Please login to continue.','blue');
-	        try{go('login')}catch(_){location.href='/login'}
+	        try{go('login')}catch(_){window.guidcyNavigate('/login')}
 	        return;
 	      }
-	      var resolved=await resolveStoredAccountRole(auth.user);
+	      var guardKey=auth.user.id+':'+need+':'+(window.__guidcyAuthEpoch||0);
+	      if(lastGuardKey===guardKey)return;
+	      var resolved=await resolveStoredAccountRole(auth.user,true);
+	      if(epoch!==(window.__guidcyAuthEpoch||0)||window.__guidcySignedOut)return;
+	      lastGuardKey=guardKey;
 	      setSessionState(auth.user,resolved.profile);
 	      if(resolved.role!==need){
 	        toastSafe('Please use your registered dashboard.','blue');
-	        try{go(safeDashboard(resolved.role))}catch(_){location.href=safeRoute(resolved.role)}
+	        try{go(safeDashboard(resolved.role))}catch(_){window.guidcyNavigate(safeRoute(resolved.role))}
 	      }
-	    }finally{guarding=false}
+	    }catch(error){console.warn('Dashboard role restoration deferred:',error)}finally{guarding=false}
 	  }
 
 	  function avatarInitials(name){return clean(name||'C').split(/\s+/).map(function(w){return w[0]||''}).join('').slice(0,2).toUpperCase()||'C'}
@@ -24500,7 +24527,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	  }
 	  async function restoreAfterCorrectLogin(role){
 	    try{if(typeof window.guidcyRestorePendingAction==='function'){var restored=await window.guidcyRestorePendingAction();if(restored)return}}catch(e){console.warn('Pending restore skipped:',e)}
-	    try{window.go&&go(dashboardPage(role))}catch(_){location.href=dashboardPath(role)}
+	    try{window.go&&go(dashboardPage(role))}catch(_){window.guidcyNavigate(dashboardPath(role))}
 	  }
 	  window.doLogin=async function(){
 	    var email=clean(($('li-email')||{}).value).toLowerCase();
@@ -24584,7 +24611,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         setTimeout(placeFooter,80);
         return;
       }
-      active.insertAdjacentElement('afterend',footer);
+      if(footer.previousElementSibling!==active)active.insertAdjacentElement('afterend',footer);
       footer.hidden=false;
       footer.style.display='';
       footer.style.visibility='';
@@ -24791,7 +24818,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
  async function restoreOrDashboard(role){
  if(typeof window.guidcyFinishLogin==='function')return window.guidcyFinishLogin(role);
     try{if(typeof window.guidcyRestorePendingAction==='function'){var restored=await window.guidcyRestorePendingAction();if(restored)return true}}catch(e){console.warn('Pending restore skipped:',e)}
-    try{window.go&&window.go(dashPage(role))}catch(_){location.href=dashPath(role)}
+    try{window.go&&window.go(dashPage(role))}catch(_){window.guidcyNavigate(dashPath(role))}
     return true;
   }
 
@@ -25959,7 +25986,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       try{if(window.guidcyClaimDashboardTab&&window.guidcyClaimDashboardTab('swUD',requested,btn)===false)return}catch(_){}
       var requestId=(Number(window.__guidcyUDRequestId)||0)+1;
       window.__guidcyUDRequestId=requestId;
-      if(btn){try{document.querySelectorAll('#page-user-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');closeDashMenu('user')}catch(_){}}
+      if(btn){try{document.querySelectorAll('#page-user-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user')}catch(_){}}
       var m=$('udash-main'); if(!m)return;
       m.innerHTML='<div class="dash-title">'+(requested==='history'?'Session history':'Upcoming sessions')+'</div><div style="padding:20px;color:var(--muted)">Loading sessions...</div>';
       var rows=await loadUserBookings();
@@ -25999,7 +26026,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return null;
   }
   async function renderConsultantPaidSessions(btn){
-    if(btn){try{document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');closeDashMenu('cons')}catch(_){}}
+    if(btn){try{document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons')}catch(_){}}
     var m=$('cdash-main'), c=client(); if(!m)return;
     m.innerHTML='<div class="dash-title">Booking Requests</div><div style="padding:20px;color:var(--muted)">Loading paid sessions...</div>';
     var cons=await consultantRecord(); if(!c||!cons){m.innerHTML='<div class="dash-title">Booking Requests</div><div style="padding:30px;color:var(--muted)">Consultant profile not found.</div>';return}
@@ -26029,7 +26056,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     try{
       var tab=btn||document.querySelector('#page-cons-dash .side-btn[data-dash-section="my-bookings"]');
       if(tab){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});tab.classList.add('on')}
-      if(btn)closeDashMenu('cons');
+      if(btn)window.closeDashMenu&&window.closeDashMenu('cons');
     }catch(_){}
     var m=$('cdash-main'); if(!m)return;
     m.innerHTML='<div class="dash-title">My bookings</div><div style="padding:20px;color:var(--muted)">Loading sessions...</div>';
@@ -26060,7 +26087,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   var prevAD=window.swAD;
   window.swAD=async function(view,btn){
     if(String(view)==='bookings'){
-      if(btn){try{document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');closeDashMenu('admin')}catch(_){}}
+      if(btn){try{document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
       var m=$('adash-main'); if(!m)return;
       m.innerHTML='<div class="dash-title">All paid bookings</div><div style="padding:20px;color:var(--muted)">Loading paid bookings...</div>';
       var rows=await loadAdminRows();
@@ -27139,7 +27166,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(window.__guidcyRazorpayMarketplaceBusy)return;
     window.__guidcyRazorpayMarketplaceBusy=true;
     try{
-      var u=await authUser(); if(!u||!u.id){toast('Login/Signup to download the Notes','blue');try{go('login')}catch(_){location.href='/login'}return}
+      var u=await authUser(); if(!u||!u.id){toast('Login/Signup to download the Notes','blue');try{go('login')}catch(_){window.guidcyNavigate('/login')}return}
       var n=await noteById(id); if(!n)throw new Error('Notes listing not found.');
       var old=await ownedOrder(id,u.id); if(old){if(window.GuidcyMarketplace&&GuidcyMarketplace.secureDownload)return GuidcyMarketplace.secureDownload(n,old,targetWindow);return}
       var free=!(num(n.price)>0&&!n.is_free);
@@ -27616,9 +27643,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       if(typeof window.guidcyRefreshRouteFromLocation==='function')window.guidcyRefreshRouteFromLocation();
       else if(typeof window.renderPage==='function'){
         var path=u.pathname.replace(/\/+$/,'')||'/';
-        var map={'/find-experts':'browse','/browse':'browse','/experts':'browse','/consultants':'browse','/marketplace':'marketplace','/webinars':'webinar','/webinar':'webinar','/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers','/find-jobs':'jobs','/jobs':'jobs','/funds-grants':'opportunities','/opportunities':'opportunities','/career-ai-finder':'smart-finder','/career-ai':'smart-finder','/smart-finder':'smart-finder','/blog':'blog','/categories':'categories','/about':'about','/contact':'contact','/help-center':'help','/help':'help','/support':'help','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dispute-resolution':'dispute','/dispute':'dispute','/dashboard':'user-dash','/user-dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin-dashboard':'admin-dash','/payment':'payment','/confirm':'confirm','/profile':'profile'};
+        var map={'/find-experts':'browse','/browse':'browse','/experts':'browse','/consultants':'browse','/marketplace':'marketplace','/webinars':'webinar','/webinar':'webinar','/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers','/find-jobs':'jobs','/jobs':'jobs','/funds-grants':'opportunities','/opportunities':'opportunities','/career-ai-finder':'smart-finder','/career-ai':'smart-finder','/smart-finder':'smart-finder','/blog':'blog','/categories':'categories','/about':'about','/contact':'contact','/help-center':'help','/help':'help','/support':'help','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/dispute-resolution':'dispute','/dispute':'dispute','/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/consultant-dashboard':'cons-dash','/admin-dashboard':'admin-dash','/payment':'payment','/confirm':'confirm','/profile':'profile'};
         window.renderPage(map[path]||(/^\/book\//.test(path)||/^\/consultant\//.test(path)?'profile':'home'));
-      }else location.href=u.pathname+u.search+u.hash;
+      }else window.guidcyNavigate(u.pathname+u.search+u.hash);
       return true;
     }catch(_){return false}
   }
@@ -28471,7 +28498,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     '/career-ai':'smart-finder','/smart-finder':'smart-finder','/funds-grants':'opportunities','/opportunities':'opportunities',
     '/login':'login','/signup':'signup','/get-started':'signup','/about':'about','/contact':'contact','/faq':'faq',
     '/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer','/help-center':'help','/help':'help',
-    '/support':'help','/dispute-resolution':'dispute','/dispute':'dispute','/dashboard':'user-dash',
+    '/support':'help','/dispute-resolution':'dispute','/dispute':'dispute','/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash',
     '/user-dashboard':'user-dash','/user-dash':'user-dash','/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
     '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'
@@ -28482,8 +28509,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       if(path==='/dashboard'||path==='/user-dashboard'||path==='/user-dash')name='swUD';
       else if(path==='/consultant-dashboard'||path==='/cons-dash')name='swCD';
       else if(path==='/admin'||path==='/admin-dashboard'||path==='/admin-dash'||path==='/admin/webinar-registrations')name='swAD';
+      if(!name&&window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(path))name=path.indexOf('/consultant-dashboard/')===0?'swCD':path.indexOf('/admin-dashboard/')===0?'swAD':'swUD';
       if(!name)return null;
-      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':(url.searchParams.get('tab')||dashboards[name].fallback);
+      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':(url.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(url.pathname))||dashboards[name].fallback);
       return {name:name,tab:tab};
     }catch(e){return null}
   }
@@ -28619,6 +28647,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return id?'/book/'+encodeURIComponent(id):pathWithSearch();
   }
   function dashboardUrl(name,tab){
+    var nestedTab=window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname);
+    var nestedRole=location.pathname.indexOf('/consultant-dashboard/')===0?'swCD':location.pathname.indexOf('/admin-dashboard/')===0?'swAD':'swUD';
+    if(nestedTab&&nestedRole===name&&nestedTab===tab)return location.pathname+location.search+location.hash;
     var info=dashboards[name];
     tab=clean(tab||info.fallback);
     if(name==='swAD'&&tab==='webinar-registrations')return '/admin/webinar-registrations';
@@ -28646,9 +28677,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       (name==='swUD'&&(path==='/user-dashboard'||path==='/user-dash'))||
       (name==='swCD'&&path==='/cons-dash')||
       (name==='swAD'&&(path==='/admin'||path==='/admin-dash'||path==='/admin/webinar-registrations'));
-    if(!matches)return '';
+    if(!matches&&!(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(path)))return '';
     if(name==='swAD'&&path==='/admin/webinar-registrations')return 'webinar-registrations';
-    return clean(new URLSearchParams(location.search||'').get('tab'));
+    return clean((new URLSearchParams(location.search||'').get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname))));
   }
   function setDesiredDashboard(name,tab,push){
     if(!dashboards[name]||!tab||logoutRouteGuardActive())return;
@@ -28811,7 +28842,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
      coalescers meant the older one could block the owner's recovery render -
      which is how a dashboard that first painted before the profile loaded (the
      consultant Overview zeros) could never repair itself. */
-  function dashboardRepaintIsRedundant(){return false}
+  function dashboardRepaintIsRedundant(name,tab){
+    return dashboardShowsTab(name,tab)&&dashRenderedWithAuth[name]&&
+      Number(window.__guidcyDashboardsStaleAt||0)<=dashLastAt[name]&&Date.now()-dashLastAt[name]<COALESCE_MS;
+  }
   /* Four renderers are installed after this controller (swUD 'upcoming'/'history',
      swUD 'saved', swAD 'disputes'/'payouts'). Each paints the panel and returns
      without going through dashboardController, so nothing ever recorded which
@@ -28952,7 +28986,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
          automated render before the session AND profile are loaded produces a
          page built from nothing (zeroed KPIs, empty lists). The owner replays
          it once both are ready. */
-      if(!button&&window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+      if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
       if(button)noteUserChoseTab(name,tab);
       if(!button&&autoSwitchIsRefused(name,tab)){
         try{repairDashboardIntent(name)}catch(_){}
@@ -29015,6 +29049,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return {page:page,url:pageUrls[page]||((window.PAGE_URLS||{})[page])||''};
   }
   function goController(page){
+    if(window.guidcySavePageShell)window.guidcySavePageShell();
     var target=canonicalPage(page);
     if(window.__guidcyPaymentFlowLock&&target.page!=='payment'){
       if(typeof window.guidcyEnsurePaymentPageOnly==='function')window.guidcyEnsurePaymentPageOnly();
@@ -29048,6 +29083,16 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }
  return result;
   }
+  window.guidcyNavigate=function(raw){
+    var url;try{url=new URL(raw,location.origin)}catch(_){return false}
+    if(url.origin!==location.origin)return false;
+    if(window.guidcySavePageShell)window.guidcySavePageShell();
+    var full=url.pathname+url.search+url.hash;
+    if(window.__guidcyPaymentFlowLock&&url.pathname!=='/payment')return false;
+    writeUrl(full,{},true);
+    renderUrl(full);
+    return true;
+  };
   function renderUrl(raw){
     var url;
     try{url=new URL(raw||'/',location.origin)}catch(e){url=new URL('/',location.origin)}
@@ -29095,7 +29140,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(page==='payment'&&typeof window.guidcyEnsurePaymentPageOnly==='function')window.guidcyEnsurePaymentPageOnly();
     if(page==='user-dash'||page==='cons-dash'||page==='admin-dash'){
       var name=page==='user-dash'?'swUD':page==='cons-dash'?'swCD':'swAD';
-      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':(url.searchParams.get('tab')||dashboards[name].fallback);
+      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':(url.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(url.pathname))||dashboards[name].fallback);
       if(typeof window[name]==='function')window[name](tab,null);
     }
     [0,80,240].forEach(function(delay){setTimeout(function(){try{window.guidcyPlaceFooterAfterPages&&window.guidcyPlaceFooterAfterPages()}catch(_){}},delay)});
@@ -29284,6 +29329,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       element.onclick=null;
       element.removeAttribute('onclick');
       element.addEventListener('click',function(event){
+        if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||element.hasAttribute('download')||element.target==='_blank')return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if(target.page==='login')saveReturn(pathWithSearch(),true);
@@ -29292,8 +29338,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         // location.assign() branch reloaded the entire document whenever a
         // user left a dashboard, which made mobile navigation feel frozen and
         // discarded in-memory booking/payment state.
-        writeUrl(target.url,{page:target.page},true);
-        renderUrl(target.url);
+        var destination=href||target.url;
+        window.guidcyNavigate(destination);
         try{if(typeof window.closeMobileMenu==='function')window.closeMobileMenu()}catch(e){}
         try{if(typeof window.closeMobDrawer==='function')window.closeMobDrawer()}catch(e){}
       });
@@ -29315,7 +29361,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if((page==='user-dash'||page==='cons-dash'||page==='admin-dash')&&(!isLoggedIn()||logoutRouteGuardActive()))return;
     if(page==='user-dash'||page==='cons-dash'||page==='admin-dash'){
       var name=page==='user-dash'?'swUD':page==='cons-dash'?'swCD':'swAD';
-      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':(new URLSearchParams(location.search||'').get('tab')||dashboards[name].fallback);
+      var tab=path==='/admin/webinar-registrations'?'webinar-registrations':((new URLSearchParams(location.search||'').get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||dashboards[name].fallback);
       if(acceptCurrentIntent||!desiredDashboard||desiredDashboard.name!==name)desiredDashboard={name:name,tab:tab};
       renderUrl(dashboardUrl(desiredDashboard.name,desiredDashboard.tab));
       return;
@@ -29650,7 +29696,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 
   async function renderDisputeAdminList(btn){
     var m=document.getElementById('adash-main'); if(!m)return;
-    if(btn){try{document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');closeDashMenu&&closeDashMenu('admin')}catch(_){}}
+    if(btn){try{document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');closeDashMenu&&window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
     m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:20px;color:var(--muted)">Loading disputes...</div>';
     var c=client(); if(!c){m.innerHTML='<div class="dash-title">Disputes</div><div style="padding:24px;color:#b91c1c">Not connected. Please refresh.</div>';return}
     var res=await c.from('disputes').select('*').eq('is_deleted',false).order('created_at',{ascending:false}).limit(300);
@@ -30102,7 +30148,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       toast('Please log in to apply for this role.','blue');
       closeModal();
       try{sessionStorage.setItem('guidcy_careers_pending',String(id))}catch(_){}
-      setTimeout(()=>{try{window.go('login')}catch(_){location.href='/login'}},80);
+      setTimeout(()=>{try{window.go('login')}catch(_){window.guidcyNavigate('/login')}},80);
       return;
     }
     if(await hasApplied(id)){toast('You have already applied for this role.','blue');return}
@@ -30550,7 +30596,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
      underneath for anyone who does have mail set up. */
   window.guidcyCareersWriteToUs=function(){
     try{sessionStorage.setItem('guidcy_contact_subject','General application - Guidcy Careers')}catch(_){}
-    try{window.go('contact')}catch(_){location.href='/contact'}
+    try{window.go('contact')}catch(_){window.guidcyNavigate('/contact')}
     setTimeout(function(){
       try{
         var sub=document.getElementById('ct-subject')||document.querySelector('#page-contact input[name=subject],#page-contact select');
@@ -31252,7 +31298,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
       if(path==='/admin/webinar-registrations')return 'webinar-registrations';
       if(path!=='/admin-dashboard'&&path!=='/admin'&&path!=='/admin-dash')return '';
-      return String(new URLSearchParams(location.search||'').get('tab')||'').trim();
+      return String((new URLSearchParams(location.search||'').get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'').trim();
     }catch(e){return ''}
   }
 
@@ -31368,72 +31414,6 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
 })();
 
-
-
-/* === guidcy-global-page-loading-indicator === */
-
-/* One indicator for the whole site. Every page already reaches Supabase or the
-   API through fetch, so counting in-flight requests covers all of them without
-   touching each renderer. The 150ms delay keeps fast calls from flashing. */
-(function(){
-  if(window.__GUIDCY_PAGE_LOADER__)return;
-  window.__GUIDCY_PAGE_LOADER__=true;
-
-  var pending=0,showTimer=null,failTimer=null;
-
-  function bar(){
-    var b=document.getElementById('guidcy-page-loader');
-    if(!b){
-      b=document.createElement('div');
-      b.id='guidcy-page-loader';
-      b.setAttribute('aria-hidden','true');
-      (document.body||document.documentElement).appendChild(b);
-    }
-    return b;
-  }
-  function hide(){
-    if(showTimer){clearTimeout(showTimer);showTimer=null}
-    clearTimeout(failTimer);failTimer=null;
-    var b=document.getElementById('guidcy-page-loader');
-    if(b)b.classList.remove('on');
-  }
-  function start(){
-    pending++;
-    /* A request that never settles (aborted stream, a wrapper that swallows the
-       promise) would otherwise leave the counter above zero and the bar animating
-       over a page that has finished loading. Nothing here is worth showing for
-       ten seconds, so give up and hide. */
-    clearTimeout(failTimer);
-    failTimer=setTimeout(function(){pending=0;hide()},10000);
-    if(showTimer)return;
-    showTimer=setTimeout(function(){
-      showTimer=null;
-      if(pending>0){try{bar().classList.add('on')}catch(_){}}
-    },150);
-  }
-  function done(){
-    pending=pending>0?pending-1:0;
-    if(pending)return;
-    hide();
-  }
-
-  /* Exposed so a non-fetch wait (file read, SDK call) can drive the same bar. */
-  window.guidcyLoadingStart=start;
-  window.guidcyLoadingDone=done;
-
-  var inner=window.fetch;
-  if(typeof inner!=='function')return;
-  var counted=function(){
-    start();
-    var p;
-    try{p=inner.apply(this,arguments)}catch(e){done();throw e}
-    return p.then(function(r){done();return r},function(e){done();throw e});
-  };
-  counted.__guidcyLoadingCounter=true;
-  try{window.fetch=counted}catch(_){}
-  /* Back/forward restores from bfcache with the old counter still set. */
-  window.addEventListener('pageshow',function(){pending=0;hide()});
-})();
 
 
 /* === guidcy-live-booking-realtime === */
@@ -32244,4 +32224,22 @@ window.guidcyGoSignupFromLogin=function(){
   if(typeof window.guidcyInstallBookingFinancialLifecycleUi==='function'){
     window.guidcyInstallBookingFinancialLifecycleUi();
   }
+})();
+
+/* Share concurrent profile hydration across INITIAL_SESSION, boot and route
+   readers. Explicit later saves still invoke the original profile pipeline. */
+(function(){
+ var read=window.loadProfile,pending=null,key='';
+ window.loadProfile=function(){
+  var user=window.currentUser;
+  var next=(user&&user.id||'')+':'+(window.__guidcyAuthEpoch||0);
+  if(pending&&next===key)return pending;
+  key=next;
+  var args=arguments;
+  var request=Promise.resolve().then(function(){return read.apply(window,args)});
+  pending=request;
+  request.then(clear,clear);
+  function clear(){if(pending===request)pending=null}
+  return request;
+ };
 })();

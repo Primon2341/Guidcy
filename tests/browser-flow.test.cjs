@@ -110,7 +110,7 @@ const fakeSupabase = `
   const server = http.createServer(serve);
   activeServer = server;
   await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
-  const browser = await chromium.launch({headless: true});
+  const browser = await chromium.launch({headless: true, executablePath: process.env.CHROME_PATH || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : undefined)});
   activeBrowser = browser;
   // A brand-new context opening Careers directly must render positions without
   // relying on an earlier page visit or browser cache.
@@ -349,8 +349,8 @@ await page.evaluate(() => window.go('blog'));
   console.log('step-purchased-notes-legacy-order-passed');
 
   await page.evaluate(() => window.guidcyRenderDisputesFromSupabase());
-  await page.waitForFunction(() => /No disputes in Supabase/.test(document.querySelector('#adash-main')?.textContent||''), null, {timeout: 10000});
-  assert.match((await page.locator('#adash-main').innerText()).replace(/\s+/g,''), /0TotalfromSupabase/);
+  await page.waitForFunction(() => /No disputes yet/.test(document.querySelector('#adash-main')?.textContent||''), null, {timeout: 10000});
+  assert.match((await page.locator('#adash-main').innerText()).replace(/\s+/g,''), /0Total/);
   console.log('step-supabase-only-empty-disputes-passed');
 
   const meetingPolicy=await page.evaluate(() => ({

@@ -2017,7 +2017,7 @@ body.gmob-open{overflow:hidden}
     z-index:1!important;
     width:100%!important;
   }
-  body:not(.guidcy-footer-ready) .footer{display:none!important;visibility:hidden!important;opacity:0!important}
+
   body.guidcy-footer-ready .footer{visibility:visible!important;opacity:1!important}
   .grag-launcher{
     background:linear-gradient(135deg,#1E72BE,#16A36A)!important;
@@ -2234,7 +2234,7 @@ body.gmob-open{overflow:hidden}
 	  @media(max-width:560px){.guidcy-adaptive-grid{grid-template-columns:1fr}}
 
 /* === guidcy-final-footer-no-flash-hardening === */
-html:not(.guidcy-app-ready) .footer,body:not(.guidcy-footer-ready) .footer,.footer[hidden]{display:none!important;visibility:hidden!important;opacity:0!important}
+.footer[hidden]{display:none!important}
   .page.on,.page.active{display:block!important;min-height:calc(100svh - 72px)!important}
   body.guidcy-footer-ready .footer{display:block!important;visibility:visible!important;opacity:1!important;clear:both!important;position:relative!important;inset:auto!important;z-index:1!important}
 
@@ -2852,13 +2852,6 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 .guidcy-dash-load-error .btn,.guidcy-admin-load-error .btn{font-size:12px}
 @media(max-width:768px){.guidcy-dash-load-error,.guidcy-admin-load-error{padding:16px;margin-top:10px}}
 
-/* Global loading indicator - shown on every page while a request is in flight. */
-#guidcy-page-loader{position:fixed;top:0;left:0;right:0;height:3px;z-index:99999;pointer-events:none;overflow:hidden;opacity:0;transition:opacity .18s ease}
-#guidcy-page-loader.on{opacity:1}
-#guidcy-page-loader::after{content:'';position:absolute;top:0;left:0;height:100%;width:38%;border-radius:0 3px 3px 0;background:linear-gradient(90deg,rgba(30,114,190,0),var(--blue,#1E72BE),rgba(30,114,190,0));animation:guidcyPageLoaderSlide 1s linear infinite}
-@keyframes guidcyPageLoaderSlide{from{transform:translateX(-100%)}to{transform:translateX(360%)}}
-@media (prefers-reduced-motion:reduce){#guidcy-page-loader::after{animation:none;width:100%}}
-
 /* Shared intelligent consultant search */
 .guidcy-did-you-mean{background:#F8FBFF!important}
 .guidcy-did-you-mean strong{color:#155A99}
@@ -2915,18 +2908,6 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
    and the two lines share what is left: the circles then sit at the start,
    centre and end, under their own labels. */
 .step-item:last-child{flex:0 0 auto}
-
-/* Keep panel content during refresh; the global top bar owns loading feedback. */
-.guidcy-panel-busy{position:relative}
-.guidcy-panel-busy::before{
- content:none;
-}
-.guidcy-panel-swap{animation:guidcy-panel-fade .18s ease-out}
-@keyframes guidcy-panel-fade{from{opacity:.55}to{opacity:1}}
-/* Respect a reader who has asked for less motion. */
-@media(prefers-reduced-motion:reduce){
-  .guidcy-panel-swap{animation:none}
-}
 
 /* AI expert matching: the results can be dismissed, so the header carries a
    close control beside its link. Sized as a proper 32px target rather than a
@@ -3075,3 +3056,14 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 @media(max-width:900px) {
   #main-nav .guidcy-header-brand { width:60px!important; height:34px!important; }
 }
+
+/* Stable revalidation: content stays opaque, only empty regions reserve space. */
+.guidcy-panel-busy::before{display:none!important}
+.guidcy-panel-swap{animation:none!important}
+.guidcy-panel-skeleton{min-height:240px;position:relative}
+.guidcy-panel-skeleton:empty::after{content:"";display:block;height:180px;border-radius:14px;background:#EDF3F9}
+#udash-main:empty,#cdash-main:empty,#adash-main:empty{min-height:480px}
+#wbn-cards:empty,#browse-grid:empty,#cons-grid:empty,#gmkt-grid:empty{min-height:320px}
+[data-guidcy-restored]{cursor:default}
+
+.dash-main:empty::before,.dash-main:empty::after,.guidcy-panel-skeleton::before,.guidcy-panel-skeleton::after{animation:none!important;background:#EDF3F9}

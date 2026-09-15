@@ -61,7 +61,7 @@ const shots = process.env.SHOT_DIR || '';
  if (loggedIn && !localStorage.getItem('__test_signed_out')) {
  sessionStorage.setItem('__authTestOAuthSession', JSON.stringify({ user, access_token: 'offline-test-token' }));
  /* What the real SDK leaves behind; the bootstrap keys the cached header to it. */
- if (!localStorage.getItem('sb-test-auth-token')) localStorage.setItem('sb-test-auth-token', JSON.stringify({ user: { id: user.id } }));
+ if (!localStorage.getItem('sb-lsthngfxehayeqyctkla-auth-token')) localStorage.setItem('sb-lsthngfxehayeqyctkla-auth-token', JSON.stringify({ user: { id: user.id } }));
  }
  }, loggedIn);
  let hold = false;
@@ -126,8 +126,8 @@ const shots = process.env.SHOT_DIR || '';
 
  fp = await firstPaint(page, '/marketplace', 'marketplace');
  assert.equal(fp.home, false, 'Home must not paint on /marketplace');
- assert.deepEqual(fp.shown, []);
- assert.equal(fp.skeleton, true, 'JS-built page shows the skeleton');
+ assert.deepEqual(fp.shown, ['page-marketplace']);
+ assert.equal(fp.skeleton, false, 'Marketplace shows its real shell from first paint');
  done = await settled(page, 'marketplace');
  assert.equal(done.skeleton, 'none');
  assert.ok(done.on.includes('page-marketplace'), JSON.stringify(done));
@@ -171,7 +171,7 @@ const shots = process.env.SHOT_DIR || '';
  setHold(false);
 
  /* Signing out drops the cached header so the next visitor never sees it. */
- await page.evaluate(() => { localStorage.setItem('__test_signed_out', '1'); localStorage.removeItem('sb-test-auth-token'); sessionStorage.removeItem('__authTestOAuthSession'); });
+ await page.evaluate(() => { localStorage.setItem('__test_signed_out', '1'); localStorage.removeItem('sb-lsthngfxehayeqyctkla-auth-token'); sessionStorage.removeItem('__authTestOAuthSession'); });
  await page.goto(origin + '/webinars');
  await page.waitForFunction(() => window.__guidcyAuthReadyFired);
  assert.equal(await page.evaluate(() => localStorage.getItem('guidcy_nav_cache')), null, 'cache cleared once the session is gone');

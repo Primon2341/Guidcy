@@ -67,9 +67,7 @@ test('it stays an allowlist and cannot strand a panel', () => {
   assert.ok(ids.length <= 20, 'this is an allowlist, not a free-for-all - it must stay reviewable');
   assert.doesNotMatch(src, /Element\.prototype,\s*'innerHTML',\s*\{/,
     'the override must be per element, never on the prototype');
-  assert.match(src, /var STALE_MS = 6000;/);
-  assert.match(src, /pendingTimer = setTimeout\(/,
-    'a render that never finishes must show its placeholder after all');
+  assert.doesNotMatch(src, /pendingTimer|STALE_MS|offsetWidth/, 'slow requests must not erase content or force a repaint');
   assert.match(src, /catch \(_\) \{\s*native\.set\.call\(target, value\);/,
     'anything unexpected must fall through to the native setter');
   assert.match(src, /if \(!native \|\| typeof native\.set !== 'function'/,
@@ -81,8 +79,8 @@ test('the script is registered so it actually ships', () => {
   const build = fs.readFileSync(new URL('../build-static.js', import.meta.url), 'utf8');
   const order = [...index.matchAll(/src="\/(assets\/js\/[\w.-]+\.js)"/g)].map(m => m[1]);
   assert.ok(order.includes('assets/js/ui-refresh.js'), 'index.html must load it');
-  assert.ok(order.indexOf('assets/js/ui-refresh.js') > order.indexOf('assets/js/app.js'),
-    'the panels are rendered by app.js, so attach after it');
+  assert.ok(order.indexOf('assets/js/ui-refresh.js') < order.indexOf('assets/js/app.js'),
+    'attach before the first renderer can clear restored panels');
   assert.equal((build.match(/assets\/js\/ui-refresh\.js/g) || []).length, 2,
     'it must be both minified and content-hashed, like every other script');
 });

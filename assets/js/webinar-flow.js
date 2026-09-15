@@ -511,7 +511,7 @@
       clearPaymentState();
       window.__guidcyPaymentFlowLock = false;
       if (typeof originalGo === 'function') originalGo.call(window, 'webinar');
-      else location.href = '/webinars';
+      else window.guidcyNavigate('/webinars');
       return;
     }
     var state = paymentState();
@@ -839,7 +839,7 @@
     if (popup) popup.remove();
     if (action === 'close') { clearIntent(); return; }
     var page = action === 'signin' ? 'login' : 'signup';
-    if (typeof window.go === 'function') window.go(page); else location.href = '/' + page;
+    if (typeof window.go === 'function') window.go(page); else window.guidcyNavigate('/' + page);
     // webinar attendees are users; the signup page opens on the Consultant tab by default
     if (page === 'signup') setTimeout(function () { try { window.swType && window.swType('user'); } catch (_) {} }, 50);
   };
@@ -957,7 +957,7 @@
     var id = readIntent();
     if (!id || !(await signedInUser())) return false;
     clearIntent();
-    if (typeof window.go === 'function') window.go('webinar'); else location.href = '/webinars';
+    if (typeof window.go === 'function') window.go('webinar'); else window.guidcyNavigate('/webinars');
     setTimeout(function () {
       resumingWebinarIntent = true;
       try { window.wbnOpenReg(id); } catch (_) { resumingWebinarIntent = false; }
@@ -1027,7 +1027,7 @@
     clearPaymentState();
     window.__guidcyPaymentFlowLock = false;
     if (typeof originalGo === 'function') return originalGo.call(window, 'webinar');
-    location.href = '/webinars';
+    window.guidcyNavigate('/webinars');
   };
 
   /* The whole payment state was persisted to sessionStorage with nothing to
@@ -1113,7 +1113,7 @@
     if (!isAdmin()) {
       toast('Admin login required to view webinar registrations.', 'red');
       if (typeof originalGo === 'function') originalGo.call(window, 'login');
-      else location.href = '/login';
+      else window.guidcyNavigate('/login');
       return false;
     }
 
@@ -1937,7 +1937,7 @@
       el.classList.remove('on');
       if (el.id === 'booking-confirm-popup') el.remove(); else el.style.display = 'none';
     });
-    if (typeof window.go === 'function') window.go(page); else { location.href = consultant ? '/consultant-dashboard?tab=my-webinars' : '/dashboard?tab=my-webinars'; return; }
+    if (typeof window.go === 'function') window.go(page); else { window.guidcyNavigate(consultant ? '/consultant-dashboard?tab=my-webinars' : '/dashboard?tab=my-webinars'); return; }
     setTimeout(function () {
       var button = document.querySelector('#page-' + page + ' .side-btn[data-dash-section="my-webinars"]');
       var open = window[consultant ? 'swCD' : 'swUD'];
@@ -1954,7 +1954,7 @@
     if (action === 'reload') { invalidateMyWebinars(); window.guidcyRenderMyWebinars(myWebinars.panel, null); return; }
     if (action === 'open') { openMyWebinarsTab(value); return; }
     if (action === 'speaker') { closeMyWebinarDetail(); try { window.openProfile && window.openProfile(value, -1); } catch (_) {} return; }
-    if (action === 'explore') { if (typeof window.go === 'function') window.go('webinar'); else location.href = '/webinars'; }
+    if (action === 'explore') { if (typeof window.go === 'function') window.go('webinar'); else window.guidcyNavigate('/webinars'); }
   };
 
   /* Compact "Upcoming Webinars" block on each dashboard home tab. The home

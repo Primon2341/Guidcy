@@ -51,7 +51,7 @@ input,select,textarea,button{font-family:'DM Sans',sans-serif}
 
 /* ══ FOOTER ══ */
 .footer{background:var(--ink);color:#fff;padding:48px 32px 24px;margin-top:auto}
-body:not(.guidcy-footer-ready) .footer{display:none!important;visibility:hidden!important;opacity:0!important}
+
 body.guidcy-footer-ready .footer{visibility:visible!important;opacity:1!important}
 .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:32px;margin-bottom:32px}
 .footer-brand .logo-name span:first-child{color:#60A5FA}

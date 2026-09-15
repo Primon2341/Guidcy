@@ -1,30 +1,5 @@
-/* Dashboard panels: refresh the content, don't blank the panel.
- *
- * Every dashboard view renders in two steps - the panel is replaced by a title
- * plus "Loading ...", then, one or more round trips later, by the real markup.
- * When the view is already on screen that first step throws away a perfectly
- * good table for a few hundred milliseconds, which is the blink: content
- * vanishes, spinner appears, content returns. A considered site does the
- * opposite - it keeps what the reader is looking at, says quietly that it is
- * working, and swaps the result in when it is ready, with the surrounding
- * chrome never moving.
- *
- * Rather than rewrite thirty-odd renderers - each owning its own markup, empty
- * states and error paths - this intercepts the single assignment that causes
- * it. The placeholder is held back while the panel already has content, and a
- * thin progress bar carries the "working" signal instead. The real markup that
- * follows is assigned normally, so no renderer changes behaviour and no error
- * path is swallowed.
- *
- * Deliberately conservative, because the rule here was not to disturb anything:
- *  - only the listed content regions are touched, nothing else on the page;
- *  - only a SHORT, loading-shaped payload is ever held back;
- *  - an empty panel always gets its placeholder, so a first paint still shows
- *    feedback rather than sitting blank;
- *  - if the real markup never arrives the placeholder is applied after all, so
- *    a stuck render cannot hide behind stale content;
- *  - anything unexpected falls straight through to the native setter.
- */
+/* Hold existing regions during revalidation. Empty regions alone get a static
+ * skeleton. No timeout clears content and no animation accompanies a swap. */
 (function () {
   'use strict';
 
@@ -43,16 +18,14 @@
     /* webinars */
     'wbn-cards', 'wbn-regs-list',
     /* marketplace and careers */
-    'gmkt-grid', 'gc-list'
+    'gmkt-grid', 'gc-list', 'jobs-main-area', 'sf-results', 'opp-results', 'profile-layout'
   ];
   /* The wording the existing renderers use for their placeholders. */
   var PLACEHOLDER_WORDS = /(loading|searching|filtering|please wait|fetching)/i;
   /* Long enough for the longest real placeholder, short enough that no rendered
      table, list or empty state can be mistaken for one. */
   var PLACEHOLDER_MAX_TEXT = 160;
-  /* Past this a render is not merely slow - show its placeholder rather than
-     let the panel sit on stale content indefinitely. */
-  var STALE_MS = 6000;
+
 
   var native = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
   if (!native || typeof native.set !== 'function' || typeof native.get !== 'function') return;
@@ -85,11 +58,6 @@
   function attach(el) {
     if (!el || el.__guidcyPanelRefresh) return;
     el.__guidcyPanelRefresh = true;
-    var pendingTimer = 0;
-
-    function clearPending() {
-      if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = 0; }
-    }
 
     try {
       Object.defineProperty(el, 'innerHTML', {
@@ -99,31 +67,28 @@
         set: function (value) {
           var target = this;
           try {
-            if (isPlaceholder(value) && hasContent(target)) {
+            // Some legacy views bypass the dashboard controller. They must not
+            // publish empty/zero data while session and profile are unresolved.
+            if(/^(u|c|a)dash-main$/.test(target.id)&&window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+            var incomingTitle=String(value).match(/class=["']dash-title["'][^>]*>([^<]*)/);
+            var previousTitle=native.get.call(target).match(/class=["']dash-title["'][^>]*>([^<]*)/);
+            var sameSection=!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1];
+            if (sameSection && isPlaceholder(value) && hasContent(target)) {
               setBusy(target, true);
-              clearPending();
-              pendingTimer = setTimeout(function () {
-                pendingTimer = 0;
-                setBusy(target, false);
-                native.set.call(target, value);
-                target.classList.add('guidcy-panel-skeleton');
-                target.setAttribute('aria-busy', 'true');
-              }, STALE_MS);
+              target.setAttribute('aria-busy', 'true');
               return;
             }
-            clearPending();
             setBusy(target, false);
-            native.set.call(target, value);
+            // Preserve focused controls and mounted descendants for identical data.
+            if(native.get.call(target)!==String(value))native.set.call(target, value);
+            target.removeAttribute('inert');
+            target.removeAttribute('data-guidcy-restored');
             /* An empty panel keeps its placeholder, but drawn as a quiet skeleton
                rather than a bare "Loading..." line; the real markup clears it. */
             var skeleton = isPlaceholder(value);
             target.classList.toggle('guidcy-panel-skeleton', skeleton);
             if (skeleton) target.setAttribute('aria-busy', 'true'); else target.removeAttribute('aria-busy');
             if (skeleton) return;
-            /* One short fade on the swap, restarted on each render. */
-            target.classList.remove('guidcy-panel-swap');
-            void target.offsetWidth;
-            target.classList.add('guidcy-panel-swap');
           } catch (_) {
             native.set.call(target, value);
           }

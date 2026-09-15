@@ -377,7 +377,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
+["assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -402,10 +402,15 @@ function assetVersionTag(relPath){
   return hash;
 }
 function cacheBustAssets(html){
+  // Small critical bootstrap is part of the document, with no blocking network hop.
+  const shellScript = fs.readFileSync(path.join(publicDir, 'assets/js/page-shell.js'), 'utf8');
+  html = html.replace('<script src="/assets/js/page-shell.js"></script>', () => '<script>'+shellScript+'</script>');
   [
  "assets/js/jobs-search.js",
  "assets/css/jobs-search.css",
  "assets/js/core.js",
+ "assets/js/page-shell.js",
+ "assets/js/auth-lifecycle.js",
  "assets/js/app.js",
  "assets/js/shared-search.js",
  "assets/js/webinar-flow.js",
