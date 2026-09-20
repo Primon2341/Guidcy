@@ -8089,7 +8089,7 @@ body{overflow-x:hidden}
   };
 
   // Initial render if this page is already active
-  if(document.getElementById('page-webinar')?.classList.contains('on')) {
+  if(!window.guidcyRestorePublicWebinars&&document.getElementById('page-webinar')?.classList.contains('on')) {
     wbnRender(); wbnApplyAdminState();
   }
 })();
@@ -13835,10 +13835,10 @@ body{overflow-x:hidden}
   function showToast(msg,type){try{window.toast&&window.toast(msg,type||'green')}catch(e){}}
 
   /* ── Formatters ───────────────────────────────────────────────────── */
-  function fmtDate(d){try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return d||''}}
+  function fmtDate(d){try{return new Date(d).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'})}catch(e){return d||''}}
   function fmtTime(t){try{var p=String(t||'').split(':'),h=parseInt(p[0]||'0',10),m=p[1]||'00',ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap+' IST'}catch(e){return t||''}}
   function wbnStatus(w){
-    try{var d=new Date(w.date+'T'+(w.time||'00:00'));if(isNaN(d.getTime()))return'upcoming';var diff=(d-Date.now())/60000;if(diff<-180)return'past';if(diff<=30)return'live';return'upcoming'}catch(e){return'upcoming'}
+    return window.guidcyWebinarSchedule(w).status;
   }
   function colorFor(i){var c=[['#EBF4FF','#1E72BE'],['#FBEAF0','#72243E'],['#FAEEDA','#633806'],['#EEEDFE','#3C3489'],['#F1EFE8','#444441'],['#E6F1FB','#0C447C']];return c[i%c.length]}
   function slug(v){return String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,90)||'webinar'}
@@ -13922,14 +13922,14 @@ body{overflow-x:hidden}
     if(_webinarLoadPromise)return _webinarLoadPromise;
     _webinarLoadPromise=(async function(){
       var cont=byId('wbn-cards');
-      if(cont&&!_webinarsLoaded)cont.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted);font-size:14px">Loading webinars…</div>';
+      if(cont&&!_webinarsLoaded&&!cont.hasAttribute('data-guidcy-restored'))cont.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted);font-size:14px">Loading webinars…</div>';
       var countsReady=fetchRegCounts().then(function(counts){
         if(counts){_regCounts=counts;_regCountsReady=true;updateWebinarCardDetails()}
       });
       var rows=await fetchWebinars();
       if(!rows){
         await countsReady;
-        if(cont&&!_webinarsLoaded)cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1">Unable to load webinars. <button type="button" class="wbn-edit-btn" onclick="wbnLoad()">Try again</button></div>';
+        if(cont&&!_webinarsLoaded&&!cont.hasAttribute('data-guidcy-restored'))cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1">Unable to load webinars. <button type="button" class="wbn-edit-btn" onclick="wbnLoad()">Try again</button></div>';
         return _webinars;
       }
       rows.forEach(function(w){var previous=_webinars.find(function(old){return old.id===w.id});if(previous)w.publisherPhoto=previous.publisherPhoto});
@@ -13996,6 +13996,7 @@ body{overflow-x:hidden}
       }
       if(button){button.disabled=sl<=0;button.textContent=sl<=0?'Full':paid?'Pay & register':'Register free'}
     });
+    if(_webinarsLoaded)window.guidcySavePublicWebinars(_webinars);
   }
   function ensureWebinarRealtime(){
     if(_webinarRealtimeChannel)return;
@@ -14034,7 +14035,8 @@ window.wbnRender=function(){
     if(renderKey===_webinarRenderKey&&cont.querySelector('.wbn-card,.wbn-empty')){updateWebinarCardDetails();return}
     _webinarRenderKey=renderKey;
     if(!list.length){
-      cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';
+      cont.innerHTML=window.guidcyWebinarEmptyHtml();
+      window.guidcySavePublicWebinars(_webinars);
       return;
     }
     cont.innerHTML=list.map(function(w,i){
@@ -14076,6 +14078,7 @@ window.wbnRender=function(){
         '</div>'+
       '</div></div>';
     }).join('');
+    window.guidcySavePublicWebinars(_webinars);
   };
 
   /* ── Admin panel visibility ───────────────────────────────────────── */
