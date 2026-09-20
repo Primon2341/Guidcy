@@ -8140,6 +8140,7 @@ body{overflow-x:hidden}
     return [];
   }
   async function syncAndRenderWebinars(){
+    if(typeof window.wbnLoad==='function')return []; // Superseded by the authoritative loader.
     var cont=$('wbn-cards'); if(!cont) return;
     var local=readLocal();
     var db=await fetchDbWebinars();
@@ -8303,6 +8304,7 @@ body{overflow-x:hidden}
   }
 
   async function syncWebinars(){
+    if(typeof window.wbnLoad==='function')return []; // Superseded by the authoritative loader.
     var local = dedupe(getLocalRaw());
     setLocal(local); // immediately removes the 34 duplicate local cards from desktop
     var db = await fetchDb();
@@ -8503,6 +8505,7 @@ body{overflow-x:hidden}
     try{if(window.sb) await window.sb.from('webinars').delete().eq('title',w.title).eq('date',w.date).eq('time',w.time)}catch(e){}
   }
   async function syncWebinars(){
+    if(typeof window.wbnLoad==='function')return []; // Superseded by the authoritative loader.
     var local=dedupe(localWebinars());
     saveLocalWebinars(local);
     var db=await fetchDb();
@@ -8983,12 +8986,14 @@ body{overflow-x:hidden}
     return dedupeRegs(all);
   }
   async function syncWebinars(){
+    if(typeof window.wbnLoad==='function')return []; // Superseded by the authoritative loader.
     var local=dedupe(getLocalWebinars()); setLocalWebinars(local);
     var db=dedupe(await dbFetch('webinars','*'));
     var all=dedupe(local.concat(db)); setLocalWebinars(all);
     return all;
   }
   async function syncRegs(){
+    if(typeof window.wbnLoad==='function')return []; // Superseded by the authoritative loader.
     var local=dedupeRegs(getLocalRegs());
     var db=await dbFetchRegs();
     var all=dedupeRegs(local.concat(db));
@@ -13818,6 +13823,8 @@ body{overflow-x:hidden}
   /* ── In-memory state ──────────────────────────────────────────────── */
   var _webinars  = [];   // [{id,title,cat,desc,date,time,dur,seats,speaker,speakerRole,link}]
   var _regCounts = {};   // { webinar_id: count }
+  var _regCountsReady = false;
+  var _webinarsLoaded = false, _webinarRenderKey = null;
   var _curWid    = null; // id of webinar whose modal is open
   var _editId    = null; // id being edited in admin form
 
@@ -13891,10 +13898,10 @@ body{overflow-x:hidden}
   /* ── Fetch webinars from Supabase ─────────────────────────────────── */
   async function fetchWebinars(){
     var r=await sbRest('webinars?select=*&order=date.asc,time.asc',{method:'GET',timeout:15000});
-    if(r&&r.ok&&Array.isArray(r.data)&&r.data.length) return r.data.map(normRow);
+    if(r&&r.ok&&Array.isArray(r.data)) return r.data.map(normRow);
     /* fallback: supabase-js */
     try{var c=window.sb;if(c){var r2=await c.from('webinars').select('*').order('date',{ascending:true});if(!r2.error&&Array.isArray(r2.data))return r2.data.map(normRow)}}catch(e){}
-    return [];
+    return null;
   }
 
   /* ── Fetch real registration counts from Supabase ─────────────────── */
@@ -13909,19 +13916,30 @@ body{overflow-x:hidden}
     return counts;
   }
 
-  /* ── Load everything then render ──────────────────────────────────── */
+  /* Render public sessions first; photos and seat counts are independent. */
   var _webinarLoadPromise=null;
   async function wbnLoad(){
     if(_webinarLoadPromise)return _webinarLoadPromise;
     _webinarLoadPromise=(async function(){
       var cont=byId('wbn-cards');
-      if(cont&&!_webinars.length)cont.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted);font-size:14px">Loading webinars…</div>';
-    var rows=await fetchWebinars();
-    await loadWebinarPublisherPhotos(rows);
-      var counts=await fetchRegCounts();
-      _webinars=rows;_regCounts=counts;
+      if(cont&&!_webinarsLoaded)cont.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted);font-size:14px">Loading webinars…</div>';
+      var countsReady=fetchRegCounts().then(function(counts){
+        if(counts){_regCounts=counts;_regCountsReady=true;updateWebinarCardDetails()}
+      });
+      var rows=await fetchWebinars();
+      if(!rows){
+        await countsReady;
+        if(cont&&!_webinarsLoaded)cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1">Unable to load webinars. <button type="button" class="wbn-edit-btn" onclick="wbnLoad()">Try again</button></div>';
+        return _webinars;
+      }
+      rows.forEach(function(w){var previous=_webinars.find(function(old){return old.id===w.id});if(previous)w.publisherPhoto=previous.publisherPhoto});
+      _webinars=rows;_webinarsLoaded=true;
       window.wbnRender();
       window.wbnApplyAdminState();
+      await Promise.all([
+        loadWebinarPublisherPhotos(rows).then(function(){updateWebinarCardDetails()}),
+        countsReady
+      ]);
       return rows;
     })();
     try{return await _webinarLoadPromise}finally{_webinarLoadPromise=null}
@@ -13954,12 +13972,38 @@ body{overflow-x:hidden}
     img.setAttribute('onerror','this.remove()');
     return img.outerHTML;
   }
+  // Update just the unresolved details: preserve card nodes, focus and expanded descriptions.
+  function updateWebinarCardDetails(){
+    qsa('#wbn-cards .wbn-card[data-wbn-id]').forEach(function(card){
+      var w=_webinars.find(function(row){return row.id===card.getAttribute('data-wbn-id')});
+      if(!w)return;
+      var avatar=card.querySelector('.wbn-speaker-av');
+      if(avatar){
+        var oldImage=avatar.querySelector('img');
+        if(oldImage&& !w.publisherPhoto)oldImage.remove();
+        if(w.publisherPhoto&&(!oldImage||oldImage.getAttribute('src')!==w.publisherPhoto)){
+          if(oldImage)oldImage.remove();
+          avatar.insertAdjacentHTML('beforeend',webinarPublisherImage(w));
+        }
+      }
+      if(!_regCountsReady)return;
+      var sl=Math.max(0,w.seats-(_regCounts[w.id]||0));
+      var paid=!!(w.isPaid||w.priceAmount>0||w.priceType==='paid');
+      var seats=card.querySelector('.wbn-seats'),button=card.querySelector('.wbn-register-btn');
+      if(seats){
+        var dot=document.createElement('div');dot.className=sl>20?'wbn-seats-dot':sl>0?'wbn-seats-dot low':'wbn-seats-dot full';
+        seats.replaceChildren(dot,document.createTextNode(sl<=0?'Fully booked':sl<=10?sl+' seats left':(paid?window.guidcyFormatINR(Number(w.priceAmount||0)):'Free')+' entry'));
+      }
+      if(button){button.disabled=sl<=0;button.textContent=sl<=0?'Full':paid?'Pay & register':'Register free'}
+    });
+  }
   function ensureWebinarRealtime(){
     if(_webinarRealtimeChannel)return;
     var c=webinarClient();
     if(!c||typeof c.channel!=='function'){clearTimeout(_webinarRealtimeRetry);_webinarRealtimeRetry=setTimeout(ensureWebinarRealtime,350);return}
     _webinarRealtimeChannel=c.channel('guidcy-live-webinars')
       .on('postgres_changes',{event:'*',schema:'public',table:'webinars'},function(){
+        if(window.guidcyInvalidateReadCache)window.guidcyInvalidateReadCache('webinars');
         clearTimeout(_webinarRealtimeTimer);
         _webinarRealtimeTimer=setTimeout(function(){wbnLoad()},80);
       })
@@ -13977,12 +14021,18 @@ window.wbnToggleDesc=function(btn){
   btn.textContent=open?'View less':'View more';
 };
 window.wbnRender=function(){
+    if(!_webinarsLoaded)return;
     var list=_webinars.slice();
     var cat=(byId('wbn-filter-cat')&&byId('wbn-filter-cat').value)||'';
     if(cat.trim())list=list.filter(function(w){return w.cat===cat.trim()});
     list=list.filter(function(w){return wbnStatus(w)!=='past'});
     var sc=byId('wbn-stat-count');if(sc)sc.textContent=String(list.length||0);
     var cont=byId('wbn-cards');if(!cont)return;
+    var renderKey=JSON.stringify(list.map(function(w){
+      return [Object.assign({},w,{publisherPhoto:undefined,createdAt:undefined}),wbnStatus(w),canManageWebinar(w)];
+    }));
+    if(renderKey===_webinarRenderKey&&cont.querySelector('.wbn-card,.wbn-empty')){updateWebinarCardDetails();return}
+    _webinarRenderKey=renderKey;
     if(!list.length){
       cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';
       return;
@@ -13996,7 +14046,7 @@ window.wbnRender=function(){
       var dotCls=sl>20?'wbn-seats-dot':sl>0?'wbn-seats-dot low':'wbn-seats-dot full';
       var paid=!!(w.isPaid||w.priceAmount>0||w.priceType==='paid');
       var priceText=paid?window.guidcyFormatINR(Number(w.priceAmount||0)):'Free';
-      var seatsLabel=sl<=0?'Fully booked':sl<=10?sl+' seats left':priceText+' entry';
+      var seatsLabel=!_regCountsReady?'Checking availability…':sl<=0?'Fully booked':sl<=10?sl+' seats left':priceText+' entry';
       return '<div class="wbn-card" data-wbn-id="'+w.id+'">'+
         '<div class="wbn-card-banner"></div><div class="wbn-card-body">'+
         '<div class="wbn-card-cat">'+w.cat+'</div>'+
@@ -14017,7 +14067,7 @@ window.wbnRender=function(){
           '<div class="wbn-seats"><div class="'+dotCls+'"></div>'+seatsLabel+'</div>'+
           '<div class="wbn-admin-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
             adminBtns+
-            '<button type="button" class="wbn-register-btn" data-wbn-register="'+w.id+'" '+(sl<=0?'disabled':'')+
+            '<button type="button" class="wbn-register-btn" data-wbn-register="'+w.id+'" '+(!_regCountsReady||sl<=0?'disabled':'')+
               ' onclick="event.stopPropagation();wbnOpenReg(\''+w.id+'\')">'+
               (sl<=0?'Full':(paid?'Pay & register':'Register free'))+
             '</button>'+
@@ -14312,7 +14362,7 @@ window.wbnRender=function(){
   var _prevGo=window.go;
   window.go=function(page){
     var r=typeof _prevGo==='function'?_prevGo.apply(this,arguments):undefined;
-    if(page==='webinar'||page==='webinars')setTimeout(function(){wbnLoad();window.wbnApplyAdminState();ensureWebinarRealtime()},80);
+    if(page==='webinar'||page==='webinars'){wbnLoad();window.wbnApplyAdminState();ensureWebinarRealtime()}
     return r;
   };
 
@@ -14325,16 +14375,13 @@ window.wbnRender=function(){
 
   /* ── Init ─────────────────────────────────────────────────────────── */
   function webinarRouteRequested(){var path=(location.pathname||'/').replace(/\/+$/,'')||'/';var wp=byId('page-webinar');return path==='/webinar'||path==='/webinars'||wp&&(wp.classList.contains('on')||wp.classList.contains('active'))}
-  function scheduleWebinarHydration(){[0,120,350,800,1600,3000].forEach(function(ms){setTimeout(function(){if(webinarRouteRequested()){wbnLoad();ensureWebinarRealtime()}},ms)})}
+  function scheduleWebinarHydration(){if(webinarRouteRequested()){wbnLoad();ensureWebinarRealtime()}}
   function init(){
     ensureWebinarRealtime();
     scheduleWebinarHydration();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-  window.addEventListener('load',function(){setTimeout(function(){
-    scheduleWebinarHydration();
-  },300)});
-  window.addEventListener('pageshow',scheduleWebinarHydration);
+  window.addEventListener('pageshow',function(event){if(event.persisted)scheduleWebinarHydration()});
   window.addEventListener('popstate',scheduleWebinarHydration);
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&webinarRouteRequested()&&window.__guidcyVisRefreshOK('webinar'))wbnLoad()});
   /* history.pushState-driven SPA navigation (go('webinar') from a nav click) never fires

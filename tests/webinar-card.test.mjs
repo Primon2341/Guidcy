@@ -24,8 +24,9 @@ test('only the register button opens registration, not the card', () => {
   const card = live.slice(live.indexOf('<div class="wbn-card"'), live.indexOf('wbn-card-banner'));
   assert.ok(!card.includes('onclick'), 'the card element must not carry an onclick');
   assert.ok(live.includes('data-wbn-register='), 'the register button keeps its hook');
+  const delegation = app.slice(app.indexOf('/* ── Click delegation (cards + register buttons)'), app.indexOf('/* ── Hook into go() so webinar page'));
   assert.ok(
-    !app.includes(".wbn-card[data-wbn-id]')"),
+    !delegation.includes(".wbn-card[data-wbn-id]')"),
     'the delegated handler must no longer open registration for any click on a card'
   );
 });
