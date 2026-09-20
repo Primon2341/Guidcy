@@ -326,10 +326,11 @@
     var webinar = state.webinar;
     var details = state.details || {};
     var amount = Number(webinar.price_amount || webinar.priceAmount || webinar.price || state.amount || 0);
+    if (amount > 0 && window.guidcyWarmRazorpayCheckout) window.guidcyWarmRazorpayCheckout();
     var summary = byId('pay-summary-box');
     var button = document.querySelector('#page-payment .green-btn');
     if (summary) {
-      summary.innerHTML = [
+      summary.innerHTML = '<div class="pay-webinar-summary">' + [
         ['Webinar', webinarTitle(webinar)],
         ['Date', formatDate(webinar.date || webinar.webinar_date)],
         ['Time', formatTime(webinar.time || webinar.webinar_time)],
@@ -337,8 +338,8 @@
         ['Email', details.email || state.registration.email || '—'],
         ['Registration ID', state.registration.id]
       ].map(function (row) {
-        return '<div class="pay-sum-row"><span style="color:var(--muted)">' + escapeHtml(row[0]) + '</span><span style="font-weight:var(--font-weight-semibold,600);text-align:right">' + escapeHtml(row[1]) + '</span></div>';
-      }).join('') + '<div class="pay-sum-row final"><span>Total amount due</span><span>' + escapeHtml(money(amount)) + '</span></div>';
+        return '<div class="pay-sum-row"><span class="pay-webinar-label">' + escapeHtml(row[0]) + '</span><span class="pay-webinar-value">' + escapeHtml(row[1]) + '</span></div>';
+      }).join('') + '<div class="pay-sum-row final"><span>Total amount due</span><span>' + escapeHtml(money(amount)) + '</span></div></div>';
     }
     if (button) {
       button.type = 'button';
@@ -543,6 +544,7 @@
       return;
     }
     if (webinarPaymentBusy || state.completed) return;
+    if (window.guidcyWarmRazorpayCheckout) window.guidcyWarmRazorpayCheckout();
     webinarPaymentBusy = true;
     state.blocking = true;
     savePaymentState(state);

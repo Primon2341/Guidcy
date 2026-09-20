@@ -377,7 +377,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js"].forEach(minifyDeployableJavaScript);
+["assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -410,6 +410,7 @@ function cacheBustAssets(html){
  "assets/css/jobs-search.css",
  "assets/js/core.js",
  "assets/js/controllers.js",
+ "assets/js/razorpay-checkout.js",
  "assets/js/page-shell.js",
  "assets/js/auth-lifecycle.js",
  "assets/js/app.js",

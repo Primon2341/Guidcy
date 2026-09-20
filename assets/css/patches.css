@@ -3163,3 +3163,8 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
  #page-payment .step-bar{margin-left:31px;margin-right:31px}
  #page-payment .pay-step-labels{font-size:12px}
 }
+
+/* Keep checkout labels intact; long webinar titles wrap within their value column. */
+#page-payment .pay-webinar-summary .pay-sum-row{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:start;gap:16px}
+#page-payment .pay-webinar-label{white-space:nowrap;color:var(--muted);font-weight:var(--font-weight-regular)}
+#page-payment .pay-webinar-value{min-width:0;overflow-wrap:anywhere;text-align:right;font-weight:var(--font-weight-semibold)}

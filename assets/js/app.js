@@ -26903,7 +26903,6 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 
   var BOOKING_PENDING_KEY='guidcy_pending_razorpay_booking';
   var MEETING_PENDING_KEY='guidcy_pending_meeting_link';
-  var SCRIPT_SRC='https://checkout.razorpay.com/v1/checkout.js';
 
   function $(id){return document.getElementById(id)}
   function clean(v){return String(v==null?'':v).trim()}
@@ -27048,17 +27047,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   };
 
   function loadRazorpayCheckout(){
-    if(window.Razorpay)return Promise.resolve();
-    if(window.__guidcyRazorpayScriptPromise)return window.__guidcyRazorpayScriptPromise;
-    window.__guidcyRazorpayScriptPromise=new Promise(function(resolve,reject){
-      var s=document.createElement('script');
-      s.src=SCRIPT_SRC;
-      s.async=true;
-      s.onload=function(){window.Razorpay?resolve():reject(new Error('Razorpay checkout did not initialize'))};
-      s.onerror=function(){reject(new Error('Unable to load Razorpay checkout'))};
-      document.head.appendChild(s);
-    });
-    return window.__guidcyRazorpayScriptPromise;
+    return window.guidcyLoadRazorpayCheckout();
   }
 
   function openCheckout(config){
@@ -27066,6 +27055,8 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       return new Promise(function(resolve,reject){
         var order=config.order||{};
         if(!/^order_[A-Za-z0-9]+$/.test(clean(order.id)))return reject(new Error('Payment order could not be created. Please try again.'));
+        try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur()}catch(_){}
+        document.body.classList.add('guidcy-razorpay-checkout-open');
         var rz=new window.Razorpay({
           key:config.keyId,
           amount:order.amount,
@@ -27082,6 +27073,8 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
         rz.on('payment.failed',function(resp){reject(new Error((resp&&resp.error&&(resp.error.description||resp.error.reason))||'Payment failed. Please try again.'))});
         rz.open();
       });
+    }).finally(function(){
+      document.body.classList.remove('guidcy-razorpay-opening','guidcy-razorpay-checkout-open');
     });
   }
   window.guidcyOpenRazorpayCheckout=openCheckout;
@@ -27100,7 +27093,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   async function resolveConsultantEmail(s){
     var c=currentConsultant(), direct=clean(c.email||c.contact_email||c.consultant_email||s.consultantEmail);
     if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(direct))return direct;
-    var db=client(), ids=[c.dbId,c.id,s.consultantId].filter(Boolean).map(String);
+    var db=client(), ids=Array.from(new Set([c.dbId,c.id,s.consultantId].filter(Boolean).map(String)));
     for(var i=0;i<ids.length;i++){
       for(var j=0;j<['id','profile_id'].length;j++){
         try{
@@ -27172,6 +27165,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 
   async function startBookingPayment(){
     if(window.__guidcyRazorpayBookingBusy)return;
+    window.guidcyWarmRazorpayCheckout();
     var s=snapshot(), u=currentUser(), c=currentConsultant();
     if(!c||!(c.id||c.dbId)){setPaymentPageStatus('error','Consultant not selected','Return to the profile before starting payment.');toast('Please select a consultant first.','red');return}
     if(!s.timeSlot){setPaymentPageStatus('error','Time slot not selected','Choose a time slot before starting payment.');toast('Please select a time slot first.','red');return}
@@ -27258,11 +27252,13 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   }
   async function startMarketplace(id,targetWindow){
     if(window.__guidcyRazorpayMarketplaceBusy)return;
+    window.guidcyWarmRazorpayCheckout();
     window.__guidcyRazorpayMarketplaceBusy=true;
     try{
       var u=await authUser(); if(!u||!u.id){toast('Login/Signup to download the Notes','blue');try{go('login')}catch(_){window.guidcyNavigate('/login')}return}
-      var n=await noteById(id); if(!n)throw new Error('Notes listing not found.');
-      var old=await ownedOrder(id,u.id); if(old){if(window.GuidcyMarketplace&&GuidcyMarketplace.secureDownload)return GuidcyMarketplace.secureDownload(n,old,targetWindow);return}
+      var reads=await Promise.all([noteById(id),ownedOrder(id,u.id)]);
+      var n=reads[0]; if(!n)throw new Error('Notes listing not found.');
+      var old=reads[1]; if(old){if(window.GuidcyMarketplace&&GuidcyMarketplace.secureDownload)return GuidcyMarketplace.secureDownload(n,old,targetWindow);return}
       var free=!(num(n.price)>0&&!n.is_free);
       var order=await createMarketplaceOrder(n,u,free);
       if(free){await sendMarketplaceEmails(order,n);if(window.GuidcyMarketplace&&GuidcyMarketplace.secureDownload)await GuidcyMarketplace.secureDownload(n,order,targetWindow);return}
@@ -27548,106 +27544,6 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   /* The route controller owns initial/direct navigation and the mutation
      broadcaster owns post-write refreshes. No focus, pageshow, visibility,
      storage or retry-ladder refresh is needed here. */
-})();
-
-
-/* === guidcy-final-razorpay-mobile-smoothness === */
-
-(function(){
-  'use strict';
-  if(window.__GUIDCY_FINAL_RAZORPAY_MOBILE_SMOOTHNESS__)return;
-  window.__GUIDCY_FINAL_RAZORPAY_MOBILE_SMOOTHNESS__=true;
-
-  var SRC='https://checkout.razorpay.com/v1/checkout.js';
-  var openingTimer=null;
-  function pageOn(id){var el=document.getElementById(id);return !!(el&&(el.classList.contains('on')||el.classList.contains('active')))}
-  function isMobile(){return !!(window.matchMedia&&matchMedia('(max-width: 760px)').matches)}
-  function addLink(rel,href,as){
-    try{
-      if(document.querySelector('link[href="'+href+'"][rel="'+rel+'"]'))return;
-      var l=document.createElement('link');l.rel=rel;l.href=href;if(as)l.as=as;
-      if(rel==='preconnect')l.crossOrigin='anonymous';
-      document.head.appendChild(l);
-    }catch(_){}
-  }
-  function warmCheckout(){
-    addLink('preconnect','https://checkout.razorpay.com');
-    addLink('dns-prefetch','https://checkout.razorpay.com');
-    if(window.Razorpay)return Promise.resolve();
-    if(window.__guidcyRazorpayScriptPromise)return window.__guidcyRazorpayScriptPromise;
-    window.__guidcyRazorpayScriptPromise=new Promise(function(resolve,reject){
-      var s=document.createElement('script');
-      s.src=SRC;s.async=true;s.crossOrigin='anonymous';
-      s.onload=function(){window.Razorpay?resolve():reject(new Error('Razorpay checkout did not initialize'))};
-      s.onerror=function(){reject(new Error('Unable to load Razorpay checkout'))};
-      document.head.appendChild(s);
-    });
-    return window.__guidcyRazorpayScriptPromise;
-  }
-  function settleDom(){
-    return new Promise(function(resolve){
-      requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(resolve,isMobile()?90:20)})});
-    });
-  }
-  function beginOpening(){
-    clearTimeout(openingTimer);
-    try{document.activeElement&&document.activeElement.blur&&document.activeElement.blur()}catch(_){}
-    try{document.body.classList.add('guidcy-razorpay-opening')}catch(_){}
-    openingTimer=setTimeout(function(){try{document.body.classList.remove('guidcy-razorpay-opening')}catch(_){}},12000);
-  }
-  function markOpen(){
-    clearTimeout(openingTimer);
-    try{document.body.classList.remove('guidcy-razorpay-opening');document.body.classList.add('guidcy-razorpay-checkout-open')}catch(_){}
-  }
-  function markClosed(){
-    clearTimeout(openingTimer);
-    try{document.body.classList.remove('guidcy-razorpay-opening','guidcy-razorpay-checkout-open')}catch(_){}
-  }
-  function warmIfPayment(){
-    if(pageOn('page-payment'))setTimeout(function(){warmCheckout().catch(function(){})},180);
-  }
-
-  var oldOpen=window.guidcyOpenRazorpayCheckout;
-  if(typeof oldOpen==='function'&&!oldOpen.__guidcyMobileSmoothness){
-    window.guidcyOpenRazorpayCheckout=async function(config){
-      beginOpening();
-      await warmCheckout();
-      await settleDom();
-      markOpen();
-      try{return await oldOpen.apply(this,arguments)}
-      finally{setTimeout(markClosed,350)}
-    };
-    window.guidcyOpenRazorpayCheckout.__guidcyMobileSmoothness=true;
-  }
-
-  ['guidcyStartRazorpayBooking','guidcyStartRazorpayMarketplace'].forEach(function(name){
-    var old=window[name];
-    if(typeof old!=='function'||old.__guidcyWarmRazorpay)return;
-    window[name]=async function(){
-      warmCheckout().catch(function(){});
-      return old.apply(this,arguments);
-    };
-    window[name].__guidcyWarmRazorpay=true;
-    try{if(name==='guidcyStartRazorpayBooking')guidcyStartRazorpayBooking=window[name]}catch(_){}
-  });
-
-  var oldGo=window.go;
-  if(typeof oldGo==='function'&&!oldGo.__guidcyRazorpayWarmOnPayment){
-    window.go=function(page){
-      var out=oldGo.apply(this,arguments);
-      if(String(page||'')==='payment')warmIfPayment();
-      return out;
-    };
-    window.go.__guidcyRazorpayWarmOnPayment=true;
-    try{go=window.go}catch(_){}
-  }
-  document.addEventListener('click',function(e){
-    var btn=e.target&&e.target.closest&&e.target.closest('#page-payment .green-btn,[onclick*="guidcyStartRazorpay"],[onclick*="doPay"]');
-    if(btn)beginOpening();
-  },true);
-  document.addEventListener('DOMContentLoaded',warmIfPayment);
-  window.addEventListener('pageshow',warmIfPayment);
-  setTimeout(warmIfPayment,700);
 })();
 
 
