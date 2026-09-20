@@ -70,7 +70,7 @@ test('featured expert controls render only on their own admin tab', () => {
   assert.match(section, /async function buildFeatureAdmin\(epoch\)/);
   assert.match(section, /featuredAdminViewActive=isFeatured/);
   assert.match(section, /const renderEpoch=\+\+featuredAdminRenderEpoch/);
-  assert.match(section, /setTimeout\(function\(\)\{buildFeatureAdmin\(renderEpoch\)\},50\)/);
+  assert.match(section, /return buildFeatureAdmin\(renderEpoch\)/, 'the dashboard controller tracks the real completion promise');
   assert.match(section, /if\(!featuredAdminViewActive\|\|epoch!==featuredAdminRenderEpoch\|\|!box\|\|!box\.isConnected\)return/);
   assert.doesNotMatch(app, /setTimeout\(buildFeatureAdmin,(700|1200)\)/);
 });

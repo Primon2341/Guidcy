@@ -72,7 +72,7 @@ test('paid and completed session metrics share canonical predicates', () => {
 
   const overview = section(app, "if(view==='overview')", "}else if(view==='earnings')");
   assert.match(overview, /if\(guidcyBookingIsCompleted\(r\)\)ovDone\+\+/);
-  assert.match(overview, /if\(!guidcyBookingIsPaid\(r\)\)return/);
+  assert.match(overview, /if\(!window\.guidcyBookingIsPaidForPayout\(r\)\)return/);
   assert.match(overview, /window\.guidcyBookingPayable/);
 
   const earnings = section(app, 'async function renderConsultantEarnings(btn)', '/* persistWrap installs');

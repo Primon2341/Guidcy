@@ -409,6 +409,7 @@ function cacheBustAssets(html){
  "assets/js/jobs-search.js",
  "assets/css/jobs-search.css",
  "assets/js/core.js",
+ "assets/js/controllers.js",
  "assets/js/page-shell.js",
  "assets/js/auth-lifecycle.js",
  "assets/js/app.js",

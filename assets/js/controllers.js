@@ -253,7 +253,9 @@ function finishPointer(event){
  },true);
 
  window.addEventListener('popstate',function(){closeDashboardMenu()});
- window.addEventListener('pageshow',function(){closeDashboardMenu()});
+ // Ordinary pageshow can arrive after an early user click while fonts load.
+ // Only a back/forward cache restore needs to discard a restored drawer.
+ window.addEventListener('pageshow',function(event){if(event.persisted)closeDashboardMenu()});
  window.addEventListener('resize',function(){if(window.innerWidth>900)closeDashboardMenu()});
  document.addEventListener('keydown',function(event){if(event.key==='Escape')closeDashboardMenu()});
 

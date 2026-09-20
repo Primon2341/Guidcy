@@ -78,7 +78,7 @@
 
   function money(value) {
     var amount = Number(value || 0);
-    return amount > 0 ? '₹' + amount.toLocaleString('en-IN') : 'Free';
+    return amount > 0 ? window.guidcyFormatINR(amount) : 'Free';
   }
 
   function webinarId(row) {
@@ -326,12 +326,8 @@
     var webinar = state.webinar;
     var details = state.details || {};
     var amount = Number(webinar.price_amount || webinar.priceAmount || webinar.price || state.amount || 0);
-    var amountNode = byId('pay-amt');
-    var description = byId('pay-desc');
     var summary = byId('pay-summary-box');
     var button = document.querySelector('#page-payment .green-btn');
-    if (amountNode) amountNode.textContent = money(amount);
-    if (description) description.textContent = 'Webinar registration · ' + webinarTitle(webinar);
     if (summary) {
       summary.innerHTML = [
         ['Webinar', webinarTitle(webinar)],
@@ -341,8 +337,8 @@
         ['Email', details.email || state.registration.email || '—'],
         ['Registration ID', state.registration.id]
       ].map(function (row) {
-        return '<div class="pay-sum-row"><span style="color:var(--muted)">' + escapeHtml(row[0]) + '</span><span style="font-weight:600;text-align:right">' + escapeHtml(row[1]) + '</span></div>';
-      }).join('');
+        return '<div class="pay-sum-row"><span style="color:var(--muted)">' + escapeHtml(row[0]) + '</span><span style="font-weight:var(--font-weight-semibold,600);text-align:right">' + escapeHtml(row[1]) + '</span></div>';
+      }).join('') + '<div class="pay-sum-row final"><span>Total amount due</span><span>' + escapeHtml(money(amount)) + '</span></div>';
     }
     if (button) {
       button.type = 'button';
@@ -353,7 +349,9 @@
     var secure = document.querySelector('#page-payment .secure-row');
     if (secure && secure.dataset.webinarCopy !== '1') {
       secure.dataset.webinarCopy = '1';
-      secure.innerHTML = '🔒 Razorpay secure payment · Webinar registration saved only after verified success';
+      var outcome=secure.querySelector('[data-checkout-outcome]');
+      if(outcome)outcome.innerHTML='Registration confirmed<br>after verification';
+      else secure.innerHTML = '🔒 Razorpay secure payment · Webinar registration saved only after verified success';
     }
   }
 
@@ -477,14 +475,14 @@
     popup.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="guidcy-webinar-payment-confirm-title" style="max-width:520px;text-align:center">' +
       '<button class="modal-close" type="button" aria-label="Stay on Payment page" onclick="guidcyWebinarPaymentOutcomeAction(\'stay\')">×</button>' +
       '<div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:34px">✓</div>' +
-      '<div id="guidcy-webinar-payment-confirm-title" style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">' +
+      '<div id="guidcy-webinar-payment-confirm-title" style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">' +
       (alreadyRegistered ? 'You are already registered' : 'Payment successful') + '</div>' +
       '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">' +
       (alreadyRegistered
         ? 'This webinar is already paid for with ' + escapeHtml(registration.email || 'this email') + ', so no new payment was taken and Razorpay was not opened.'
         : 'You’re registered! 🎉 Your webinar registration is confirmed and saved under My Webinars in your dashboard.') + '</div>' +
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">' +
-      '<div class="pay-sum-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:600;text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
+      '<div class="pay-sum-row"><span style="color:var(--muted)">Webinar</span><span style="font-weight:var(--font-weight-semibold,600);text-align:right">' + escapeHtml(webinarTitle(webinar)) + '</span></div>' +
       '<div class="pay-sum-row"><span style="color:var(--muted)">Date</span><span>' + escapeHtml(formatDate(webinar.date || webinar.webinar_date)) + '</span></div>' +
       '<div class="pay-sum-row"><span style="color:var(--muted)">Time</span><span>' + escapeHtml(formatTime(webinar.time || webinar.webinar_time)) + '</span></div>' +
       '<div class="pay-sum-row"><span style="color:var(--muted)">Registration ID</span><span style="word-break:break-all;text-align:right">' + escapeHtml(registration.id) + '</span></div>' +
@@ -822,9 +820,9 @@
     popup.innerHTML = '<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="guidcy-webinar-gate-title" style="max-width:460px;text-align:center">' +
       '<button class="modal-close" type="button" aria-label="Close" onclick="guidcyWebinarAccountAction(\'close\')">×</button>' +
       '<div style="width:64px;height:64px;border-radius:50%;background:var(--blue-l);border:2px solid var(--blue-m);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px">🎟️</div>' +
-      '<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--blue);margin-bottom:6px">Reserve your seat with Guidcy</div>' +
-      '<div id="guidcy-webinar-gate-title" style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:600;color:var(--ink);line-height:1.2;margin-bottom:10px">Create your free Guidcy account to reserve your seat</div>' +
-      (webinar ? '<div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:10px">' + escapeHtml(webinarTitle(webinar)) + '</div>' : '') +
+      '<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:var(--font-weight-semibold,600);color:var(--blue);margin-bottom:6px">Reserve your seat with Guidcy</div>' +
+      '<div id="guidcy-webinar-gate-title" style="font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:var(--font-weight-semibold,600);color:var(--ink);line-height:1.2;margin-bottom:10px">Create your free Guidcy account to reserve your seat</div>' +
+      (webinar ? '<div style="font-size:13px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:10px">' + escapeHtml(webinarTitle(webinar)) + '</div>' : '') +
       '<div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:20px">Your Guidcy account lets you manage your webinar registrations, receive event updates and meeting details, and access your registered webinars from one place.</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px">' +
       '<button class="btn btn-blue" type="button" style="width:100%;padding:12px" onclick="guidcyWebinarAccountAction(\'signup\')">Create Account</button>' +
@@ -1844,7 +1842,7 @@
       }).join('') + '</div>' +
       (list.length
         ? '<div class="gmw-grid">' + list.map(myWebinarCard).join('') + '</div>'
-        : '<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px">' + escapeHtml(empty) + '</div><button class="btn btn-blue" type="button" style="margin-top:12px" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>');
+        : '<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">' + escapeHtml(empty) + '</div><button class="btn btn-blue" type="button" style="margin-top:12px" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>');
   }
 
   function myWebinarsPanel() {
@@ -1968,7 +1966,7 @@
           return '<div class="gmw-home-row"><div style="min-width:0"><div class="gmw-title">' + escapeHtml(webinarTitle(w)) + '</div><div class="gmw-meta"><span>' + escapeHtml(whenLabel(item)) + '</span><span>' + escapeHtml(w.speaker || w.publisher_name || '') + '</span></div></div>' +
             '<div class="gmw-actions"><button class="btn" type="button" onclick="guidcyMyWebinarsAction(\'open\',\'' + escapeHtml(item.id) + '\')">View Details</button>' + joinButton(item) + '</div></div>';
         }).join('') + '<button class="gmw-home-link" type="button" onclick="guidcyMyWebinarsAction(\'open\')">View All Webinars →</button>'
-        : '<div style="padding:14px 0 4px"><div style="font-size:14.5px;font-weight:700;color:var(--ink)">No upcoming webinars</div><div style="font-size:13px;color:var(--muted);margin:4px 0 12px">Explore upcoming sessions and learn directly from experts.</div><button class="btn btn-blue" type="button" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>') +
+        : '<div style="padding:14px 0 4px"><div style="font-size:14.5px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">No upcoming webinars</div><div style="font-size:13px;color:var(--muted);margin:4px 0 12px">Explore upcoming sessions and learn directly from experts.</div><button class="btn btn-blue" type="button" onclick="guidcyMyWebinarsAction(\'explore\')">Explore Webinars</button></div>') +
       '</section>';
   }
   var homeTitles = { 'udash-main': 'upcoming sessions', 'cdash-main': 'overview' };

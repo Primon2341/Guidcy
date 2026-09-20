@@ -1,3 +1,18 @@
+/* === guidcy-inr-formatting ===
+   Presentation only: amounts remain rupees and fee/payment arithmetic is untouched. */
+(function(){
+  var standard=new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',minimumFractionDigits:0,maximumFractionDigits:2});
+  var precise=new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',minimumFractionDigits:2,maximumFractionDigits:2});
+  window.guidcyFormatINR=function(value,options){
+    var amount=Number(value==null||value===''?0:value);
+    if(!Number.isFinite(amount))return '—';
+    // Show paise in pairs; whole prices may omit .00 outside checkout.
+    var rounded=Math.round((amount+Number.EPSILON)*100)/100;
+    return ((options&&options.decimals===2)||!Number.isInteger(rounded)?precise:standard).format(amount);
+  };
+})();
+/* === end guidcy-inr-formatting === */
+
 /* Guidcy app scripts -- extracted from inline <script> blocks (index.html), concatenated in EXACT original document order. Do not reorder: many blocks monkey-patch shared globals (window.go, window.renderPage, etc.) and depend on running after earlier ones. */
 
 /* === guidcy-maintenance-scheduler ===
@@ -60,7 +75,7 @@
   function lower(value){return clean(value).toLowerCase()}
   function esc(value){return clean(value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
   function client(){try{return window.guidcyGetSupabaseClient?window.guidcyGetSupabaseClient():window.sb}catch(_){return null}}
-  function money(value){var n=Number(value||0);return '₹'+(Number.isFinite(n)?n:0).toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
+  function money(value){var n=Number(value||0);return window.guidcyFormatINR(n)}
   function cancelled(row){return ['cancelled','canceled'].indexOf(lower(row&&row.status))>-1||['cancelled','canceled'].indexOf(lower(row&&row.session_status))>-1}
   function payoutEligible(row){return !!(row&&row.payment_verified===true&&/^(success|paid|completed)$/.test(lower(row.payment_status))&&lower(row.status)==='completed'&&lower(row.session_status)==='completed'&&['pending','paid'].indexOf(lower(row.payout_status))>-1)}
   function paymentLabel(row){var status=lower(row&&row.payment_status);return status==='success'||status==='paid'||status==='refunded'?'Paid':status==='failed'?'Failed':status?status.replace(/_/g,' '):'Pending'}
@@ -136,7 +151,7 @@
   };
   function transactionRow(row){
     var payment=paymentLabel(row),state=bookingState(row),booking=state==='cancelled'?'Cancelled':clean(row.status||row.session_status||'Pending').replace(/_/g,' '),refundState=lower(row.refund_status)||'not_required',refund=refundLabel(refundState),payout=payoutLabel(row.payout_status),reference=row.razorpay_payment_id||row.payment_id||row.razorpay_order_id||row.payu_mihpayid||'—',payoutEligibleForTransaction=payoutEligible(row),search=lower([row.id,row.user_name,row.user_email,row.consultant_name,row.consultant_email,reference].join(' '));
-    return '<tr data-guidcy-admin-transaction-row data-booking-state="'+esc(state)+'" data-refund-status="'+esc(refundState)+'" data-payout-eligible="'+(payoutEligibleForTransaction?'true':'false')+'" data-search="'+esc(search)+'"><td style="font-size:11px;color:var(--muted)">'+esc(row.created_at?new Date(row.created_at).toLocaleDateString('en-IN'):'—')+'</td><td>'+esc(row.user_name||row.user_email||'—')+'</td><td>'+esc(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:600">'+money(row.total_amount||row.payment_amount||row.amount)+'</td><td><span class="status-pill '+statusClass(payment)+'">'+esc(payment)+'</span></td><td><span class="status-pill '+statusClass(booking)+'">'+esc(booking)+'</span></td><td><span class="status-pill '+statusClass(refund)+'">'+esc(refund)+'</span></td><td><span class="status-pill '+statusClass(row.payout_status)+'">'+esc(payout)+'</span></td><td style="font-size:11px;color:var(--muted);word-break:break-all">'+esc(reference)+'</td></tr>';
+    return '<tr data-guidcy-admin-transaction-row data-booking-state="'+esc(state)+'" data-refund-status="'+esc(refundState)+'" data-payout-eligible="'+(payoutEligibleForTransaction?'true':'false')+'" data-search="'+esc(search)+'"><td style="font-size:11px;color:var(--muted)">'+esc(row.created_at?new Date(row.created_at).toLocaleDateString('en-IN'):'—')+'</td><td>'+esc(row.user_name||row.user_email||'—')+'</td><td>'+esc(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:var(--font-weight-semibold,600)">'+money(row.total_amount||row.payment_amount||row.amount)+'</td><td><span class="status-pill '+statusClass(payment)+'">'+esc(payment)+'</span></td><td><span class="status-pill '+statusClass(booking)+'">'+esc(booking)+'</span></td><td><span class="status-pill '+statusClass(refund)+'">'+esc(refund)+'</span></td><td><span class="status-pill '+statusClass(row.payout_status)+'">'+esc(payout)+'</span></td><td style="font-size:11px;color:var(--muted);word-break:break-all">'+esc(reference)+'</td></tr>';
   }
   async function renderAdminTransactions(){
     if(!activePage('page-admin-dash')||!isActiveView('#page-admin-dash','payment'))return;
@@ -250,7 +265,7 @@
   function h(value){return String(value==null?'':value).replace(/[&<>"']/g,function(char){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]})}
   function lower(value){return String(value||'').trim().toLowerCase()}
   function round2(value){var n=Number(value||0);return Number.isFinite(n)?Math.round((n+Number.EPSILON)*100)/100:0}
-  function money(value){var n=round2(value);return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
+  function money(value){var n=round2(value);return window.guidcyFormatINR(n)}
   function toastSafe(message,type){try{if(window.toast)return window.toast(message,type||'green')}catch(_){}try{alert(message)}catch(_){}}
   function paidBooking(row){var status=lower(row&&row.payment_status),bookingStatus=lower(row&&row.status),sessionStatus=lower(row&&row.session_status),payoutStatus=lower(row&&row.payout_status);return !!(row&&row.payment_verified===true&&/^(success|paid|completed)$/.test(status)&&bookingStatus==='completed'&&sessionStatus==='completed'&&(payoutStatus==='pending'||payoutStatus==='paid'))}
   function bookingGross(row){return round2(row&&((row.payment_amount!=null&&row.payment_amount!=='')?row.payment_amount:(row.total_amount!=null&&row.total_amount!=='')?row.total_amount:row.amount))}
@@ -332,7 +347,7 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
       +'<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:21px;margin:0 0 6px">Cancelled bookings excluded from consultant payouts</h3>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+cancelled.length+' paid cancelled booking'+(cancelled.length===1?'':'s')+' · '+money(total)+' refund amount. These bookings have ₹0 consultant payout due.</div>'
       +'<div style="overflow-x:auto"><table class="data-table" style="min-width:900px"><tr><th>Booking ID</th><th>Consultant</th><th>Refund amount</th><th>Refund status</th><th>Consultant payout</th></tr>'
-      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:700">'+money(refundAmount(row))+'</td><td><span class="status-pill '+refundStatusPill(row)+'">'+h(refundStatusLabel(row))+'</span></td><td><span class="status-pill sp-cancelled">Not Eligible · ₹0</span></td></tr>'}).join('')
+      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:var(--font-weight-semibold,600)">'+money(refundAmount(row))+'</td><td><span class="status-pill '+refundStatusPill(row)+'">'+h(refundStatusLabel(row))+'</span></td><td><span class="status-pill sp-cancelled">Not Eligible · ₹0</span></td></tr>'}).join('')
       +'</table></div></section>';
   }
   async function loadConsultantPayoutGroups(){
@@ -368,7 +383,7 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
     try{
       var payoutData=await loadConsultantPayoutGroups();if(token!==payoutRenderToken)return;var groups=payoutData.groups||[],cancelledBookings=payoutData.cancelledBookings||[];window.__guidcyConsultantPayoutGroups=groups;
       var dueGroups=groups.filter(function(group){return group.pending>0}),totalDue=dueGroups.reduce(function(sum,group){return round2(sum+group.pending)},0),paidTotal=groups.reduce(function(sum,group){return round2(sum+group.paid)},0);
-      var cards=groups.map(function(group){var settled=group.pending<=0;return '<div class="guidcy-payout-admin-card" data-guidcy-consultant-group data-search="'+h(lower(group.name+' '+group.email))+'" data-status="'+(settled?'paid':'pending')+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a;font-size:17px">'+h(group.name)+'</div><div style="font-size:12px;color:var(--muted)">'+h(group.email||'No email available')+'</div></div><span class="status-pill '+(settled?'sp-done':'sp-pending')+'">'+(settled?'Settled':money(group.pending)+' due')+'</span></div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Paid bookings<b>'+group.totalBookings+'</b></div><div class="guidcy-payout-kv">Bookings in this payout<b>'+group.pendingBookings+'</b></div><div class="guidcy-payout-kv">Gross customer payments<b>'+money(group.gross)+'</b></div><div class="guidcy-payout-kv">Guidcy earnings (5% platform + 15% commission)<b>'+money(group.commission)+'</b></div><div class="guidcy-payout-kv">Amount paid so far<b>'+money(group.paid)+'</b></div><div class="guidcy-payout-kv">Pending amount<b>'+money(group.pending)+'</b></div></div>'+bankHtml(group.bank)+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(settled?'<span style="font-size:12px;color:#047857;font-weight:800">✓ No pending payout</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="window.guidcyOpenConsultantBatchPayout(\''+h(group.id)+'\')">Mark '+group.pendingBookings+' booking'+(group.pendingBookings===1?'':'s')+' as Paid</button>')+'</div></div>'}).join('');
+      var cards=groups.map(function(group){var settled=group.pending<=0;return '<div class="guidcy-payout-admin-card" data-guidcy-consultant-group data-search="'+h(lower(group.name+' '+group.email))+'" data-status="'+(settled?'paid':'pending')+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:var(--font-weight-semibold,600);color:#0f172a;font-size:17px">'+h(group.name)+'</div><div style="font-size:12px;color:var(--muted)">'+h(group.email||'No email available')+'</div></div><span class="status-pill '+(settled?'sp-done':'sp-pending')+'">'+(settled?'Settled':money(group.pending)+' due')+'</span></div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Paid bookings<b>'+group.totalBookings+'</b></div><div class="guidcy-payout-kv">Bookings in this payout<b>'+group.pendingBookings+'</b></div><div class="guidcy-payout-kv">Gross customer payments<b>'+money(group.gross)+'</b></div><div class="guidcy-payout-kv">Guidcy earnings (5% platform + 15% commission)<b>'+money(group.commission)+'</b></div><div class="guidcy-payout-kv">Amount paid so far<b>'+money(group.paid)+'</b></div><div class="guidcy-payout-kv">Pending amount<b>'+money(group.pending)+'</b></div></div>'+bankHtml(group.bank)+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(settled?'<span style="font-size:12px;color:#047857;font-weight:var(--font-weight-semibold,600)">✓ No pending payout</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="window.guidcyOpenConsultantBatchPayout(\''+h(group.id)+'\')">Mark '+group.pendingBookings+' booking'+(group.pendingBookings===1?'':'s')+' as Paid</button>')+'</div></div>'}).join('');
       m.innerHTML='<div class="dash-title">Consultant Payouts</div><p style="color:var(--muted);font-size:13px;margin:-4px 0 14px">Weekly payout summary by consultant. The client pays the session fee plus a 5% platform fee at checkout; Guidcy then takes a 15% commission from the consultant, so each consultant is paid 85% of their own session fees. One action settles every pending booking in that batch.</p><div class="guidcy-filter-row"><input id="guidcy-weekly-payout-search" class="guidcy-mini-input" placeholder="Search consultant" oninput="window.guidcyFilterWeeklyPayouts()"><select id="guidcy-weekly-payout-status" class="guidcy-mini-input" onchange="window.guidcyFilterWeeklyPayouts()"><option value="">All consultants</option><option value="pending">Outstanding only</option><option value="paid">Settled only</option></select><span class="status-pill sp-pending">'+dueGroups.length+' consultants · '+money(totalDue)+' due</span><span class="status-pill sp-done">'+money(paidTotal)+' paid so far</span></div>'+cards+cancelledPayoutAudit(cancelledBookings)+'<div id="guidcy-weekly-payout-empty" style="display:'+(groups.length?'none':'block')+';text-align:center;padding:44px;color:var(--muted)">No verified paid, completed bookings eligible for consultant payout.</div>';
     }catch(error){if(token!==payoutRenderToken)return;console.error('Consultant payout summary failed:',error);m.innerHTML='<div class="dash-title">Consultant Payouts</div><div style="padding:24px;color:#b91c1c">Unable to load consultant payout totals from Supabase.</div>'}
   }
@@ -714,9 +729,7 @@ window.guidcyFees = function(sessionFee){
 window.guidcyMoney = function(v){
   var x = Number(v || 0);
   if(!Number.isFinite(x) || x <= 0) return 'Free';
-  var whole = Math.abs(x - Math.round(x)) < 0.005;
-  return '₹' + (whole ? Math.round(x).toLocaleString('en-IN')
-                      : x.toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2}));
+  return window.guidcyFormatINR(x);
 };
 
 /* ─── LAZY SCRIPT LOADER — injects a script tag (src=) on first use only, memoized ─── */
@@ -1316,8 +1329,14 @@ window.guidcyPaymentBack=function(){
     if(typeof window.guidcyEnsurePaymentPageOnly==='function')window.guidcyEnsurePaymentPageOnly();
     return false;
   }
-  history.back();
-  return true;
+  // The booking snapshot survives a direct checkout visit and refresh. History
+  // may instead point to login, another consultant, or an external document.
+  const consultantId=window.guidcyPaymentConsultantId&&window.guidcyPaymentConsultantId();
+  if(consultantId&&typeof window.guidcyNavigate==='function'){
+    return window.guidcyNavigate('/consultant/'+encodeURIComponent(consultantId));
+  }
+  toast('The booking details have expired. Please select your consultant again.','blue');
+  return false;
 };
 
 function showBookingConfirmationPopup(bk){
@@ -1336,10 +1355,10 @@ function showBookingConfirmationPopup(bk){
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="guidcy-payment-confirm-title" style="max-width:520px;text-align:center">
       <button class="modal-close" aria-label="Stay on payment page" onclick="guidcyPaymentOutcomeAction('stay')">×</button>
       <div style="width:74px;height:74px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:34px">✓</div>
-      <div id="guidcy-payment-confirm-title" style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">Payment successful</div>
+      <div id="guidcy-payment-confirm-title" style="font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Payment successful</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:18px">Your booking is confirmed.${meetingPending?' The payment is complete; the meeting link can be retried from your dashboard.':' The meeting link has also been created.'}</div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:14px;text-align:left;margin-bottom:18px">
-        <div class="detail-row"><span style="color:var(--muted)">Consultant</span><span style="font-weight:600">${esc(bk&&bk.consultant_name||'Consultant')}</span></div>
+        <div class="detail-row"><span style="color:var(--muted)">Consultant</span><span style="font-weight:var(--font-weight-semibold,600)">${esc(bk&&bk.consultant_name||'Consultant')}</span></div>
         <div class="detail-row"><span style="color:var(--muted)">Date</span><span>${esc(bk&&bk.date_label||'')}</span></div>
         <div class="detail-row"><span style="color:var(--muted)">Time</span><span>${esc(bk&&bk.time_slot||'')} IST</span></div>
         <div class="detail-row"><span style="color:var(--muted)">Meet link</span><span style="word-break:break-all;text-align:right;max-width:260px">${meet?esc(meet):'Pending — retry from dashboard'}</span></div>
@@ -1427,7 +1446,7 @@ async function sendBookingEmails(bk,consEmail){
     <tr><td style="padding:8px 0;color:#64748B">Session Type</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${sessionType}</td></tr>
     <tr><td style="padding:8px 0;color:#64748B">Session Amount</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">₹${amount}</td></tr>
     <tr><td style="padding:8px 0;color:#64748B">Platform Fee</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">₹${platformFee}</td></tr>
-    <tr><td style="padding:8px 0;color:#64748B">Total Paid</td><td style="padding:8px 0;text-align:right;font-weight:700;color:#166534">₹${totalAmount}</td></tr>
+    <tr><td style="padding:8px 0;color:#64748B">Total Paid</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#166534">₹${totalAmount}</td></tr>
     <tr><td style="padding:8px 0;color:#64748B">Payment ID</td><td style="padding:8px 0;text-align:right;font-weight:600;color:#0F172A">${paymentId}</td></tr>
   `;
 
@@ -1436,7 +1455,7 @@ async function sendBookingEmails(bk,consEmail){
       <div style="max-width:620px;margin:0 auto;padding:24px">
         <div style="background:#ffffff;border:1px solid #D8E8F5;border-radius:16px;overflow:hidden">
           <div style="background:linear-gradient(135deg,#1E72BE,#3DB84A);padding:24px;color:#ffffff">
-            <div style="font-size:26px;font-weight:800;letter-spacing:-0.5px">Guidcy</div>
+            <div style="font-size:26px;font-weight:600;letter-spacing:-0.5px">Guidcy</div>
             <div style="font-size:13px;opacity:0.9;margin-top:4px">Expert Guidance on Demand</div>
           </div>
           <div style="padding:26px">
@@ -1445,7 +1464,7 @@ async function sendBookingEmails(bk,consEmail){
             <div style="background:#F0F6FF;border:1px solid #D8E8F5;border-radius:12px;padding:16px;margin-bottom:18px">
               <table style="width:100%;border-collapse:collapse;font-size:14px">${detailRows}</table>
             </div>
-            ${meetLink?`<div style="text-align:center;margin:22px 0"><a href="${meetLink}" target="_blank" style="display:inline-block;background:#1E72BE;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px">Join Google Meet</a></div><p style="font-size:12px;line-height:1.5;color:#64748B;word-break:break-all;margin:0 0 18px"><b>Meet Link:</b> <a href="${meetLink}" style="color:#1a73e8">${meetLink}</a></p>`:''}
+            ${meetLink?`<div style="text-align:center;margin:22px 0"><a href="${meetLink}" target="_blank" style="display:inline-block;background:#1E72BE;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:600;font-size:14px">Join Google Meet</a></div><p style="font-size:12px;line-height:1.5;color:#64748B;word-break:break-all;margin:0 0 18px"><b>Meet Link:</b> <a href="${meetLink}" style="color:#1a73e8">${meetLink}</a></p>`:''}
             <p style="font-size:13px;line-height:1.6;color:#64748B;margin:16px 0 0">Please join the session on time. Keep this email for your records.</p>
           </div>
           <div style="border-top:1px solid #D8E8F5;padding:16px 26px;background:#F8FBFF;font-size:12px;color:#64748B">
@@ -2216,7 +2235,7 @@ function openForgotPasswordModal(){
       <div class="field" style="text-align:left"><label>Email address</label><input type="email" id="fp-email" placeholder="you@example.com" value="${prefill.replace(/"/g,'&quot;')}"/></div>
       <button class="primary-btn" id="fp-send-btn" style="width:100%;margin-top:6px" onclick="sendPasswordResetEmail()">Send reset link</button>
       <div id="fp-error" role="alert" style="display:none;margin-top:12px;color:#B42318;font-size:12px;line-height:1.45"></div>
-      <div style="margin-top:18px;font-size:13px;color:var(--muted)">Remembered it? <button onclick="closeForgotPasswordModal()" style="background:none;border:none;color:var(--blue);font-weight:600;cursor:pointer;padding:0;font-size:13px">Back to sign in</button></div>
+      <div style="margin-top:18px;font-size:13px;color:var(--muted)">Remembered it? <button onclick="closeForgotPasswordModal()" style="background:none;border:none;color:var(--blue);font-weight:var(--font-weight-semibold,600);cursor:pointer;padding:0;font-size:13px">Back to sign in</button></div>
     </div>`;
   document.body.appendChild(div);
   document.body.style.overflow='hidden';
@@ -2246,7 +2265,7 @@ async function sendPasswordResetEmail(){
         <div class="form-title" style="margin-bottom:6px">Check your email</div>
         <div class="form-sub" style="margin-bottom:22px;line-height:1.5">We've sent a password reset link to<br/><strong style="color:var(--ink)">${email.replace(/"/g,'&quot;')}</strong></div>
         <button class="primary-btn" style="width:100%" onclick="closeForgotPasswordModal()">Back to sign in</button>
-        <div style="margin-top:16px;font-size:12px;color:var(--muted)">Didn't get it? Check spam, or <button onclick="openForgotPasswordModal()" style="background:none;border:none;color:var(--blue);font-weight:600;cursor:pointer;padding:0;font-size:12px">try again</button></div>`;
+        <div style="margin-top:16px;font-size:12px;color:var(--muted)">Didn't get it? Check spam, or <button onclick="openForgotPasswordModal()" style="background:none;border:none;color:var(--blue);font-weight:var(--font-weight-semibold,600);cursor:pointer;padding:0;font-size:12px">try again</button></div>`;
       return;
     }
   }catch(e){
@@ -2671,9 +2690,9 @@ async function renderRealReviews(){
   el.innerHTML=`
   <div style="grid-column:1/-1;text-align:center;padding:52px 20px">
     <div style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px">💬</div>
-    <div style="font-size:17px;font-weight:600;color:var(--ink);margin-bottom:8px">No reviews yet</div>
+    <div style="font-size:17px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">No reviews yet</div>
     <p style="font-size:14px;color:var(--muted);max-width:340px;margin:0 auto 20px;line-height:1.6">Reviews will appear here after users complete their first sessions. Be the first to book!</p>
-    <button onclick="go('browse')" style="padding:10px 24px;background:var(--blue);color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer">Find the Expert →</button>
+    <button onclick="go('browse')" style="padding:10px 24px;background:var(--blue);color:#fff;border:none;border-radius:100px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer">Find the Expert →</button>
   </div>`;
 }
 
@@ -2682,9 +2701,9 @@ function renderGrid(list,containerId){
   if(!list.length){
     if(containerId==='cons-grid'){
       // Home featured: show "Be among the first" CTA — no fake seed data
-      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
+      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
     } else {
-      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters. Try adjusting them or check back soon as more experts join.</p></div>';
+      g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters. Try adjusting them or check back soon as more experts join.</p></div>';
     }
     return;
   }
@@ -2699,7 +2718,7 @@ function renderGrid(list,containerId){
         <div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starsHtml(c.rating)}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div>
       </div>
       <div class="ccard-bot">
-        <div><div class="c-price">₹${c.price.toLocaleString()}</div><div class="c-price-label">per session${c.exp?' · '+c.exp:''}</div></div>
+        <div><div class="c-price">${window.guidcyFormatINR(c.price)}</div><div class="c-price-label">per session${c.exp?' · '+c.exp:''}</div></div>
         <button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">Book</button>
       </div>
     </div>`).join('');
@@ -2885,7 +2904,7 @@ async function openProfile(dbId,localId){
   <div class="profile-sidebar">
     <div class="book-box">
       <div class="book-header">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Select Session Type</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Select Session Type</div>
         <div class="stype-grid">
           ${(c.sessionTypes||['video']).includes('video')?`<div class="stype-btn ${selSType==='video'?'sel':''}" onclick="selSTypeFn('video',this)"><span class="stype-icon">📹</span><div class="stype-name">Video</div><div class="stype-price">${bookingMoneyLabel(getSessionTypePrice(c,'video'))}</div></div>`:''}
           ${(c.sessionTypes||['video']).includes('audio')?`<div class="stype-btn ${selSType==='audio'?'sel':''}" onclick="selSTypeFn('audio',this)"><span class="stype-icon">📞</span><div class="stype-name">Audio</div><div class="stype-price">${bookingMoneyLabel(getSessionTypePrice(c,'audio'))}</div></div>`:''}
@@ -3016,7 +3035,7 @@ function bookingMoneyLabel(v){
   // collapse to 0 and render as "Free". Mirror the checkout formatter instead.
   const n=Number(v||0);
   if(!(n>0))return 'Free';
-  return window.guidcyMoney?window.guidcyMoney(n):('₹'+n.toLocaleString('en-IN'));
+  return window.guidcyMoney?window.guidcyMoney(n):(window.guidcyFormatINR(n));
 }
 function getSessionTypePrice(c,type){
   if(!c) return 0;
@@ -3079,16 +3098,14 @@ function startBooking(){
   const dates=buildDates();
   const fee=Math.round(curCons.price*getDurMultiplier());
   const pfee=Math.round(fee*.05),tot=fee+pfee;
-  document.getElementById('pay-amt').textContent='₹'+tot.toLocaleString();
-  document.getElementById('pay-desc').textContent=`${selDur}-min ${selSType} session with ${curCons.name}`;
   document.getElementById('pay-summary-box').innerHTML=`
     <div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div>
     <div class="pay-sum-row"><span>Date & time</span><span>${dates[selDate].full} · ${selSlot} IST</span></div>
     <div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div>
     <div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div>
-    <div class="pay-sum-row"><span>Session fee</span><span>₹${fee.toLocaleString()}</span></div>
-    <div class="pay-sum-row"><span>Platform fee (5%)</span><span>₹${pfee.toLocaleString()}</span></div>
-    <div class="pay-sum-row final"><span>Total due</span><span>₹${tot.toLocaleString()}</span></div>`;
+    <div class="pay-sum-row"><span>Session fee</span><span>${window.guidcyFormatINR(fee)}</span></div>
+    <div class="pay-sum-row"><span>Platform fee (5%)</span><span>${window.guidcyFormatINR(pfee)}</span></div>
+    <div class="pay-sum-row final"><span>Total due</span><span>${window.guidcyFormatINR(tot)}</span></div>`;
   // Preload the Google Identity client while the user reviews the payment
   // summary. Authorization itself still happens only from the deliberate Pay
   // click, but it no longer has to wait for a third-party script download.
@@ -3297,13 +3314,13 @@ function updateConfirmPage(){
   const ml=document.getElementById('meet-link-url');
   if(ml){ml.textContent=bk.meet_link;ml.href=bk.meet_link;}
   document.getElementById('confirm-details').innerHTML=`
-    <div class="detail-row"><span style="color:var(--muted)">Consultant</span><span style="font-weight:600">${bk.consultant_name}</span></div>
+    <div class="detail-row"><span style="color:var(--muted)">Consultant</span><span style="font-weight:var(--font-weight-semibold,600)">${bk.consultant_name}</span></div>
     <div class="detail-row"><span style="color:var(--muted)">Date</span><span>${bk.date_label}, 2025</span></div>
     <div class="detail-row"><span style="color:var(--muted)">Time</span><span>${bk.time_slot} IST</span></div>
     <div class="detail-row"><span style="color:var(--muted)">Duration</span><span>${bk.duration} minutes</span></div>
     <div class="detail-row"><span style="color:var(--muted)">Session type</span><span>${bk.session_type==='video'?'📹 Video':bk.session_type==='audio'?'📞 Audio':'💬 Chat'}</span></div>
-    <div class="detail-row"><span style="color:var(--muted)">Payment ID</span><span style="font-size:12px;font-weight:500">${bk.payment_id}</span></div>
-    <div class="detail-row"><span style="color:var(--muted)">Amount paid</span><span style="font-weight:600">₹${bk.total_amount.toLocaleString()}</span></div>`;
+    <div class="detail-row"><span style="color:var(--muted)">Payment ID</span><span style="font-size:12px;font-weight:var(--font-weight-medium,500)">${bk.payment_id}</span></div>
+    <div class="detail-row"><span style="color:var(--muted)">Amount paid</span><span style="font-weight:var(--font-weight-semibold,600)">${window.guidcyFormatINR(bk.total_amount)}</span></div>`;
   // Google Calendar button
   const calBtn=document.getElementById('add-to-cal-btn');
   if(calBtn){calBtn.href=makeGoogleCalendarLink(bk);calBtn.style.display='flex';}
@@ -3380,7 +3397,7 @@ async function swUD(view,btn){
       const cancelledByLabel=bk.cancelled_by==='user'?'Cancelled by you':bk.cancelled_by==='consultant'?'Cancelled by consultant':'Cancelled';
       return `<div class="bk-item">
       ${bkAvatar(bk.consultant_name,bk.consultant_id,'background:var(--surface2)')}
-      <div class="bk-info"><div class="bk-name">${bk.consultant_name}<span class="status-pill ${isCancelled?'sp-cancelled':'sp-done'}">${isCancelled?cancelledByLabel:'Completed'}</span></div><div class="bk-meta">${bk.date_label} · ${bk.duration} min · ₹${bk.total_amount?.toLocaleString()}</div></div>
+      <div class="bk-info"><div class="bk-name">${bk.consultant_name}<span class="status-pill ${isCancelled?'sp-cancelled':'sp-done'}">${isCancelled?cancelledByLabel:'Completed'}</span></div><div class="bk-meta">${bk.date_label} · ${bk.duration} min · ${window.guidcyFormatINR(bk.total_amount)}</div></div>
       <div class="bk-actions">${isCancelled?'':`<button class="bk-btn blue" onclick="openReviewPageForBooking('${bk.id}','${bk.consultant_name}','${bk.consultant_id||''}')">⭐ Review</button>`}</div>
     </div>`}).join(''):`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div>No past sessions yet</div></div>`}`;
 
@@ -3390,7 +3407,7 @@ async function swUD(view,btn){
     if(!requestIsCurrent())return;
     const list=notifs;
     m.innerHTML=`<div class="dash-title">Notifications</div>
-    ${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div>${n.type==='review'?`<button class="bk-btn blue" style="margin-top:8px" onclick="swUD('history',null)">Leave review</button>`:''}</div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:600;margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">You will be notified here when sessions are booked or updated.</p></div>'}`;
+    ${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div>${n.type==='review'?`<button class="bk-btn blue" style="margin-top:8px" onclick="swUD('history',null)">Leave review</button>`:''}</div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:var(--font-weight-semibold,600);margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">You will be notified here when sessions are booked or updated.</p></div>'}`;
     if(list.some(n=>!n.is_read)){supabaseRest('notifications?user_id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:{is_read:true},timeoutMs:15000}).then(()=>{const b=document.getElementById('user-notif-badge');if(b){b.textContent='0';b.style.display='none';}}).catch(()=>{});}
 
   }else if(view==='payments'){
@@ -3400,7 +3417,7 @@ async function swUD(view,btn){
     m.innerHTML=`<div class="dash-title">Payment history</div>
     <table class="data-table">
       <tr><th>Booking ID</th><th>Consultant</th><th>Date</th><th>Amount</th><th>Status</th></tr>
-      ${bookings.length?bookings.map(bk=>{const st=String(bk.status||'').toLowerCase();const pillCls=st==='cancelled'?'sp-cancelled':st==='completed'?'sp-done':'sp-upcoming';const pillTxt=st==='cancelled'?'Refunded':st==='completed'?'Completed':'Paid';return `<tr><td style="color:var(--blue);font-weight:600">${bk.payment_id||bk.razorpay_payment_id||bk.id||'—'}</td><td>${bk.consultant_name}</td><td>${bk.date_label}</td><td style="font-weight:600">₹${bk.total_amount?.toLocaleString()}</td><td><span class="status-pill ${pillCls}">${pillTxt}</span></td></tr>`}).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No payments yet</td></tr>`}
+      ${bookings.length?bookings.map(bk=>{const st=String(bk.status||'').toLowerCase();const pillCls=st==='cancelled'?'sp-cancelled':st==='completed'?'sp-done':'sp-upcoming';const pillTxt=st==='cancelled'?'Refunded':st==='completed'?'Completed':'Paid';return `<tr><td style="color:var(--blue);font-weight:var(--font-weight-semibold,600)">${bk.payment_id||bk.razorpay_payment_id||bk.id||'—'}</td><td>${bk.consultant_name}</td><td>${bk.date_label}</td><td style="font-weight:var(--font-weight-semibold,600)">${window.guidcyFormatINR(bk.total_amount)}</td><td><span class="status-pill ${pillCls}">${pillTxt}</span></td></tr>`}).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No payments yet</td></tr>`}
     </table>`;
 
   }else if(view==='reviews'){
@@ -3408,7 +3425,7 @@ async function swUD(view,btn){
     if(sb&&currentUser){const{data,error}=await sb.from('reviews').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});if(error){if(requestIsCurrent())window.guidcyDashLoadFailed('swUD',m,'My reviews','reviews',error);return}reviews=data||[];}
     if(!requestIsCurrent())return;
     m.innerHTML=`<div class="dash-title">My reviews</div>
-    ${reviews.length?reviews.map(r=>`<div class="review-card"><div class="reviewer-row"><div class="reviewer-av">${mkInitials(r.reviewer_name||'?')}</div><div><div style="font-size:13px;font-weight:600">${r.reviewer_name||'Anonymous'}</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="color:#F59E0B;font-size:11px">${'★'.repeat(r.rating)}</span><span class="reviewer-date">${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div></div></div><div class="review-text">"${r.text}"</div></div>`).join(''):`<div style="text-align:center;padding:32px;color:var(--muted)">No reviews written yet. <button onclick="swUD('history',null)" style="background:none;border:none;color:var(--blue);cursor:pointer">Write your first review →</button></div>`}`;
+    ${reviews.length?reviews.map(r=>`<div class="review-card"><div class="reviewer-row"><div class="reviewer-av">${mkInitials(r.reviewer_name||'?')}</div><div><div style="font-size:13px;font-weight:var(--font-weight-semibold,600)">${r.reviewer_name||'Anonymous'}</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="color:#F59E0B;font-size:11px">${'★'.repeat(r.rating)}</span><span class="reviewer-date">${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div></div></div><div class="review-text">"${r.text}"</div></div>`).join(''):`<div style="text-align:center;padding:32px;color:var(--muted)">No reviews written yet. <button onclick="swUD('history',null)" style="background:none;border:none;color:var(--blue);cursor:pointer">Write your first review →</button></div>`}`;
 
   }else{
     m.innerHTML=`<div class="dash-title">Account settings</div>
@@ -3485,10 +3502,10 @@ async function renderUserGoalTracker(requestId){
   ${!tableOk?`<div class="goal-empty" style="margin-bottom:16px;text-align:left"><b style="color:#B91C1C">Goal Tracker table is not active yet.</b><br><span style="font-size:13px">Please contact the site admin, then refresh. Technical detail: ${escGoal(error?.message||error||'user_goals table missing')}</span></div>`:''}
   <div class="goal-tracker-wrap">
     <div>
-      ${goals.length?goals.map(renderGoalCard).join(''):`<div class="goal-empty"><div style="font-size:42px;margin-bottom:10px">🎯</div><div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px">No mentorship goal created yet</div><p style="font-size:13px;max-width:460px;margin:0 auto 16px">After booking a session, create a trackable goal so the user can convert one consultation into measurable progress.</p><button class="btn btn-blue" onclick="document.getElementById('goal-my-goal')?.focus()">Create goal tracker</button></div>`}
+      ${goals.length?goals.map(renderGoalCard).join(''):`<div class="goal-empty"><div style="font-size:42px;margin-bottom:10px">🎯</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No mentorship goal created yet</div><p style="font-size:13px;max-width:460px;margin:0 auto 16px">After booking a session, create a trackable goal so the user can convert one consultation into measurable progress.</p><button class="btn btn-blue" onclick="document.getElementById('goal-my-goal')?.focus()">Create goal tracker</button></div>`}
     </div>
     <div class="goal-form-card">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:42px;height:42px;border-radius:50%;background:var(--blue-l);display:flex;align-items:center;justify-content:center;font-size:22px">🎯</div><div><div style="font-size:16px;font-weight:800;color:var(--ink)">Create / update goal</div><div style="font-size:12px;color:var(--muted)">Linked with booked sessions</div></div></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:42px;height:42px;border-radius:50%;background:var(--blue-l);display:flex;align-items:center;justify-content:center;font-size:22px">🎯</div><div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Create / update goal</div><div style="font-size:12px;color:var(--muted)">Linked with booked sessions</div></div></div>
       <div class="field"><label>Booked session</label><select id="goal-booking" onchange="prefillGoalFromBooking()">${bookingOpts}</select></div>
       <div class="field"><label>My Goal</label><input id="goal-my-goal" placeholder="Example: Get internship in marketing" ></div>
       <div class="field"><label>Consultant Notes</label><textarea id="goal-notes" placeholder="Example: Improve resume, apply to 20 roles, prepare case-study portfolio"></textarea></div>
@@ -3512,7 +3529,7 @@ function renderGoalCard(g){
       <span class="status-pill ${status==='completed'?'sp-done':'sp-upcoming'}">${status==='completed'?'Completed':'Active'}</span>
     </div>
     <div class="goal-chip-row"><span class="goal-chip">📅 ${escGoal(goalDeadlineText(g.deadline))}</span><span class="goal-chip green">✅ ${done}/${tasks.length} tasks</span><span class="goal-chip gold">🔁 ${escGoal(g.next_session||'Follow-up not set')}</span></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-weight:700"><span>Progress</span><span>${progress}%</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-weight:var(--font-weight-semibold,600)"><span>Progress</span><span>${progress}%</span></div>
     <div class="goal-progress-track"><div class="goal-progress-fill" style="width:${progress}%"></div></div>
     <div class="goal-section-label">Consultant Notes</div><div class="goal-note-box">${escGoal(g.consultant_notes||'No notes added yet')}</div>
     <div class="goal-section-label">Tasks</div>
@@ -3606,6 +3623,46 @@ async function saveUserProfile(){
 /* ═══════════════════════════════════════════
    CONSULTANT DASHBOARD
 ═══════════════════════════════════════════ */
+/* === guidcy-consultant-earnings-trend ===
+   Same payout predicate/calculation as consultant settlement; one row, one earning.
+   Recognise revenue in the completion month (IST), falling back to the booked
+   session date, then creation time for older records without a completion stamp. */
+function guidcyEarningsMonths(rows,consultantId,now){
+  const monthFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit'});
+  const monthKey=value=>{
+    const date=new Date(value);
+    if(!value||!Number.isFinite(date.getTime()))return '';
+    const parts=monthFormat.formatToParts(date);
+    return parts.find(p=>p.type==='year').value+'-'+parts.find(p=>p.type==='month').value;
+  };
+  const current=monthKey(now||new Date()).split('-').map(Number);
+  const months=Array.from({length:12},(_,i)=>{
+    const date=new Date(Date.UTC(current[0],current[1]-12+i,1));
+    return {key:date.toISOString().slice(0,7),label:date.toLocaleDateString('en-IN',{month:'short',year:'numeric',timeZone:'UTC'}),amount:0};
+  });
+  const byMonth=new Map(months.map(m=>[m.key,m]));
+  const seen=new Set();
+  (rows||[]).forEach(row=>{
+    if(String(row.consultant_id)!==String(consultantId)||!window.guidcyBookingIsPaidForPayout(row))return;
+    if(row.id&&seen.has(row.id))return;
+    if(row.id)seen.add(row.id);
+    const amount=Number(window.guidcyBookingPayable(row));
+    if(!Number.isFinite(amount)||amount<=0)return;
+    const key=[row.session_completed_at,row.completed_at,row.date_key,row.session_date,row.booking_date,row.created_at].map(monthKey).find(Boolean);
+    const month=byMonth.get(key);
+    if(month)month.amount=Math.round((month.amount+amount+Number.EPSILON)*100)/100;
+  });
+  return months;
+}
+function guidcyRenderEarningsTrend(rows,consultantId){
+  const months=guidcyEarningsMonths(rows,consultantId);
+  const max=Math.max(...months.map(m=>m.amount));
+  const total=months.reduce((sum,m)=>sum+m.amount,0);
+  return '<section class="earnings-trend" aria-labelledby="earnings-trend-title"><h2 id="earnings-trend-title">Earnings trend</h2><p class="earnings-period">Completed session earnings · Last 12 months</p>'+
+    (max>0?'<p class="earnings-total"><span>Earned in this period</span><strong>'+window.guidcyFormatINR(total)+'</strong></p><div class="earnings-chart-scroll" role="region" aria-label="Monthly earnings chart" tabindex="0"><div class="earnings-bars" role="list" aria-label="Monthly consultant earnings">'+months.map(m=>'<div class="earnings-month" role="listitem" aria-label="'+m.label+': '+window.guidcyFormatINR(m.amount)+'"><span class="earnings-value">'+window.guidcyFormatINR(m.amount)+'</span><div class="earnings-track"><div class="earnings-bar" style="height:'+(m.amount/max*100)+'%" title="'+m.label+': '+window.guidcyFormatINR(m.amount)+'"></div></div><span>'+m.label.split(' ')[0]+'</span><span class="sr-only">'+m.label.split(' ')[1]+': '+window.guidcyFormatINR(m.amount)+'</span></div>').join('')+'</div></div>':'<div class="earnings-empty">No earnings data yet</div>')+'</section>';
+}
+/* === end guidcy-consultant-earnings-trend === */
+
 async function swCD(view,btn){
   if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
   if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons');}
@@ -3618,8 +3675,10 @@ async function swCD(view,btn){
   if(avEl)avEl.textContent=quickInitials;
   if(nmEl)nmEl.textContent=quickName;
 
-  // ── 2. Show skeleton immediately so main area is never blank ──
-  m.innerHTML='<div style="padding:24px"><div style="height:24px;width:160px;background:var(--surface2);border-radius:6px;margin-bottom:16px;animation:pulse2 1.2s infinite"></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">'+'<div style="height:80px;background:var(--surface2);border-radius:var(--r);animation:pulse2 1.2s infinite"></div>'.repeat(3)+'</div><div style="height:200px;background:var(--surface2);border-radius:var(--r);animation:pulse2 1.2s infinite"></div></div>';
+  // Keep the heading in normal flow. The shared panel owner retains existing
+  // content on background revalidation and only skeletonises an empty section.
+  const sectionTitles={overview:'Overview',requests:'Booking Requests',schedule:'Availability & Pricing',earnings:'Earnings',reviews:'Client reviews'};
+  m.innerHTML='<div class="dash-title">'+(sectionTitles[view]||'Consultant Dashboard')+'</div><div class="guidcy-dash-loading">Loading…</div>';
 
   // ── 3. Load consultant record safely ──
   /* A failed read here used to be indistinguishable from "this account has no
@@ -3666,7 +3725,7 @@ async function swCD(view,btn){
     const shell=(title,icon,head,body,extra)=>{m.innerHTML=`<div class="dash-title">${title}</div>
     <div style="text-align:center;padding:48px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)">
       <div style="font-size:48px;margin-bottom:16px">${icon}</div>
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:500;margin-bottom:10px">${head}</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:var(--font-weight-medium,500);margin-bottom:10px">${head}</div>
       <div style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto">${body}</div>
       ${extra||''}
     </div>`};
@@ -3692,7 +3751,6 @@ async function swCD(view,btn){
   }
 
   const name=currentProfile?.full_name||consRecord?.name||'Consultant';
-  const bars=[38,52,41,67,80,72,48,55,63,90,78,84];const mx=Math.max(...bars);
 
   if(view==='overview'){
     // Load real bookings
@@ -3705,44 +3763,45 @@ async function swCD(view,btn){
        nothing in the app ever writes - so a consultant with completed, paid
        sessions saw zeros. Derive them from the bookings, which are the source of
        truth (and are already in rupees, so no /100). */
-    let ovEarned=0, ovDone=0;
+    let ovEarned=0, ovDone=0, earningsRows=[];
     if(!consRecord&&sb&&window.__guidcyAuthUser?.id){
       try{const{data:cd}=await sb.from('consultants').select('*').eq('profile_id',window.__guidcyAuthUser.id).limit(1);if(cd&&cd[0])consRecord=cd[0]}catch(_){}
     }
     if(sb&&consRecord?.id){
       try{
-        const{data:ovRows}=await sb.from('bookings')
+        const{data:ovRows,error:earningsError}=await sb.from('bookings')
           .select('*')
           .eq('consultant_id',consRecord.id);
-        (ovRows||[]).forEach(r=>{
+        if(earningsError)throw earningsError;
+        earningsRows=ovRows||[];
+        earningsRows.forEach(r=>{
           if(guidcyBookingIsCompleted(r))ovDone++;
-          if(!guidcyBookingIsPaid(r))return;
+          if(!window.guidcyBookingIsPaidForPayout(r))return;
           const payout=window.guidcyBookingPayable
             ?window.guidcyBookingPayable(r)
             :Number(r.consultant_payout_amount||0);
           ovEarned+=Number(payout||0);
         });
-      }catch(e){console.warn('Consultant overview totals failed:',e)}
+      }catch(e){return window.guidcyDashLoadFailed('swCD',m,'Overview','overview',e)}
     }
-    const ovEarnedTxt=(Math.round(ovEarned*100)/100).toLocaleString('en-IN',{maximumFractionDigits:2});
     m.innerHTML=`<div class="dash-title">Overview</div>
     <div class="stats-grid">
-      <div class="stat-box blue"><div class="stat-val">₹${ovEarnedTxt}</div><div class="stat-lbl">Total earned</div></div>
+      <div class="stat-box blue"><div class="stat-val">${window.guidcyFormatINR(ovEarned)}</div><div class="stat-lbl">Total earned</div></div>
       <div class="stat-box green"><div class="stat-val">${ovDone}</div><div class="stat-lbl">Sessions completed</div></div>
       <div class="stat-box gold"><div class="stat-val">${consRecord?.rating>0?consRecord.rating+' ⭐':'New'}</div><div class="stat-lbl">Average rating</div></div>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:20px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Earnings trend (demo)</div>
-      <div class="mini-chart">${bars.map(h=>`<div class="chart-bar" style="height:${(h/mx)*100}%"><div class="bar-tip">₹${h}K</div></div>`).join('')}</div>
-      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--muted)">${['J','F','M','A','M','J','J','A','S','O','N','D'].map(m=>`<span>${m}</span>`).join('')}</div>
-    </div>
-    <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Upcoming sessions</div>
+    ${guidcyRenderEarningsTrend(earningsRows,consRecord?.id)}
+    <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Upcoming sessions</div>
     ${todaySessions.length?todaySessions.map(s=>`<div class="bk-item">
       ${bkAvatar(s.user_name||'Client',s.user_id,'background:var(--surface2)','profiles')}
       <div class="bk-info"><div class="bk-name">${s.user_name||'Client'}</div><div class="bk-meta">${s.date_label} · ${s.time_slot} IST · ${s.duration} min</div></div>
       <div class="bk-actions"><button class="bk-btn blue" onclick="joinMeeting('${s.meet_link}')">📹 Join Meet</button><a href="${makeGoogleCalendarLink({consultant_name:s.user_name||'Client',meet_link:s.meet_link,booking_id:s.id,date_label:s.date_label,time_slot:s.time_slot})}" target="_blank" class="bk-btn" style="text-decoration:none">📅 Calendar</a></div>
     </div>`).join(''):`<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No upcoming sessions yet</div>`}`;
 
+    // On narrow screens start at the latest month; older months remain
+    // available by scrolling within the chart, without widening the page.
+    const earningsScroller=m.querySelector('.earnings-chart-scroll');
+    if(earningsScroller)earningsScroller.scrollLeft=earningsScroller.scrollWidth;
   }else if(view==='requests'){
     let requests=[];
     if(sb&&consRecord){
@@ -3803,20 +3862,20 @@ async function swCD(view,btn){
     m.innerHTML=`<div class="dash-title">Availability & Pricing</div>
     <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;max-width:980px">
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Pick a date to set time slots</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Pick a date to set time slots</div>
         <div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:14px">📅 Click any date below to choose which times you are available. Users will only see your selected dates and slots.</div>
         <div class="avail-date-grid" id="avail-date-grid">${dates.map(renderDateCard).join('')}</div>
         <div id="slot-picker-panel" style="margin-top:18px"></div>
       </div>
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Session Pricing</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px">Session Pricing</div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:4px;margin-bottom:16px">
           <div style="padding:10px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)">Set your rate for each session type. Clients will see and choose.</div>
           <div style="padding:14px 12px">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
               <div style="font-size:20px;width:28px;text-align:center">📹</div>
               <div style="flex:1">
-                <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px">Video Call <span style="font-size:10px;font-weight:400;color:var(--muted)">(recommended)</span></div>
+                <div style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:4px">Video Call <span style="font-size:10px;font-weight:var(--font-weight-regular,400);color:var(--muted)">(recommended)</span></div>
                 <div style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:var(--rs);overflow:hidden;background:#fff">
                   <span style="padding:7px 10px;border-right:1px solid var(--border);font-size:13px;color:var(--muted)">₹</span>
                   <input id="price-video" type="number" value="${vp}" style="flex:1;border:none;padding:7px 8px;font-size:13px;font-family:inherit;outline:none" placeholder="2000"/>
@@ -3827,7 +3886,7 @@ async function swCD(view,btn){
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
               <div style="font-size:20px;width:28px;text-align:center">📞</div>
               <div style="flex:1">
-                <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px">Audio Call</div>
+                <div style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:4px">Audio Call</div>
                 <div style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:var(--rs);overflow:hidden;background:#fff">
                   <span style="padding:7px 10px;border-right:1px solid var(--border);font-size:13px;color:var(--muted)">₹</span>
                   <input id="price-audio" type="number" value="${ap}" style="flex:1;border:none;padding:7px 8px;font-size:13px;font-family:inherit;outline:none" placeholder="1500"/>
@@ -3838,7 +3897,7 @@ async function swCD(view,btn){
             <div style="display:flex;align-items:center;gap:10px">
               <div style="font-size:20px;width:28px;text-align:center">💬</div>
               <div style="flex:1">
-                <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:4px">Text / Message</div>
+                <div style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:4px">Text / Message</div>
                 <div style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:var(--rs);overflow:hidden;background:#fff">
                   <span style="padding:7px 10px;border-right:1px solid var(--border);font-size:13px;color:var(--muted)">₹</span>
                   <input id="price-chat" type="number" value="${cp}" style="flex:1;border:none;padding:7px 8px;font-size:13px;font-family:inherit;outline:none" placeholder="1000"/>
@@ -3849,7 +3908,7 @@ async function swCD(view,btn){
           </div>
         </div>
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:12px;margin-bottom:14px">
-          <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px">Which session types do you offer?</div>
+          <div style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Which session types do you offer?</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="offer-video" ${(consRecord?.session_types||['video']).includes('video')?'checked':''}>📹 Video</label>
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="offer-audio" ${(consRecord?.session_types||[]).includes('audio')?'checked':''}>📞 Audio</label>
@@ -3871,12 +3930,12 @@ async function swCD(view,btn){
     const net=Math.round(gross*.85);
     m.innerHTML=`<div class="dash-title">Earnings</div>
     <div class="stats-grid">
-      <div class="stat-box blue"><div class="stat-val">₹${gross.toLocaleString()}</div><div class="stat-lbl">Total gross</div></div>
-      <div class="stat-box green"><div class="stat-val">₹${net.toLocaleString()}</div><div class="stat-lbl">Your earnings (85%)</div></div>
+      <div class="stat-box blue"><div class="stat-val">${window.guidcyFormatINR(gross)}</div><div class="stat-lbl">Total gross</div></div>
+      <div class="stat-box green"><div class="stat-val">${window.guidcyFormatINR(net)}</div><div class="stat-lbl">Your earnings (85%)</div></div>
       <div class="stat-box gold"><div class="stat-val">${bookings.length}</div><div class="stat-lbl">Completed sessions</div></div>
     </div>
     <table class="data-table"><tr><th>Client</th><th>Date</th><th>Duration</th><th>Gross</th><th>You earn</th></tr>
-    ${bookings.length?bookings.map(b=>`<tr><td>${b.user_name||'Client'}</td><td>${b.date_label}</td><td>${b.duration} min</td><td>₹${b.amount?.toLocaleString()}</td><td style="font-weight:600;color:var(--green-d)">₹${Math.round((b.amount||0)*.85).toLocaleString()}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No completed sessions yet</td></tr>`}
+    ${bookings.length?bookings.map(b=>`<tr><td>${b.user_name||'Client'}</td><td>${b.date_label}</td><td>${b.duration} min</td><td>${window.guidcyFormatINR(b.amount)}</td><td style="font-weight:var(--font-weight-semibold,600);color:var(--green-d)">${window.guidcyFormatINR(Math.round((b.amount||0)*.85))}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No completed sessions yet</td></tr>`}
     </table>`;
 
   }else if(view==='reviews'){
@@ -3891,7 +3950,7 @@ async function swCD(view,btn){
     m.innerHTML=`<div class="dash-title">Profile & settings</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:620px">
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Profile</div>
         <div class="field"><label>Full name</label><input id="cd-name" value="${c?.name||name}"/></div>
         <div class="field"><label>Professional title</label><input id="cd-title" value="${c?.specialty||'Consultant'}"/></div>
         <div class="field"><label>Rate per hour (₹)</label><input type="number" id="cd-rate" value="${c?.rate||2000}"/></div>
@@ -3899,7 +3958,7 @@ async function swCD(view,btn){
         <button class="primary-btn" onclick="saveConsProfile('${c?.id||''}')">Save profile</button>
       </div>
       <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Payout details</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px">Payout details</div>
         <div class="field"><label>Bank IFSC code</label><input id="cd-ifsc" value="${c?.bank_ifsc||''}"/></div>
         <div class="field"><label>Account number</label><input id="cd-acct" type="password" placeholder="••••5678"/></div>
         <div class="field"><label>UPI ID</label><input id="cd-upi" value="${c?.upi_id||''}"/></div>
@@ -4187,16 +4246,16 @@ async function swAD(view,btn){
         ?`<button class="action-btn ab-reject" onclick="suspendConsultant('${c.id||''}',${i})">Suspend</button><button class="action-btn" onclick="guidcyHideConsultantUntilUpdate('${c.id||''}',${i})">Hide till profile update</button>`
         :`<button class="action-btn ab-approve" onclick="approveConsultant('${c.id||''}',${i})">↑ Reinstate</button>`;
       const joined=c.created_at?new Date(c.created_at).toLocaleDateString('en-IN'):'—';
-      return `<tr><td><div style="font-weight:600">${c.name}</div><div style="font-size:11px;color:var(--muted)">${c.experience||c.exp||''} ${c.specialty||c.category||''}</div></td><td>₹${(c.rate||c.price||0).toLocaleString()}</td><td>${joined}</td><td><span id="ad-s-${i}" class="status-pill ${statusCls}">${statusTxt}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td></tr>`;
+      return `<tr><td><div style="font-weight:var(--font-weight-semibold,600)">${c.name}</div><div style="font-size:11px;color:var(--muted)">${c.experience||c.exp||''} ${c.specialty||c.category||''}</div></td><td>${window.guidcyFormatINR((c.rate||c.price||0))}</td><td>${joined}</td><td><span id="ad-s-${i}" class="status-pill ${statusCls}">${statusTxt}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap">${actions}</td></tr>`;
     }).join('');
-    const statsBar=`<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap"><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--green-d);font-weight:600">${activeCount} Active</div><div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#92400E;font-weight:600">${hiddenCount} Awaiting profile update</div><div style="background:#FCEBEB;border:1px solid #F9A8A8;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#A32D2D;font-weight:600">${suspendedCount} Suspended</div><div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--muted);font-weight:600">${consultants.length} Total</div></div>`;
+    const statsBar=`<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap"><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--green-d);font-weight:var(--font-weight-semibold,600)">${activeCount} Active</div><div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#92400E;font-weight:var(--font-weight-semibold,600)">${hiddenCount} Awaiting profile update</div><div style="background:#FCEBEB;border:1px solid #F9A8A8;border-radius:var(--rs);padding:10px 20px;font-size:13px;color:#A32D2D;font-weight:var(--font-weight-semibold,600)">${suspendedCount} Suspended</div><div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;color:var(--muted);font-weight:var(--font-weight-semibold,600)">${consultants.length} Total</div></div>`;
     m.innerHTML=`<div class="dash-title">Manage Consultants</div>${statsBar}<table class="data-table"><tr><th>Name & Category</th><th>Rate/hr</th><th>Joined</th><th>Status</th><th>Actions</th></tr>${rows}${!rows?'<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--muted)">No consultants registered yet</td></tr>':''}</table>`
   }else if(view==='bookings'){
     let bookings=[];
     if(sb){const{data,error}=await sb.from('bookings').select('*').order('created_at',{ascending:false}).limit(50);if(error)return guidcyAdminLoadFailed(m,'All bookings','bookings',error);bookings=data||[];}
     m.innerHTML=`<div class="dash-title">All bookings</div>
     <table class="data-table"><tr><th>Payment ID</th><th>Client</th><th>Consultant</th><th>Date</th><th>Amount</th><th>Status</th></tr>
-    ${bookings.length?bookings.map(b=>{const bookingStatus=String(b.status||b.session_status||'pending').toLowerCase(),sessionStatus=String(b.session_status||'').toLowerCase(),isCancelled=['cancelled','canceled'].includes(bookingStatus)||['cancelled','canceled'].includes(sessionStatus),bookingLabel=isCancelled?'Cancelled':(bookingStatus||'Pending').replace(/_/g,' '),bookingClass=isCancelled?'sp-cancelled':bookingStatus==='completed'?'sp-done':(bookingStatus==='upcoming'||bookingStatus==='confirmed')?'sp-upcoming':'sp-pending',paymentStatus=String(b.payment_status||'').toLowerCase(),paymentLabel=(paymentStatus==='success'||paymentStatus==='paid'||paymentStatus==='refunded')?'Paid':paymentStatus==='failed'?'Failed':paymentStatus?'Pending':'Pending',refundStatus=String(b.refund_status||'not_required').toLowerCase(),refundLabel=({refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',not_required:'Not Required'})[refundStatus]||'Not Required',payoutStatus=String(b.payout_status||'not_eligible').toLowerCase(),payoutLabel=({blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible',pending:'Payout Pending',paid:'Paid'})[payoutStatus]||'Not Eligible',cancelledLifecycle=isCancelled?`<div style="margin-top:6px;font-size:11px;line-height:1.45;color:var(--muted)">Payment: <b>${paymentLabel}</b> · Refund: <b>${refundLabel}</b> · Payout: <b>${payoutLabel}</b></div>`:'';return `<tr><td style="color:var(--blue);font-weight:600;font-size:11px">${b.payment_id||b.razorpay_payment_id||'—'}</td><td>${b.user_name||'—'}</td><td>${b.consultant_name||'—'}</td><td>${b.date_label||'—'}</td><td>₹${b.total_amount?.toLocaleString()||b.payment_amount?.toLocaleString()||'—'}</td><td><span class="status-pill ${bookingClass}">${bookingLabel}</span>${cancelledLifecycle}</td></tr>`}).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No bookings yet</td></tr>`}
+    ${bookings.length?bookings.map(b=>{const bookingStatus=String(b.status||b.session_status||'pending').toLowerCase(),sessionStatus=String(b.session_status||'').toLowerCase(),isCancelled=['cancelled','canceled'].includes(bookingStatus)||['cancelled','canceled'].includes(sessionStatus),bookingLabel=isCancelled?'Cancelled':(bookingStatus||'Pending').replace(/_/g,' '),bookingClass=isCancelled?'sp-cancelled':bookingStatus==='completed'?'sp-done':(bookingStatus==='upcoming'||bookingStatus==='confirmed')?'sp-upcoming':'sp-pending',paymentStatus=String(b.payment_status||'').toLowerCase(),paymentLabel=(paymentStatus==='success'||paymentStatus==='paid'||paymentStatus==='refunded')?'Paid':paymentStatus==='failed'?'Failed':paymentStatus?'Pending':'Pending',refundStatus=String(b.refund_status||'not_required').toLowerCase(),refundLabel=({refund_pending:'Refund Pending',refund_processing:'Refund Processing',refunded:'Refunded',refund_failed:'Refund Failed',not_required:'Not Required'})[refundStatus]||'Not Required',payoutStatus=String(b.payout_status||'not_eligible').toLowerCase(),payoutLabel=({blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible',pending:'Payout Pending',paid:'Paid'})[payoutStatus]||'Not Eligible',cancelledLifecycle=isCancelled?`<div style="margin-top:6px;font-size:11px;line-height:1.45;color:var(--muted)">Payment: <b>${paymentLabel}</b> · Refund: <b>${refundLabel}</b> · Payout: <b>${payoutLabel}</b></div>`:'';return `<tr><td style="color:var(--blue);font-weight:var(--font-weight-semibold,600);font-size:11px">${b.payment_id||b.razorpay_payment_id||'—'}</td><td>${b.user_name||'—'}</td><td>${b.consultant_name||'—'}</td><td>${b.date_label||'—'}</td><td>${window.guidcyFormatINR(b.total_amount??b.payment_amount)}</td><td><span class="status-pill ${bookingClass}">${bookingLabel}</span>${cancelledLifecycle}</td></tr>`}).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No bookings yet</td></tr>`}
     </table>`;
 
   }else if(view==='users'){
@@ -4204,7 +4263,7 @@ async function swAD(view,btn){
     if(sb){const{data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false}).limit(50);if(error)return guidcyAdminLoadFailed(m,'Manage users','users',error);users=data||[];}
     m.innerHTML=`<div class="dash-title">Manage users</div>
     <table class="data-table"><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr>
-    ${users.length?users.map(u=>`<tr><td style="font-weight:600">${u.full_name||'—'}</td><td style="color:var(--muted);font-size:12px">${u.email||'—'}</td><td><span class="status-pill ${u.role==='admin'?'sp-pending':u.role==='consultant'?'sp-upcoming':'sp-done'}">${u.role}</span></td><td>${new Date(u.created_at).toLocaleDateString('en-IN')}</td><td><button class="action-btn ab-reject" onclick="toast('User suspended')">Suspend</button></td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No users yet</td></tr>`}
+    ${users.length?users.map(u=>`<tr><td style="font-weight:var(--font-weight-semibold,600)">${u.full_name||'—'}</td><td style="color:var(--muted);font-size:12px">${u.email||'—'}</td><td><span class="status-pill ${u.role==='admin'?'sp-pending':u.role==='consultant'?'sp-upcoming':'sp-done'}">${u.role}</span></td><td>${new Date(u.created_at).toLocaleDateString('en-IN')}</td><td><button class="action-btn ab-reject" onclick="toast('User suspended')">Suspend</button></td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No users yet</td></tr>`}
     </table>`;
 
   }else if(view==='payments'){
@@ -4225,15 +4284,15 @@ async function swAD(view,btn){
       const pillCls=ps==='success'?'sp-upcoming':ps==='failed'?'sp-cancelled':'sp-pending';
       const pillTxt=ps==='success'?'Success':ps==='failed'?'Failed':'Pending';
       const payoutTxt=ps!=='success'?'—':(String(b.payout_status||'pending').toLowerCase()==='paid'?'Paid':'Pending');
-      return `<tr><td style="font-size:11px;color:var(--muted)">${b.created_at?new Date(b.created_at).toLocaleDateString('en-IN'):'—'}</td><td>${b.user_name||b.user_email||'—'}</td><td>${b.consultant_name||'—'}</td><td style="font-weight:600">₹${Number(b.total_amount||b.amount||0).toLocaleString()}</td><td><span class="status-pill ${pillCls}">${pillTxt}</span></td><td>${payoutTxt}</td><td style="font-size:11px;color:var(--muted)">${b.payment_id||b.razorpay_payment_id||b.payu_mihpayid||'—'}</td></tr>`;
+      return `<tr><td style="font-size:11px;color:var(--muted)">${b.created_at?new Date(b.created_at).toLocaleDateString('en-IN'):'—'}</td><td>${b.user_name||b.user_email||'—'}</td><td>${b.consultant_name||'—'}</td><td style="font-weight:var(--font-weight-semibold,600)">${window.guidcyFormatINR(Number(b.total_amount||b.amount||0))}</td><td><span class="status-pill ${pillCls}">${pillTxt}</span></td><td>${payoutTxt}</td><td style="font-size:11px;color:var(--muted)">${b.payment_id||b.razorpay_payment_id||b.payu_mihpayid||'—'}</td></tr>`;
     }).join('');
     m.innerHTML=`<div class="dash-title">Payment management</div>
     <div class="admin-stats" style="grid-template-columns:repeat(3,1fr)">
-      <div class="admin-stat"><div class="admin-stat-val">₹${gmv.toLocaleString()}</div><div class="admin-stat-lbl">Total GMV (successful)</div></div>
-      <div class="admin-stat"><div class="admin-stat-val">₹${rev.toLocaleString()}</div><div class="admin-stat-lbl">Platform revenue</div></div>
+      <div class="admin-stat"><div class="admin-stat-val">${window.guidcyFormatINR(gmv)}</div><div class="admin-stat-lbl">Total GMV (successful)</div></div>
+      <div class="admin-stat"><div class="admin-stat-val">${window.guidcyFormatINR(rev)}</div><div class="admin-stat-lbl">Platform revenue</div></div>
       <div class="admin-stat"><div class="admin-stat-val">${paid.length}</div><div class="admin-stat-lbl">Successful payments</div></div>
-      <div class="admin-stat"><div class="admin-stat-val">₹${payoutDue.toLocaleString()}</div><div class="admin-stat-lbl">Consultant payouts due</div></div>
-      <div class="admin-stat"><div class="admin-stat-val">₹${payoutPaid.toLocaleString()}</div><div class="admin-stat-lbl">Consultant payouts paid</div></div>
+      <div class="admin-stat"><div class="admin-stat-val">${window.guidcyFormatINR(payoutDue)}</div><div class="admin-stat-lbl">Consultant payouts due</div></div>
+      <div class="admin-stat"><div class="admin-stat-val">${window.guidcyFormatINR(payoutPaid)}</div><div class="admin-stat-lbl">Consultant payouts paid</div></div>
       <div class="admin-stat"><div class="admin-stat-val">${pendingPay.length} / ${failedPay.length}</div><div class="admin-stat-lbl">Pending / Failed payments</div></div>
     </div>
     <h3 style="font-family:'Cormorant Garamond',serif;font-size:22px;margin:22px 0 12px">Recent transactions</h3>
@@ -4247,7 +4306,7 @@ async function swAD(view,btn){
     if(sb){const{data,error}=await sb.from('reviews').select('*,consultants(name)').order('created_at',{ascending:false}).limit(30);if(error)return guidcyAdminLoadFailed(m,'Reviews moderation',String(view||'reviews'),error);reviews=data||[];}
     m.innerHTML=`<div class="dash-title">Reviews moderation</div>
     <table class="data-table"><tr><th>Reviewer</th><th>Consultant</th><th>Rating</th><th>Review</th><th>Actions</th></tr>
-    ${reviews.length?reviews.map(r=>`<tr><td style="font-weight:600">${r.reviewer_name||'Anonymous'}</td><td>${r.consultants?.name||'—'}</td><td>${'★'.repeat(r.rating)}</td><td style="font-size:12px;max-width:200px">${(r.text||'').slice(0,80)}...</td><td><button class="action-btn ab-reject" onclick="removeReview('${r.id}')">Remove</button></td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No reviews yet</td></tr>`}
+    ${reviews.length?reviews.map(r=>`<tr><td style="font-weight:var(--font-weight-semibold,600)">${r.reviewer_name||'Anonymous'}</td><td>${r.consultants?.name||'—'}</td><td>${'★'.repeat(r.rating)}</td><td style="font-size:12px;max-width:200px">${(r.text||'').slice(0,80)}...</td><td><button class="action-btn ab-reject" onclick="removeReview('${r.id}')">Remove</button></td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No reviews yet</td></tr>`}
     </table>`;
   }
 }
@@ -4525,7 +4584,7 @@ async function initCategories(){
     }catch(e){console.warn('Cat count fetch failed',e);}
   }
   el.innerHTML=CATEGORIES_FULL.map(cat=>{
-    return `<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${cat.name}</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')">Find experts →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')" style="cursor:pointer">${s}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
+    return `<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${cat.name}</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')">Find experts →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${cat.name.split(' ')[0]}')" style="cursor:pointer">${s}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
   }).join('');
 }
 function initFAQ(){
@@ -4840,7 +4899,7 @@ window.swCD=async function(view,btn){
     console.warn(e);
     return window.guidcyDashLoadFailed('swCD',m,'Notifications','notifications',e);
   }
-  m.innerHTML=`<div class="dash-title">Notifications</div>${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div></div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:600;margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">Booking confirmations, reminders, and completion updates will appear here.</p></div>'}`;
+  m.innerHTML=`<div class="dash-title">Notifications</div>${list.length?list.map(n=>`<div class="notif-item ${n.is_read?'':'unread'}"><div class="notif-dot ${n.is_read?'read':''}"></div><div style="flex:1"><div class="notif-body">${n.text}</div><div class="notif-time">${timeAgo(n.created_at)}</div></div></div>`).join(''):'<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔔</div><div style="font-weight:var(--font-weight-semibold,600);margin-bottom:6px;color:var(--ink)">No notifications yet</div><p style="font-size:13px">Booking confirmations, reminders, and completion updates will appear here.</p></div>'}`;
   if(list.some(n=>!n.is_read))supabaseRest('notifications?user_id=eq.'+encodeURIComponent(currentUser.id),{method:'PATCH',body:{is_read:true},timeoutMs:15000}).catch(()=>{});
 };
 
@@ -4891,7 +4950,7 @@ async function applyFilters(){
 function clearFilters(){
   document.querySelectorAll('#page-browse .filter-check input[type=checkbox]').forEach(cb=>cb.checked=false);
   document.querySelectorAll('#page-browse input[name="rating-f"]').forEach(r=>r.checked=(r.value==='0'));
-  const pr=document.getElementById('price-range');if(pr){pr.value=pr.max||8000;const pv=document.getElementById('price-val');if(pv)pv.textContent='₹'+pr.value;}
+  const pr=document.getElementById('price-range');if(pr){pr.value=pr.max||8000;const pv=document.getElementById('price-val');if(pv)pv.textContent=window.guidcyFormatINR(pr.value);}
   const bs=document.getElementById('browse-search');if(bs)bs.value='';
   browseFilters={categories:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:''};
   applyFilters();
@@ -4983,7 +5042,7 @@ async function renderBrowseSuggestions(){
     const name=String(c.name||'Consultant').replace(/'/g,"\\'");
     return `<div class="search-suggest-item" onmousedown="event.preventDefault();selectBrowseSuggestion('${id}',${local},'${name}')">
       ${guidcySuggestAvatar(c)}
-      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · '+window.guidcyFormatINR(Number(c.price)):''}</div></div>
       <div class="search-suggest-hint">Open</div>
     </div>`;
   }).join('');
@@ -5107,7 +5166,7 @@ function renderHeroSuggestions(){
     const name=String(c.name||'Consultant').replace(/'/g,"\'");
     return `<div class="search-suggest-item" onmousedown="event.preventDefault();selectHeroSuggestion('${id}',${local},'${name}')">
       ${guidcySuggestAvatar(c)}
-      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+      <div style="min-width:0;flex:1"><div class="search-suggest-name">${guidcyEscHtml(c.name||'Consultant')}</div><div class="search-suggest-role">${guidcyEscHtml(c.role||c.specialty||c.category||'Consultant')}${c.price?' · '+window.guidcyFormatINR(Number(c.price)):''}</div></div>
       <div class="search-suggest-hint">Open</div>
     </div>`;
   }).join('');
@@ -5141,12 +5200,8 @@ async function refreshCurrentConsultantBeforePayment(){
 function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
 function renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel){
   const pfee=Math.round(fee*.05);
-  const payAmt=document.getElementById('pay-amt');
-  const payDesc=document.getElementById('pay-desc');
   const paySummary=document.getElementById('pay-summary-box');
-  if(payAmt)payAmt.textContent='₹'+totalAmount.toLocaleString();
-  if(payDesc)payDesc.textContent=`${selDur}-min ${selSType} session with ${curCons.name}`;
-  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>₹${fee.toLocaleString()}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>₹${pfee.toLocaleString()}</span></div><div class="pay-sum-row final"><span>Total due</span><span>₹${totalAmount.toLocaleString()}</span></div>`;}
+  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>${window.guidcyFormatINR(fee)}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>${window.guidcyFormatINR(pfee)}</span></div><div class="pay-sum-row final"><span>Total due</span><span>${window.guidcyFormatINR(totalAmount)}</span></div>`;}
 }
 startBooking=async function(){
   if(!selSlot){toast('Please select a time slot','red');return;}
@@ -5175,7 +5230,7 @@ swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUDSettingsFinal(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
-  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
+  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
 };
 async function saveConsultantPayoutDetails(consId,silent=false){
   if(!consId){if(!silent)toast('Consultant profile not found','red');return;}
@@ -5190,7 +5245,7 @@ swCD=async function(view,btn){
   const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
   try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
   const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';const rateVal=c?.video_price??c?.rate??c?.price??2000;const freeChecked=Number(rateVal||0)<=0;
-  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="0" value="${safeAttr(rateVal)}" ${freeChecked?'disabled':''}/></div><label style="display:flex;align-items:flex-start;gap:9px;margin:-2px 0 14px;font-size:13px;color:var(--ink2);line-height:1.4"><input type="checkbox" id="cd-free-consultation" ${freeChecked?'checked':''} onchange="var r=document.getElementById('cd-rate');if(r){r.disabled=this.checked;if(this.checked)r.value='0';else if(!Number(r.value))r.value='2000';}"/><span>Offer this consultation for free</span></label><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
+  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="0" value="${safeAttr(rateVal)}" ${freeChecked?'disabled':''}/></div><label style="display:flex;align-items:flex-start;gap:9px;margin:-2px 0 14px;font-size:13px;color:var(--ink2);line-height:1.4"><input type="checkbox" id="cd-free-consultation" ${freeChecked?'checked':''} onchange="var r=document.getElementById('cd-rate');if(r){r.disabled=this.checked;if(this.checked)r.value='0';else if(!Number(r.value))r.value='2000';}"/><span>Offer this consultation for free</span></label><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
 };
 savePayoutDetails=function(consId){return saveConsultantPayoutDetails(consId,false);};
 cancelBooking=async function(bookingId,role){
@@ -5269,7 +5324,7 @@ cancelBooking=async function(bookingId,role){
       const name=String(c.name||'Consultant').replace(/'/g,"\\'");
       return `<div class="search-suggest-item" onmousedown="event.preventDefault();window.selectHeroSuggestion('${id}',${local},'${name}')">
         ${guidcySuggestAvatar(c)}
-        <div style="min-width:0;flex:1"><div class="search-suggest-name">${highlight(c.name||'Consultant',q)}</div><div class="search-suggest-role">${highlight(c.role||c.specialty||c.category||'Consultant',q)}${c.price?' · ₹'+Number(c.price).toLocaleString():''}</div></div>
+        <div style="min-width:0;flex:1"><div class="search-suggest-name">${highlight(c.name||'Consultant',q)}</div><div class="search-suggest-role">${highlight(c.role||c.specialty||c.category||'Consultant',q)}${c.price?' · '+window.guidcyFormatINR(Number(c.price)):''}</div></div>
         <div class="search-suggest-hint">Open</div>
       </div>`;
     }).join('');
@@ -5360,12 +5415,8 @@ async function refreshCurrentConsultantBeforePayment(){
 function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
 function renderPaymentSummaryWithLatest(fee,totalAmount,dateLabel){
   const pfee=Math.round(fee*.05);
-  const payAmt=document.getElementById('pay-amt');
-  const payDesc=document.getElementById('pay-desc');
   const paySummary=document.getElementById('pay-summary-box');
-  if(payAmt)payAmt.textContent='₹'+totalAmount.toLocaleString();
-  if(payDesc)payDesc.textContent=`${selDur}-min ${selSType} session with ${curCons.name}`;
-  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>₹${fee.toLocaleString()}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>₹${pfee.toLocaleString()}</span></div><div class="pay-sum-row final"><span>Total due</span><span>₹${totalAmount.toLocaleString()}</span></div>`;}
+  if(paySummary){paySummary.innerHTML=`<div class="pay-sum-row"><span>Consultant</span><span>${curCons.name}</span></div><div class="pay-sum-row"><span>Date & time</span><span>${dateLabel} · ${selSlot} IST</span></div><div class="pay-sum-row"><span>Session type</span><span>${selSType==='video'?'📹 Video':selSType==='audio'?'📞 Audio':'💬 Chat'}</span></div><div class="pay-sum-row"><span>Duration</span><span>${selDur} min</span></div><div class="pay-sum-row"><span>Session fee</span><span>${window.guidcyFormatINR(fee)}</span></div><div class="pay-sum-row"><span>Platform fee (5%)</span><span>${window.guidcyFormatINR(pfee)}</span></div><div class="pay-sum-row final"><span>Total due</span><span>${window.guidcyFormatINR(totalAmount)}</span></div>`;}
 }
 startBooking=async function(){
   if(!selSlot){toast('Please select a time slot','red');return;}
@@ -5394,7 +5445,7 @@ swUD=async function(view,btn){
   if(view!=='settings') return _guidcyOriginalSwUDSettingsSecondary(view,btn);
   if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('user');}
   const m=document.getElementById('udash-main');if(!m)return;const name=currentProfile?.full_name||'Guest';
-  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
+  m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:18px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="us-name" value="${safeAttr(currentProfile?.full_name||name)}"/></div><div class="field"><label>Email</label><input type="email" value="${safeAttr(currentUser?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${safeAttr(currentProfile?.phone||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${safeAttr(profileValue('refund_bank_name'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${safeAttr(profileValue('refund_account_number'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${safeAttr(profileValue('refund_ifsc_code'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${safeAttr(profileValue('refund_upi_id'))}" oninput="queueUserRefundSave()" onblur="saveUserRefundDetails(true)"/></div><button class="green-btn" onclick="saveUserRefundDetails(false)">Save refund details</button></div></div>`;
 };
 async function saveConsultantPayoutDetails(consId,silent=false){
   if(!consId){if(!silent)toast('Consultant profile not found','red');return;}
@@ -5409,7 +5460,7 @@ swCD=async function(view,btn){
   const m=document.getElementById('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';let c=null;
   try{if(currentUser?.id){const res=await supabaseRest('consultants?profile_id=eq.'+encodeURIComponent(currentUser.id)+'&select=*',{method:'GET',timeoutMs:20000});c=Array.isArray(res.data)?res.data[0]:res.data;}}catch(e){console.warn('Could not load consultant settings:',e);}
   const consId=c?.id||'';const name=currentProfile?.full_name||c?.name||'Consultant';
-  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="${safeAttr(c?.video_price||c?.rate||2000)}"/></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
+  m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px"><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="${safeAttr(c?.name||name)}"/></div><div class="field"><label>Professional title</label><input id="cd-title" value="${safeAttr(c?.specialty||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="${safeAttr(c?.video_price||c?.rate||2000)}"/></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:80px">${safeAttr(c?.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div><div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safeAttr(c?.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${safeAttr(c?.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${safeAttr(c?.ifsc_code||c?.bank_ifsc||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${safeAttr(c?.upi_id||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${safeAttr(c?.pan_number||'')}" oninput="queueConsultantPayoutSave('${consId}')" onblur="saveConsultantPayoutDetails('${consId}',true)"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div></div>`;
 };
 savePayoutDetails=function(consId){return saveConsultantPayoutDetails(consId,false);};
 cancelBooking=async function(bookingId,role){
@@ -5528,7 +5579,7 @@ cancelBooking=async function(bookingId,role){
         <div class="dash-title">Profile & settings</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-            <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+            <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
             <div class="field"><label>Full name</label><input id="cd-name" value="${escAttr(c.name||name)}"/></div>
             <div class="field"><label>Professional title</label><input id="cd-title" value="${escAttr(c.specialty||c.category||'Consultant')}"/></div>
             <div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="1" value="${escAttr(rate)}"/></div>
@@ -5536,7 +5587,7 @@ cancelBooking=async function(bookingId,role){
             <button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button>
           </div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-            <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
+            <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
             <div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div>
             <div class="field"><label>Bank name</label><input id="cd-bank-name" value="${escAttr(c.bank_name||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
             <div class="field"><label>Account number</label><input id="cd-account-number" value="${escAttr(c.account_number||'')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
@@ -5805,7 +5856,7 @@ cancelBooking=async function(bookingId,role){
       m.innerHTML = `<div class="dash-title">Profile & settings</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+          <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
           <div class="field"><label>Full name</label><input id="cd-name" value="${safe(c.name || name)}"/></div>
           <div class="field"><label>Professional title</label><input id="cd-title" value="${safe(c.specialty || c.category || 'Consultant')}"/></div>
           <div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" min="1" value="${safe(rate)}"/></div>
@@ -5813,7 +5864,7 @@ cancelBooking=async function(bookingId,role){
           <button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
+          <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div>
           <div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div>
           <div class="field"><label>Bank name</label><input id="cd-bank-name" value="${safe(c.bank_name || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
           <div class="field"><label>Account number</label><input id="cd-account-number" value="${safe(c.account_number || '')}" oninput="queueConsultantPayoutSave('${consId}')"/></div>
@@ -6001,11 +6052,11 @@ cancelBooking=async function(bookingId,role){
     if(btn){document.querySelectorAll('#page-user-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('user');}catch(_){}}
     const m=id('udash-main'); if(!m)return; const cp=currentProfileSafe()||{}; const name=cp.full_name||'Guest';
     m.innerHTML=`<div class="dash-title">Account settings</div><div style="max-width:860px;display:grid;grid-template-columns:1fr 1fr;gap:18px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${avatarHtml(cp.avatar_url,cp.avatar_initials||initials(name),54)}<div style="flex:1"><div class="field" style="margin-bottom:0"><label>Profile picture</label><input type="file" id="us-avatar" accept="image/*"/></div></div></div>
       <div class="field"><label>Full name *</label><input id="us-name" value="${esc(name)}"/></div><div class="field"><label>Email</label><input type="email" value="${esc(currentUserSafe()?.email||'')}" readonly style="opacity:.65"/></div><div class="field"><label>Phone</label><input id="us-phone" value="${esc(cp.phone||'')}"/></div>
       <div class="field"><label>Highest education *</label><input id="us-edu" value="${esc(cp.highest_education||'')}"/></div><div class="field"><label>College / University *</label><input id="us-college" value="${esc(cp.college||'')}"/></div><div class="field"><label>Current job / work *</label><input id="us-work" value="${esc(cp.current_work||'')}"/></div><div class="field"><label>LinkedIn URL <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">Optional</span></label><input id="us-linkedin" value="${esc(cp.linkedin_url||'')}"/></div><button class="primary-btn" onclick="saveUserProfile()">Save profile</button></div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${esc(cp.refund_bank_name||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${esc(cp.refund_account_number||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${esc(cp.refund_ifsc_code||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${esc(cp.refund_upi_id||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><button class="green-btn" onclick="saveUserRefundDetails&&saveUserRefundDetails(false)">Save refund details</button></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Refund details</div><div style="background:var(--blue-l);border:1px solid var(--blue-m);border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--blue-d);margin-bottom:12px">These details will be used if a cancelled session needs a refund outside Razorpay auto-refund flow.</div><div class="field"><label>Bank name</label><input id="us-refund-bank" value="${esc(cp.refund_bank_name||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>Account number</label><input id="us-refund-acct" value="${esc(cp.refund_account_number||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>IFSC code</label><input id="us-refund-ifsc" value="${esc(cp.refund_ifsc_code||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><div class="field"><label>UPI ID</label><input id="us-refund-upi" value="${esc(cp.refund_upi_id||'')}" oninput="queueUserRefundSave&&queueUserRefundSave()"/></div><button class="green-btn" onclick="saveUserRefundDetails&&saveUserRefundDetails(false)">Save refund details</button></div>
     </div>`;
   };
   window.saveUserProfile=async function(){
@@ -6025,10 +6076,10 @@ cancelBooking=async function(bookingId,role){
     const m=id('cdash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading settings...</div>';
     const c=await loadOwnConsultant()||{}; const cp=currentProfileSafe()||{}; const consId=c.id||''; const name=c.name||cp.full_name||'Consultant'; const rate=money(c.video_price??c.price??c.rate,2000);
     m.innerHTML=`<div class="dash-title">Profile & settings</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:980px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${avatarHtml(c.avatar_url||cp.avatar_url,c.avatar_initials||cp.avatar_initials||initials(name),54,c.avatar_bg||'#EBF4FF',c.avatar_color||'#1E72BE')}<div style="flex:1"><div class="field" style="margin-bottom:0"><label>Profile picture</label><input type="file" id="cd-avatar" accept="image/*"/></div></div></div>
       <div class="field"><label>Full name *</label><input id="cd-name" value="${esc(name)}"/></div><div class="field"><label>Professional title *</label><input id="cd-title" value="${esc(c.specialty||c.category||'Consultant')}"/></div><div class="field"><label>Base rate / video price (₹) *</label><input type="number" id="cd-rate" min="1" value="${esc(rate)}"/></div><div class="field"><label>Highest education *</label><input id="cd-edu" value="${esc(c.highest_education||cp.highest_education||'')}"/></div><div class="field"><label>College / University *</label><input id="cd-college" value="${esc(c.college||cp.college||'')}"/></div><div class="field"><label>Current job / work *</label><input id="cd-work" value="${esc(c.current_work||cp.current_work||'')}"/></div><div class="field"><label>LinkedIn URL <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">Optional</span></label><input id="cd-linkedin" value="${esc(c.linkedin_url||cp.linkedin_url||'')}"/></div><div class="field"><label>Bio *</label><textarea id="cd-bio" style="min-height:120px">${esc(c.bio||'')}</textarea></div><button class="primary-btn" onclick="saveConsProfile('${consId}')">Save profile</button></div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${esc(c.bank_name||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${esc(c.account_number||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${esc(c.ifsc_code||c.bank_ifsc||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${esc(c.upi_id||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${esc(c.pan_number||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails&&saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Payout / bank details</div><div style="background:var(--green-l);border:1px solid #B7F0BE;border-radius:var(--rs);padding:10px 12px;font-size:12px;color:var(--green-d);margin-bottom:12px">Guidcy will use these details to pay consultant earnings after completed sessions.</div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="${esc(c.bank_name||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>Account number</label><input id="cd-account-number" value="${esc(c.account_number||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="${esc(c.ifsc_code||c.bank_ifsc||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>UPI ID</label><input id="cd-upi-id" value="${esc(c.upi_id||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><div class="field"><label>PAN number</label><input id="cd-pan-number" value="${esc(c.pan_number||'')}" oninput="queueConsultantPayoutSave&&queueConsultantPayoutSave('${consId}')"/></div><button class="green-btn" onclick="saveConsultantPayoutDetails&&saveConsultantPayoutDetails('${consId}',false)">Save payout details</button></div>
     </div>`;
   };
   window.saveConsProfile=async function(consId){
@@ -6066,10 +6117,10 @@ cancelBooking=async function(bookingId,role){
   window.renderGrid=function(list,containerId){
     const g=id(containerId); if(!g)return;
     if(!list.length){
-      if(containerId==='cons-grid')g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
-      else g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters.</p></div>'; return;
+      if(containerId==='cons-grid')g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
+      else g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters.</p></div>'; return;
     }
-    g.innerHTML=list.map(c=>`<div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})"><div class="ccard-top">${c.avatar_url?`<div class="c-avatar" style="background:url('${esc(c.avatar_url)}') center/cover no-repeat;border-color:${c.color||'#1E72BE'}22"></div>`:`<div class="c-avatar" style="background:${c.bg};color:${c.color};border-color:${c.color}22">${esc(c.initials)}</div>`}${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}<div class="c-name">${esc(c.name)}</div><div class="c-role">${esc(c.role)}</div><div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(c.rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${Number(c.price||0).toLocaleString()}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">Book</button></div></div>`).join('');
+    g.innerHTML=list.map(c=>`<div class="ccard" onclick="openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})"><div class="ccard-top">${c.avatar_url?`<div class="c-avatar" style="background:url('${esc(c.avatar_url)}') center/cover no-repeat;border-color:${c.color||'#1E72BE'}22"></div>`:`<div class="c-avatar" style="background:${c.bg};color:${c.color};border-color:${c.color}22">${esc(c.initials)}</div>`}${c.badge==='verified'?`<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>`:`<div class="new-pill" style="margin-bottom:6px">${c.badge==='pending'?'Under Review':'New'}</div>`}<div class="c-name">${esc(c.name)}</div><div class="c-role">${esc(c.role)}</div><div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(c.rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?c.rating+' ('+c.reviews+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">${window.guidcyFormatINR(Number(c.price||0))}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${c.id||c.dbId}',${typeof c.id==='number'?c.id:-1})">Book</button></div></div>`).join('');
   };
 })();
 
@@ -6214,9 +6265,9 @@ cancelBooking=async function(bookingId,role){
   help:'/help-center',dispute:'/dispute-resolution',
   'user-dash':'/user-dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard'
 });
-  function ensureJobs(){if(gid('page-jobs'))return;const div=document.createElement('div');div.id='page-jobs';div.className='page';div.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Jobs</h1><p style="color:var(--muted);margin-bottom:26px">Find consultation, freelance, and expert opportunities on Guidcy.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Find the experts</button></div><div class="benefit-grid"><div class="benefit-card"><span class="benefit-icon">🧑‍💼</span><div class="benefit-title">Consulting opportunities</div><div class="benefit-desc">Create your profile and start receiving session requests.</div></div><div class="benefit-card"><span class="benefit-icon">📈</span><div class="benefit-title">Grow your income</div><div class="benefit-desc">Set your own rates and availability.</div></div><div class="benefit-card"><span class="benefit-icon">✅</span><div class="benefit-title">Verified platform</div><div class="benefit-desc">Build credibility with ratings and reviews.</div></div></div></div>`;document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
+  function ensureJobs(){if(gid('page-jobs'))return;const div=document.createElement('div');div.id='page-jobs';div.className='page';div.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:var(--font-weight-medium,500);margin-bottom:8px">Guidcy Jobs</h1><p style="color:var(--muted);margin-bottom:26px">Find consultation, freelance, and expert opportunities on Guidcy.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Find the experts</button></div><div class="benefit-grid"><div class="benefit-card"><span class="benefit-icon">🧑‍💼</span><div class="benefit-title">Consulting opportunities</div><div class="benefit-desc">Create your profile and start receiving session requests.</div></div><div class="benefit-card"><span class="benefit-icon">📈</span><div class="benefit-title">Grow your income</div><div class="benefit-desc">Set your own rates and availability.</div></div><div class="benefit-card"><span class="benefit-icon">✅</span><div class="benefit-title">Verified platform</div><div class="benefit-desc">Build credibility with ratings and reviews.</div></div></div></div>`;document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
   function ensureBlog(){if(gid('page-blog'))return;const div=document.createElement('div');div.id='page-blog';div.className='page';document.body.insertBefore(div,document.querySelector('footer')||document.body.lastElementChild)}
-  function renderBlog(){ensureBlog();const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');const role=(window.currentProfile&&currentProfile.role)||window.loggedIn||'';gid('page-blog').innerHTML=`<div style="max-width:1000px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Guidcy Blog</h1><p style="color:var(--muted);margin-bottom:26px">Admin can publish blogs. Users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div>${posts.length?posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:16px"><h2 style="font-size:24px;margin-bottom:6px">${esc(p.title)}</h2><div style="font-size:12px;color:var(--muted);margin-bottom:14px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b">${esc(p.body)}</p><div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px"><h4 style="color:var(--blue);margin-bottom:10px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:13px">No comments yet.</p>'}<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:42px;border:1px solid var(--border);border-radius:12px;padding:0 12px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})">Comment</button></div></div></article>`).join(''):'<div style="background:#fff;border:1px dashed var(--border);border-radius:18px;padding:30px;color:var(--muted);text-align:center">No blog posts yet.</div>'}</div></div>`}
+  function renderBlog(){ensureBlog();const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');const role=(window.currentProfile&&currentProfile.role)||window.loggedIn||'';gid('page-blog').innerHTML=`<div style="max-width:1000px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:var(--font-weight-medium,500);margin-bottom:8px">Guidcy Blog</h1><p style="color:var(--muted);margin-bottom:26px">Admin can publish blogs. Users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div>${posts.length?posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:16px"><h2 style="font-size:24px;margin-bottom:6px">${esc(p.title)}</h2><div style="font-size:12px;color:var(--muted);margin-bottom:14px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b">${esc(p.body)}</p><div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px"><h4 style="color:var(--blue);margin-bottom:10px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:13px">No comments yet.</p>'}<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:42px;border:1px solid var(--border);border-radius:12px;padding:0 12px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})">Comment</button></div></div></article>`).join(''):'<div style="background:#fff;border:1px dashed var(--border);border-radius:18px;padding:30px;color:var(--muted);text-align:center">No blog posts yet.</div>'}</div></div>`}
   window.guidcyAddBlogPost=function(){const t=gid('blog-title')?.value.trim(),b=gid('blog-body')?.value.trim();if(!t||!b){try{toast('Please add blog title and content','red')}catch(e){}return}const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');posts.unshift({title:t,body:b,date:new Date().toLocaleDateString('en-IN'),comments:[]});localStorage.setItem('guidcy_blog_posts',JSON.stringify(posts));renderBlog();try{toast('Blog published','green')}catch(e){}}
   window.guidcyAddComment=function(i){const input=gid('comment-'+i);const txt=input?.value.trim();if(!txt)return;const posts=JSON.parse(localStorage.getItem('guidcy_blog_posts')||'[]');posts[i].comments=posts[i].comments||[];posts[i].comments.push({name:(window.currentProfile&&currentProfile.full_name)||'Guest',text:txt});localStorage.setItem('guidcy_blog_posts',JSON.stringify(posts));renderBlog()}
   function paintAvatar(el,url,initials){if(!el)return;if(url){el.classList.add('has-photo');el.style.backgroundImage=`url("${url}")`;el.textContent='';}else{el.classList.remove('has-photo');el.style.backgroundImage='';el.textContent=initials||'';}}
@@ -6224,7 +6275,7 @@ cancelBooking=async function(bookingId,role){
   const oldSwUD=window.swUD; if(oldSwUD) window.swUD=async function(v,b){const r=await oldSwUD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldSwCD=window.swCD; if(oldSwCD) window.swCD=async function(v,b){const r=await oldSwCD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldUpdateNav=window.updateNav; window.updateNav=function(){try{oldUpdateNav&&oldUpdateNav()}catch(e){}setTimeout(refreshDashPhoto,30)};
-  window.initCategories=async function(){const grid=gid('cats-full-grid');if(!grid)return;grid.innerHTML=MAIN_CATEGORIES.map(cat=>`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${esc(cat.name)}</div><div style="font-size:12px;color:var(--muted)">${cat.count.toLocaleString()} experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${esc(cat.name)}')">Find experts →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${esc(cat.name)}')" style="cursor:pointer">${esc(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`).join('')};
+  window.initCategories=async function(){const grid=gid('cats-full-grid');if(!grid)return;grid.innerHTML=MAIN_CATEGORIES.map(cat=>`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${esc(cat.name)}</div><div style="font-size:12px;color:var(--muted)">${cat.count.toLocaleString()} experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${esc(cat.name)}')">Find experts →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${esc(cat.name)}')" style="cursor:pointer">${esc(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`).join('')};
   function renderClean(page){ensureJobs();ensureBlog();document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});const el=gid('page-'+page)||gid('page-home');el.classList.add('on');window.scrollTo(0,0);if(page==='categories')window.initCategories();if(page==='blog')renderBlog();if(page==='jobs'){};if(page==='opportunities'){try{ if(typeof initOpportunitiesFinder==='function') initOpportunitiesFinder(); }catch(e){console.warn(e)}};try{const qs=new URLSearchParams(location.search||'');const path=(location.pathname||'').replace(/\/+$/,'');/* Session-scoped only. Reading localStorage here meant a tab chosen in a
        previous browser session (e.g. "Webinar history") was replayed onto a
        bare /consultant-dashboard or /admin-dashboard URL days later, which is
@@ -6313,7 +6364,7 @@ cancelBooking=async function(bookingId,role){
       window.initCategories=function(){
         try{old&&old()}catch(e){}
         const g=$('cats-full-grid'); if(!g)return;
-        EXTRA_CATS.forEach(([ic,n])=>{if(!g.textContent.includes(n)){g.insertAdjacentHTML('beforeend',`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${ic}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${safe(n)}</div><div style="font-size:12px;color:var(--muted)">Verified experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(n)}')">Find experts →</button></div><div class="tag-list"><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">${safe(n)} consulting</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Strategy</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Growth</span></div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`);}});
+        EXTRA_CATS.forEach(([ic,n])=>{if(!g.textContent.includes(n)){g.insertAdjacentHTML('beforeend',`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${ic}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${safe(n)}</div><div style="font-size:12px;color:var(--muted)">Verified experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(n)}')">Find experts →</button></div><div class="tag-list"><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">${safe(n)} consulting</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Strategy</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Growth</span></div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`);}});
       };
     }
   }
@@ -6332,13 +6383,13 @@ cancelBooking=async function(bookingId,role){
   window.renderJobsList=function(){clearTimeout(window.__guidcyRenderJobsListTimer);window.__guidcyRenderJobsListTimer=setTimeout(function(){const q=($('job-search')?.value||'').toLowerCase(); const cat=$('job-cat')?.value||''; const list=JOBS.filter(j=>(!cat||j.cat===cat)&&(!q||Object.values(j).join(' ').toLowerCase().includes(q))); const box=$('jobs-list'); if(box)box.innerHTML=list.map(j=>`<div class="benefit-card" style="text-align:left"><div class="benefit-title">${safe(j.title)}</div><div class="benefit-desc"><b>${safe(j.cat)}</b> · ${safe(j.type)} · ${safe(j.loc)}</div><div class="benefit-desc" style="margin-top:8px">${safe(j.desc)}</div><button class="btn btn-blue" style="margin-top:12px" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Apply / Become consultant</button></div>`).join('') || '<div style="padding:26px;text-align:center;color:var(--muted)">No jobs found. Try another search.</div>';},150);};
   function renderJobsPage(){
     let page=$('page-jobs'); if(!page){page=document.createElement('div');page.id='page-jobs';page.className='page';document.body.insertBefore(page,document.querySelector('footer')||document.body.lastElementChild)}
-    page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:500;margin-bottom:8px">Jobs</h1><p style="color:var(--muted);margin-bottom:22px">Search consultation, freelance, and expert opportunities on Guidcy.</p><div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:22px;display:grid;grid-template-columns:1fr 220px auto;gap:10px"><input id="job-search" placeholder="Search jobs by skill, category, or role" oninput="renderJobsList()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderJobsList()}" style="height:44px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-family:inherit"><select id="job-cat" onchange="renderJobsList()" style="height:44px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-family:inherit"><option value="">All categories</option>${EXTRA_CATS.map(([_,n])=>`<option value="${safe(n)}">${safe(n)}</option>`).join('')}</select><button class="btn btn-blue" onclick="renderJobsList()">Search</button></div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Find the experts</button></div><div id="jobs-list" class="benefit-grid"></div></div>`;
+    page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:50px 20px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:var(--font-weight-medium,500);margin-bottom:8px">Jobs</h1><p style="color:var(--muted);margin-bottom:22px">Search consultation, freelance, and expert opportunities on Guidcy.</p><div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:22px;display:grid;grid-template-columns:1fr 220px auto;gap:10px"><input id="job-search" placeholder="Search jobs by skill, category, or role" oninput="renderJobsList()" onkeydown="if(event.key==='Enter'){event.preventDefault();renderJobsList()}" style="height:44px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-family:inherit"><select id="job-cat" onchange="renderJobsList()" style="height:44px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-family:inherit"><option value="">All categories</option>${EXTRA_CATS.map(([_,n])=>`<option value="${safe(n)}">${safe(n)}</option>`).join('')}</select><button class="btn btn-blue" onclick="renderJobsList()">Search</button></div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px"><button class="btn btn-blue" onclick="go('signup');setTimeout(()=>{try{swType('consultant')}catch(e){}},100)">Become a consultant</button><button class="btn" onclick="go('browse')">Find the experts</button></div><div id="jobs-list" class="benefit-grid"></div></div>`;
     renderJobsList();
   }
 
   // 7) Clickable LinkedIn / portfolio URL on consultant profile.
   const oldOpenProfile=window.openProfile;
-  if(oldOpenProfile) window.openProfile=async function(dbId,localId){await oldOpenProfile(dbId,localId); try{const url=normalizeUrl((curCons&&curCons.linkedin_url)||''); const main=document.querySelector('#profile-layout .profile-main .profile-hero > div[style*="flex:1"]'); if(url&&main&&!main.querySelector('.linkedin-profile-link')) main.insertAdjacentHTML('beforeend',`<a class="linkedin-profile-link" href="${safe(url)}" target="_blank" rel="noopener" style="display:inline-flex;margin-top:10px;color:var(--blue);font-size:13px;font-weight:600;text-decoration:none">Open LinkedIn / Portfolio ↗</a>`);}catch(e){} };
+  if(oldOpenProfile) window.openProfile=async function(dbId,localId){await oldOpenProfile(dbId,localId); try{const url=normalizeUrl((curCons&&curCons.linkedin_url)||''); const main=document.querySelector('#profile-layout .profile-main .profile-hero > div[style*="flex:1"]'); if(url&&main&&!main.querySelector('.linkedin-profile-link')) main.insertAdjacentHTML('beforeend',`<a class="linkedin-profile-link" href="${safe(url)}" target="_blank" rel="noopener" style="display:inline-flex;margin-top:10px;color:var(--blue);font-size:13px;font-weight:var(--font-weight-semibold,600);text-decoration:none">Open LinkedIn / Portfolio ↗</a>`);}catch(e){} };
 
   // 8) Override render for jobs page without breaking existing pages.
   const oldRender=window.renderPage;
@@ -6449,7 +6500,7 @@ cancelBooking=async function(bookingId,role){
     if(sb){try{const{data}=await sb.from('consultants').select('category,specialty').eq('is_active',true);(data||[]).forEach(c=>{const k=(c.category||c.specialty||'').trim().toLowerCase();cats.forEach(cat=>{const key=(cat.name||'').split(' ')[0].toLowerCase();if(k&&k.includes(key))realCounts[cat.name]=(realCounts[cat.name]||0)+1;});});}catch(e){}}
     grid.innerHTML=cats.map(cat=>{
       const subs=cat.subs||[];
-      return`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon||'✨'}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${safe(cat.name)}</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(cat.name)}')">Browse →</button></div><div class="tag-list">${subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${safe(cat.name)}')" style="cursor:pointer">${safe(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
+      return`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon||'✨'}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${safe(cat.name)}</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(cat.name)}')">Browse →</button></div><div class="tag-list">${subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${safe(cat.name)}')" style="cursor:pointer">${safe(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
     }).join('');
   };
 
@@ -6737,23 +6788,23 @@ cancelBooking=async function(bookingId,role){
   }
 
   function renderJobCards(jobs){
-    if(!jobs||!jobs.length)return`<div style="text-align:center;padding:60px 20px;background:var(--surface2);border-radius:16px"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:18px;font-weight:600;margin-bottom:8px">No jobs found</div><p style="color:var(--muted);font-size:13px">Try different keywords.</p></div>`;
+    if(!jobs||!jobs.length)return`<div style="text-align:center;padding:60px 20px;background:var(--surface2);border-radius:16px"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px">No jobs found</div><p style="color:var(--muted);font-size:13px">Try different keywords.</p></div>`;
     return jobs.map(job=>{
       const jid=safe((window.guidcyRememberJob&&window.guidcyRememberJob(job))||job.id||`${job.title||''}-${job.company||''}-${job.location||''}`);
-      const typeTag=job.employmentType?`<span style="background:#EBF4FF;color:#0C447C;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.employmentType)}</span>`:'';
-      const salTag=job.salary?`<span style="background:#EEFBF4;color:#0A6640;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.salary)}</span>`:'';
-      const sourceTag=`<span style="background:#F8FAFC;color:#475569;border:1px solid var(--border);border-radius:100px;padding:2px 9px;font-size:11px;font-weight:600">${safe(jobSourceLabel(job))}</span>`;
+      const typeTag=job.employmentType?`<span style="background:#EBF4FF;color:#0C447C;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:var(--font-weight-medium,500)">${safe(job.employmentType)}</span>`:'';
+      const salTag=job.salary?`<span style="background:#EEFBF4;color:#0A6640;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:var(--font-weight-medium,500)">${safe(job.salary)}</span>`:'';
+      const sourceTag=`<span style="background:#F8FAFC;color:#475569;border:1px solid var(--border);border-radius:100px;padding:2px 9px;font-size:11px;font-weight:var(--font-weight-semibold,600)">${safe(jobSourceLabel(job))}</span>`;
       const link=safe(job.applyLink||'#');
       return`<div onclick="window.open('${link}','_blank')" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:10px" onmouseenter="this.style.borderColor='#3B82F6';this.style.transform='translateY(-2px)'" onmouseleave="this.style.borderColor='var(--border)';this.style.transform=''">
         <div style="display:flex;gap:12px;align-items:flex-start">
           <div style="width:42px;height:42px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏢</div>
-          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px;line-height:1.3">${safe(job.title)}</div><div style="font-size:12px;color:var(--muted)">${safe(job.company)} · ${safe(job.location)}</div></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:2px;line-height:1.3">${safe(job.title)}</div><div style="font-size:12px;color:var(--muted)">${safe(job.company)} · ${safe(job.location)}</div></div>
         </div>
         <div style="font-size:12px;color:var(--ink2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${safe((job.description||'').slice(0,200))}</div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${sourceTag}${typeTag}${salTag}<span style="font-size:11px;color:var(--muted);margin-left:auto">${timeAgo(job.postedAt)}</span></div>
         <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:auto">
-          <button data-job-save="${jid}" onclick="event.stopPropagation();window.guidcyToggleSaveJob&&window.guidcyToggleSaveJob('${jid}')" style="padding:10px;background:#fff;color:#1E40AF;border:1px solid #BFDBFE;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
-          <button onclick="event.stopPropagation();window.open('${link}','_blank')" style="padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Apply Now →</button>
+          <button data-job-save="${jid}" onclick="event.stopPropagation();window.guidcyToggleSaveJob&&window.guidcyToggleSaveJob('${jid}')" style="padding:10px;background:#fff;color:#1E40AF;border:1px solid #BFDBFE;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Save</button>
+          <button onclick="event.stopPropagation();window.open('${link}','_blank')" style="padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:var(--font-weight-medium,500);cursor:pointer;font-family:inherit">Apply Now →</button>
         </div>
       </div>`;
     }).join('');
@@ -6783,7 +6834,7 @@ cancelBooking=async function(bookingId,role){
       const rating=Number(c.rating||0),reviews=Number(c.review_count||0)||0;
       const price=Number(c.rate||0)||0,exp=c.experience||'';
       const av=avatar?`<div class="c-avatar" style="background:url('${safe(avatar)}') center/cover no-repeat;border-color:${safe(col)}22"></div>`:`<div class="c-avatar" style="background:${safe(bg)};color:${safe(col)};border-color:${safe(col)}22">${safe(initials)}</div>`;
-      return `<div class="ccard" data-consultant-id="${cid}" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div><div class="c-name">${name}</div><div class="c-role">${category}</div>${company?`<div class="lang-tag" style="margin-top:3px;color:var(--blue)">🏢 ${company}</div>`:''}${edu?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🎓 ${edu}</div>`:''}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating+' ('+reviews+')'):'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${price.toLocaleString('en-IN')}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
+      return `<div class="ccard" data-consultant-id="${cid}" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div><div class="c-name">${name}</div><div class="c-role">${category}</div>${company?`<div class="lang-tag" style="margin-top:3px;color:var(--blue)">🏢 ${company}</div>`:''}${edu?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🎓 ${edu}</div>`:''}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${typeof starsHtml==='function'?starsHtml(rating):'★★★★★'}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating+' ('+reviews+')'):'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">${window.guidcyFormatINR(price)}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
     }).join('');
   }
 
@@ -6798,7 +6849,7 @@ cancelBooking=async function(bookingId,role){
     let page=$('page-jobs');
     if(!page){page=document.createElement('div');page.id='page-jobs';page.className='page';document.body.appendChild(page);}
     if(!page.querySelector('#job-q'))page.innerHTML=`<div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
-      <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,5vw,42px);font-weight:500;margin-bottom:6px">Find Your Next Job</h1>
+      <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,5vw,42px);font-weight:var(--font-weight-medium,500);margin-bottom:6px">Find Your Next Job</h1>
       <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Live listings from across the web. Click any job to apply directly on the employer's site.</p>
       <div class="jobs-companion-rail" data-state="idle" data-position="left" data-pose="wave">
         <div class="jobs-thought" role="status" aria-live="polite" aria-atomic="true">Ready to find your next role?</div>
@@ -6810,7 +6861,7 @@ cancelBooking=async function(bookingId,role){
         <select id="job-loc" style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-family:inherit;font-size:13px;background:var(--surface)">
           <option value="India">🇮🇳 India</option><option value="Hyderabad">Hyderabad</option><option value="Bangalore">Bangalore</option><option value="Mumbai">Mumbai</option><option value="Delhi">Delhi</option><option value="Chennai">Chennai</option><option value="Pune">Pune</option><option value="Remote">🌐 Remote</option>
         </select>
-        <button id="job-search-btn" onclick="window._runJobSearch&&window._runJobSearch(1)" style="background:var(--ink);color:#fff;border:none;border-radius:12px;padding:10px 20px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">Search</button>
+        <button id="job-search-btn" onclick="window._runJobSearch&&window._runJobSearch(1)" style="background:var(--ink);color:#fff;border:none;border-radius:12px;padding:10px 20px;font-size:13px;font-weight:var(--font-weight-medium,500);cursor:pointer;font-family:inherit;white-space:nowrap">Search</button>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:repeat(5,minmax(145px,1fr)) auto;gap:10px;align-items:center" class="job-advanced-filters">
         <select id="job-source" onchange="window._renderFilteredJobs&&window._renderFilteredJobs()" style="height:40px;border:1px solid var(--border);border-radius:10px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--surface)">${JOB_SOURCE_OPTIONS.map(([v,l])=>`<option value="${safe(v)}">${safe(l)}</option>`).join('')}</select>
@@ -6825,8 +6876,8 @@ cancelBooking=async function(bookingId,role){
         ${['Software Engineer','Product Manager','Marketing','Finance','Data Analyst','HR','Sales','Legal','Healthcare','Business Analyst','DevOps','UI/UX Designer','Content Writer','Teacher'].map(t=>`<button onclick="document.getElementById('job-q').value='${safe(t)}';window._runJobSearch&&window._runJobSearch(1)" style="padding:5px 12px;border-radius:100px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-family:inherit;cursor:pointer;color:var(--ink2);white-space:nowrap">${safe(t)}</button>`).join('')}
       </div>
       <div class="guidcy-job-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-        <button id="job-tab-search" class="guidcy-job-tab on" onclick="window.guidcyJobsShowSearch&&guidcyJobsShowSearch()" style="border:1px solid var(--border);background:#1E293B;color:#fff;border-radius:100px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Search Jobs</button>
-        <button id="job-tab-saved" class="guidcy-job-tab" onclick="window.guidcyJobsShowSaved&&guidcyJobsShowSaved()" style="border:1px solid var(--border);background:#fff;color:var(--ink2);border-radius:100px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">Saved Jobs</button>
+        <button id="job-tab-search" class="guidcy-job-tab on" onclick="window.guidcyJobsShowSearch&&guidcyJobsShowSearch()" style="border:1px solid var(--border);background:#1E293B;color:#fff;border-radius:100px;padding:8px 14px;font-size:12px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Search Jobs</button>
+        <button id="job-tab-saved" class="guidcy-job-tab" onclick="window.guidcyJobsShowSaved&&guidcyJobsShowSaved()" style="border:1px solid var(--border);background:#fff;color:var(--ink2);border-radius:100px;padding:8px 14px;font-size:12px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Saved Jobs</button>
       </div>
       <div id="jobs-saved-area" style="display:none"></div>
       <div id="jobs-main-area"></div>
@@ -6852,9 +6903,9 @@ cancelBooking=async function(bookingId,role){
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px;margin-bottom:20px">
           ${renderJobCards(filteredJobs)}
         </div>
-        ${_jobsCache.hasMore?`<div style="text-align:center;margin-bottom:40px"><button id="jobs-load-more" onclick="window._runJobSearch&&window._runJobSearch(${(_jobsCache.page||1)+1})" style="padding:12px 32px;border:1.5px solid var(--border);background:var(--surface);border-radius:14px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;color:var(--ink)">Load more jobs ↓</button><div style="font-size:11px;color:var(--muted);margin-top:8px">Use Load more if the selected site has fewer visible results.</div></div>`:'<div style="text-align:center;margin-bottom:40px;font-size:13px;color:var(--muted)">All available results shown</div>'}
+        ${_jobsCache.hasMore?`<div style="text-align:center;margin-bottom:40px"><button id="jobs-load-more" onclick="window._runJobSearch&&window._runJobSearch(${(_jobsCache.page||1)+1})" style="padding:12px 32px;border:1.5px solid var(--border);background:var(--surface);border-radius:14px;font-size:14px;font-weight:var(--font-weight-medium,500);cursor:pointer;font-family:inherit;color:var(--ink)">Load more jobs ↓</button><div style="font-size:11px;color:var(--muted);margin-top:8px">Use Load more if the selected site has fewer visible results.</div></div>`:'<div style="text-align:center;margin-bottom:40px;font-size:13px;color:var(--muted)">All available results shown</div>'}
         <div style="border-top:1px solid var(--border);padding-top:32px">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,4vw,26px);font-weight:500;margin-bottom:6px">Need help landing this role?</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,4vw,26px);font-weight:var(--font-weight-medium,500);margin-bottom:6px">Need help landing this role?</div>
           <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Book a Guidcy expert — resume review, interview prep, salary negotiation</div>
           <div id="cons-rec-grid"></div>
         </div>`;
@@ -6941,7 +6992,7 @@ cancelBooking=async function(bookingId,role){
         return;
       }
       if(apiError&&pageNum===1){
-        if(area)area.innerHTML=`<div style="text-align:center;padding:40px;background:var(--surface2);border-radius:16px"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-weight:600;margin-bottom:6px">Could not load jobs</div><p style="color:var(--muted);font-size:13px">Please try your search again in a moment.</p><button class="btn" onclick="window._runJobSearch(1)">Try again</button></div>`;
+        if(area)area.innerHTML=`<div style="text-align:center;padding:40px;background:var(--surface2);border-radius:16px"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-weight:var(--font-weight-semibold,600);margin-bottom:6px">Could not load jobs</div><p style="color:var(--muted);font-size:13px">Please try your search again in a moment.</p><button class="btn" onclick="window._runJobSearch(1)">Try again</button></div>`;
         return;
       }
       _jobsCache.jobs=[..._jobsCache.jobs,...newJobs];
@@ -6984,7 +7035,7 @@ cancelBooking=async function(bookingId,role){
     const education=edu?`<div class="guidcy-card-edu" style="font-size:11px;color:var(--ink2);margin-top:4px">🎓 ${safe(edu)}</div>`:'';
     const av=avatar?`<div class="c-avatar" style="background:url('${safe(avatar)}') center/cover no-repeat;border-color:${safe(col)}22"></div>`:`<div class="c-avatar" style="background:${safe(bg)};color:${safe(col)};border-color:${safe(col)}22">${safe(initials)}</div>`;
     const starHtml=typeof starsHtml==='function'?starsHtml(rating):'★★★★★';
-    return `<div class="ccard" data-consultant-id="${cid}" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}${badge}<div class="c-name">${name}</div><div class="c-role">${category}</div>${work}${education}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starHtml}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating.toFixed(1))+' ('+safe(reviews)+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${price.toLocaleString('en-IN')}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
+    return `<div class="ccard" data-consultant-id="${cid}" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}${badge}<div class="c-name">${name}</div><div class="c-role">${category}</div>${work}${education}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starHtml}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating.toFixed(1))+' ('+safe(reviews)+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">${window.guidcyFormatINR(price)}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
   }
   function consRecs(cons,container){
     if(!container)return;
@@ -7122,10 +7173,10 @@ cancelBooking=async function(bookingId,role){
     async function renderSaved(){
       const area=document.getElementById('jobs-saved-area'); if(!area)return;
       const u=await ensureUser();
-      if(!u||!u.id){area.innerHTML='<div style="text-align:center;padding:42px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:16px"><div style="font-size:28px;margin-bottom:10px">🔐</div><div style="font-weight:800;margin-bottom:8px">Log in to view saved jobs</div><p style="font-size:13px;color:var(--muted);margin-bottom:14px">Saved jobs are linked to your Guidcy account.</p><button class="btn btn-blue" onclick="window.go&&go(&quot;login&quot;)">Log in</button></div>';return}
+      if(!u||!u.id){area.innerHTML='<div style="text-align:center;padding:42px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:16px"><div style="font-size:28px;margin-bottom:10px">🔐</div><div style="font-weight:var(--font-weight-semibold,600);margin-bottom:8px">Log in to view saved jobs</div><p style="font-size:13px;color:var(--muted);margin-bottom:14px">Saved jobs are linked to your Guidcy account.</p><button class="btn btn-blue" onclick="window.go&&go(&quot;login&quot;)">Log in</button></div>';return}
       const rows=await loadSaved(true);
       if(!rows.length){area.innerHTML='<div style="text-align:center;padding:46px 20px;background:var(--surface2);border:1px dashed var(--border2);border-radius:16px;color:var(--muted)"><div style="font-size:34px;margin-bottom:10px">💼</div><b style="color:var(--ink)">No saved jobs yet</b><p style="font-size:13px;margin-top:8px">Search jobs and tap Save to build your shortlist.</p></div>';return}
-      area.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div><div style="font-size:18px;font-weight:900;color:var(--ink)">Saved jobs</div><div style="font-size:12px;color:var(--muted)">Your shortlisted jobs across searches.</div></div><button class="btn" onclick="window.guidcyJobsShowSearch&&guidcyJobsShowSearch()">Back to search</button></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px">'+rows.map(job=>'<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:12px;align-items:flex-start"><div style="width:42px;height:42px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏢</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:var(--ink);line-height:1.35">'+esc(job.title)+'</div><div style="font-size:12px;color:var(--muted)">'+esc(job.company)+' · '+esc(job.location)+'</div></div></div><div style="font-size:12px;color:var(--ink2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc((job.description||'').slice(0,190))+'</div><div style="display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-top:auto"><button onclick="window.guidcyUnsaveJob&&guidcyUnsaveJob(&quot;'+esc(job.id)+'&quot;)" style="padding:10px;background:#fff;color:#BE123C;border:1px solid #FECDD3;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">Remove</button><button onclick="window.open(&quot;'+esc(job.applyLink||'#')+'&quot;,&quot;_blank&quot;)" style="padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Apply Now →</button></div></div>').join('')+'</div>';
+      area.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Saved jobs</div><div style="font-size:12px;color:var(--muted)">Your shortlisted jobs across searches.</div></div><button class="btn" onclick="window.guidcyJobsShowSearch&&guidcyJobsShowSearch()">Back to search</button></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px">'+rows.map(job=>'<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:12px;align-items:flex-start"><div style="width:42px;height:42px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏢</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:var(--font-weight-semibold,600);color:var(--ink);line-height:1.35">'+esc(job.title)+'</div><div style="font-size:12px;color:var(--muted)">'+esc(job.company)+' · '+esc(job.location)+'</div></div></div><div style="font-size:12px;color:var(--ink2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc((job.description||'').slice(0,190))+'</div><div style="display:grid;grid-template-columns:1fr 1.3fr;gap:8px;margin-top:auto"><button onclick="window.guidcyUnsaveJob&&guidcyUnsaveJob(&quot;'+esc(job.id)+'&quot;)" style="padding:10px;background:#fff;color:#BE123C;border:1px solid #FECDD3;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Remove</button><button onclick="window.open(&quot;'+esc(job.applyLink||'#')+'&quot;,&quot;_blank&quot;)" style="padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Apply Now →</button></div></div>').join('')+'</div>';
     }
     window.guidcyRememberJob=function(job){const j=normalize(job);store[j.id]=j;return j.id};
     window.guidcyToggleSaveJob=toggle;
@@ -7150,7 +7201,7 @@ body{overflow-x:hidden}
 .page.active{display:block!important}
 
 /* Browse page mobile — collapsible filter */
-#browse-filter-toggle{display:none;width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-bottom:12px;text-align:left;align-items:center;gap:8px}
+#browse-filter-toggle{display:none;width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;font-weight:var(--font-weight-medium,500);cursor:pointer;margin-bottom:12px;text-align:left;align-items:center;gap:8px}
 
 @media(max-width:900px){
   /* Nav — only original .mobile-burger, no duplicates */
@@ -7210,7 +7261,6 @@ body{overflow-x:hidden}
 
   /* Payment */
   .pay-wrap,.confirm-wrap{padding:18px 12px!important;max-width:100%!important}
-  .pay-amount{font-size:30px!important}
   .pay-method-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
 
   /* Booking */
@@ -7369,10 +7419,10 @@ body{overflow-x:hidden}
 
       <!-- Header -->
       <div style="text-align:center;margin-bottom:36px">
-        <div style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#EBF4FF,#E8F5E9);border:1px solid #BFDBFE;border-radius:100px;padding:6px 18px;font-size:12px;font-weight:600;color:#1E40AF;margin-bottom:16px">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#EBF4FF,#E8F5E9);border:1px solid #BFDBFE;border-radius:100px;padding:6px 18px;font-size:12px;font-weight:var(--font-weight-semibold,600);color:#1E40AF;margin-bottom:16px">
           ✨ AI-Powered Personal Recommender
         </div>
-        <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(28px,5vw,42px);font-weight:500;margin-bottom:10px;line-height:1.15">Find What's <em style="font-style:italic;color:#C9A96E">Right for You</em></h1>
+        <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(28px,5vw,42px);font-weight:var(--font-weight-medium,500);margin-bottom:10px;line-height:1.15">Find What's <em style="font-style:italic;color:#C9A96E">Right for You</em></h1>
         <p style="color:var(--muted);font-size:15px;max-width:500px;margin:0 auto;line-height:1.65">Tell us about yourself — our AI recommends the most relevant jobs or educational programs just for you.</p>
       </div>
 
@@ -7380,12 +7430,12 @@ body{overflow-x:hidden}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px;max-width:560px;margin-left:auto;margin-right:auto">
         <div id="sf-mode-job" onclick="window._sfSetMode('jobs')" style="border:2px solid #3B82F6;background:#EBF4FF;border-radius:16px;padding:18px;cursor:pointer;text-align:center;transition:all .2s">
           <div style="font-size:28px;margin-bottom:8px">💼</div>
-          <div style="font-size:15px;font-weight:700;color:#1E40AF">Job Seeker</div>
+          <div style="font-size:15px;font-weight:var(--font-weight-semibold,600);color:#1E40AF">Job Seeker</div>
           <div style="font-size:12px;color:#64748B;margin-top:4px">Find the right job opportunities</div>
         </div>
         <div id="sf-mode-edu" onclick="window._sfSetMode('education')" style="border:2px solid var(--border);background:var(--surface);border-radius:16px;padding:18px;cursor:pointer;text-align:center;transition:all .2s">
           <div style="font-size:28px;margin-bottom:8px">🎓</div>
-          <div style="font-size:15px;font-weight:700;color:var(--ink)">Education Seeker</div>
+          <div style="font-size:15px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Education Seeker</div>
           <div style="font-size:12px;color:var(--muted);margin-top:4px">Find the right programs & colleges</div>
         </div>
       </div>
@@ -7395,12 +7445,12 @@ body{overflow-x:hidden}
         <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
           <div style="width:48px;height:48px;border-radius:16px;background:#EBF4FF;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">📄</div>
           <div style="flex:1;min-width:240px">
-            <div style="font-size:15px;font-weight:800;color:var(--ink);margin-bottom:4px">Upload Resume for AI-Based Suggestions</div>
+            <div style="font-size:15px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:4px">Upload Resume for AI-Based Suggestions</div>
             <div style="font-size:13px;color:var(--muted);line-height:1.6">Upload PDF, DOCX, or TXT. The AI will read your resume, identify skills, education, experience, gaps, and then suggest suitable jobs, career paths, courses, colleges, and improvement actions.</div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
               <input id="sf-resume-file" type="file" accept=".pdf,.doc,.docx,.txt,.rtf,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onchange="window._sfHandleResumeUpload(event)" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0"/>
-              <label for="sf-resume-file" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;background:#1E72BE;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-height:42px">Upload Resume</label>
-              <button id="sf-clear-resume" type="button" onclick="window._sfClearResume()" style="display:none;padding:10px 14px;background:#fff;color:#B91C1C;border:1px solid #FCA5A5;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Remove</button>
+              <label for="sf-resume-file" style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;background:#1E72BE;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit;min-height:42px">Upload Resume</label>
+              <button id="sf-clear-resume" type="button" onclick="window._sfClearResume()" style="display:none;padding:10px 14px;background:#fff;color:#B91C1C;border:1px solid #FCA5A5;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit">Remove</button>
               <span id="sf-resume-status" style="font-size:12px;color:var(--muted)">No resume uploaded</span>
             </div>
           </div>
@@ -7411,11 +7461,11 @@ body{overflow-x:hidden}
       <!-- Forms -->
       <div id="sf-form-area" style="background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden">
         <div id="sf-form-jobs" style="padding:28px 24px">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:24px">Your Details — Job Search</div>
+          <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:24px">Your Details — Job Search</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="field"><label>Current / Last Job Title</label><input id="sf-j-role" placeholder="e.g. Software Engineer, Marketing Manager"/></div>
             <div class="field"><label>Years of Experience</label><select id="sf-j-exp"><option value="0">Fresher (0 yrs)</option><option value="1">1–2 years</option><option value="2">2–3 years</option><option value="3">3–5 years</option><option value="5">5–8 years</option><option value="8">8–12 years</option><option value="12">12+ years</option></select></div>
-            <div class="field" style="grid-column:1/-1"><label>Key Skills <span style="font-weight:400;color:var(--muted)">(comma separated)</span></label><input id="sf-j-skills" placeholder="e.g. Python, React, Financial modelling, Digital marketing, SQL"/></div>
+            <div class="field" style="grid-column:1/-1"><label>Key Skills <span style="font-weight:var(--font-weight-regular,400);color:var(--muted)">(comma separated)</span></label><input id="sf-j-skills" placeholder="e.g. Python, React, Financial modelling, Digital marketing, SQL"/></div>
             <div class="field"><label>Degree</label><select id="sf-j-degree"><option>10th Pass</option><option>12th Pass</option><option>Diploma</option><option>B.Tech / B.E.</option><option>BCA / BSc CS</option><option>BBA / B.Com / BA</option><option>MBBS / BDS</option><option>LLB</option><option>M.Tech / ME</option><option>MBA / PGDM</option><option>MCA / MSc</option><option>PhD</option><option>Other</option></select></div>
             <div class="field"><label>Field of Study</label><input id="sf-j-field" placeholder="e.g. Computer Science, Finance, Marketing"/></div>
             <div class="field"><label>College / University</label><input id="sf-j-college" placeholder="e.g. IIT Delhi, Mumbai University"/></div>
@@ -7423,14 +7473,14 @@ body{overflow-x:hidden}
             <div class="field"><label>Job Type</label><select id="sf-j-type"><option>Full-time</option><option>Part-time</option><option>Remote</option><option>Hybrid</option><option>Internship</option><option>Freelance / Contract</option></select></div>
             <div class="field"><label>Preferred Location</label><input id="sf-j-loc" placeholder="e.g. Bangalore, Mumbai, Remote, Any"/></div>
             <div class="field"><label>Expected Salary (₹ / year)</label><select id="sf-j-salary"><option value="">Not specified</option><option>Below ₹3 LPA</option><option>₹3–6 LPA</option><option>₹6–10 LPA</option><option>₹10–15 LPA</option><option>₹15–25 LPA</option><option>₹25–40 LPA</option><option>₹40 LPA+</option></select></div>
-            <div class="field"><label>Certifications <span style="font-weight:400;color:var(--muted)">(if any)</span></label><input id="sf-j-certs" placeholder="e.g. AWS, PMP, CFA Level 1, Google Analytics"/></div>
+            <div class="field"><label>Certifications <span style="font-weight:var(--font-weight-regular,400);color:var(--muted)">(if any)</span></label><input id="sf-j-certs" placeholder="e.g. AWS, PMP, CFA Level 1, Google Analytics"/></div>
             <div class="field"><label>Languages Known</label><input id="sf-j-langs" placeholder="e.g. English, Hindi, Telugu"/></div>
             <div class="field" style="grid-column:1/-1"><label>Career Goal / Why switching?</label><textarea id="sf-j-goal" style="min-height:70px" placeholder="e.g. I want to move from backend development to product management. I've been building apps for 3 years and now want to drive product decisions..."></textarea></div>
           </div>
         </div>
 
         <div id="sf-form-edu" style="padding:28px 24px;display:none">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:24px">Your Details — Education Search</div>
+          <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:24px">Your Details — Education Search</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
             <div class="field"><label>Current Qualification</label><select id="sf-e-qual"><option>Studying in Class 10</option><option>Completed Class 10</option><option>Studying in Class 12</option><option>Completed Class 12</option><option>Pursuing Graduation</option><option>Completed Graduation</option><option>Pursuing Post-Graduation</option><option>Completed Post-Graduation</option><option>Working Professional</option></select></div>
             <div class="field"><label>Percentage / CGPA</label><input id="sf-e-score" placeholder="e.g. 85%, 8.5 CGPA, 92 percentile"/></div>
@@ -7448,7 +7498,7 @@ body{overflow-x:hidden}
         </div>
 
         <div style="padding:0 24px 24px">
-          <button id="sf-submit-btn" onclick="window._sfSubmit()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.02em">
+          <button id="sf-submit-btn" onclick="window._sfSubmit()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1E40AF,#3B82F6);color:#fff;border:none;border-radius:14px;font-size:15px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit;letter-spacing:.02em">
             ✨ Find My Best Matches
           </button>
           <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">AI analyses your profile + resume, searches the web, and ranks results just for you</p>
@@ -7486,7 +7536,7 @@ body{overflow-x:hidden}
 
       results.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center">
         <div style="font-size:36px;margin-bottom:16px;animation:pulse2 1.5s infinite">🤖</div>
-        <div style="font-size:16px;font-weight:600;margin-bottom:8px">AI is analysing your profile and resume...</div>
+        <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px">AI is analysing your profile and resume...</div>
         <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Generating best-fit recommendations and ranking them by fit with your profile.</div>
         <div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
           ${Array(5).fill(0).map((_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:var(--blue,#3B82F6);animation:pulse2 1.2s ${i*0.2}s infinite"></div>`).join('')}
@@ -7537,7 +7587,7 @@ body{overflow-x:hidden}
       }catch(e){
         results.innerHTML=`<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:16px;padding:24px;text-align:center">
           <div style="font-size:28px;margin-bottom:10px">⚠️</div>
-          <div style="font-weight:600;margin-bottom:6px;color:#991B1B">Could not fetch recommendations</div>
+          <div style="font-weight:var(--font-weight-semibold,600);margin-bottom:6px;color:#991B1B">Could not fetch recommendations</div>
           <p style="font-size:13px;color:#7F1D1D;max-width:400px;margin:0 auto">${safe(e.message)}</p>
           ${(e.message.includes('OPENAI_API_KEY')||e.message.includes('OpenAI'))?'<p style="font-size:12px;color:#7F1D1D;margin-top:8px">This assistant is temporarily unavailable. Please try again shortly.</p>':''}
         </div>`;
@@ -7559,7 +7609,7 @@ body{overflow-x:hidden}
     results.innerHTML=`
       <!-- AI Summary -->
       ${data.summary?`<div style="background:linear-gradient(135deg,#EBF4FF,#F0FDF4);border:1px solid #BFDBFE;border-radius:16px;padding:20px 22px;margin-bottom:24px">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1E40AF;margin-bottom:8px">🤖 AI Analysis</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);letter-spacing:.08em;text-transform:uppercase;color:#1E40AF;margin-bottom:8px">🤖 AI Analysis</div>
         <div style="font-size:14px;color:#1E3A5F;line-height:1.7">${safe(data.summary)}</div>
       </div>`:''}
 
@@ -7580,18 +7630,18 @@ body{overflow-x:hidden}
               <div style="display:flex;gap:10px;align-items:flex-start">
                 <div style="width:40px;height:40px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏢</div>
                 <div style="flex:1;min-width:0">
-                  <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px;line-height:1.3">${safe(job.title)}</div>
+                  <div style="font-size:14px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:2px;line-height:1.3">${safe(job.title)}</div>
                   <div style="font-size:12px;color:var(--muted)">${safe(job.company)} · ${safe(job.location)}</div>
                 </div>
-                ${score?`<div style="flex-shrink:0;background:${scoreColor}20;color:${scoreColor};border-radius:100px;padding:3px 10px;font-size:12px;font-weight:700">${score}%</div>`:''}
+                ${score?`<div style="flex-shrink:0;background:${scoreColor}20;color:${scoreColor};border-radius:100px;padding:3px 10px;font-size:12px;font-weight:var(--font-weight-semibold,600)">${score}%</div>`:''}
               </div>
               ${job.whyFit?`<div style="background:linear-gradient(135deg,#F0FDF4,#EBF4FF);border-radius:10px;padding:10px 12px;font-size:12px;color:#1E3A5F;line-height:1.6"><b style="color:#059669">✓ Why this fits you:</b> ${safe(job.whyFit)}</div>`:''}
               <div style="font-size:12px;color:var(--ink2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${safe((job.description||'').slice(0,180))}</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                ${job.employmentType?`<span style="background:#EBF4FF;color:#0C447C;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.employmentType)}</span>`:''}
-                ${job.salary?`<span style="background:#ECFDF5;color:#065F46;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:500">${safe(job.salary)}</span>`:''}
+                ${job.employmentType?`<span style="background:#EBF4FF;color:#0C447C;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:var(--font-weight-medium,500)">${safe(job.employmentType)}</span>`:''}
+                ${job.salary?`<span style="background:#ECFDF5;color:#065F46;border-radius:100px;padding:2px 9px;font-size:11px;font-weight:var(--font-weight-medium,500)">${safe(job.salary)}</span>`:''}
               </div>
-              <button onclick="window.open('${link}','_blank')" style="width:100%;padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;margin-top:auto">Apply Now →</button>
+              <button onclick="window.open('${link}','_blank')" style="width:100%;padding:10px;background:#3B82F6;color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:var(--font-weight-medium,500);cursor:pointer;font-family:inherit;margin-top:auto">Apply Now →</button>
             </div>
           </div>`;
         }).join('')}
@@ -7599,16 +7649,16 @@ body{overflow-x:hidden}
 
       <!-- Tips -->
       ${data.tips&&data.tips.length?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:24px">
-        <div style="font-size:14px;font-weight:600;margin-bottom:14px">💡 Tips to improve your chances</div>
+        <div style="font-size:14px;font-weight:var(--font-weight-semibold,600);margin-bottom:14px">💡 Tips to improve your chances</div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          ${data.tips.map((t,i)=>`<div style="display:flex;gap:12px;align-items:flex-start"><div style="width:24px;height:24px;border-radius:50%;background:#EBF4FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:13px;color:var(--ink2);line-height:1.6">${safe(t)}</div></div>`).join('')}
+          ${data.tips.map((t,i)=>`<div style="display:flex;gap:12px;align-items:flex-start"><div style="width:24px;height:24px;border-radius:50%;background:#EBF4FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:var(--font-weight-semibold,600);flex-shrink:0">${i+1}</div><div style="font-size:13px;color:var(--ink2);line-height:1.6">${safe(t)}</div></div>`).join('')}
         </div>
       </div>`:''}
 
       <!-- Book a consultant -->
       <div style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FDE68A;border-radius:16px;padding:20px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px"><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500;margin-bottom:4px">Want expert help with your job search?</div><div style="font-size:13px;color:var(--muted)">Book a career coach on Guidcy for resume review, interview prep & salary negotiation</div></div>
-        <button onclick="window.go&&go('browse')" style="padding:11px 22px;background:#C9A96E;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">Find a Career Coach →</button>
+        <div style="flex:1;min-width:200px"><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500);margin-bottom:4px">Want expert help with your job search?</div><div style="font-size:13px;color:var(--muted)">Book a career coach on Guidcy for resume review, interview prep & salary negotiation</div></div>
+        <button onclick="window.go&&go('browse')" style="padding:11px 22px;background:#C9A96E;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit;white-space:nowrap">Find a Career Coach →</button>
       </div>`;
   }
 
@@ -7619,13 +7669,13 @@ body{overflow-x:hidden}
     results.innerHTML=`
       <!-- AI Summary -->
       ${data.summary?`<div style="background:linear-gradient(135deg,#F0FDF4,#EBF4FF);border:1px solid #BBF7D0;border-radius:16px;padding:20px 22px;margin-bottom:24px">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#065F46;margin-bottom:8px">🤖 AI Assessment</div>
+        <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);letter-spacing:.08em;text-transform:uppercase;color:#065F46;margin-bottom:8px">🤖 AI Assessment</div>
         <div style="font-size:14px;color:#1E3A5F;line-height:1.7">${safe(data.summary)}</div>
       </div>`:''}
 
       <!-- Legend -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
-        ${[['Safe Pick','#059669','#ECFDF5'],['Good Fit','#3B82F6','#EBF4FF'],['Stretch Goal','#D97706','#FEF3C7']].map(([l,c,bg])=>`<span style="background:${bg};color:${c};border-radius:100px;padding:4px 12px;font-size:12px;font-weight:600">${l}</span>`).join('')}
+        ${[['Safe Pick','#059669','#ECFDF5'],['Good Fit','#3B82F6','#EBF4FF'],['Stretch Goal','#D97706','#FEF3C7']].map(([l,c,bg])=>`<span style="background:${bg};color:${c};border-radius:100px;padding:4px 12px;font-size:12px;font-weight:var(--font-weight-semibold,600)">${l}</span>`).join('')}
         <div style="font-size:13px;color:var(--muted);display:flex;align-items:center">${programs.length} programs found</div>
       </div>
 
@@ -7636,9 +7686,9 @@ body{overflow-x:hidden}
           const[tc,bgc,bc]=catColors[cat]||catColors['Good Fit'];
           return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden">
             <div style="background:${bgc};border-bottom:1px solid ${bc}33;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <span style="background:${bc};color:#fff;border-radius:100px;padding:3px 12px;font-size:11px;font-weight:700">${safe(cat)}</span>
+              <span style="background:${bc};color:#fff;border-radius:100px;padding:3px 12px;font-size:11px;font-weight:var(--font-weight-semibold,600)">${safe(cat)}</span>
               <div>
-                <div style="font-size:16px;font-weight:700;color:${tc}">${safe(prog.name)}</div>
+                <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:${tc}">${safe(prog.name)}</div>
                 <div style="font-size:13px;color:${tc}99">${safe(prog.institution)} · ${safe(prog.location)}</div>
               </div>
             </div>
@@ -7646,17 +7696,17 @@ body{overflow-x:hidden}
               <div style="grid-column:1/-1;background:linear-gradient(135deg,#F0FDF4,#EBF4FF);border-radius:10px;padding:12px 14px;font-size:13px;color:#1E3A5F;line-height:1.65">
                 <b style="color:#059669">✓ Why this fits you:</b> ${safe(prog.whyFit||'')}
               </div>
-              <div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Duration</div><div style="font-size:13px">${safe(prog.duration||'N/A')}</div></div>
-              <div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Fees</div><div style="font-size:13px">${safe(prog.fees||'N/A')}</div></div>
-              <div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Eligibility</div><div style="font-size:13px">${safe(prog.eligibility||'N/A')}</div></div>
-              <div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Entrance Required</div><div style="font-size:13px">${safe(prog.entranceRequired||'N/A')}</div></div>
-              ${prog.deadline?`<div style="grid-column:1/-1"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Application Deadline</div><div style="font-size:13px;color:#D97706;font-weight:500">📅 ${safe(prog.deadline)}</div></div>`:''}
+              <div><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Duration</div><div style="font-size:13px">${safe(prog.duration||'N/A')}</div></div>
+              <div><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Fees</div><div style="font-size:13px">${safe(prog.fees||'N/A')}</div></div>
+              <div><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Eligibility</div><div style="font-size:13px">${safe(prog.eligibility||'N/A')}</div></div>
+              <div><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Entrance Required</div><div style="font-size:13px">${safe(prog.entranceRequired||'N/A')}</div></div>
+              ${prog.deadline?`<div style="grid-column:1/-1"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Application Deadline</div><div style="font-size:13px;color:#D97706;font-weight:var(--font-weight-medium,500)">📅 ${safe(prog.deadline)}</div></div>`:''}
               ${prog.admissionTips&&prog.admissionTips.length?`<div style="grid-column:1/-1">
-                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Admission Tips</div>
+                <div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Admission Tips</div>
                 ${prog.admissionTips.map(t=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:5px"><span style="color:#059669;flex-shrink:0">→</span><div style="font-size:13px;color:var(--ink2);line-height:1.5">${safe(t)}</div></div>`).join('')}
               </div>`:''}
               <div style="grid-column:1/-1">
-                <a href="${safe(prog.applyLink||'#')}" target="_blank" rel="noopener" style="display:block;width:100%;padding:11px;background:#059669;color:#fff;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;text-decoration:none">Visit Official Site & Apply →</a>
+                <a href="${safe(prog.applyLink||'#')}" target="_blank" rel="noopener" style="display:block;width:100%;padding:11px;background:#059669;color:#fff;border-radius:12px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit;text-align:center;text-decoration:none">Visit Official Site & Apply →</a>
               </div>
             </div>
           </div>`;
@@ -7665,28 +7715,28 @@ body{overflow-x:hidden}
 
       <!-- Action Plan -->
       ${data.actionPlan&&data.actionPlan.length?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;margin-bottom:16px">
-        <div style="font-size:14px;font-weight:600;margin-bottom:14px">📋 Your Action Plan</div>
+        <div style="font-size:14px;font-weight:var(--font-weight-semibold,600);margin-bottom:14px">📋 Your Action Plan</div>
         <div style="display:flex;flex-direction:column;gap:10px">
-          ${data.actionPlan.map((a,i)=>`<div style="display:flex;gap:12px;align-items:flex-start"><div style="width:26px;height:26px;border-radius:50%;background:#EBF4FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:13px;color:var(--ink2);line-height:1.65">${safe(a)}</div></div>`).join('')}
+          ${data.actionPlan.map((a,i)=>`<div style="display:flex;gap:12px;align-items:flex-start"><div style="width:26px;height:26px;border-radius:50%;background:#EBF4FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:var(--font-weight-semibold,600);flex-shrink:0">${i+1}</div><div style="font-size:13px;color:var(--ink2);line-height:1.65">${safe(a)}</div></div>`).join('')}
         </div>
       </div>`:''}
 
       <!-- Scholarships -->
       ${data.scholarships&&data.scholarships.length?`<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:16px;padding:16px 20px;margin-bottom:16px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:10px">🏆 Scholarships to Explore</div>
+        <div style="font-size:13px;font-weight:var(--font-weight-semibold,600);margin-bottom:10px">🏆 Scholarships to Explore</div>
         ${data.scholarships.map(s=>`<div style="font-size:13px;color:#92400E;margin-bottom:4px">→ ${safe(s)}</div>`).join('')}
       </div>`:''}
 
       <!-- Warnings -->
       ${data.warnings&&data.warnings.length?`<div style="background:#FFF1F2;border:1px solid #FECDD3;border-radius:16px;padding:16px 20px;margin-bottom:20px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:#9F1239">⚠️ Things to be aware of</div>
+        <div style="font-size:13px;font-weight:var(--font-weight-semibold,600);margin-bottom:10px;color:#9F1239">⚠️ Things to be aware of</div>
         ${data.warnings.map(w=>`<div style="font-size:13px;color:#881337;margin-bottom:4px">• ${safe(w)}</div>`).join('')}
       </div>`:''}
 
       <!-- Book a consultant -->
       <div style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid #FDE68A;border-radius:16px;padding:20px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px"><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500;margin-bottom:4px">Want personal guidance?</div><div style="font-size:13px;color:var(--muted)">Talk to an expert admission counsellor on Guidcy</div></div>
-        <button onclick="window.go&&go('browse')" style="padding:11px 22px;background:#C9A96E;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">Find a Counsellor →</button>
+        <div style="flex:1;min-width:200px"><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500);margin-bottom:4px">Want personal guidance?</div><div style="font-size:13px;color:var(--muted)">Talk to an expert admission counsellor on Guidcy</div></div>
+        <button onclick="window.go&&go('browse')" style="padding:11px 22px;background:#C9A96E;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:inherit;white-space:nowrap">Find a Counsellor →</button>
       </div>`;
   }
 
@@ -7840,7 +7890,7 @@ body{overflow-x:hidden}
     var container=document.getElementById('wbn-cards');
     if(!container) return;
     if(!webinars.length){
-      container.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';
+      container.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';
       return;
     }
     container.innerHTML=webinars.map(function(w,i){
@@ -7977,16 +8027,16 @@ body{overflow-x:hidden}
     var html='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)">'
       +'<table style="width:100%;border-collapse:collapse;font-size:13px">'
       +'<thead><tr style="background:var(--surface2)">'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">Webinar</th>'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Name</th>'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Email</th>'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Phone</th>'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Role</th>'
-      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">Registered at</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">Webinar</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Name</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Email</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Phone</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Role</th>'
+      +'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">Registered at</th>'
       +'</tr></thead><tbody>';
     regs.forEach(function(r){
       html+='<tr style="border-top:1px solid var(--border)">'
-        +'<td style="padding:10px 14px;font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.webinarTitle+'</td>'
+        +'<td style="padding:10px 14px;font-weight:var(--font-weight-medium,500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.webinarTitle+'</td>'
         +'<td style="padding:10px 14px">'+r.name+'</td>'
         +'<td style="padding:10px 14px;color:var(--blue)"><a href="mailto:'+r.email+'" style="color:var(--blue)">'+r.email+'</a></td>'
         +'<td style="padding:10px 14px">'+r.phone+'</td>'
@@ -8284,7 +8334,7 @@ body{overflow-x:hidden}
     var stat = byId('wbn-stat-count'); if(stat) stat.textContent = String(webinars.length || 0);
     var cont = byId('wbn-cards'); if(!cont) return;
     if(!webinars.length){
-      cont.innerHTML = '<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';
+      cont.innerHTML = '<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';
       return;
     }
     cont.innerHTML = webinars.map(function(w,i){
@@ -8354,7 +8404,7 @@ body{overflow-x:hidden}
   };
 
   var css = document.createElement('style');
-  css.textContent = '.wbn-delete-btn{padding:8px 16px;background:#FEF2F2;color:#B91C1C;border:1px solid #FCA5A5;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif}.wbn-delete-btn:hover{background:#FEE2E2}@media(max-width:768px){.wbn-card{display:block!important;visibility:visible!important}.wbn-grid{display:grid!important;grid-template-columns:1fr!important}.wbn-section-head{gap:12px;align-items:flex-start}.wbn-card-footer{gap:10px;align-items:flex-start}.wbn-card-footer>div:last-child{width:100%;justify-content:flex-end}.wbn-delete-btn,.wbn-register-btn{min-height:38px}}';
+  css.textContent = '.wbn-delete-btn{padding:8px 16px;background:#FEF2F2;color:#B91C1C;border:1px solid #FCA5A5;border-radius:100px;font-size:13px;font-weight:var(--font-weight-semibold,600);cursor:pointer;font-family:DM Sans,sans-serif}.wbn-delete-btn:hover{background:#FEE2E2}@media(max-width:768px){.wbn-card{display:block!important;visibility:visible!important}.wbn-grid{display:grid!important;grid-template-columns:1fr!important}.wbn-section-head{gap:12px;align-items:flex-start}.wbn-card-footer{gap:10px;align-items:flex-start}.wbn-card-footer>div:last-child{width:100%;justify-content:flex-end}.wbn-delete-btn,.wbn-register-btn{min-height:38px}}';
   document.head.appendChild(css);
 
   var previousGo = window.go;
@@ -8515,7 +8565,7 @@ body{overflow-x:hidden}
     list=list.filter(function(w){return status(w)!=='past'});
     var sc=byId('wbn-stat-count'); if(sc)sc.textContent=String(list.length||0);
     var cont=byId('wbn-cards'); if(!cont)return;
-    if(!list.length){cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';return}
+    if(!list.length){cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly. Follow Guidcy on WhatsApp for updates.</p></div>';return}
     cont.innerHTML=list.map(function(w,i){var c=colorFor(i),sl=seatsLeft(w),st=status(w),init=(w.speaker||'S').split(' ').map(function(x){return x[0]||''}).join('').slice(0,2).toUpperCase();var badge=st==='live'?'<span class="wbn-status-badge wsb-live" style="margin-left:8px">● Live now</span>':'<span class="wbn-status-badge wsb-upcoming" style="margin-left:8px">Upcoming</span>';var admin=isAdmin()?'<button class="wbn-edit-btn" onclick="event.stopPropagation();wbnEditSession(\''+w.id+'\')">Edit</button><button class="wbn-delete-btn" onclick="event.stopPropagation();wbnDeleteSession(\''+w.id+'\')">Delete</button>':'';return '<div class="wbn-card" onclick="wbnOpenReg(\''+w.id+'\')"><div class="wbn-card-banner"></div><div class="wbn-card-body"><div class="wbn-card-cat">'+w.cat+'</div><div class="wbn-card-title">'+w.title+badge+'</div><div class="wbn-card-desc">'+(w.desc||'')+'</div><div class="wbn-card-meta"><div class="wbn-meta-item"><span class="wbn-meta-icon">📅</span>'+fmtDate(w.date)+'</div><div class="wbn-meta-item"><span class="wbn-meta-icon">🕐</span>'+fmtTime(w.time)+'</div><div class="wbn-meta-item"><span class="wbn-meta-icon">⏱</span>'+w.dur+'</div></div><div class="wbn-card-speaker"><div class="wbn-speaker-av" style="background:'+c[0]+';color:'+c[1]+';border-color:'+c[1]+'33">'+init+'</div><div><div class="wbn-speaker-name">'+w.speaker+'</div><div class="wbn-speaker-role">'+w.speakerRole+'</div></div></div><div class="wbn-card-footer"><div class="wbn-seats"><div class="wbn-seats-dot"></div>'+(sl<=0?'Fully booked':'Free entry')+'</div><div class="wbn-admin-actions">'+admin+'<button class="wbn-register-btn" '+(sl<=0?'disabled':'')+' onclick="event.stopPropagation();wbnOpenReg(\''+w.id+'\')">'+(sl<=0?'Full':'Register free')+'</button></div></div></div></div>'}).join('');
     try{if(typeof window.wbnApplyAdminState==='function')window.wbnApplyAdminState()}catch(e){}
   };
@@ -8687,16 +8737,16 @@ body{overflow-x:hidden}
     list=Array.isArray(list)?list:[];
     if(!list.length){
       if(containerId==='cons-grid'){
-        g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:600;color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
+        g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:var(--surface2);border-radius:14px;border:1.5px dashed var(--border2)"><div style="font-size:40px;margin-bottom:14px">🌟</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Be among the first experts on Guidcy</div><p style="font-size:13px;color:var(--muted);max-width:380px;margin:0 auto 18px">Verified consultants are joining every week. Register now to start accepting bookings instantly.</p><button class="btn btn-blue" onclick="go(\'signup\');swType(\'consultant\')" style="padding:10px 24px">Join as Consultant →</button></div>';
       }else{
-        g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters. Try adjusting them or check back soon as more experts join.</p></div>';
+        g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No consultants found</div><p style="font-size:13px;max-width:280px;margin:0 auto">No consultants match your current filters. Try adjusting them or check back soon as more experts join.</p></div>';
       }
       return;
     }
     g.innerHTML=list.map(function(c){
       var id=esc(c.id||c.dbId), local=(typeof c.id==='number'?c.id:-1), edu=eduLine(c);
       var avatar=c.avatar_url?'<div class="c-avatar" style="background:url(\''+esc(c.avatar_url)+'\') center/cover no-repeat;border-color:'+(c.color||'#1E72BE')+'22"></div>':'<div class="c-avatar" style="background:'+(c.bg||'#EBF4FF')+';color:'+(c.color||'#1E72BE')+';border-color:'+(c.color||'#1E72BE')+'22">'+esc(c.initials||initials(c.name))+'</div>';
-      return '<div class="ccard" onclick="openProfile(\''+id+'\','+local+')"><div class="ccard-top">'+avatar+(c.badge==='verified'?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">'+(c.badge==='pending'?'Under Review':'New')+'</div>')+'<div class="c-name">'+esc(c.name||'Consultant')+'</div><div class="c-role">'+esc(c.role||'Consultant')+'</div>'+(edu?'<div class="guidcy-card-edu">🎓 '+esc(edu)+'</div>':'')+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+stars(c.rating)+'</span><span class="c-rev" style="margin-left:4px">'+(Number(c.rating)>0?esc(c.rating)+' ('+esc(c.reviews||0)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+Number(c.price||0).toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile(\''+id+'\','+local+')">Book</button></div></div>';
+      return '<div class="ccard" onclick="openProfile(\''+id+'\','+local+')"><div class="ccard-top">'+avatar+(c.badge==='verified'?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">'+(c.badge==='pending'?'Under Review':'New')+'</div>')+'<div class="c-name">'+esc(c.name||'Consultant')+'</div><div class="c-role">'+esc(c.role||'Consultant')+'</div>'+(edu?'<div class="guidcy-card-edu">🎓 '+esc(edu)+'</div>':'')+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+stars(c.rating)+'</span><span class="c-rev" style="margin-left:4px">'+(Number(c.rating)>0?esc(c.rating)+' ('+esc(c.reviews||0)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(Number(c.price||0))+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile(\''+id+'\','+local+')">Book</button></div></div>';
     }).join('');
   };
 
@@ -9030,7 +9080,7 @@ body{overflow-x:hidden}
     list=list.filter(function(w){return status(w)!=='past'});
     var sc=el('wbn-stat-count'); if(sc)sc.textContent=String(list.length||0);
     var cont=el('wbn-cards'); if(!cont)return;
-    if(!list.length){cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';return}
+    if(!list.length){cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';return}
     cont.innerHTML=list.map(function(w,i){
       var c=colorFor(i), sl=seatsLeft(w), st=status(w), init=(w.speaker||'S').split(' ').map(function(x){return x[0]||''}).join('').slice(0,2).toUpperCase();
       var badge=st==='live'?'<span class="wbn-status-badge wsb-live" style="margin-left:8px">● Live now</span>':'<span class="wbn-status-badge wsb-upcoming" style="margin-left:8px">Upcoming</span>';
@@ -9043,8 +9093,8 @@ body{overflow-x:hidden}
     var list=dedupeRegs(getLocalRegs());
     syncRegs().then(function(all){ if(all.length!==list.length){window.wbnRenderRegs()} });
     if(!list.length){box.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted);font-size:14px">No registrations yet.</div>';return}
-    var html='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Webinar</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Name</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Email</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Phone</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Role</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Goal</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Registered at</th></tr></thead><tbody>';
-    list.forEach(function(r){html+='<tr style="border-top:1px solid var(--border)"><td style="padding:10px 14px;font-weight:600;min-width:180px">'+esc(r.webinarTitle)+'</td><td style="padding:10px 14px">'+esc(r.name)+'</td><td style="padding:10px 14px;color:var(--blue)">'+esc(r.email)+'</td><td style="padding:10px 14px">'+esc(r.phone)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.role)+'</td><td style="padding:10px 14px;color:var(--muted);max-width:220px">'+esc(r.goal)+'</td><td style="padding:10px 14px;color:var(--muted);white-space:nowrap">'+esc(r.registeredAt)+'</td></tr>'});
+    var html='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Webinar</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Name</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Email</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Phone</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Role</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Goal</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Registered at</th></tr></thead><tbody>';
+    list.forEach(function(r){html+='<tr style="border-top:1px solid var(--border)"><td style="padding:10px 14px;font-weight:var(--font-weight-semibold,600);min-width:180px">'+esc(r.webinarTitle)+'</td><td style="padding:10px 14px">'+esc(r.name)+'</td><td style="padding:10px 14px;color:var(--blue)">'+esc(r.email)+'</td><td style="padding:10px 14px">'+esc(r.phone)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.role)+'</td><td style="padding:10px 14px;color:var(--muted);max-width:220px">'+esc(r.goal)+'</td><td style="padding:10px 14px;color:var(--muted);white-space:nowrap">'+esc(r.registeredAt)+'</td></tr>'});
     box.innerHTML=html+'</tbody></table></div><div style="font-size:12px;color:var(--muted);margin-top:8px;text-align:right">'+list.length+' total registration'+(list.length!==1?'s':'')+'</div>';
   };
   window.wbnExportRegs=function(){
@@ -9087,7 +9137,7 @@ body{overflow-x:hidden}
     tag.style.fontSize='12px';
     tag.style.letterSpacing='.08em';
     tag.style.textTransform='uppercase';
-    tag.style.fontWeight='700';
+    tag.style.fontWeight='var(--font-weight-medium,500)';
     tag.style.lineHeight='1';
     tag.style.textAlign='center';
     tag.style.background='linear-gradient(90deg,#0B4A9B,#2E8B1F)';
@@ -9157,7 +9207,7 @@ body{overflow-x:hidden}
   function byId(id){return document.getElementById(id)}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
   function txt(v){return String(v==null?'':v).trim()}
-  function money(n){n=Number(n||0);return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function money(n){n=Number(n||0);return n>0?window.guidcyFormatINR(n):'Free'}
   function currentEmail(){try{return txt((window.currentProfile&&window.currentProfile.email)||(window.currentUser&&window.currentUser.email)||'').toLowerCase()}catch(e){return ''}}
   function currentName(){try{return txt((window.currentProfile&&window.currentProfile.full_name)||(window.currentUser&&window.currentUser.user_metadata&&window.currentUser.user_metadata.full_name)||'Consultant')}catch(e){return 'Consultant'}}
   function currentUid(){try{return txt(window.currentUser&&window.currentUser.id)}catch(e){return ''}}
@@ -9184,7 +9234,7 @@ body{overflow-x:hidden}
   function regCountFor(w){w=norm(w);var rs=regsLocal();return rs.filter(function(r){return String(r.wid||r.webinar_id||'')===String(w.id)||String(r.webinarTitle||r.webinar_title||'')===String(w.title)}).length}
   function statusPill(s){return s==='completed'?'<span class="status-pill sp-done">Completed</span>':s==='live'?'<span class="status-pill sp-upcoming">Live</span>':'<span class="status-pill sp-pending">Upcoming</span>'}
   function fmtDate(w){w=norm(w);try{return new Date(w.date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return w.date||'—'}}
-  async function renderWebinarHistory(btn){ensureDashboardButton();if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(e){}}var m=byId('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';var list=await myWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Published webinar list</div><div style="font-size:12px;color:var(--muted)">Shows webinars published by your consultant account across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish new webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(w){w=norm(w);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div><p style="font-size:13px;margin-bottom:18px">Once you publish webinars, their posted/completed history will appear here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish your first webinar</button></div>')}
+  async function renderWebinarHistory(btn){ensureDashboardButton();if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('cons')}catch(e){}}var m=byId('cdash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading webinar history...</div>';var list=await myWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Published webinar list</div><div style="font-size:12px;color:var(--muted)">Shows webinars published by your consultant account across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish new webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(w){w=norm(w);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No webinar published yet</div><p style="font-size:13px;margin-bottom:18px">Once you publish webinars, their posted/completed history will appear here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish your first webinar</button></div>')}
   async function injectOverviewStrip(){
     /* Removed intentionally: webinar history already exists in consultant dashboard. */
     document.querySelectorAll('#guidcy-wbn-overview-strip,.guidcy-wbn-overview-strip').forEach(function(el){el.remove();});
@@ -9446,7 +9496,7 @@ body{overflow-x:hidden}
     window.openProfile=patchedOpen;
   }
   var style=document.createElement('style');
-  style.textContent='.guidcy-current-company-blue{color:var(--blue)!important;font-weight:600}.guidcy-role-with-company{color:var(--blue)!important;font-size:12px!important;line-height:1.45}.profile-role.guidcy-role-with-company{font-size:14px!important;margin-bottom:10px!important}';
+  style.textContent='.guidcy-current-company-blue{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)}.guidcy-role-with-company{color:var(--blue)!important;font-size:12px!important;line-height:1.45}.profile-role.guidcy-role-with-company{font-size:14px!important;margin-bottom:10px!important}';
   document.head.appendChild(style);
   document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){updateRenderedCards([]);updateProfileRole();},700);});
 })();
@@ -9464,7 +9514,7 @@ body{overflow-x:hidden}
     if(document.getElementById('guidcy-profile-work-blue-style')) return;
     var st=document.createElement('style');
     st.id='guidcy-profile-work-blue-style';
-    st.textContent='\n.profile-role,.c-role{color:var(--blue)!important;font-weight:600!important}\n.guidcy-current-company-blue{color:var(--blue)!important;font-weight:600!important}\n.profile-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:600!important;font-size:14px!important;margin-bottom:10px!important}\n.c-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:600!important;line-height:1.45!important}\n';
+    st.textContent='\n.profile-role,.c-role{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important}\n.guidcy-current-company-blue{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important}\n.profile-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important;font-size:14px!important;margin-bottom:10px!important}\n.c-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important;line-height:1.45!important}\n';
     document.head.appendChild(st);
   }
   function getCompanyFromMeta(scope){
@@ -9744,7 +9794,7 @@ body{overflow-x:hidden}
       '<div class="modal-card" style="max-width:460px;text-align:center">'+
         '<button class="modal-close" type="button" onclick="document.getElementById(\'guidcy-webinar-publish-guard\').classList.remove(\'on\')">×</button>'+
         '<div style="width:64px;height:64px;border-radius:50%;background:var(--blue-l);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:28px">🎙️</div>'+
-        '<h2 style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">Only consultants can publish webinars</h2>'+
+        '<h2 style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Only consultants can publish webinars</h2>'+
         '<p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:22px">Please log in as a consultant or create a consultant account to publish your webinar on Guidcy.</p>'+
         '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'+
           '<button class="btn" type="button" onclick="document.getElementById(\'guidcy-webinar-publish-guard\').classList.remove(\'on\');go(\'login\')" style="padding:11px 28px">Login</button>'+
@@ -10304,7 +10354,7 @@ body{overflow-x:hidden}
       var edu=c.highest_education&&c.college ? '<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>' : '';
       var work=c.current_work&&c.current_company ? '<div style="font-size:11px;color:var(--blue);margin-top:4px">'+esc(c.current_work)+', '+esc(c.current_company)+'</div>' : '';
       var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+col+'22"></div>':'<div class="c-avatar" style="background:'+bg+';color:'+col+';border-color:'+col+'22">'+esc(init(c.name))+'</div>';
-      return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+price.toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>';
+      return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(price)+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>';
     }).join('')+'</div>';
   }
   window.consRecs=function(cons,container,kws){
@@ -10326,7 +10376,7 @@ body{overflow-x:hidden}
     var wrap=document.createElement('div');
     wrap.id=boxId;
     wrap.style.cssText='margin-top:28px;border-top:1px solid var(--border);padding-top:28px';
-    wrap.innerHTML='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div><div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:500;margin-bottom:4px">Recommended Guidcy Experts</div><div style="font-size:13px;color:var(--muted)">Live approved consultants matched with your AI Finder profile.</div></div><button class="btn" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div><div id="sf-supabase-consultants-grid"><div style="font-size:13px;color:var(--muted);padding:12px">Loading matching experts...</div></div>';
+    wrap.innerHTML='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div><div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:var(--font-weight-medium,500);margin-bottom:4px">Recommended Guidcy Experts</div><div style="font-size:13px;color:var(--muted)">Live approved consultants matched with your AI Finder profile.</div></div><button class="btn" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div><div id="sf-supabase-consultants-grid"><div style="font-size:13px;color:var(--muted);padding:12px">Loading matching experts...</div></div>';
     results.appendChild(wrap);
     fetchSupabaseConsultants().then(function(cons){renderExpertCards(q('sf-supabase-consultants-grid'),rankConsultants(cons,kws),'No matching experts found for this profile yet.');});
   }
@@ -10450,7 +10500,7 @@ body{overflow-x:hidden}
   function norm(v){return String(v||'').toLowerCase().trim()}
   function arr(v){if(Array.isArray(v))return v; if(!v)return []; if(typeof v==='string')return v.split(/[,|;\n]/).map(function(x){return x.trim()}).filter(Boolean); return []}
   function initials(name){name=String(name||'Consultant').trim();return name.split(/\s+/).filter(Boolean).slice(0,2).map(function(x){return x[0]}).join('').toUpperCase()||'G'}
-  function money(n){n=Number(n||0)||0;return n.toLocaleString('en-IN')}
+  function money(n){return window.guidcyFormatINR(n)}
   function stars(r){var n=Math.max(0,Math.min(5,Math.round(Number(r)||0)));var s='';for(var i=0;i<5;i++)s+='<span style="color:'+(i<n?'#F59E0B':'#D8E8F5')+'">★</span>';return s}
   function getSB(){try{return window.sb||(typeof sb!=='undefined'?sb:null)}catch(e){return null}}
   function cText(c){return [c.name,c.role,c.specialty,c.category,c.bio,c.about,c.expertise,c.industry,c.current_work,c.current_company,c.highest_education,c.college,c.city,c.location,c.languages,c.sessionTypes,c.session_types,c.tags,c.skills,c.categories,c.certs,c.certifications].map(function(x){return Array.isArray(x)?x.join(' '):String(x||'')}).join(' ').toLowerCase()}
@@ -10580,7 +10630,7 @@ body{overflow-x:hidden}
     var edu=c.highest_education&&c.college?'<div style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>':'';
     var work=c.current_work&&c.current_company?'<div style="font-size:11px;color:var(--blue);margin-top:4px">'+esc(c.current_work)+', '+esc(c.current_company)+'</div>':'';
     var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+col+'22"></div>':'<div class="c-avatar" style="background:'+bg+';color:'+col+';border-color:'+col+'22">'+esc(initials(c.name))+'</div>';
-    return '<div class="guidcy-match-card-wrap"><div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+money(price)+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>'+(whyHtml?'<div class="guidcy-match-why">'+whyHtml+'</div>':'')+'</div>';
+    return '<div class="guidcy-match-card-wrap"><div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+money(price)+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>'+(whyHtml?'<div class="guidcy-match-why">'+whyHtml+'</div>':'')+'</div>';
   }
   function resourceCards(webinars,d){
     var cards=(webinars||[]).map(function(w){var title=w.title||w.topic||'Free webinar';var meta=[w.date,w.time,w.host_name||w.presenter].filter(Boolean).join(' · ')||'Free webinar from Guidcy'; var id=esc(w.id||''); return '<div class="guidcy-resource-card" onclick="window.go&&go(\'webinar\')"><div><div class="guidcy-resource-type">Free Webinar</div><div class="guidcy-resource-title">'+esc(title)+'</div><div class="guidcy-resource-meta">'+esc(meta)+'</div></div><div class="guidcy-resource-link">Open webinars →</div></div>'}).join('');
@@ -10665,9 +10715,9 @@ body{overflow-x:hidden}
     var next=data.recommended_next_step||{};
     var support=data.support?'<div class="guidcy-match-empty" style="margin-bottom:14px"><b style="color:var(--blue)">Support issue detected:</b> '+esc(data.support.message||'Guidcy AI recommends support flow for this request.')+'</div>':'';
     var follow=(data.follow_up_questions||[]).length?'<div class="guidcy-match-section-title">Follow-up questions</div><div class="guidcy-agent-followups">'+data.follow_up_questions.map(function(q){var enc=encodeURIComponent(q);return '<button type="button" onclick="var q=decodeURIComponent(\''+enc+'\');var g=document.getElementById(\'gm-home-goal\');if(g){g.value=g.value+\' | \'+q;}window.guidcyCreateGuidancePlan&&guidcyCreateGuidancePlan(\'gm-home\',true);window.guidcyAgentTrack&&guidcyAgentTrack(\'refine_search\',\'question\',null,\''+esc(intent)+'\',{question:q})">'+esc(q)+'</button>'}).join('')+'</div>':'';
-    var expertHtml=agentSection('Recommended experts',(data.experts||[]),function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(x.role||'Consultant')+(x.price?' · ₹'+money(x.price):'')+'</div><h4>'+esc(x.name||'Guidcy Expert')+'</h4><p>'+esc(x.reason||'Recommended from live approved consultant data.')+'</p><div class="guidcy-agent-actions"><button class="btn" onclick="guidcyAgentOpenExpert(\''+esc(x.id)+'\',false,\''+esc(intent)+'\')">View Profile</button><button class="btn btn-blue" onclick="guidcyAgentOpenExpert(\''+esc(x.id)+'\',true,\''+esc(intent)+'\')">Book Session</button></div></div>'},'No approved expert matched this exact goal yet.');
-    var noteHtml=agentSection('Recommended notes/resources',(data.notes||[]),function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(x.category||'Marketplace')+' · '+(Number(x.price||0)?'₹'+money(x.price):'Free')+'</div><h4>'+esc(x.title||'Guidcy Notes')+'</h4><p>'+esc(x.reason||'Recommended from live marketplace notes.')+'</p><div class="guidcy-agent-actions"><button class="btn btn-blue" onclick="guidcyAgentOpenNote(\''+esc(x.id)+'\',\''+esc(intent)+'\')">View</button></div></div>'},'No live marketplace notes matched this goal yet.');
-    var webinarHtml=agentSection('Recommended webinars',(data.webinars||[]),function(x){var meta=[x.date,x.time].filter(Boolean).join(' · ');return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(meta||'Webinar')+' · '+(Number(x.price||0)?'₹'+money(x.price):'Free')+'</div><h4>'+esc(x.title||'Guidcy Webinar')+'</h4><p>'+esc(x.reason||'Recommended from live webinar data.')+'</p><div class="guidcy-agent-actions"><button class="btn" onclick="guidcyAgentOpenWebinar(\''+esc(x.id)+'\',false,\''+esc(intent)+'\')">View</button><button class="btn btn-blue" onclick="guidcyAgentOpenWebinar(\''+esc(x.id)+'\',true,\''+esc(intent)+'\')">Register/View</button></div></div>'},'No live webinar matched this goal yet.');
+    var expertHtml=agentSection('Recommended experts',(data.experts||[]),function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(x.role||'Consultant')+(x.price?' · '+money(x.price):'')+'</div><h4>'+esc(x.name||'Guidcy Expert')+'</h4><p>'+esc(x.reason||'Recommended from live approved consultant data.')+'</p><div class="guidcy-agent-actions"><button class="btn" onclick="guidcyAgentOpenExpert(\''+esc(x.id)+'\',false,\''+esc(intent)+'\')">View Profile</button><button class="btn btn-blue" onclick="guidcyAgentOpenExpert(\''+esc(x.id)+'\',true,\''+esc(intent)+'\')">Book Session</button></div></div>'},'No approved expert matched this exact goal yet.');
+    var noteHtml=agentSection('Recommended notes/resources',(data.notes||[]),function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(x.category||'Marketplace')+' · '+(Number(x.price||0)?''+money(x.price):'Free')+'</div><h4>'+esc(x.title||'Guidcy Notes')+'</h4><p>'+esc(x.reason||'Recommended from live marketplace notes.')+'</p><div class="guidcy-agent-actions"><button class="btn btn-blue" onclick="guidcyAgentOpenNote(\''+esc(x.id)+'\',\''+esc(intent)+'\')">View</button></div></div>'},'No live marketplace notes matched this goal yet.');
+    var webinarHtml=agentSection('Recommended webinars',(data.webinars||[]),function(x){var meta=[x.date,x.time].filter(Boolean).join(' · ');return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(meta||'Webinar')+' · '+(Number(x.price||0)?''+money(x.price):'Free')+'</div><h4>'+esc(x.title||'Guidcy Webinar')+'</h4><p>'+esc(x.reason||'Recommended from live webinar data.')+'</p><div class="guidcy-agent-actions"><button class="btn" onclick="guidcyAgentOpenWebinar(\''+esc(x.id)+'\',false,\''+esc(intent)+'\')">View</button><button class="btn btn-blue" onclick="guidcyAgentOpenWebinar(\''+esc(x.id)+'\',true,\''+esc(intent)+'\')">Register/View</button></div></div>'},'No live webinar matched this goal yet.');
     var jobHtml=(data.jobs&&data.jobs.length)?agentSection('Jobs if relevant',data.jobs,function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc([x.company,x.location].filter(Boolean).join(' · ')||'Job')+'</div><h4>'+esc(x.title||'Guidcy Job')+'</h4><p>'+esc(x.reason||'Relevant live job opportunity.')+'</p><div class="guidcy-agent-actions"><button class="btn btn-blue" onclick="guidcyAgentRoute(\'/find-jobs\',\'refine_search\',\''+esc(intent)+'\')">View Jobs</button></div></div>'},''):'';
     var grantHtml=(data.grants&&data.grants.length)?agentSection('Grants/funds if relevant',data.grants,function(x){return '<div class="guidcy-agent-mini-card"><div class="guidcy-agent-mini-meta">'+esc(x.provider||'Funding')+'</div><h4>'+esc(x.title||'Funding Opportunity')+'</h4><p>'+esc(x.reason||'Relevant live funding opportunity.')+'</p><div class="guidcy-agent-actions"><button class="btn btn-blue" onclick="guidcyAgentRoute(\'/funds-grants\',\'refine_search\',\''+esc(intent)+'\')">View Grants</button></div></div>'},''):'';
     var planHtml=agentGuidancePlanHtml(data.guidance_plan);
@@ -10937,7 +10987,7 @@ body{overflow-x:hidden}
     const heuristic=computeHeuristicRate(p); const bench=await fetchSupabaseBenchmark(p.category);
     const rate=nearest99(bench?((heuristic*0.55)+(bench*0.45)):heuristic);
     const bio=buildBio(p);
-    q('#guidcy-ai-rate-out').textContent='₹'+rate;
+    q('#guidcy-ai-rate-out').textContent=window.guidcyFormatINR(rate);
     q('#guidcy-ai-bio-out').textContent=bio;
     q('#guidcy-ai-reasons').innerHTML=makeReasons(p,bench).map(x=>`<span class="guidcy-ai-reason">${esc(x)}</span>`).join('');
     box.dataset.rate=rate; box.dataset.bio=bio;
@@ -11122,11 +11172,11 @@ body{overflow-x:hidden}
     }catch(e){console.warn('Consultant email lookup skipped:',e)}
     return byId;
   }
-  window.guidcyViewConsultantDetails=async function(id){try{const {data:c}=await sb.from('consultants').select('*').eq('id',id).maybeSingle(); if(!c)return; const email=await fetchConsultantEmail(c); modal(`<div class="dash-title">Consultant details</div><div class="guidcy-admin-grid"><div class="guidcy-kv">Name<b>${esc(c.name)}</b></div><div class="guidcy-kv">Email<b>${esc(email)}</b></div><div class="guidcy-kv">Category<b>${esc(c.category||c.specialty)}</b></div><div class="guidcy-kv">Price/session<b>₹${num(c.rate||c.price).toLocaleString()}</b></div><div class="guidcy-kv">Education<b>${esc([c.highest_education,c.college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Current work/company<b>${esc([c.current_work,c.current_company_college].filter(Boolean).join(', ')||'—')}</b></div></div><p style="font-size:13px;color:var(--ink2);line-height:1.6">${esc(c.bio||'No bio added.')}</p>`)}catch(e){toast('Could not open consultant details','red')}};
+  window.guidcyViewConsultantDetails=async function(id){try{const {data:c}=await sb.from('consultants').select('*').eq('id',id).maybeSingle(); if(!c)return; const email=await fetchConsultantEmail(c); modal(`<div class="dash-title">Consultant details</div><div class="guidcy-admin-grid"><div class="guidcy-kv">Name<b>${esc(c.name)}</b></div><div class="guidcy-kv">Email<b>${esc(email)}</b></div><div class="guidcy-kv">Category<b>${esc(c.category||c.specialty)}</b></div><div class="guidcy-kv">Price/session<b>${window.guidcyFormatINR(num(c.rate||c.price))}</b></div><div class="guidcy-kv">Education<b>${esc([c.highest_education,c.college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Current work/company<b>${esc([c.current_work,c.current_company_college].filter(Boolean).join(', ')||'—')}</b></div></div><p style="font-size:13px;color:var(--ink2);line-height:1.6">${esc(c.bio||'No bio added.')}</p>`)}catch(e){toast('Could not open consultant details','red')}};
   window.guidcyApproveConsultant=async function(id){try{const body={approval_status:'approved',is_approved:true,is_active:true,badge:'verified',approved_at:new Date().toISOString(),approved_by:window.currentUser?.email||window.currentProfile?.email||ADMIN_EMAIL}; const {error}=await sb.from('consultants').update(body).eq('id',id); if(error)throw error; toast('Consultant approved and now visible on Guidcy.','green'); swAD('approvals',null)}catch(e){console.error(e);toast('Approval failed. Please try again.','red')}};
   window.guidcyRejectConsultant=function(id){modal(`<div class="dash-title">Reject consultant</div><p style="font-size:13px;color:var(--muted);margin-bottom:12px">Enter a clear reason. This will be visible to the consultant.</p><textarea id="guidcy-reject-reason" class="guidcy-mini-input" style="width:100%;min-height:110px;resize:vertical" placeholder="Reason for rejection"></textarea><div class="guidcy-actions"><button class="btn" onclick="document.getElementById('guidcy-admin-modal')?.remove()">Cancel</button><button class="action-btn ab-reject" onclick="guidcySubmitRejectConsultant('${esc(id)}')">Reject</button></div>`)};
   window.guidcySubmitRejectConsultant=async function(id){const reason=($('guidcy-reject-reason')?.value||'').trim(); if(!reason){toast('Please enter rejection reason','red');return;} try{const {error}=await sb.from('consultants').update({approval_status:'rejected',is_approved:false,is_active:false,badge:'rejected',rejection_reason:reason,rejected_at:new Date().toISOString()}).eq('id',id); if(error)throw error; $('guidcy-admin-modal')?.remove(); toast('Consultant rejected.','green'); swAD('approvals',null)}catch(e){console.error(e);toast('Reject action failed.','red')}};
-  window.guidcyOpenPayoutPaidDialog=function(id){const row=(window.__guidcyPayoutRows||[]).find(b=>String(b.id)===String(id)); if(!row)return; modal(`<div class="dash-title">Mark payout as paid</div><div class="guidcy-admin-card"><div class="guidcy-kv">Booking<b>${esc(row.id)}</b></div><div class="guidcy-kv">Consultant<b>${esc(row.consultant_name)} · ₹${num(row.consultant_payout_amount||row.amount).toLocaleString()}</b></div><div class="guidcy-kv">Session<b>${esc(row.date_label||'')} ${esc(row.time_slot||'')}</b></div></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-payout-txn" class="guidcy-mini-input" style="width:100%"/></div><div class="field"><label>Remarks optional</label><textarea id="guidcy-payout-remarks" class="guidcy-mini-input" style="width:100%;min-height:80px"></textarea></div><div class="guidcy-actions"><button class="btn" onclick="document.getElementById('guidcy-admin-modal')?.remove()">Cancel</button><button class="green-btn" onclick="guidcySubmitPayoutPaid('${esc(id)}')">Save paid status</button></div>`)};
+  window.guidcyOpenPayoutPaidDialog=function(id){const row=(window.__guidcyPayoutRows||[]).find(b=>String(b.id)===String(id)); if(!row)return; modal(`<div class="dash-title">Mark payout as paid</div><div class="guidcy-admin-card"><div class="guidcy-kv">Booking<b>${esc(row.id)}</b></div><div class="guidcy-kv">Consultant<b>${esc(row.consultant_name)} · ${window.guidcyFormatINR(num(row.consultant_payout_amount||row.amount))}</b></div><div class="guidcy-kv">Session<b>${esc(row.date_label||'')} ${esc(row.time_slot||'')}</b></div></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-payout-txn" class="guidcy-mini-input" style="width:100%"/></div><div class="field"><label>Remarks optional</label><textarea id="guidcy-payout-remarks" class="guidcy-mini-input" style="width:100%;min-height:80px"></textarea></div><div class="guidcy-actions"><button class="btn" onclick="document.getElementById('guidcy-admin-modal')?.remove()">Cancel</button><button class="green-btn" onclick="guidcySubmitPayoutPaid('${esc(id)}')">Save paid status</button></div>`)};
   window.guidcySubmitPayoutPaid=async function(id){const txn=($('guidcy-payout-txn')?.value||'').trim(); if(!txn){toast('Enter transaction ID / UTR','red');return;} try{const body={payout_status:'paid',payout_transaction_id:txn,payout_paid_at:new Date().toISOString(),payout_paid_by:window.currentUser?.email||window.currentProfile?.email||ADMIN_EMAIL,payout_remarks:($('guidcy-payout-remarks')?.value||'').trim()}; const {error}=await sb.from('bookings').update(body).eq('id',id); if(error)throw error; $('guidcy-admin-modal')?.remove(); toast('Payout marked as paid successfully.','green'); swAD('payouts',null)}catch(e){console.error(e);toast('Could not update payout status.','red')}};
 
   const origSwAD=window.swAD;
@@ -11141,7 +11191,7 @@ body{overflow-x:hidden}
          sequential round trips before this panel could paint - on mobile that is
          roughly half a second each. Fetch every missing email in a single query. */
       const emailById=await fetchConsultantEmails(list);
-      const html=[]; for(const c of list){const email=c.email||emailById[String(c.profile_id)]||''; html.push(`<div class="guidcy-admin-card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div style="font-weight:700;color:var(--ink)">${esc(c.name)}</div><div style="font-size:12px;color:var(--muted)">${esc(email)}</div></div><span class="status-pill sp-pending">Pending</span></div><div class="guidcy-admin-grid"><div class="guidcy-kv">Category / expertise<b>${esc(c.category||c.specialty||'—')}</b></div><div class="guidcy-kv">Education & college<b>${esc([c.highest_education,c.college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Current work & company<b>${esc([c.current_work,c.current_company_college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Price/session<b>₹${num(c.rate||c.price).toLocaleString()}</b></div><div class="guidcy-kv">Registered at<b>${c.created_at?new Date(c.created_at).toLocaleString('en-IN'):'—'}</b></div></div><p style="font-size:13px;color:var(--ink2);line-height:1.55">${esc(c.bio||'No bio added.')}</p><div class="guidcy-actions"><button class="btn" onclick="guidcyViewConsultantDetails('${esc(c.id)}')">View details</button><button class="action-btn ab-approve" onclick="guidcyApproveConsultant('${esc(c.id)}')">Approve</button><button class="action-btn ab-reject" onclick="guidcyRejectConsultant('${esc(c.id)}')">Reject</button></div></div>`)}
+      const html=[]; for(const c of list){const email=c.email||emailById[String(c.profile_id)]||''; html.push(`<div class="guidcy-admin-card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div style="font-weight:var(--font-weight-semibold,600);color:var(--ink)">${esc(c.name)}</div><div style="font-size:12px;color:var(--muted)">${esc(email)}</div></div><span class="status-pill sp-pending">Pending</span></div><div class="guidcy-admin-grid"><div class="guidcy-kv">Category / expertise<b>${esc(c.category||c.specialty||'—')}</b></div><div class="guidcy-kv">Education & college<b>${esc([c.highest_education,c.college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Current work & company<b>${esc([c.current_work,c.current_company_college].filter(Boolean).join(', ')||'—')}</b></div><div class="guidcy-kv">Price/session<b>${window.guidcyFormatINR(num(c.rate||c.price))}</b></div><div class="guidcy-kv">Registered at<b>${c.created_at?new Date(c.created_at).toLocaleString('en-IN'):'—'}</b></div></div><p style="font-size:13px;color:var(--ink2);line-height:1.55">${esc(c.bio||'No bio added.')}</p><div class="guidcy-actions"><button class="btn" onclick="guidcyViewConsultantDetails('${esc(c.id)}')">View details</button><button class="action-btn ab-approve" onclick="guidcyApproveConsultant('${esc(c.id)}')">Approve</button><button class="action-btn ab-reject" onclick="guidcyRejectConsultant('${esc(c.id)}')">Reject</button></div></div>`)}
       m.innerHTML='<div class="dash-title">Consultant Approval Requests</div>'+html.join(''); return;
     }
     if(view==='payouts'||view==='bookings'){
@@ -11151,7 +11201,7 @@ body{overflow-x:hidden}
       const filterHtml=`<div class="guidcy-filter-row"><select class="guidcy-mini-input" id="guidcy-pay-filter" onchange="swAD('${view}',null)"><option value="">All payment statuses</option><option value="completed">Payment completed</option><option value="pending">Payment pending</option></select><select class="guidcy-mini-input" id="guidcy-payout-filter" onchange="swAD('${view}',null)"><option value="">All payout statuses</option><option value="pending">Payout pending</option><option value="paid">Payout paid</option></select><input class="guidcy-mini-input" id="guidcy-cons-filter" placeholder="Consultant name/email" oninput="guidcyFilterBookingCards()"><input class="guidcy-mini-input" id="guidcy-date-filter" type="date" onchange="guidcyFilterBookingCards()"></div>`;
       if(onlyPayout)rows=rows.filter(b=>(b.payment_status==='success'||b.payment_id)&&((b.payout_status||'pending')==='pending'));
       if(!rows.length){m.innerHTML=`<div class="dash-title">${onlyPayout?'Consultant Payouts':'All bookings & payments'}</div>${filterHtml}<div style="text-align:center;padding:44px;color:var(--muted)">${onlyPayout?'No payout pending.':'No bookings found.'}</div>`;return;}
-      const cards=rows.map(b=>{const payout=b.payout_status||'pending', paid=payout==='paid'; const amount=num(b.amount), gross=num(b.total_amount||amount), _bf=window.guidcyFees(amount), platform=num(b.platform_fee)||_bf.platformFee, payoutAmt=num(b.consultant_payout_amount)||_bf.payout; return `<div class="guidcy-admin-card guidcy-booking-card" data-cons="${esc(low((b.consultant_name||'')+' '+(b.consultant_email||'')))}" data-date="${esc((b.created_at||'').slice(0,10))}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-weight:700">Booking ${esc(b.id||b.booking_id||'—')}</div><div style="font-size:12px;color:var(--muted)">${esc(b.session_type||b.category||'Session')} · ${esc(b.date_label||'—')} ${esc(b.time_slot||'')}</div></div><span class="status-pill ${paid?'sp-done':'sp-pending'}">Payout ${esc(payout)}</span></div><div class="guidcy-admin-grid"><div class="guidcy-kv">User<b>${esc(b.user_name||'—')}<br>${esc(b.user_email||'')}</b></div><div class="guidcy-kv">Consultant<b>${esc(b.consultant_name||'—')}<br>${esc(b.consultant_email||'')}</b></div><div class="guidcy-kv">Amount paid<b>₹${gross.toLocaleString()}</b></div><div class="guidcy-kv">Guidcy commission 15%<b>₹${platform.toLocaleString()}</b></div><div class="guidcy-kv">Payable to consultant<b>₹${payoutAmt.toLocaleString()}</b></div><div class="guidcy-kv">Payment status<b>${esc(b.payment_status||'success')}</b></div><div class="guidcy-kv">Razorpay Transaction ID<b>${esc(b.razorpay_order_id||b.payment_id||'—')}</b></div><div class="guidcy-kv">Booked at<b>${b.created_at?new Date(b.created_at).toLocaleString('en-IN'):'—'}</b></div>${paid?`<div class="guidcy-kv">Transaction ID<b>${esc(b.payout_transaction_id||'—')}</b></div><div class="guidcy-kv">Paid at / by<b>${b.payout_paid_at?new Date(b.payout_paid_at).toLocaleString('en-IN'):'—'}<br>${esc(b.payout_paid_by||'—')}</b></div><div class="guidcy-kv">Remarks<b>${esc(b.payout_remarks||'—')}</b></div>`:''}</div><div class="guidcy-actions">${paid?'<span style="font-size:12px;color:var(--green-d);font-weight:600">✓ Paid details saved</span>':`<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenPayoutPaidDialog('${esc(b.id)}')">Paid</button>`}</div></div>`}).join('');
+      const cards=rows.map(b=>{const payout=b.payout_status||'pending', paid=payout==='paid'; const amount=num(b.amount), gross=num(b.total_amount||amount), _bf=window.guidcyFees(amount), platform=num(b.platform_fee)||_bf.platformFee, payoutAmt=num(b.consultant_payout_amount)||_bf.payout; return `<div class="guidcy-admin-card guidcy-booking-card" data-cons="${esc(low((b.consultant_name||'')+' '+(b.consultant_email||'')))}" data-date="${esc((b.created_at||'').slice(0,10))}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-weight:var(--font-weight-semibold,600)">Booking ${esc(b.id||b.booking_id||'—')}</div><div style="font-size:12px;color:var(--muted)">${esc(b.session_type||b.category||'Session')} · ${esc(b.date_label||'—')} ${esc(b.time_slot||'')}</div></div><span class="status-pill ${paid?'sp-done':'sp-pending'}">Payout ${esc(payout)}</span></div><div class="guidcy-admin-grid"><div class="guidcy-kv">User<b>${esc(b.user_name||'—')}<br>${esc(b.user_email||'')}</b></div><div class="guidcy-kv">Consultant<b>${esc(b.consultant_name||'—')}<br>${esc(b.consultant_email||'')}</b></div><div class="guidcy-kv">Amount paid<b>${window.guidcyFormatINR(gross)}</b></div><div class="guidcy-kv">Guidcy commission 15%<b>${window.guidcyFormatINR(platform)}</b></div><div class="guidcy-kv">Payable to consultant<b>${window.guidcyFormatINR(payoutAmt)}</b></div><div class="guidcy-kv">Payment status<b>${esc(b.payment_status||'success')}</b></div><div class="guidcy-kv">Razorpay Transaction ID<b>${esc(b.razorpay_order_id||b.payment_id||'—')}</b></div><div class="guidcy-kv">Booked at<b>${b.created_at?new Date(b.created_at).toLocaleString('en-IN'):'—'}</b></div>${paid?`<div class="guidcy-kv">Transaction ID<b>${esc(b.payout_transaction_id||'—')}</b></div><div class="guidcy-kv">Paid at / by<b>${b.payout_paid_at?new Date(b.payout_paid_at).toLocaleString('en-IN'):'—'}<br>${esc(b.payout_paid_by||'—')}</b></div><div class="guidcy-kv">Remarks<b>${esc(b.payout_remarks||'—')}</b></div>`:''}</div><div class="guidcy-actions">${paid?'<span style="font-size:12px;color:var(--green-d);font-weight:var(--font-weight-semibold,600)">✓ Paid details saved</span>':`<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenPayoutPaidDialog('${esc(b.id)}')">Paid</button>`}</div></div>`}).join('');
       m.innerHTML=`<div class="dash-title">${onlyPayout?'Consultant Payouts':'All bookings & payments'}</div>${filterHtml}${cards}`; return;
     }
     return origSwAD.apply(this,arguments);
@@ -11161,7 +11211,7 @@ body{overflow-x:hidden}
   const origSwCD=window.swCD;
   window.swCD=async function(view,btn){
     if(window.sb&&window.currentUser){
-      try{const {data:c}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).maybeSingle(); if(c&&(c.approval_status==='pending'||c.is_approved===false&&c.approval_status!=='approved')){ if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons')} const m=$('cdash-main'); if(m){const rejected=c.approval_status==='rejected'; m.innerHTML=`<div class="dash-title">Consultant profile status</div><div class="guidcy-admin-card" style="text-align:center;padding:42px 20px"><div style="font-size:42px;margin-bottom:12px">${rejected?'⚠️':'⏳'}</div><div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--ink);margin-bottom:8px">${rejected?'Your consultant profile was not approved.':'Your consultant profile is under admin review.'}</div><p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto 14px">${rejected?'Please review the reason below and update your profile before contacting Guidcy support.':'You will be visible on Guidcy after approval. Bookings are disabled until approval.'}</p>${rejected&&c.rejection_reason?`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--rs);padding:12px;font-size:13px;color:#9A3412;max-width:560px;margin:0 auto;text-align:left"><b>Reason:</b> ${esc(c.rejection_reason)}</div>`:''}</div>`;} return; }}catch(e){console.warn('Consultant approval dashboard check skipped:',e)}
+      try{const {data:c}=await sb.from('consultants').select('*').eq('profile_id',currentUser.id).maybeSingle(); if(c&&(c.approval_status==='pending'||c.is_approved===false&&c.approval_status!=='approved')){ if(btn){document.querySelectorAll('#page-cons-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.closeDashMenu&&window.closeDashMenu('cons')} const m=$('cdash-main'); if(m){const rejected=c.approval_status==='rejected'; m.innerHTML=`<div class="dash-title">Consultant profile status</div><div class="guidcy-admin-card" style="text-align:center;padding:42px 20px"><div style="font-size:42px;margin-bottom:12px">${rejected?'⚠️':'⏳'}</div><div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">${rejected?'Your consultant profile was not approved.':'Your consultant profile is under admin review.'}</div><p style="font-size:14px;color:var(--muted);max-width:520px;margin:0 auto 14px">${rejected?'Please review the reason below and update your profile before contacting Guidcy support.':'You will be visible on Guidcy after approval. Bookings are disabled until approval.'}</p>${rejected&&c.rejection_reason?`<div style="background:#FFF7ED;border:1px solid #FDBA74;border-radius:var(--rs);padding:12px;font-size:13px;color:#9A3412;max-width:560px;margin:0 auto;text-align:left"><b>Reason:</b> ${esc(c.rejection_reason)}</div>`:''}</div>`;} return; }}catch(e){console.warn('Consultant approval dashboard check skipped:',e)}
     }
     return origSwCD.apply(this,arguments);
   };
@@ -11184,7 +11234,7 @@ body{overflow-x:hidden}
   function $(id){return document.getElementById(id)}
   function sbc(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(n){n=Number(n||0);return n?('₹'+n.toLocaleString('en-IN')):''}
+  function money(n){n=Number(n||0);return n?(window.guidcyFormatINR(n)):''}
   function first(){for(var i=0;i<arguments.length;i++){var v=arguments[i]; if(v!==undefined&&v!==null&&String(v).trim()!=='')return v} return ''}
   function isActiveByDate(r){var now=Date.now();var s=r.start_date?new Date(r.start_date).getTime():0;var e=r.end_date?new Date(r.end_date).getTime():0;return r.is_active!==false && (!s||s<=now) && (!e||e>=now)}
   function isApproved(c){return c && (c.is_approved===true || String(c.is_approved).toLowerCase()==='true') && String(c.approval_status||'').toLowerCase()==='approved'}
@@ -11413,7 +11463,7 @@ body{overflow-x:hidden}
   function card(b){
     const past=isPastSession(b); const ss=b.session_status||({'completed':'completed','cancelled':'cancelled','no_show':'no_show','disputed':'disputed'}[b.status])||'scheduled';
     const cancelled=ss==='cancelled'||b.status==='cancelled', completed=ss==='completed'||b.status==='completed', disputed=ss==='disputed'||b.status==='disputed';
-    const amount=Number(b.total_amount||b.amount||0); const meta=`${esc(b.date_label||b.booking_date||'Date pending')} · ${esc(b.time_slot||b.time||'')} · ${esc(b.duration||60)} min ${amount?' · ₹'+amount.toLocaleString('en-IN'):''}`;
+    const amount=Number(b.total_amount||b.amount||0); const meta=`${esc(b.date_label||b.booking_date||'Date pending')} · ${esc(b.time_slot||b.time||'')} · ${esc(b.duration||60)} min ${amount?' · '+window.guidcyFormatINR(amount):''}`;
     let actions='';
     if(!completed&&!cancelled&&!disputed){
       if(past&&b.status==='confirmed') actions+=`<button class="bk-btn green" onclick="guidcyOpenSessionDialog('complete','${esc(b.id)}')">Mark as Session Happened</button>`;
@@ -11602,7 +11652,7 @@ body{overflow-x:hidden}
   const toastSafe=(m,t)=>{try{toast(m,t||'blue')}catch(e){alert(m)}};
   const fmtDate=d=>{try{return d?new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):''}catch(e){return d||''}};
   const fmtTime=t=>{try{let a=String(t||'').split(':'),h=parseInt(a[0]||'0',10),m=a[1]||'00',ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m+' '+ap+' IST'}catch(e){return t||''}};
-  const money=n=>{const x=Number(n||0);return x?('₹'+x.toLocaleString('en-IN')):'—'};
+  const money=n=>{const x=Number(n||0);return x?(window.guidcyFormatINR(x)):'—'};
   function safeTitleFromId(id){
     let s=String(id||'').replace(/^WBN[-_]?/i,'');
     s=s.replace(/-20\d{2}-\d{2}-\d{2}.*$/,'').replace(/[-_]+/g,' ').trim();
@@ -11751,7 +11801,7 @@ body{overflow-x:hidden}
   function ensureDeleteModal(){
     if($('wbn-delete-reg-modal'))return;
     const d=document.createElement('div'); d.id='wbn-delete-reg-modal'; d.className='wbn-delete-modal';
-    d.innerHTML='<div class="wbn-delete-card"><h3>Delete webinar registration?</h3><p>Are you sure you want to delete this webinar registration? This action will remove this registration from the active admin list.</p><label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Delete reason optional</label><textarea id="wbn-delete-reg-reason" placeholder="Example: Payment not completed / duplicate registration"></textarea><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'wbn-delete-reg-modal\').classList.remove(\'on\')">Cancel</button><button class="btn btn-red" onclick="guidcyDeleteWebinarRegistration()">Delete Registration</button></div></div>';
+    d.innerHTML='<div class="wbn-delete-card"><h3>Delete webinar registration?</h3><p>Are you sure you want to delete this webinar registration? This action will remove this registration from the active admin list.</p><label style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Delete reason optional</label><textarea id="wbn-delete-reg-reason" placeholder="Example: Payment not completed / duplicate registration"></textarea><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'wbn-delete-reg-modal\').classList.remove(\'on\')">Cancel</button><button class="btn btn-red" onclick="guidcyDeleteWebinarRegistration()">Delete Registration</button></div></div>';
     document.body.appendChild(d);
   }
   window.guidcyConfirmDeleteWebinarReg=function(id){ensureDeleteModal(); window.__deleteWebinarRegId=id; const r=$('wbn-delete-reg-reason'); if(r)r.value=''; $('wbn-delete-reg-modal').classList.add('on')};
@@ -12249,7 +12299,7 @@ body{overflow-x:hidden}
   const logged=()=>!!(window.currentUser&&currentUser.id); const uid=()=>window.currentUser?.id||''; const email=()=>window.currentUser?.email||window.currentProfile?.email||'';
   const name=()=>window.currentProfile?.full_name||window.currentProfile?.name||email()||'Guidcy user';
   const phone=()=>window.currentProfile?.phone||'9999999999';
-  const rupee=n=>'₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+  const rupee=n=>window.guidcyFormatINR(Number(n||0));
   const cfg=()=>{try{return typeof CFG!=='undefined'?CFG:(window.CFG||{})}catch(_){return window.CFG||{}}};
   const uniqueRazorpayTxn=()=> 'GDYMKT-'+Date.now()+'-'+Math.floor(Math.random()*900000+100000);
   const previewJobs=new Set();
@@ -12464,7 +12514,7 @@ body{overflow-x:hidden}
   }
   async function redownload(id){const n=await getNote(id), o=await existingOrder(id); if(n&&o)grantDownload(n,o)}
   function injectDashNav(){try{const a=document.querySelector('#page-admin-dash .side-nav'); if(a&&!a.querySelector('[data-gmkt-admin]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktAdmin='1'; b.dataset.adminSection='marketplace'; b.dataset.dashSection='marketplace'; b.textContent='🛒 Marketplace'; b.onclick=function(){window.swAD('marketplace',this)}; a.appendChild(b)}}catch(_){} try{const c=document.querySelector('#page-cons-dash .side-nav'); if(c&&!c.querySelector('[data-gmkt-seller]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktSeller='1'; b.dataset.dashSection='marketplace'; b.textContent='🛒 My Marketplace'; b.onclick=function(){window.swCD('marketplace',this)}; c.appendChild(b)}}catch(_){} try{const c2=document.querySelector('#page-cons-dash .side-nav'); if(c2&&!c2.querySelector('[data-gmkt-cons-buyer]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktConsBuyer='1'; b.dataset.dashSection='marketplace-purchases'; b.textContent='🛒 Purchased Notes'; b.onclick=function(){window.swCD('marketplace-purchases',this)}; c2.appendChild(b)}}catch(_){} try{const u=document.querySelector('#page-user-dash .side-nav'); if(u&&!u.querySelector('[data-gmkt-buyer]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktBuyer='1'; b.dataset.dashSection='marketplace'; b.textContent='🛒 Purchased Notes'; b.onclick=function(){window.swUD('marketplace',this)}; u.appendChild(b)}}catch(_){}}
-  function wrapRoutes(){const oldRender=window.renderPage||(typeof renderPage==='function'?renderPage:null); if(oldRender&&!oldRender.__gmkt){window.renderPage=function(page){if(page==='marketplace'){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); ensurePage().classList.add('on'); history.replaceState(history.state||{page:'marketplace'},'',location.pathname.replace(/\/$/,'')==='/marketplace'?location.href:'/marketplace'); render(); return} return oldRender.apply(this,arguments)}; window.renderPage.__gmkt=true} const oldGo=window.go||(typeof go==='function'?go:null); if(oldGo&&!oldGo.__gmkt){window.go=function(page){if(page==='marketplace'){history.pushState({page:'marketplace'},'','/marketplace'); window.renderPage?window.renderPage('marketplace'):render(); return} return oldGo.apply(this,arguments)}; window.go.__gmkt=true} const oldAD=window.swAD; if(oldAD&&!oldAD.__gmkt){window.swAD=function(v,b){injectDashNav(); if(v==='marketplace')return admin(b); return oldAD.apply(this,arguments)}; window.swAD.__gmkt=true} const oldCD=window.swCD; if(oldCD&&!oldCD.__gmkt){window.swCD=function(v,b){injectDashNav(); if(v==='marketplace')return seller(b); if(v==='marketplace-purchases')return purchases(b,'cdash-main'); return oldCD.apply(this,arguments)}; window.swCD.__gmkt=true} const oldUD=window.swUD; if(oldUD&&!oldUD.__gmkt){window.swUD=function(v,b){injectDashNav(); if(v==='marketplace')return purchases(b); return oldUD.apply(this,arguments)}; window.swUD.__gmkt=true}}
+  function wrapRoutes(){const oldRender=window.renderPage||(typeof renderPage==='function'?renderPage:null); if(oldRender&&!oldRender.__gmkt){window.renderPage=function(page){if(page==='marketplace'){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); ensurePage().classList.add('on'); history.replaceState(history.state||{page:'marketplace'},'',location.pathname.replace(/\/$/,'')==='/marketplace'?location.href:'/marketplace'); render(); return} return oldRender.apply(this,arguments)}; window.renderPage.__gmkt=true} const oldGo=window.go||(typeof go==='function'?go:null); if(oldGo&&!oldGo.__gmkt){window.go=function(page){if(page==='marketplace'){history.pushState({page:'marketplace'},'','/marketplace'); window.renderPage?window.renderPage('marketplace'):render(); return} return oldGo.apply(this,arguments)}; window.go.__gmkt=true} /* Dashboard routing is owned by the controller once it is installed. Do not replace it from this DOMContentLoaded/timer adapter. */ if(window.__GUIDCY_ROUTE_AUTH_CONTROLLER_V6__)return; const oldAD=window.swAD; if(oldAD&&!oldAD.__gmkt){window.swAD=function(v,b){injectDashNav(); if(v==='marketplace')return admin(b); return oldAD.apply(this,arguments)}; window.swAD.__gmkt=true} const oldCD=window.swCD; if(oldCD&&!oldCD.__gmkt){window.swCD=function(v,b){injectDashNav(); if(v==='marketplace')return seller(b); if(v==='marketplace-purchases')return purchases(b,'cdash-main'); return oldCD.apply(this,arguments)}; window.swCD.__gmkt=true} const oldUD=window.swUD; if(oldUD&&!oldUD.__gmkt){window.swUD=function(v,b){injectDashNav(); if(v==='marketplace')return purchases(b); return oldUD.apply(this,arguments)}; window.swUD.__gmkt=true}}
   async function restorePending(){let a=null; try{a=JSON.parse(sessionStorage.getItem('guidcy_pending_marketplace_action')||'null')}catch(_){} if(!a||!logged())return; sessionStorage.removeItem('guidcy_pending_marketplace_action'); go('marketplace'); setTimeout(()=>{if(a.type==='marketplace_upload')openUpload(); else if(a.noteId)openDetails(a.noteId).then(()=>{if(a.type==='marketplace_buy_or_download')buyOrDownload(a.noteId)})},700)}
   function closeModal(){const m=$('gmkt-modal'); if(m){m.classList.remove('on'); const d=m.querySelector('.gmkt-dialog'); if(d)d.classList.remove('gmkt-full-dialog')} document.body.style.overflow=''} function closeAuth(){const m=$('gmkt-auth-modal'); if(m)m.classList.remove('on'); document.body.style.overflow=''}
   document.addEventListener('click',function(e){const b=e.target.closest('[data-gmkt-action]'); if(!b)return; const id=b.getAttribute('data-gmkt-id'), action=b.getAttribute('data-gmkt-action'); if(!id)return; e.preventDefault(); e.stopPropagation(); if(action==='preview')openPreview(id); else if(action==='details')openDetails(id); else if(action==='buy')buyOrDownload(id); else if(action==='generate')ensurePreviewForNote(id,false).then(()=>render()); else if(action==='edit')openEdit(id); else if(action==='delete')deleteNote(id);});
@@ -13136,7 +13186,7 @@ body{overflow-x:hidden}
     const page=ensurePage('page-blog');
     const posts=getBlogPosts();
     let role='';try{role=(currentProfile&&currentProfile.role)||loggedIn||''}catch(e){role=window.loggedIn||''}
-    page.innerHTML=`<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:14px;color:var(--ink)">Guidcy Blog</h1><p style="color:var(--muted);font-size:17px;margin-bottom:34px">Insights from Guidcy. Admin can publish posts; users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div id="blog-list">${posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;margin-bottom:18px"><h2 style="font-size:30px;margin-bottom:10px;color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif">${esc(p.title)}</h2><div style="font-size:14px;color:var(--muted);margin-bottom:22px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b;font-size:16px;line-height:1.75">${esc(p.body)}</p><div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px"><h4 style="color:var(--blue);margin-bottom:12px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:14px">No comments yet.</p>'}<div class="blog-comment-row" style="display:flex;gap:10px;margin-top:12px"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:48px;border:1px solid var(--border);border-radius:12px;padding:0 14px;font-size:15px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})" style="padding:0 22px">Comment</button></div></div></article>`).join('')}</div></div>`;
+    page.innerHTML=`<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:14px;color:var(--ink)">Guidcy Blog</h1><p style="color:var(--muted);font-size:17px;margin-bottom:34px">Insights from Guidcy. Admin can publish posts; users and consultants can comment.</p>${role==='admin'?`<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>`:''}<div id="blog-list">${posts.map((p,i)=>`<article style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;margin-bottom:18px"><h2 style="font-size:30px;margin-bottom:10px;color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif">${esc(p.title)}</h2><div style="font-size:14px;color:var(--muted);margin-bottom:22px">${esc(p.date)}</div><p style="white-space:pre-wrap;color:#42576b;font-size:16px;line-height:1.75">${esc(p.body)}</p><div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px"><h4 style="color:var(--blue);margin-bottom:12px">Comments</h4>${(p.comments||[]).map(c=>`<div style="background:#F8FBFF;border:1px solid #E6F1FB;border-radius:12px;padding:10px;margin:8px 0"><b>${esc(c.name)}</b><p style="margin:4px 0 0;color:#42576b">${esc(c.text)}</p></div>`).join('')||'<p style="color:var(--muted);font-size:14px">No comments yet.</p>'}<div class="blog-comment-row" style="display:flex;gap:10px;margin-top:12px"><input id="comment-${i}" placeholder="Write a comment" style="flex:1;min-width:220px;height:48px;border:1px solid var(--border);border-radius:12px;padding:0 14px;font-size:15px"><button class="btn btn-blue" onclick="guidcyAddComment(${i})" style="padding:0 22px">Comment</button></div></div></article>`).join('')}</div></div>`;
   };
   window.guidcyAddBlogPost=function(){const t=id('blog-title')?.value.trim(),b=id('blog-body')?.value.trim();if(!t||!b){try{toast('Please add blog title and content','red')}catch(e){}return}const posts=getBlogPosts();posts.unshift({title:t,body:b,date:new Date().toLocaleDateString('en-IN'),comments:[]});saveBlogPosts(posts);window.renderGuidcyBlog();try{toast('Blog published','green')}catch(e){}};
   window.guidcyAddComment=function(i){const inp=id('comment-'+i);const txt=inp?.value.trim();if(!txt)return;const posts=getBlogPosts();posts[i].comments=posts[i].comments||[];let name='Guest';try{name=(currentProfile&&currentProfile.full_name)||'Guest'}catch(e){}posts[i].comments.push({name,text:txt});saveBlogPosts(posts);window.renderGuidcyBlog();};
@@ -13281,7 +13331,7 @@ body{overflow-x:hidden}
       <li>There is a clear booking mismatch (wrong time, date, or expert)</li>
     </ul>
     <div class="ghelp-note">
-      <strong>Note:</strong> Disputes are for confirmed booking or session issues only. For general questions or account help, please use the <button onclick="go('help')" style="background:none;border:none;color:var(--blue-d);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;padding:0;text-decoration:underline">Help Center</button> instead.
+      <strong>Note:</strong> Disputes are for confirmed booking or session issues only. For general questions or account help, please use the <button onclick="go('help')" style="background:none;border:none;color:var(--blue-d);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:var(--font-weight-semibold,600);padding:0;text-decoration:underline">Help Center</button> instead.
     </div>
   </div>
 
@@ -13502,7 +13552,10 @@ body{overflow-x:hidden}
        above this box (and the one the route controller matches on), so repeating
        it here rendered "Homepage Featured Experts Control" twice, one directly
        under the other. Keep the description; the heading stays with the title. */
-    box.innerHTML=`<div style="font-size:13px;color:var(--muted);margin:0 0 12px">Select exactly which consultants appear on homepage and set their display order. Rank 1 is shown first, Rank 2 second, and unchecked consultants stay hidden from Featured Experts.</div><label style="font-size:13px;font-weight:600">Maximum visible on homepage <input id="guidcy-feature-limit" type="number" min="1" max="${Math.max(1,(list||[]).length)}" value="${lim}"></label><div style="max-height:430px;overflow:auto;margin-top:12px"><table class="guidcy-admin-feature-table"><thead><tr><th>Show</th><th>Rank</th><th>Consultant</th><th>Expertise</th></tr></thead><tbody>${(list||[]).map((c,i)=>{const k=consultantKey(c);const isSel=selected.size?selected.has(k):i<lim;return `<tr><td><input class="gfeat-show" data-k="${esc(k)}" type="checkbox" ${isSel?'checked':''}></td><td><input class="gfeat-rank" data-k="${esc(k)}" type="number" min="1" value="${esc(cleanFeaturedRank(ranks[k],i+1))}"></td><td><b>${esc(consultantName(c))}</b><div style="font-size:12px;color:var(--muted)">${esc(c.email||'')}</div></td><td>${esc(consultantRole(c))}</td></tr>`}).join('')||'<tr><td colspan="4">No consultants found in database yet.</td></tr>'}</tbody></table></div><div class="guidcy-admin-feature-actions"><button class="btn btn-blue" onclick="guidcySaveFeaturedOrder()">Save Featured Order</button><button class="btn" onclick="guidcySelectAllFeatured()">Select All</button><button class="btn" onclick="guidcyClearFeatured()">Clear Selection</button></div>`;
+    const controlsHtml=`<div style="font-size:13px;color:var(--muted);margin:0 0 12px">Select exactly which consultants appear on homepage and set their display order. Rank 1 is shown first, Rank 2 second, and unchecked consultants stay hidden from Featured Experts.</div><label style="font-size:13px;font-weight:var(--font-weight-semibold,600)">Maximum visible on homepage <input id="guidcy-feature-limit" type="number" min="1" max="${Math.max(1,(list||[]).length)}" value="${lim}"></label><div style="max-height:430px;overflow:auto;margin-top:12px"><table class="guidcy-admin-feature-table"><thead><tr><th>Show</th><th>Rank</th><th>Consultant</th><th>Expertise</th></tr></thead><tbody>${(list||[]).map((c,i)=>{const k=consultantKey(c);const isSel=selected.size?selected.has(k):i<lim;return `<tr><td><input class="gfeat-show" data-k="${esc(k)}" type="checkbox" ${isSel?'checked':''}></td><td><input class="gfeat-rank" data-k="${esc(k)}" type="number" min="1" value="${esc(cleanFeaturedRank(ranks[k],i+1))}"></td><td><b>${esc(consultantName(c))}</b><div style="font-size:12px;color:var(--muted)">${esc(c.email||'')}</div></td><td>${esc(consultantRole(c))}</td></tr>`}).join('')||'<tr><td colspan="4">No consultants found in database yet.</td></tr>'}</tbody></table></div><div class="guidcy-admin-feature-actions"><button class="btn btn-blue" onclick="guidcySaveFeaturedOrder()">Save Featured Order</button><button class="btn" onclick="guidcySelectAllFeatured()">Select All</button><button class="btn" onclick="guidcyClearFeatured()">Clear Selection</button></div>`;
+    // Commit the completed section through its panel setter. Updating only the
+    // nested box left the parent marked as loading and its controls hidden.
+    main.innerHTML='<div class="dash-title">Homepage Featured Experts Control</div><div id="guidcy-feature-admin-box" class="guidcy-feature-admin-box">'+controlsHtml+'</div>';
   }
   window.guidcySaveFeaturedOrder=function(){
     const selected=[], ranks={};
@@ -13526,7 +13579,7 @@ body{overflow-x:hidden}
     if(isFeatured){
       if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}
       const main=id('adash-main'); if(main){main.innerHTML='<div class="dash-title">Homepage Featured Experts Control</div><div id="guidcy-feature-admin-box" class="guidcy-feature-admin-box"><div style="padding:18px;color:var(--muted)">Loading featured expert controls...</div></div>';}
-      setTimeout(function(){buildFeatureAdmin(renderEpoch)},50); return;
+      return buildFeatureAdmin(renderEpoch);
     }
     const oldBox=id('guidcy-feature-admin-box'); if(oldBox) oldBox.remove();
     return oldSwAD?oldSwAD(view,btn):undefined;
@@ -13927,7 +13980,7 @@ window.wbnRender=function(){
     var sc=byId('wbn-stat-count');if(sc)sc.textContent=String(list.length||0);
     var cont=byId('wbn-cards');if(!cont)return;
     if(!list.length){
-      cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';
+      cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1"><span class="wbn-empty-icon">📅</span><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px;color:var(--ink)">No webinars scheduled yet</div><p style="font-size:13px;color:var(--muted);max-width:340px;margin:0 auto">Check back soon — new expert sessions are added weekly.</p></div>';
       return;
     }
     cont.innerHTML=list.map(function(w,i){
@@ -13938,7 +13991,7 @@ window.wbnRender=function(){
       var adminBtns=canManageWebinar(w)?'<button class="wbn-edit-btn" onclick="event.stopPropagation();wbnEditSession(\''+w.id+'\')">Edit</button><button class="wbn-delete-btn" onclick="event.stopPropagation();wbnDeleteSession(\''+w.id+'\')">Delete</button>':'';
       var dotCls=sl>20?'wbn-seats-dot':sl>0?'wbn-seats-dot low':'wbn-seats-dot full';
       var paid=!!(w.isPaid||w.priceAmount>0||w.priceType==='paid');
-      var priceText=paid?'₹'+Number(w.priceAmount||0).toLocaleString('en-IN'):'Free';
+      var priceText=paid?window.guidcyFormatINR(Number(w.priceAmount||0)):'Free';
       var seatsLabel=sl<=0?'Fully booked':sl<=10?sl+' seats left':priceText+' entry';
       return '<div class="wbn-card" data-wbn-id="'+w.id+'">'+
         '<div class="wbn-card-banner"></div><div class="wbn-card-body">'+
@@ -13946,7 +13999,7 @@ window.wbnRender=function(){
         '<div class="wbn-card-title">'+w.title+badge+'</div>'+
         '<div class="wbn-card-desc">'+(w.desc||'')+'</div>'+
         (String(w.desc||'').length>110?'<button type="button" class="wbn-desc-more" onclick="wbnToggleDesc(this)">View more</button>':'')+
-        '<div style="display:inline-flex;margin:0 0 12px;padding:5px 11px;border-radius:999px;background:'+ (paid?'#FFF7ED':'var(--green-l)') +';color:'+ (paid?'#92400E':'var(--green-d)') +';font-size:12px;font-weight:700;border:1px solid '+ (paid?'#FED7AA':'#B7F0BE') +'">'+priceText+'</div>'+
+        '<div style="display:inline-flex;margin:0 0 12px;padding:5px 11px;border-radius:999px;background:'+ (paid?'#FFF7ED':'var(--green-l)') +';color:'+ (paid?'#92400E':'var(--green-d)') +';font-size:12px;font-weight:var(--font-weight-semibold,600);border:1px solid '+ (paid?'#FED7AA':'#B7F0BE') +'">'+priceText+'</div>'+
         '<div class="wbn-card-meta">'+
           '<div class="wbn-meta-item"><span class="wbn-meta-icon">📅</span>'+fmtDate(w.date)+'</div>'+
           '<div class="wbn-meta-item"><span class="wbn-meta-icon">🕐</span>'+fmtTime(w.time)+'</div>'+
@@ -14200,12 +14253,12 @@ window.wbnRender=function(){
     if(!regs.length){container.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted);font-size:14px">No registrations yet.</div>';return;}
     var html='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)">'+
       '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)">'+
-      ['Webinar','Name','Email','Phone','Role','Registered at'].map(function(h){return'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">'+h+'</th>'}).join('')+
+      ['Webinar','Name','Email','Phone','Role','Registered at'].map(function(h){return'<th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">'+h+'</th>'}).join('')+
       '</tr></thead><tbody>';
     regs.forEach(function(reg){
       var dt='';try{dt=new Date(reg.registered_at).toLocaleString('en-IN')}catch(e){dt=reg.registered_at||''}
       html+='<tr style="border-top:1px solid var(--border)">'+
-        '<td style="padding:10px 14px;font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(reg.webinar_title||'')+'</td>'+
+        '<td style="padding:10px 14px;font-weight:var(--font-weight-medium,500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(reg.webinar_title||'')+'</td>'+
         '<td style="padding:10px 14px">'+(reg.name||'')+'</td>'+
         '<td style="padding:10px 14px;color:var(--blue)"><a href="mailto:'+(reg.email||'')+'" style="color:var(--blue)">'+(reg.email||'')+'</a></td>'+
         '<td style="padding:10px 14px">'+(reg.phone||'')+'</td>'+
@@ -14619,7 +14672,7 @@ window.wbnRender=function(){
   function byId(id){return document.getElementById(id)}
   function txt(v){return String(v==null?'':v).trim()}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(n){n=Number(n||0);return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function money(n){n=Number(n||0);return n>0?window.guidcyFormatINR(n):'Free'}
   function stableId(w){try{return 'wbn_'+btoa(unescape(encodeURIComponent([w.title,w.date,w.time,w.speaker].join('|')))).replace(/[^a-zA-Z0-9]/g,'').slice(0,24)}catch(e){return 'wbn_'+Date.now()}}
   function readLocal(){try{return JSON.parse(localStorage.getItem('guidcy_webinars')||'[]')||[]}catch(e){return []}}
   function regsLocal(){try{return JSON.parse(localStorage.getItem('guidcy_webinar_regs')||'[]')||[]}catch(e){return []}}
@@ -14636,7 +14689,7 @@ window.wbnRender=function(){
   async function allWebinars(){return dedupe(readLocal().concat(await fetchDb()))}
   function isAdmin(){var r=txt(window.loggedIn||((window.currentProfile||{}).role)).toLowerCase();return r==='admin'}
   function ensureAdminButton(){var side=document.querySelector('#page-admin-dash .side-nav');if(!side||byId('admin-webinars-btn'))return;var btn=document.createElement('button');btn.className='side-btn';btn.id='admin-webinars-btn';btn.dataset.adminSection='webinars';btn.setAttribute('onclick',"swAD('webinars',this)");btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M10 15l2 2 4-4"/></svg>Webinar history';var div=side.querySelector('.side-divider');side.insertBefore(btn,div||side.lastElementChild)}
-  async function renderAdminWebinars(btn){ensureAdminButton();if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}var m=byId('adash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';var list=await allWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Admin view shows webinars published by every consultant/admin across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisherLabel(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>')}
+  async function renderAdminWebinars(btn){ensureAdminButton();if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(e){}}var m=byId('adash-main');if(!m)return;m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';var list=await allWebinars();var c=counts(list);m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Admin view shows webinars published by every consultant/admin across desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw);var st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisherLabel(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>')}
   async function injectAdminOverviewStrip(){return Promise.resolve()}
   var oldSwAD=window.swAD;
   window.swAD=async function(view,btn){ensureAdminButton();if(view==='webinars')return renderAdminWebinars(btn);var r=oldSwAD?await oldSwAD.apply(this,arguments):undefined;if(view==='overview'||view==='analytics')setTimeout(injectAdminOverviewStrip,100);return r};
@@ -14653,7 +14706,7 @@ window.wbnRender=function(){
   function byId(id){return document.getElementById(id)}
   function txt(v){return String(v==null?'':v).trim()}
   function esc(v){return txt(v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(n){n=Number(n||0);return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function money(n){n=Number(n||0);return n>0?window.guidcyFormatINR(n):'Free'}
   function getRole(){return txt(window.loggedIn||((window.currentProfile||{}).role)).toLowerCase()}
   function isAdmin(){return getRole()==='admin'}
   function currentEmail(){return txt((window.currentUser||{}).email||(window.currentProfile||{}).email).toLowerCase()}
@@ -14733,7 +14786,7 @@ window.wbnRender=function(){
     var m=byId('adash-main'); if(!m)return;
     m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading all webinar history...</div>';
     var list=await allWebinars(), c=counts(list), rc=await regCounts();
-    m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Duplicate local/database copies are merged, so one published webinar appears only once on desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisher(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p></div>')
+    m.innerHTML='<div class="dash-title">All webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars registered</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Duplicate local/database copies are merged, so one published webinar appears only once on desktop and mobile.</div></div><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish webinar</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisher(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail||w.speakerRole||'—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No webinars registered yet</div><p style="font-size:13px;margin-bottom:18px">Once consultants publish webinars, admin will see the complete posted/completed history here.</p></div>')
   }
 
   async function renderConsultant(btn){
@@ -14743,7 +14796,7 @@ window.wbnRender=function(){
     var me=currentEmail(), all=await allWebinars();
     var list=all.filter(function(raw){var w=norm(raw);return !me || w.publisherEmail===me || txt(w.speaker).toLowerCase()===txt((window.currentProfile||{}).name||(window.currentUser||{}).name).toLowerCase()});
     var c=counts(list), rc=await regCounts();
-    m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\')">View</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinar published yet</div></div>')
+    m.innerHTML='<div class="dash-title">My webinar history</div><div class="guidcy-wbn-kpi-grid"><div class="guidcy-wbn-kpi"><div class="guidcy-wbn-kpi-val">'+c.total+'</div><div class="guidcy-wbn-kpi-lbl">Total webinars posted</div></div><div class="guidcy-wbn-kpi green"><div class="guidcy-wbn-kpi-val">'+c.completed+'</div><div class="guidcy-wbn-kpi-lbl">Completed webinars</div></div><div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div><div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div></div>'+(list.length?'<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'+list.map(function(raw){var w=norm(raw),st=status(w);return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.speaker)+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time||'—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+pill(st)+'</td><td>'+(rc[w.id]||0)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\')">View</button></td></tr>'}).join('')+'</tbody></table></div></div>':'<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No webinar published yet</div></div>')
   }
 
   var oldSwAD=window.swAD;
@@ -14757,8 +14810,8 @@ window.wbnRender=function(){
     container.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Loading…</div>';
     var regs=dedupeRegs(readLocalRegs().concat(await fetchDbRegs()));
     if(!regs.length){container.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted)">No registrations yet.</div>';return;}
-    var rows=regs.map(function(r){return '<tr><td style="padding:10px 14px;font-weight:600;color:var(--ink)">'+esc(r.webinar_title||r.webinarTitle||'Webinar')+'</td><td style="padding:10px 14px">'+esc(r.name)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.email)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.phone)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.role)+'</td><td style="padding:10px 14px;color:var(--muted);white-space:nowrap">'+esc(r.registered_at||r.registeredAt||'')+'</td></tr>'}).join('');
-    container.innerHTML='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Webinar</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Name</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Email</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Phone</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Role</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Registered at</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var rows=regs.map(function(r){return '<tr><td style="padding:10px 14px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">'+esc(r.webinar_title||r.webinarTitle||'Webinar')+'</td><td style="padding:10px 14px">'+esc(r.name)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.email)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.phone)+'</td><td style="padding:10px 14px;color:var(--muted)">'+esc(r.role)+'</td><td style="padding:10px 14px;color:var(--muted);white-space:nowrap">'+esc(r.registered_at||r.registeredAt||'')+'</td></tr>'}).join('');
+    container.innerHTML='<div style="overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--surface2)"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Webinar</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Name</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Email</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Phone</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Role</th><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Registered at</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   };
 })();
 
@@ -14771,7 +14824,7 @@ window.wbnRender=function(){
   function byId(id){ return document.getElementById(id); }
   function txt(v){ return String(v == null ? '' : v).trim(); }
   function esc(v){ return txt(v).replace(/[&<>"']/g,function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
-  function money(n){ n = Number(n || 0); return n > 0 ? '₹' + n.toLocaleString('en-IN') : 'Free'; }
+  function money(n){ n = Number(n || 0); return n > 0 ? window.guidcyFormatINR(n) : 'Free'; }
   function role(){ return txt(window.loggedIn || ((window.currentProfile || {}).role)).toLowerCase(); }
   function isAdmin(){ return role() === 'admin'; }
 
@@ -14935,10 +14988,10 @@ window.wbnRender=function(){
       + '<div class="guidcy-wbn-kpi gold"><div class="guidcy-wbn-kpi-val">'+(c.upcoming+c.live)+'</div><div class="guidcy-wbn-kpi-lbl">Upcoming / live</div></div>'
       + '<div class="guidcy-wbn-kpi dark"><div class="guidcy-wbn-kpi-val">'+c.paid+'</div><div class="guidcy-wbn-kpi-lbl">Paid webinars</div></div>'
       + '</div>'
-      + (list.length ? '<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:700;color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Showing current records directly from Supabase for every consultant/admin.</div></div><button class="btn" onclick="swAD(\'webinars\',document.getElementById(\'admin-webinars-btn\'))">Refresh</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'
+      + (list.length ? '<div class="guidcy-wbn-history-card"><div class="guidcy-wbn-toolbar"><div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink)">Registered webinar list</div><div style="font-size:12px;color:var(--muted)">Showing current records directly from Supabase for every consultant/admin.</div></div><button class="btn" onclick="swAD(\'webinars\',document.getElementById(\'admin-webinars-btn\'))">Refresh</button></div><div class="guidcy-wbn-table-wrap"><table class="guidcy-wbn-table"><thead><tr><th>Webinar</th><th>Published by</th><th>Date / Time</th><th>Pricing</th><th>Status</th><th>Registrations</th><th>Action</th></tr></thead><tbody>'
       + list.map(function(raw){ var w = norm(raw), st = status(w); return '<tr><td><strong style="color:var(--ink)">'+esc(w.title)+'</strong><div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(w.cat)+' · '+esc(w.dur)+'</div></td><td>'+esc(publisherLabel(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.publisherEmail || w.speakerRole || '—')+'</div></td><td>'+esc(fmtDate(w))+'<div style="font-size:11px;color:var(--muted)">'+esc(w.time || '—')+'</div></td><td>'+esc(money(w.priceAmount))+'</td><td>'+statusPill(st)+'</td><td>'+regCountFor(w)+'</td><td><button class="bk-btn blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnOpenReg(\''+esc(w.id)+'\')}catch(e){}},250)">View</button> <button class="bk-btn" onclick="try{wbnShare(\''+esc(w.id)+'\')}catch(e){}">Share</button></td></tr>'; }).join('')
       + '</tbody></table></div></div>'
-      : '<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:700;color:var(--ink);margin-bottom:6px">No webinars registered in Supabase</div><p style="font-size:13px;margin-bottom:18px">Once a consultant publishes a webinar to Supabase, admin will see it here. Deleted webinars will not remain from local storage.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>');
+      : '<div class="guidcy-wbn-empty"><div style="font-size:38px;margin-bottom:10px">🎓</div><div style="font-size:18px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No webinars registered in Supabase</div><p style="font-size:13px;margin-bottom:18px">Once a consultant publishes a webinar to Supabase, admin will see it here. Deleted webinars will not remain from local storage.</p><button class="btn btn-blue" onclick="go(\'webinar\');setTimeout(function(){try{wbnShowPublisher&&wbnShowPublisher()}catch(e){}},250)">Publish first webinar</button></div>');
   }
 
   async function injectAdminOverviewLive(){ clearAdminOverviewCache(); return Promise.resolve(); }
@@ -15852,7 +15905,7 @@ function renderStudentCard(opp){
         <span class="opp-card-badge opp-badge-student">🏆 Student Competition</span>
         ${opp.verified?'<span class="opp-card-badge opp-badge-verified" style="margin-left:6px">✓ Verified</span>':''}
       </div>
-      <span style="background:#F0F6FF;color:#1E72BE;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap">${esc(opp.category)}</span>
+      <span style="background:#F0F6FF;color:#1E72BE;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:var(--font-weight-semibold,600);white-space:nowrap">${esc(opp.category)}</span>
     </div>
     <div class="opp-card-title">${esc(opp.title)}</div>
     ${opp.desc?`<p style="font-size:12.5px;color:#7089A0;margin-bottom:10px;line-height:1.55">${esc(opp.desc.slice(0,200))}</p>`:''}
@@ -15866,7 +15919,7 @@ function renderStudentCard(opp){
       <span style="font-size:11px;color:#7089A0">📍 ${esc(opp.country||'India')}</span>
     </div>
     ${isLoggedIn()?`<div class="opp-meta-row" style="margin-top:8px">
-      <label style="font-size:11px;font-weight:600;color:#7089A0;margin-right:6px">Track:</label>
+      <label style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:#7089A0;margin-right:6px">Track:</label>
       <select onchange="window.oppTrackById('${esc(opp.id)}',this.value)" style="font-size:11px;border:1px solid #D8E8F5;border-radius:6px;padding:2px 6px;font-family:inherit;color:#2D3E50;background:#fff">
         ${statusOptions.map(s=>`<option value="${s}"${(tracked&&tracked.status===s)?'selected':''}>${s}</option>`).join('')}
       </select>
@@ -15892,11 +15945,11 @@ function renderStartupCard(opp){
         <span class="opp-card-badge opp-badge-startup">🚀 Startup Funding</span>
         ${opp.verified?'<span class="opp-card-badge opp-badge-verified" style="margin-left:6px">✓ Verified</span>':''}
       </div>
-      <span style="background:#EDFAF1;color:#166534;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap">${esc(opp.category)}</span>
+      <span style="background:#EDFAF1;color:#166534;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:var(--font-weight-semibold,600);white-space:nowrap">${esc(opp.category)}</span>
     </div>
     <div class="opp-card-title">${esc(opp.title)}</div>
     ${opp.desc?`<p style="font-size:12.5px;color:#7089A0;margin-bottom:10px;line-height:1.55">${esc(opp.desc.slice(0,200))}</p>`:''}
-    ${opp.fundingType?`<div class="opp-meta-row" style="margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>&nbsp;<strong>Funding:</strong>&nbsp;<span style="color:#166534;font-weight:600">${esc(opp.fundingType)}</span></div>`:''}
+    ${opp.fundingType?`<div class="opp-meta-row" style="margin-bottom:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>&nbsp;<strong>Funding:</strong>&nbsp;<span style="color:#166534;font-weight:var(--font-weight-semibold,600)">${esc(opp.fundingType)}</span></div>`:''}
     <div class="opp-meta-row">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <strong>Eligibility:</strong>&nbsp;${esc(opp.eligibility||'—')}
@@ -15906,7 +15959,7 @@ function renderStartupCard(opp){
       <span style="font-size:11px;color:#7089A0">📍 ${esc(opp.country||'India')}</span>
     </div>
     ${isLoggedIn()?`<div class="opp-meta-row" style="margin-top:8px">
-      <label style="font-size:11px;font-weight:600;color:#7089A0;margin-right:6px">Track:</label>
+      <label style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:#7089A0;margin-right:6px">Track:</label>
       <select onchange="window.oppTrackById('${esc(opp.id)}',this.value)" style="font-size:11px;border:1px solid #D8E8F5;border-radius:6px;padding:2px 6px;font-family:inherit;color:#2D3E50;background:#fff">
         ${statusOptions.map(s=>`<option value="${s}"${(tracked&&tracked.status===s)?'selected':''}>${s}</option>`).join('')}
       </select>
@@ -16043,7 +16096,7 @@ function showErrorState(msg){
   area.innerHTML=`
     <div style="background:#FFF1F0;border:1.5px solid #FECACA;border-radius:16px;padding:36px 28px;text-align:center;max-width:560px;margin:0 auto">
       <div style="font-size:40px;margin-bottom:12px">⚠️</div>
-      <div style="font-size:16px;font-weight:700;color:#991B1B;margin-bottom:8px">Search unavailable</div>
+      <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:#991B1B;margin-bottom:8px">Search unavailable</div>
       <p style="color:#7F1D1D;font-size:13px;line-height:1.7">${msg}</p>
       <button onclick="window.oppDoSearch()" class="opp-btn opp-btn-primary" style="margin-top:18px">Try again</button>
     </div>`;
@@ -16087,7 +16140,7 @@ async function renderResults(data){
     const emptyBtnHtml=emptyBtns.map(([l,t])=>`<button class="opp-quick-btn" onclick="window.oppQuickSearch('${t}')">${l}</button>`).join('');
     area.innerHTML=`<div class="opp-empty">
       <div style="font-size:40px;margin-bottom:12px">🤷</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:6px">No results found</div>
+      <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);margin-bottom:6px">No results found</div>
       <p style="color:#7089A0">Try a different keyword, remove a filter, or use the quick buttons.</p>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${emptyBtnHtml}</div>
     </div>`;
@@ -16111,7 +16164,7 @@ async function renderSavedTab(){
     setOppCompanion('signIn');
     area.innerHTML=`<div class="opp-empty">
       <div style="font-size:40px;margin-bottom:12px">🔐</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Login required</div>
+      <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);margin-bottom:6px">Login required</div>
       <p style="color:#7089A0">Please log in to view your saved opportunities.</p>
       <button class="opp-btn opp-btn-primary" style="margin-top:16px" onclick="try{go('login')}catch(e){}">Log in →</button>
     </div>`;
@@ -16131,7 +16184,7 @@ async function renderSavedTab(){
     setOppCompanion('savedEmpty');
     area.innerHTML=`<div class="opp-empty">
       <div style="font-size:40px;margin-bottom:12px">🔖</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:6px">No saved opportunities yet</div>
+      <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);margin-bottom:6px">No saved opportunities yet</div>
       <p style="color:#7089A0">Search for opportunities and click 🔖 Save to bookmark them here.</p>
     </div>`;
     if(stats)stats.innerHTML='';
@@ -16146,9 +16199,9 @@ async function renderSavedTab(){
     const grouped={'Applied':0,'In Review':0,'Interview':0,'Shortlisted':0,'Selected':0,'Funded':0,'Rejected':0};
     tracked.forEach(t=>{if(grouped[t.status||t.status]!==undefined)grouped[t.status]++;});
     const pills=Object.entries(grouped).filter(([,v])=>v>0)
-      .map(([s,v])=>`<span style="background:#EBF4FF;color:#1E72BE;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${s}: ${v}</span>`).join('');
+      .map(([s,v])=>`<span style="background:#EBF4FF;color:#1E72BE;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:var(--font-weight-semibold,600)">${s}: ${v}</span>`).join('');
     if(pills) trackerHtml=`<div style="background:#F8FBFF;border:1px solid #D8E8F5;border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:600;color:#0C1825">📊 Application Tracker:</span>${pills}
+      <span style="font-size:13px;font-weight:var(--font-weight-semibold,600);color:#0C1825">📊 Application Tracker:</span>${pills}
     </div>`;
   }
 
@@ -16174,7 +16227,7 @@ function setOppTabVisualState(tab){
     if(!btn)return;
     btn.style.color  = t===tab?'#1E72BE':'#7089A0';
     btn.style.borderBottomColor = t===tab?'#1E72BE':'transparent';
-    btn.style.fontWeight = t===tab?'700':'600';
+    btn.style.fontWeight = t===tab?'var(--font-weight-semibold,600)':'var(--font-weight-medium,500)';
   });
 }
 
@@ -16836,7 +16889,7 @@ document.addEventListener('DOMContentLoaded',function(){
         '<div class="modal-card" style="max-width:460px;text-align:center">'+
           '<button class="modal-close" type="button" onclick="document.getElementById(\'guidcy-webinar-publish-guard\').classList.remove(\'on\')">×</button>'+
           '<div style="width:64px;height:64px;border-radius:50%;background:var(--blue-l);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:28px">🎙️</div>'+
-          '<h2 style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px">Only consultants can publish webinars</h2>'+
+          '<h2 style="font-family:\'Cormorant Garamond\',serif;font-size:30px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:8px">Only consultants can publish webinars</h2>'+
           '<p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:22px">Please log in as a consultant or create a consultant account to publish your webinar on Guidcy.</p>'+
           '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'+
             '<button class="btn" type="button" onclick="document.getElementById(\'guidcy-webinar-publish-guard\').classList.remove(\'on\');go(\'login\')" style="padding:11px 28px">Login</button>'+
@@ -17150,7 +17203,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var posts = getPosts();
     var admin = isAdmin();
     page.innerHTML = '<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px">'
-      + '<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'
+      + '<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'
       + (admin ? '<div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:24px"><div class="field"><label>Blog title</label><input id="blog-title" placeholder="Enter blog title"></div><div class="field"><label>Blog content</label><textarea id="blog-body" style="min-height:140px" placeholder="Write your blog here"></textarea></div><button class="primary-btn" onclick="guidcyAddBlogPost()">Publish Blog</button></div>' : '')
       + '<div id="blog-list">'
       + posts.map(function(p,i){
@@ -17337,7 +17390,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function renderBlog(){
     var page=ensureBlogPage(); var posts=getPosts();
     page.innerHTML='<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px">'
-      + '<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'
+      + '<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'
       + publishForm()
       + '<div id="blog-list">'+posts.map(function(p,i){ return editingIndex===i && isAdmin() ? renderEditForm(p,i) : renderArticle(p,i); }).join('')+'</div></div>';
   }
@@ -17696,7 +17749,7 @@ document.addEventListener('DOMContentLoaded',function(){
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
           <span style="font-size:24px">${icon}</span>
           <div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:500">${safe(name)}</div>
+            <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${safe(name)}</div>
             <div style="font-size:12px;color:var(--muted)">Explore experts</div>
           </div>
           <button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(name)}')">Browse →</button>
@@ -18752,12 +18805,12 @@ document.addEventListener('DOMContentLoaded',function(){
   function consultantCard(c){
     c=normalizeConsultant(c); const id=esc(c.id); const img=c.avatar_url?`<div class="c-avatar has-photo" style="border-color:${esc(c.color)}22"><img src="${esc(c.avatar_url)}" alt="${esc(c.name)}" loading="lazy" decoding="async" onerror="this.remove();this.parentElement.classList.remove('has-photo');this.parentElement.textContent='${esc(c.initials)}'"></div>`:`<div class="c-avatar" style="background:${esc(c.bg)};color:${esc(c.color)};border-color:${esc(c.color)}22">${esc(c.initials)}</div>`;
     const company=c.current_work&&c.current_company_college?`${c.current_work}, ${c.current_company_college}`:(c.current_company_college||c.current_work||'');
-    return `<div class="ccard" data-consultant-id="${id}" onclick="openProfile('${id}',-1)"><div class="ccard-top">${img}<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div><div class="c-name">${esc(c.name)}</div><div class="c-role">${esc(c.category||c.role)}</div>${company?`<div class="lang-tag" style="margin-top:3px;color:var(--blue)">🏢 ${esc(company)}</div>`:''}${c.highest_education||c.college?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🎓 ${esc([c.highest_education,c.college].filter(Boolean).join(', '))}</div>`:''}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${(window.starsHtml?window.starsHtml(c.rating):'★★★★★')}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?esc(c.rating+' ('+c.reviews+')'):'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">₹${Number(c.price||0).toLocaleString('en-IN')}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${id}',-1)">Book</button></div></div>`;
+    return `<div class="ccard" data-consultant-id="${id}" onclick="openProfile('${id}',-1)"><div class="ccard-top">${img}<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div><div class="c-name">${esc(c.name)}</div><div class="c-role">${esc(c.category||c.role)}</div>${company?`<div class="lang-tag" style="margin-top:3px;color:var(--blue)">🏢 ${esc(company)}</div>`:''}${c.highest_education||c.college?`<div class="lang-tag" style="margin-top:3px;color:var(--ink2)">🎓 ${esc([c.highest_education,c.college].filter(Boolean).join(', '))}</div>`:''}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${(window.starsHtml?window.starsHtml(c.rating):'★★★★★')}</span><span class="c-rev" style="margin-left:4px">${c.rating>0?esc(c.rating+' ('+c.reviews+')'):'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">${window.guidcyFormatINR(Number(c.price||0))}</div><div class="c-price-label">per session${c.exp?' · '+esc(c.exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();openProfile('${id}',-1)">Book</button></div></div>`;
   }
   window.renderGrid=function(list,containerId){
     const g=$(containerId); if(!g) return; const data=(list||[]).map(normalizeConsultant).filter(approved);
     g.innerHTML='';
-    if(!data.length){g.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:600;color:var(--ink);margin-bottom:6px">No verified consultants found</div><p style="font-size:13px;max-width:320px;margin:0 auto">Only approved Guidcy consultants are shown here. Try another search or check back soon.</p></div>`; return data;}
+    if(!data.length){g.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-size:16px;font-weight:var(--font-weight-semibold,600);color:var(--ink);margin-bottom:6px">No verified consultants found</div><p style="font-size:13px;max-width:320px;margin:0 auto">Only approved Guidcy consultants are shown here. Try another search or check back soon.</p></div>`; return data;}
     data.forEach(c=>{if(c.id) window.consultantsById.set(String(c.id),c)});
     g.innerHTML=data.map(consultantCard).join('');
     /* Callers show a count next to this grid - hand back exactly what was drawn. */
@@ -18767,7 +18820,10 @@ document.addEventListener('DOMContentLoaded',function(){
   const oldOpenProfile=window.openProfile;
   window.openProfile=async function(id,localId){
     const cid=String(id||'');
-    if(cid){try{history.pushState({page:'profile',consultantId:cid},'',`/consultant/${encodeURIComponent(cid)}`)}catch(_){}}
+    // The router may already own this URL (including Back/Forward and reload).
+    // Pushing it again creates duplicate history entries and discards Forward.
+    const profileUrl='/consultant/'+encodeURIComponent(cid);
+    if(cid&&location.pathname.replace(/\/+$/,'')!==profileUrl){try{history.pushState({page:'profile',consultantId:cid},'',profileUrl)}catch(_){}}
     let c=window.consultantsById.get(cid);
     if(!c && sbc()){
       try{const {data}=await sbc().from('consultants').select('*').eq('id',cid).eq('approval_status','approved').eq('is_approved',true).maybeSingle(); if(data){const rows=await fetchProfilesForConsultants([data]); c=normalizeConsultant(rows[0]); window.consultantsById.set(cid,c);}}
@@ -19281,7 +19337,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var badge=$('req-count-badge'); if(!badge) return;
     badge.textContent=String(n||0); badge.style.display=n>0?'inline-flex':'none';
   }
-  function money(n){n=Number(n||0);return n?'₹'+n.toLocaleString('en-IN'):'—'}
+  function money(n){n=Number(n||0);return n?window.guidcyFormatINR(n):'—'}
   function formatDate(b){
     if(b.date_label) return b.date_label;
     if(b._scheduledDate) return b._scheduledDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
@@ -19369,7 +19425,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(window.__guidcyBankPayoutPatchLoaded)return; window.__guidcyBankPayoutPatchLoaded=true;
   function el(id){return document.getElementById(id)}
   function h(v){try{return (window.esc||window.safeText||function(x){return String(x==null?'':x).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})})(v)}catch(_){return String(v==null?'':v)}}
-  function money(v){var n=Number(v||0);return '₹'+(isFinite(n)?n:0).toLocaleString('en-IN',{maximumFractionDigits:2})}
+  function money(v){var n=Number(v||0);return window.guidcyFormatINR(n)}
   function lower(v){return String(v||'').toLowerCase()}
   function notify(msg,type){try{if(window.toast)return toast(msg,type||'green')}catch(_){} alert(msg)}
   function modalHtml(html){try{if(window.modal)return modal(html)}catch(_){} var old=el('guidcy-admin-modal'); if(old)old.remove(); var d=document.createElement('div'); d.id='guidcy-admin-modal'; d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:18px'; d.innerHTML='<div style="background:#fff;border-radius:22px;padding:20px;max-width:720px;width:100%;max-height:90vh;overflow:auto">'+html+'</div>'; document.body.appendChild(d)}
@@ -19403,7 +19459,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var m=el('cdash-main'); if(!m)return; m.innerHTML='<div style="padding:24px;color:var(--muted)">Loading profile and payout details...</div>';
     var cons=await resolveConsultant(); if(!cons?.id){m.innerHTML='<div class="dash-title">Profile & settings</div><div style="padding:30px;color:var(--muted)">Consultant profile not found.</div>';return}
     var bank=await fetchBankDetails(cons.id)||{}; var name=cons.name||cons.full_name||window.currentProfile?.full_name||'';
-    m.innerHTML='<div class="dash-title">Profile & settings</div><div class="guidcy-bank-grid"><div class="guidcy-bank-card"><div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="'+h(name)+'"></div><div class="field"><label>Professional title</label><input id="cd-title" value="'+h(cons.specialty||cons.category||'Consultant')+'"></div><div class="field"><label>Categories</label>'+guidcyConsultantCategoryPicker(cons.category||cons.specialty)+'</div><div class="field"><label>Current company / college</label><input id="cd-company" value="'+h(cons.current_company_college||cons.current_work||'')+'" placeholder="Where you work or study"></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="'+h(cons.video_price||cons.price||cons.rate||2000)+'"></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:90px">'+h(cons.bio||cons.short_bio||'')+'</textarea></div><button class="primary-btn" onclick="saveConsProfile&&saveConsProfile(\''+h(cons.id)+'\')">Save profile</button></div><div class="guidcy-bank-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Bank Details / Payout Details</div><span class="status-pill sp-done">Saved for payout</span></div><div class="guidcy-bank-note">These details are private and visible only to you and Guidcy admin for consultant payouts.</div><div id="guidcy-bank-validation" style="font-size:12px;color:#b91c1c;margin-bottom:8px"></div><div class="field"><label>Payout preference</label><select id="cd-payout-preference" onchange="guidcyQueueBankSave()"><option value="bank_transfer" '+((bank.payout_preference||'bank_transfer')==='bank_transfer'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(bank.payout_preference==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Account holder name</label><input id="cd-account-holder" value="'+h(bank.account_holder_name||name)+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="'+h(bank.bank_name||cons.bank_name||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Account number</label><input id="cd-account-number" value="'+h(bank.account_number||cons.account_number||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Confirm account number</label><input id="cd-account-confirm" value="'+h(bank.account_number||cons.account_number||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="'+h(bank.ifsc_code||cons.ifsc_code||cons.bank_ifsc||'')+'" oninput="this.value=this.value.toUpperCase();guidcyQueueBankSave()"></div><div class="field"><label>UPI ID optional</label><input id="cd-upi-id" value="'+h(bank.upi_id||cons.upi_id||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>PAN number optional</label><input id="cd-pan-number" value="'+h(bank.pan_number||cons.pan_number||'')+'" oninput="this.value=this.value.toUpperCase();guidcyQueueBankSave()"></div><div style="font-size:12px;color:var(--muted);margin-bottom:12px">Last updated: '+h(bank.updated_at?new Date(bank.updated_at).toLocaleString('en-IN'):'Not submitted yet')+'</div><button class="green-btn" onclick="guidcySaveConsultantBankDetails(false)">Save payout details</button></div></div>';
+    m.innerHTML='<div class="dash-title">Profile & settings</div><div class="guidcy-bank-grid"><div class="guidcy-bank-card"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Profile</div><div class="field"><label>Full name</label><input id="cd-name" value="'+h(name)+'"></div><div class="field"><label>Professional title</label><input id="cd-title" value="'+h(cons.specialty||cons.category||'Consultant')+'"></div><div class="field"><label>Categories</label>'+guidcyConsultantCategoryPicker(cons.category||cons.specialty)+'</div><div class="field"><label>Current company / college</label><input id="cd-company" value="'+h(cons.current_company_college||cons.current_work||'')+'" placeholder="Where you work or study"></div><div class="field"><label>Base rate / video price (₹)</label><input type="number" id="cd-rate" value="'+h(cons.video_price||cons.price||cons.rate||2000)+'"></div><div class="field"><label>Bio</label><textarea id="cd-bio" style="min-height:90px">'+h(cons.bio||cons.short_bio||'')+'</textarea></div><button class="primary-btn" onclick="saveConsProfile&&saveConsProfile(\''+h(cons.id)+'\')">Save profile</button></div><div class="guidcy-bank-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase">Bank Details / Payout Details</div><span class="status-pill sp-done">Saved for payout</span></div><div class="guidcy-bank-note">These details are private and visible only to you and Guidcy admin for consultant payouts.</div><div id="guidcy-bank-validation" style="font-size:12px;color:#b91c1c;margin-bottom:8px"></div><div class="field"><label>Payout preference</label><select id="cd-payout-preference" onchange="guidcyQueueBankSave()"><option value="bank_transfer" '+((bank.payout_preference||'bank_transfer')==='bank_transfer'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(bank.payout_preference==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Account holder name</label><input id="cd-account-holder" value="'+h(bank.account_holder_name||name)+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Bank name</label><input id="cd-bank-name" value="'+h(bank.bank_name||cons.bank_name||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Account number</label><input id="cd-account-number" value="'+h(bank.account_number||cons.account_number||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>Confirm account number</label><input id="cd-account-confirm" value="'+h(bank.account_number||cons.account_number||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>IFSC code</label><input id="cd-ifsc-code" value="'+h(bank.ifsc_code||cons.ifsc_code||cons.bank_ifsc||'')+'" oninput="this.value=this.value.toUpperCase();guidcyQueueBankSave()"></div><div class="field"><label>UPI ID optional</label><input id="cd-upi-id" value="'+h(bank.upi_id||cons.upi_id||'')+'" oninput="guidcyQueueBankSave()"></div><div class="field"><label>PAN number optional</label><input id="cd-pan-number" value="'+h(bank.pan_number||cons.pan_number||'')+'" oninput="this.value=this.value.toUpperCase();guidcyQueueBankSave()"></div><div style="font-size:12px;color:var(--muted);margin-bottom:12px">Last updated: '+h(bank.updated_at?new Date(bank.updated_at).toLocaleString('en-IN'):'Not submitted yet')+'</div><button class="green-btn" onclick="guidcySaveConsultantBankDetails(false)">Save payout details</button></div></div>';
   }
   window.guidcyRenderConsultantBankSettings=renderConsultantBankSettings;
   window.saveConsultantPayoutDetails=function(consId,silent){return window.guidcySaveConsultantBankDetails(!!silent)};
@@ -19488,15 +19544,15 @@ document.addEventListener('DOMContentLoaded',function(){
       +'<h3 style="font-family:\'Cormorant Garamond\',serif;font-size:21px;margin:0 0 6px">Cancelled bookings excluded from consultant payouts</h3>'
       +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px">'+cancelled.length+' cancelled booking'+(cancelled.length===1?'':'s')+' · '+money(total)+' refund amount. These records are visible for audit but are not payable to consultants.</div>'
       +'<div style="overflow-x:auto"><table class="data-table" style="min-width:760px"><tr><th>Booking ID</th><th>Consultant</th><th>Refund amount</th><th>Refund status</th></tr>'
-      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:700">'+money(refundAmountForPayout(row))+'</td><td><span class="status-pill '+refundPillForPayout(row)+'">'+h(refundLabelForPayout(row))+'</span></td></tr>'}).join('')
+      +cancelled.map(function(row){return '<tr><td style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--blue);word-break:break-all">'+h(row.id||row.booking_id||'—')+'</td><td>'+h(row.consultant_name||row.consultant_email||'—')+'</td><td style="font-weight:var(--font-weight-semibold,600)">'+money(refundAmountForPayout(row))+'</td><td><span class="status-pill '+refundPillForPayout(row)+'">'+h(refundLabelForPayout(row))+'</span></td></tr>'}).join('')
       +'</table></div></section>';
   }
   function renderBankBlock(bank){
-    if(!bank)return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">Consultant payout details</div><div style="font-size:13px;color:#92400e;font-weight:700">Bank details not submitted</div><div style="font-size:12px;color:#64748b;margin-top:4px">Ask the consultant to update Bank Details / Payout Details from their dashboard.</div></div>';
+    if(!bank)return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">Consultant payout details</div><div style="font-size:13px;color:#92400e;font-weight:var(--font-weight-semibold,600)">Bank details not submitted</div><div style="font-size:12px;color:#64748b;margin-top:4px">Ask the consultant to update Bank Details / Payout Details from their dashboard.</div></div>';
     var pref=bank.payout_preference||'bank_transfer';
     var complete=(pref==='upi') ? !!bank.upi_id : !!(bank.account_holder_name&&bank.bank_name&&bank.account_number&&bank.ifsc_code);
     var title=complete?'Consultant payout details':'Consultant payout details · incomplete';
-    var warn=complete?'':'<div style="font-size:12px;color:#92400e;font-weight:700;margin:4px 0 8px">Bank details incomplete. Displaying available fields.</div>';
+    var warn=complete?'':'<div style="font-size:12px;color:#92400e;font-weight:var(--font-weight-semibold,600);margin:4px 0 8px">Bank details incomplete. Displaying available fields.</div>';
     return '<div class="guidcy-bank-details-box"><div class="guidcy-bank-details-title">'+h(title)+'</div>'+warn+'<div class="guidcy-payout-grid"><div class="guidcy-payout-kv">Payout preference<b>'+h(pref.replace('_',' '))+'</b></div><div class="guidcy-payout-kv">Account holder<b>'+h(bank.account_holder_name||'—')+'</b></div><div class="guidcy-payout-kv">Bank name<b>'+h(bank.bank_name||'—')+'</b></div><div class="guidcy-payout-kv">Account number<b class="guidcy-sensitive">'+h(bank.account_number||'—')+'</b></div><div class="guidcy-payout-kv">IFSC code<b class="guidcy-sensitive">'+h(bank.ifsc_code||'—')+'</b></div><div class="guidcy-payout-kv">UPI ID<b class="guidcy-sensitive">'+h(bank.upi_id||'—')+'</b></div><div class="guidcy-payout-kv">PAN number<b class="guidcy-sensitive">'+h(bank.pan_number||'—')+'</b></div><div class="guidcy-payout-kv">Updated / verified<b>'+h(bank.updated_at?new Date(bank.updated_at).toLocaleString('en-IN'):'—')+'<br>'+(bank.is_verified?'Verified':'Not verified')+'</b></div></div></div>'}
   window.guidcyOpenAdminPayoutModal=function(id){var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!row)return; if(!payoutEligibleForAdmin(row)){notify('Only verified paid and completed bookings can be paid out. Cancelled bookings are not eligible.','red');return} var bank=row._bank; var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var paid=(row.payout_status||'pending')==='paid'; if(paid){notify('This payout is already marked as paid.','red');return} modalHtml('<div class="dash-title">Mark consultant payout as paid</div><div class="guidcy-bank-note">Confirm only after transferring the consultant payable amount using the bank/UPI details below.</div><div class="guidcy-payout-modal-row"><div class="guidcy-payout-kv">Consultant<b>'+h(bVal(row,['consultant_name'],row._consultant?.name||row._consultant?.full_name||'—'))+'</b></div><div class="guidcy-payout-kv">Payable amount<b>'+money(payable)+'</b></div></div>'+renderBankBlock(bank)+'<div class="field"><label>Payout mode</label><select id="guidcy-admin-payout-mode"><option value="bank_transfer" '+((bank?.payout_preference||'bank_transfer')==='bank_transfer'?'selected':'')+'>Bank Transfer</option><option value="upi" '+(bank?.payout_preference==='upi'?'selected':'')+'>UPI</option></select></div><div class="field"><label>Transaction ID / UTR / Reference Number</label><input id="guidcy-admin-payout-txn" placeholder="Enter transaction ID" /></div><div class="field"><label>Payout note optional</label><textarea id="guidcy-admin-payout-note" style="min-height:80px" placeholder="Optional admin note"></textarea></div><div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'guidcy-admin-modal\')?.remove()">Cancel</button><button class="green-btn" onclick="guidcyConfirmAdminPayout(\''+h(id)+'\')">Confirm Paid</button></div>')};
   window.guidcyConfirmAdminPayout=async function(id){var c=activeClient(); var row=(window.__guidcyAdminBookingRows||[]).find(function(x){return String(x.id)===String(id)}); if(!c||!row)return; if(!payoutEligibleForAdmin(row)){notify('Only verified paid and completed bookings can be paid out. Cancelled bookings are not eligible.','red');return} var txn=(el('guidcy-admin-payout-txn')?.value||'').trim(); if(!txn){notify('Transaction ID is required.','red');return} var user=await authUser(); var gross=Number(bVal(row,['payment_amount','total_amount','amount','price'],0)||0); var comm=(Number(bVal(row,['platform_fee'],0))||window.guidcyFees(Number(bVal(row,['amount'],0)||gross)).platformFee); var payable=Math.max(0,gross-comm); var body={payout_status:'paid',payout_transaction_id:txn,payout_paid_at:new Date().toISOString(),payout_mode:el('guidcy-admin-payout-mode')?.value||'bank_transfer',payout_note:(el('guidcy-admin-payout-note')?.value||'').trim(),payout_marked_by:user?.id||null,platform_fee:comm,consultant_payout_amount:payable}; try{var r=await c.from('bookings').update(body).eq('id',id).select('*').single(); if(r.error)throw r.error; try{await c.from('consultant_payout_logs').insert({booking_id:id,consultant_id:row._consultant_id,payout_amount:payable,payout_status:'paid',payout_transaction_id:txn,payout_mode:body.payout_mode,admin_id:user?.id||null,note:body.payout_note})}catch(e){console.warn('Payout log warning:',e?.message||e)} closeModal(); notify('Consultant payout marked as paid.','green'); window.swAD&&window.swAD(sessionStorage.getItem('guidcy_admin_last_view')||'bookings',null)}catch(e){console.error('Payout update failed:',e); notify('Could not save payout status. Please try again.','red')}};
@@ -19504,8 +19560,8 @@ document.addEventListener('DOMContentLoaded',function(){
     var cons=b._consultant||{},bank=b._bank||null,gross=Number(bVal(b,['payment_amount','total_amount','amount','price'],0)||0),comm=(Number(bVal(b,['platform_fee'],0))||window.guidcyFees(Number(bVal(b,['amount'],0)||gross)).platformFee),cancelled=bookingCancelledForPayout(b),eligible=payoutEligibleForAdmin(b),payoutStatus=lower(b.payout_status)||'not_eligible',paid=payoutStatus==='paid',payable=eligible?Number(b.consultant_payout_amount||Math.max(0,gross-comm)):0,consName=bVal(b,['consultant_name'],cons.name||cons.full_name||'—'),consEmail=bVal(b,['consultant_email'],cons.email||''),payment=paymentLabelForPayout(b),refund=refundLabelForPayout(b),payoutLabel=({pending:'Payout Pending',paid:'Paid',blocked:'Blocked',not_eligible:'Not Eligible',not_required:'Not Eligible'})[payoutStatus]||'Not Eligible',payoutPill=paid?'sp-done':cancelled||payoutStatus==='blocked'||payoutStatus==='not_eligible'?'sp-cancelled':'sp-pending';
     var pills='<div style="display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap"><span class="status-pill '+(payment==='Paid'?'sp-done':'sp-pending')+'">'+h(payment)+'</span>'+(cancelled?'<span class="status-pill sp-cancelled">Cancelled</span><span class="status-pill '+refundPillForPayout(b)+'">'+h(refund)+'</span>':'')+'<span class="status-pill '+payoutPill+'">'+h(payoutLabel)+'</span></div>';
     var payoutDetails=paid&&!cancelled?'<div class="guidcy-payout-kv">Payout transaction ID<b>'+h(b.payout_transaction_id||'—')+'</b></div><div class="guidcy-payout-kv">Payout date/time<b>'+h(b.payout_paid_at?new Date(b.payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div><div class="guidcy-payout-kv">Payout mode / note<b>'+h(b.payout_mode||'—')+'<br>'+h(b.payout_note||b.payout_remarks||'—')+'</b></div>':'';
-    var action=cancelled?'<span style="font-size:12px;color:#B91C1C;font-weight:800">Cancelled booking · ₹0 consultant payout due</span>':paid?'<span style="font-size:12px;color:#047857;font-weight:800">✓ Paid details saved</span>':eligible?'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenAdminPayoutModal(\''+h(b.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:var(--muted);font-weight:800">Not eligible for consultant payout</span>';
-    return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-cons="'+h(lower(consName+' '+consEmail))+'" data-date="'+h((b.created_at||'').slice(0,10))+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">Booking '+h(b.id||b.booking_id||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+h(bVal(b,['session_type','category'],'Session'))+' · '+h(bVal(b,['date_label','booking_date','session_date','date'],'—'))+' '+h(bVal(b,['time_slot','booking_time','session_time','time'],''))+'</div></div>'+pills+'</div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">User<b>'+h(bVal(b,['user_name','client_name'],'—'))+'<br>'+h(bVal(b,['user_email','client_email'],''))+'</b></div><div class="guidcy-payout-kv">Consultant<b>'+h(consName)+'<br>'+h(consEmail)+'</b></div><div class="guidcy-payout-kv">Booking / session status<b>'+h(cancelled?'Cancelled':b.status||'—')+'<br>'+h(cancelled?'Cancelled':b.session_status||'scheduled')+'</b></div><div class="guidcy-payout-kv">Payment status<b>'+h(payment)+'</b></div>'+(cancelled?'<div class="guidcy-payout-kv">Refund status<b>'+h(refund)+'</b></div>':'')+'<div class="guidcy-payout-kv">Payment gateway txn<b>'+h(b.razorpay_order_id||b.razorpay_payment_id||b.payment_id||'—')+'</b></div><div class="guidcy-payout-kv">User paid<b>'+money(gross)+'</b></div><div class="guidcy-payout-kv">Guidcy commission 15%<b>'+money(comm)+'</b></div><div class="guidcy-payout-kv">Consultant payable<b>'+money(payable)+(cancelled?'<br><span style="font-size:11px;color:#B91C1C">Not eligible after cancellation</span>':'')+'</b></div>'+payoutDetails+'</div>'+renderBankBlock(bank)+'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'+action+'</div></div>';
+    var action=cancelled?'<span style="font-size:12px;color:#B91C1C;font-weight:var(--font-weight-semibold,600)">Cancelled booking · ₹0 consultant payout due</span>':paid?'<span style="font-size:12px;color:#047857;font-weight:var(--font-weight-semibold,600)">✓ Paid details saved</span>':eligible?'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenAdminPayoutModal(\''+h(b.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:var(--muted);font-weight:var(--font-weight-semibold,600)">Not eligible for consultant payout</span>';
+    return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-cons="'+h(lower(consName+' '+consEmail))+'" data-date="'+h((b.created_at||'').slice(0,10))+'"><div class="guidcy-payout-admin-head"><div><div style="font-weight:var(--font-weight-semibold,600);color:#0f172a">Booking '+h(b.id||b.booking_id||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+h(bVal(b,['session_type','category'],'Session'))+' · '+h(bVal(b,['date_label','booking_date','session_date','date'],'—'))+' '+h(bVal(b,['time_slot','booking_time','session_time','time'],''))+'</div></div>'+pills+'</div><div class="guidcy-payout-grid"><div class="guidcy-payout-kv">User<b>'+h(bVal(b,['user_name','client_name'],'—'))+'<br>'+h(bVal(b,['user_email','client_email'],''))+'</b></div><div class="guidcy-payout-kv">Consultant<b>'+h(consName)+'<br>'+h(consEmail)+'</b></div><div class="guidcy-payout-kv">Booking / session status<b>'+h(cancelled?'Cancelled':b.status||'—')+'<br>'+h(cancelled?'Cancelled':b.session_status||'scheduled')+'</b></div><div class="guidcy-payout-kv">Payment status<b>'+h(payment)+'</b></div>'+(cancelled?'<div class="guidcy-payout-kv">Refund status<b>'+h(refund)+'</b></div>':'')+'<div class="guidcy-payout-kv">Payment gateway txn<b>'+h(b.razorpay_order_id||b.razorpay_payment_id||b.payment_id||'—')+'</b></div><div class="guidcy-payout-kv">User paid<b>'+money(gross)+'</b></div><div class="guidcy-payout-kv">Guidcy commission 15%<b>'+money(comm)+'</b></div><div class="guidcy-payout-kv">Consultant payable<b>'+money(payable)+(cancelled?'<br><span style="font-size:11px;color:#B91C1C">Not eligible after cancellation</span>':'')+'</b></div>'+payoutDetails+'</div>'+renderBankBlock(bank)+'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'+action+'</div></div>';
   }
   async function renderAdminBookingsWithBank(view,btn){
     if(btn){document.querySelectorAll('#page-admin-dash .side-btn').forEach(function(b){b.classList.remove('on')});btn.classList.add('on');try{window.closeDashMenu&&window.closeDashMenu('admin')}catch(_){}}
@@ -19535,7 +19591,7 @@ document.addEventListener('DOMContentLoaded',function(){
   var ADMIN_EMAIL='tripathiprakhar41@gmail.com';
   function byId(id){return document.getElementById(id)}
   function h(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
-  function money(v){var n=Number(v||0);return '₹'+(isFinite(n)?n:0).toLocaleString('en-IN',{maximumFractionDigits:2})}
+  function money(v){var n=Number(v||0);return window.guidcyFormatINR(n)}
   function client(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
   function userId(){return window.currentUser?.id||''}
   function userEmail(){return window.currentUser?.email||window.currentProfile?.email||''}
@@ -19566,13 +19622,13 @@ document.addEventListener('DOMContentLoaded',function(){
   function bankFromConsultant(cons){if(!cons)return null;var has=cons.account_number||cons.bank_account||cons.bank_name||cons.ifsc_code||cons.bank_ifsc||cons.upi_id||cons.pan_number;if(!has)return null;return {consultant_id:cons.id,consultant_user_id:cons.profile_id,account_holder_name:cons.account_holder_name||cons.name||'',bank_name:cons.bank_name||'',account_number:cons.account_number||cons.bank_account||'',ifsc_code:cons.ifsc_code||cons.bank_ifsc||'',upi_id:cons.upi_id||'',pan_number:cons.pan_number||'',payout_preference:cons.payout_preference||(cons.upi_id?'upi':'bank_transfer'),updated_at:cons.updated_at}}
   async function sellerBankMap(sellerIds){var c=client(), map=new Map(); sellerIds=[...new Set((sellerIds||[]).filter(Boolean).map(String))]; if(!c||!sellerIds.length)return map; var cons=[]; async function loadCons(col){try{var r=await c.from('consultants').select('*').in(col,sellerIds);if(!r.error)cons=cons.concat(r.data||[])}catch(e){console.warn('Seller consultant lookup skipped:',e?.message||e)}} await loadCons('profile_id'); await loadCons('id'); cons.forEach(function(x){if(x.profile_id)map.set(String(x.profile_id),bankFromConsultant(x));if(x.id)map.set(String(x.id),bankFromConsultant(x))}); var consIds=[...new Set(cons.map(function(x){return x.id}).filter(Boolean).map(String))]; async function loadBank(col,vals){if(!vals.length)return;try{var r=await c.from('consultant_bank_details').select('*').in(col,vals);if(!r.error)(r.data||[]).forEach(function(b){[b.consultant_user_id,b.consultant_id].filter(Boolean).forEach(function(k){map.set(String(k),newer(map.get(String(k)),b))})})}catch(e){console.warn('Seller bank lookup skipped:',e?.message||e)}} await loadBank('consultant_user_id',sellerIds); await loadBank('consultant_id',consIds); return map}
   function bankBlock(bank,label){label=label||'Seller payout details'; if(!bank)return '<div class="gmkt-bank-box"><div class="gmkt-bank-title">'+h(label)+'</div><b style="color:#92400e">Bank details not submitted</b><div style="font-size:12px;color:#64748b;margin-top:4px">Ask the seller to save payout details from profile/settings before paying.</div></div>'; var pref=bank.payout_preference||'bank_transfer'; return '<div class="gmkt-bank-box"><div class="gmkt-bank-title">'+h(label)+'</div><div class="gmkt-settlement-grid"><div class="gmkt-mini-kv">Preference<b>'+h(pref.replace('_',' '))+'</b></div><div class="gmkt-mini-kv">Account holder<b>'+h(bank.account_holder_name||'—')+'</b></div><div class="gmkt-mini-kv">Bank<b>'+h(bank.bank_name||'—')+'</b></div><div class="gmkt-mini-kv">Account number<b>'+h(bank.account_number||'—')+'</b></div><div class="gmkt-mini-kv">IFSC<b>'+h(bank.ifsc_code||'—')+'</b></div><div class="gmkt-mini-kv">UPI<b>'+h(bank.upi_id||'—')+'</b></div><div class="gmkt-mini-kv">PAN<b>'+h(bank.pan_number||'—')+'</b></div><div class="gmkt-mini-kv">Updated<b>'+h(bank.updated_at?new Date(bank.updated_at).toLocaleString('en-IN'):'—')+'</b></div></div></div>'}
-  async function renderMarketplaceAdmin(btn){setSide('admin','marketplace',btn);var m=byId('adash-main'),c=client();if(!m||!c)return;m.innerHTML='<div class="dash-title">Marketplace</div><div style="padding:20px;color:var(--muted)">Loading seller bank, sales and payout details...</div>';try{var res=await Promise.all([c.from('marketplace_notes').select('*').order('created_at',{ascending:false}),c.from('marketplace_orders').select('*, marketplace_notes(title,category,uploader_name,uploader_id)').order('created_at',{ascending:false}),c.from('marketplace_payouts').select('*').order('created_at',{ascending:false})]);var notes=res[0].data||[],orders=res[1].data||[],payouts=res[2].data||[];var payoutByOrder=new Map();payouts.forEach(function(p){if(p.order_id)payoutByOrder.set(String(p.order_id),p)});var bankMap=await sellerBankMap(orders.map(function(o){return o.seller_id}).concat(notes.map(function(n){return n.uploader_id})));var done=orders.filter(completed),payable=done.reduce(function(s,o){return s+Number(o.seller_payable||0)},0),commission=done.reduce(function(s,o){return s+Number(o.commission_amount||0)},0),pending=done.reduce(function(s,o){var p=payoutByOrder.get(String(o.id));return s+(Number(o.price||0)>0&&!paidPayout(o,p)?Number(o.seller_payable||0):0)},0),paid=payouts.filter(function(p){return String(p.payout_status).toLowerCase()==='paid'}).reduce(function(s,p){return s+Number(p.seller_payable||0)},0);var rows=orders.filter(guidcyMarketplaceOrderCompleted).map(function(o){return Object.assign({},o,{_payout:payoutByOrder.get(String(o.id))||null,_bank:bankMap.get(String(o.seller_id||''))||null})});window.__gmktPayoutRows=rows;var body=rows.map(function(o){var p=o._payout;var note=o.note_title||o.marketplace_notes?.title||o.note_id;var seller=o.seller_name||o.seller_email||o.marketplace_notes?.uploader_name||o.seller_id||'Seller';var buyer=o.buyer_name||o.buyer_email||o.buyer_id||'Buyer';var canPay=Number(o.seller_payable||0)>0&&!paidPayout(o,p);return '<div class="gmkt-settlement-card"><div class="gmkt-settlement-head"><div><b>'+h(note)+'</b><div style="font-size:12px;color:#64748b">'+h(o.created_at?new Date(o.created_at).toLocaleString('en-IN'):'—')+' · Order '+h(o.order_reference||o.id)+'</div></div>'+statusPill((p&&p.payout_status)||o.seller_payout_status||'pending')+'</div><div class="gmkt-settlement-grid"><div class="gmkt-mini-kv">Seller<b>'+h(seller)+'<br>'+h(o.seller_email||o.seller_id||'')+'</b></div><div class="gmkt-mini-kv">Buyer<b>'+h(buyer)+'<br>'+h(o.buyer_email||'')+'</b></div><div class="gmkt-mini-kv">Payment status<b>'+h(o.payment_status||'—')+'<br>'+h(o.payment_transaction_id||'')+'</b></div><div class="gmkt-mini-kv">Split<b>Price '+money(o.price)+'<br>Guidcy '+money(o.commission_amount)+' · Seller '+money(o.seller_payable)+'</b></div>'+(paidPayout(o,p)?'<div class="gmkt-mini-kv">Paid reference<b>'+h((p&&p.payout_transaction_id)||o.seller_payout_transaction_id||'—')+'</b></div><div class="gmkt-mini-kv">Paid at<b>'+h(((p&&p.payout_paid_at)||o.seller_payout_paid_at)?new Date((p&&p.payout_paid_at)||o.seller_payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div>':'')+'</div>'+bankBlock(o._bank,'Seller bank / payout details')+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(canPay?'<button class="green-btn guidcy-paid-mini-btn" onclick="GuidcyMarketplace.openMarketplacePayout(\''+h(o.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:#64748b;font-weight:800">'+(paidPayout(o,p)?'Payout already tracked':'No seller payable amount')+'</span>')+'</div></div>'}).join('')||'<div style="padding:34px;text-align:center;color:#64748b">No marketplace orders found.</div>';m.innerHTML='<div class="dash-title">Marketplace</div><div class="gmkt-money-band"><div class="gmkt-money-card"><span>Notes posted</span><b>'+notes.length+'</b></div><div class="gmkt-money-card"><span>Copies sold</span><b>'+done.length+'</b></div><div class="gmkt-money-card"><span>Guidcy commission</span><b>'+money(commission)+'</b></div><div class="gmkt-money-card"><span>Seller pending</span><b>'+money(pending)+'</b></div></div><div class="gmkt-dues-card"><strong>Seller settlement control</strong><div>Total seller payable: '+money(payable)+' · Paid: '+money(paid)+' · Pending: '+money(pending)+'. Bank details below come from seller payout settings.</div></div>'+body}catch(e){console.error(e);m.innerHTML='<div class="dash-title">Marketplace</div><div style="padding:24px;color:#b91c1c">Unable to load marketplace payout details. Please refresh and try again.</div>'}}
+  async function renderMarketplaceAdmin(btn){setSide('admin','marketplace',btn);var m=byId('adash-main'),c=client();if(!m||!c)return;m.innerHTML='<div class="dash-title">Marketplace</div><div style="padding:20px;color:var(--muted)">Loading seller bank, sales and payout details...</div>';try{var res=await Promise.all([c.from('marketplace_notes').select('*').order('created_at',{ascending:false}),c.from('marketplace_orders').select('*, marketplace_notes(title,category,uploader_name,uploader_id)').order('created_at',{ascending:false}),c.from('marketplace_payouts').select('*').order('created_at',{ascending:false})]);var notes=res[0].data||[],orders=res[1].data||[],payouts=res[2].data||[];var payoutByOrder=new Map();payouts.forEach(function(p){if(p.order_id)payoutByOrder.set(String(p.order_id),p)});var bankMap=await sellerBankMap(orders.map(function(o){return o.seller_id}).concat(notes.map(function(n){return n.uploader_id})));var done=orders.filter(completed),payable=done.reduce(function(s,o){return s+Number(o.seller_payable||0)},0),commission=done.reduce(function(s,o){return s+Number(o.commission_amount||0)},0),pending=done.reduce(function(s,o){var p=payoutByOrder.get(String(o.id));return s+(Number(o.price||0)>0&&!paidPayout(o,p)?Number(o.seller_payable||0):0)},0),paid=payouts.filter(function(p){return String(p.payout_status).toLowerCase()==='paid'}).reduce(function(s,p){return s+Number(p.seller_payable||0)},0);var rows=orders.filter(guidcyMarketplaceOrderCompleted).map(function(o){return Object.assign({},o,{_payout:payoutByOrder.get(String(o.id))||null,_bank:bankMap.get(String(o.seller_id||''))||null})});window.__gmktPayoutRows=rows;var body=rows.map(function(o){var p=o._payout;var note=o.note_title||o.marketplace_notes?.title||o.note_id;var seller=o.seller_name||o.seller_email||o.marketplace_notes?.uploader_name||o.seller_id||'Seller';var buyer=o.buyer_name||o.buyer_email||o.buyer_id||'Buyer';var canPay=Number(o.seller_payable||0)>0&&!paidPayout(o,p);return '<div class="gmkt-settlement-card"><div class="gmkt-settlement-head"><div><b>'+h(note)+'</b><div style="font-size:12px;color:#64748b">'+h(o.created_at?new Date(o.created_at).toLocaleString('en-IN'):'—')+' · Order '+h(o.order_reference||o.id)+'</div></div>'+statusPill((p&&p.payout_status)||o.seller_payout_status||'pending')+'</div><div class="gmkt-settlement-grid"><div class="gmkt-mini-kv">Seller<b>'+h(seller)+'<br>'+h(o.seller_email||o.seller_id||'')+'</b></div><div class="gmkt-mini-kv">Buyer<b>'+h(buyer)+'<br>'+h(o.buyer_email||'')+'</b></div><div class="gmkt-mini-kv">Payment status<b>'+h(o.payment_status||'—')+'<br>'+h(o.payment_transaction_id||'')+'</b></div><div class="gmkt-mini-kv">Split<b>Price '+money(o.price)+'<br>Guidcy '+money(o.commission_amount)+' · Seller '+money(o.seller_payable)+'</b></div>'+(paidPayout(o,p)?'<div class="gmkt-mini-kv">Paid reference<b>'+h((p&&p.payout_transaction_id)||o.seller_payout_transaction_id||'—')+'</b></div><div class="gmkt-mini-kv">Paid at<b>'+h(((p&&p.payout_paid_at)||o.seller_payout_paid_at)?new Date((p&&p.payout_paid_at)||o.seller_payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div>':'')+'</div>'+bankBlock(o._bank,'Seller bank / payout details')+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(canPay?'<button class="green-btn guidcy-paid-mini-btn" onclick="GuidcyMarketplace.openMarketplacePayout(\''+h(o.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:#64748b;font-weight:var(--font-weight-semibold,600)">'+(paidPayout(o,p)?'Payout already tracked':'No seller payable amount')+'</span>')+'</div></div>'}).join('')||'<div style="padding:34px;text-align:center;color:#64748b">No marketplace orders found.</div>';m.innerHTML='<div class="dash-title">Marketplace</div><div class="gmkt-money-band"><div class="gmkt-money-card"><span>Notes posted</span><b>'+notes.length+'</b></div><div class="gmkt-money-card"><span>Copies sold</span><b>'+done.length+'</b></div><div class="gmkt-money-card"><span>Guidcy commission</span><b>'+money(commission)+'</b></div><div class="gmkt-money-card"><span>Seller pending</span><b>'+money(pending)+'</b></div></div><div class="gmkt-dues-card"><strong>Seller settlement control</strong><div>Total seller payable: '+money(payable)+' · Paid: '+money(paid)+' · Pending: '+money(pending)+'. Bank details below come from seller payout settings.</div></div>'+body}catch(e){console.error(e);m.innerHTML='<div class="dash-title">Marketplace</div><div style="padding:24px;color:#b91c1c">Unable to load marketplace payout details. Please refresh and try again.</div>'}}
   window.guidcyCloseMarketplacePayoutModal=closeModal;
   async function openMarketplacePayout(id){var row=(window.__gmktPayoutRows||[]).find(function(x){return String(x.id)===String(id)||(x._payout&&String(x._payout.id)===String(id))});if(!row)return;modal('<div class="dash-title">Mark seller payout as paid</div><div class="gmkt-dues-card"><strong>'+h(row.note_title||row.marketplace_notes?.title||'Marketplace notes')+'</strong><div>Confirm only after transferring '+money(row.seller_payable)+' to '+h(row.seller_name||row.seller_email||'the seller')+'.</div></div>'+bankBlock(row._bank,'Seller bank / payout details')+'<div class="field"><label>Payout mode</label><select id="gmkt-admin-payout-mode"><option value="bank_transfer">Bank Transfer</option><option value="upi">UPI</option></select></div><div class="field"><label>Transaction ID / UTR / reference number *</label><input id="gmkt-admin-payout-txn" placeholder="Enter transaction ID"></div><div class="field"><label>Payout note optional</label><textarea id="gmkt-admin-payout-note" style="min-height:80px"></textarea></div><div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap"><button class="btn" onclick="guidcyCloseMarketplacePayoutModal()">Cancel</button><button class="green-btn" onclick="GuidcyMarketplace.confirmMarketplacePayout(\''+h(row.id)+'\')">Confirm Paid</button></div>')}
   async function confirmMarketplacePayout(id){var c=client();var row=(window.__gmktPayoutRows||[]).find(function(x){return String(x.id)===String(id)});if(!c||!row)return;var txn=(byId('gmkt-admin-payout-txn')?.value||'').trim();if(!txn){notify('Transaction ID is required.','red');return}var user=await authUser();var mode=byId('gmkt-admin-payout-mode')?.value||'bank_transfer';var note=(byId('gmkt-admin-payout-note')?.value||'').trim();var now=new Date().toISOString();try{var payout=row._payout;if(!payout){var ins=await c.from('marketplace_payouts').insert({order_id:row.id,note_id:row.note_id,seller_id:row.seller_id,buyer_id:row.buyer_id,buyer_name:row.buyer_name,buyer_email:row.buyer_email,seller_name:row.seller_name,seller_email:row.seller_email,note_title:row.note_title,note_category:row.note_category,seller_payable:row.seller_payable,commission_amount:row.commission_amount,payment_transaction_id:row.payment_transaction_id,payout_status:'pending'}).select('*').single();if(ins.error){var find=await c.from('marketplace_payouts').select('*').eq('order_id',row.id).limit(1);if(find.error||!find.data?.[0])throw ins.error;payout=find.data[0]}else payout=ins.data}var upd={payout_status:'paid',payout_transaction_id:txn,payout_paid_at:now,payout_mode:mode,payout_note:note,payout_marked_by:user?.id||null,payout_paid_by:userEmail()||user?.email||null,updated_at:now};var saved=await c.from('marketplace_payouts').update(upd).eq('id',payout.id).select('*').single();if(saved.error)throw saved.error;var orderPatch={seller_payout_status:'paid',seller_payout_id:payout.id,seller_payout_paid_at:now,seller_payout_transaction_id:txn,seller_payout_mode:mode,seller_payout_note:note,seller_payout_marked_by:user?.id||null,updated_at:now};var ou=await c.from('marketplace_orders').update(orderPatch).eq('id',row.id);if(ou.error)throw ou.error;try{await c.from('marketplace_payout_logs').insert({payout_id:payout.id,order_id:row.id,note_id:row.note_id,seller_id:row.seller_id,payout_amount:Number(row.seller_payable||0),payout_status:'paid',payout_transaction_id:txn,payout_mode:mode,admin_id:user?.id||null,note:note})}catch(e){console.warn('Marketplace payout log skipped:',e?.message||e)}closeModal();notify('Marketplace seller payout marked as paid.','green');renderMarketplaceAdmin(null)}catch(e){console.error(e);notify('Unable to mark marketplace payout as paid. Please check admin access and try again.','red')}}
   function adminSearchText(o){return [o.note_title,o.marketplace_notes?.title,o.note_id,o.order_reference,o.payment_transaction_id,o.seller_name,o.seller_email,o.seller_id,o.buyer_name,o.buyer_email,o.buyer_id,o.note_category,o.marketplace_notes?.category].join(' ').toLowerCase()}
   function hasBank(o){var b=o&&o._bank;return !!(b&&(b.account_number||b.upi_id||b.bank_name||b.account_holder_name||b.ifsc_code))}
-  function marketplaceAdminCard(o){var p=o._payout;var note=o.note_title||o.marketplace_notes?.title||o.note_id;var seller=o.seller_name||o.seller_email||o.marketplace_notes?.uploader_name||o.seller_id||'Seller';var buyer=o.buyer_name||o.buyer_email||o.buyer_id||'Buyer';var canPay=Number(o.seller_payable||0)>0&&!paidPayout(o,p);return '<div class="gmkt-settlement-card"><div class="gmkt-settlement-head"><div><b>'+h(note)+'</b><div style="font-size:12px;color:#64748b">'+h(o.created_at?new Date(o.created_at).toLocaleString('en-IN'):'—')+' · Order '+h(o.order_reference||o.id)+'</div></div>'+statusPill((p&&p.payout_status)||o.seller_payout_status||'pending')+'</div><div class="gmkt-settlement-grid"><div class="gmkt-mini-kv">Seller<b>'+h(seller)+'<br>'+h(o.seller_email||o.seller_id||'')+'</b></div><div class="gmkt-mini-kv">Buyer<b>'+h(buyer)+'<br>'+h(o.buyer_email||'')+'</b></div><div class="gmkt-mini-kv">Payment status<b>'+h(o.payment_status||'—')+'<br>'+h(o.payment_transaction_id||'')+'</b></div><div class="gmkt-mini-kv">Split<b>Price '+money(o.price)+'<br>Guidcy '+money(o.commission_amount)+' · Seller '+money(o.seller_payable)+'</b></div>'+(paidPayout(o,p)?'<div class="gmkt-mini-kv">Paid reference<b>'+h((p&&p.payout_transaction_id)||o.seller_payout_transaction_id||'—')+'</b></div><div class="gmkt-mini-kv">Paid at<b>'+h(((p&&p.payout_paid_at)||o.seller_payout_paid_at)?new Date((p&&p.payout_paid_at)||o.seller_payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div>':'')+'</div>'+bankBlock(o._bank,'Seller bank / payout details')+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(canPay?'<button class="green-btn guidcy-paid-mini-btn gmkt-pay-action" onclick="GuidcyMarketplace.openMarketplacePayout(\''+h(o.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:#64748b;font-weight:800">'+(paidPayout(o,p)?'Payout already tracked':'No seller payable amount')+'</span>')+'</div></div>'}
+  function marketplaceAdminCard(o){var p=o._payout;var note=o.note_title||o.marketplace_notes?.title||o.note_id;var seller=o.seller_name||o.seller_email||o.marketplace_notes?.uploader_name||o.seller_id||'Seller';var buyer=o.buyer_name||o.buyer_email||o.buyer_id||'Buyer';var canPay=Number(o.seller_payable||0)>0&&!paidPayout(o,p);return '<div class="gmkt-settlement-card"><div class="gmkt-settlement-head"><div><b>'+h(note)+'</b><div style="font-size:12px;color:#64748b">'+h(o.created_at?new Date(o.created_at).toLocaleString('en-IN'):'—')+' · Order '+h(o.order_reference||o.id)+'</div></div>'+statusPill((p&&p.payout_status)||o.seller_payout_status||'pending')+'</div><div class="gmkt-settlement-grid"><div class="gmkt-mini-kv">Seller<b>'+h(seller)+'<br>'+h(o.seller_email||o.seller_id||'')+'</b></div><div class="gmkt-mini-kv">Buyer<b>'+h(buyer)+'<br>'+h(o.buyer_email||'')+'</b></div><div class="gmkt-mini-kv">Payment status<b>'+h(o.payment_status||'—')+'<br>'+h(o.payment_transaction_id||'')+'</b></div><div class="gmkt-mini-kv">Split<b>Price '+money(o.price)+'<br>Guidcy '+money(o.commission_amount)+' · Seller '+money(o.seller_payable)+'</b></div>'+(paidPayout(o,p)?'<div class="gmkt-mini-kv">Paid reference<b>'+h((p&&p.payout_transaction_id)||o.seller_payout_transaction_id||'—')+'</b></div><div class="gmkt-mini-kv">Paid at<b>'+h(((p&&p.payout_paid_at)||o.seller_payout_paid_at)?new Date((p&&p.payout_paid_at)||o.seller_payout_paid_at).toLocaleString('en-IN'):'—')+'</b></div>':'')+'</div>'+bankBlock(o._bank,'Seller bank / payout details')+'<div style="display:flex;justify-content:flex-end;margin-top:12px">'+(canPay?'<button class="green-btn guidcy-paid-mini-btn gmkt-pay-action" onclick="GuidcyMarketplace.openMarketplacePayout(\''+h(o.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:#64748b;font-weight:var(--font-weight-semibold,600)">'+(paidPayout(o,p)?'Payout already tracked':'No seller payable amount')+'</span>')+'</div></div>'}
   function filterMarketplaceAdmin(){clearTimeout(window.__gmktFilterAdminTimer);window.__gmktFilterAdminTimer=setTimeout(filterMarketplaceAdminNow,200)}
   function filterMarketplaceAdminNow(){var rows=window.__gmktAdminRows||[];var q=String(byId('gmkt-admin-order-search')?.value||'').toLowerCase().trim();var payout=String(byId('gmkt-admin-payout-filter')?.value||'all');var payment=String(byId('gmkt-admin-payment-filter')?.value||'all');var bank=String(byId('gmkt-admin-bank-filter')?.value||'all');var date=String(byId('gmkt-admin-date-filter')?.value||'');var filtered=rows.filter(function(o){var p=o._payout;var paid=paidPayout(o,p);var payable=Number(o.seller_payable||0)>0&&!paid;var ps=String(o.payment_status||'').toLowerCase();if(q&&adminSearchText(o).indexOf(q)<0)return false;if(date&&String(o.created_at||'').slice(0,10)!==date)return false;if(payout==='pending'&&!payable)return false;if(payout==='paid'&&!paid)return false;if(payout==='payable'&&Number(o.seller_payable||0)<=0)return false;if(payment==='success'&&!/success|paid|completed|free/i.test(ps))return false;if(payment==='pending'&&!/pending|created|initiated|await/i.test(ps||'pending'))return false;if(payment==='failed'&&!/fail|cancel|reject|error/i.test(ps))return false;if(bank==='available'&&!hasBank(o))return false;if(bank==='missing'&&hasBank(o))return false;return true});var count=byId('gmkt-admin-results-count');if(count)count.textContent='Showing '+filtered.length+' of '+rows.length+' marketplace order'+(rows.length===1?'':'s');var body=byId('gmkt-admin-orders-body');if(body)body.innerHTML=filtered.map(marketplaceAdminCard).join('')||'<div style="padding:34px;text-align:center;color:#64748b;background:#fff;border:1px dashed #dbeafe;border-radius:16px">No marketplace orders match these filters.</div>'}
   function clearMarketplaceFilters(){['gmkt-admin-order-search','gmkt-admin-date-filter'].forEach(function(id){var x=byId(id);if(x)x.value=''});['gmkt-admin-payout-filter','gmkt-admin-payment-filter','gmkt-admin-bank-filter'].forEach(function(id){var x=byId(id);if(x)x.value='all'});filterMarketplaceAdmin()}
@@ -19676,7 +19732,12 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
      that was not the one on screen, and the panel flipped between the two.
      Claim the tab through the controller first; it also refuses a switch that
      would override a tab the user just tapped. */
-  function persistWrap(){var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPersist&&oldCD?.__guidcyPersist&&oldAD?.__guidcyPersist)return;/* Dashboard tab memory is session-scoped. It survives a refresh and the
+  function persistWrap(){
+  // This boot adapter predates the route controller. Reinstalling it from its
+  // timer wrapped the controller in another copy of the same repeat gate,
+  // rejecting valid Realtime refreshes before their query could run.
+  if(window.__GUIDCY_ROUTE_AUTH_CONTROLLER_V6__)return;
+var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPersist&&oldCD?.__guidcyPersist&&oldAD?.__guidcyPersist)return;/* Dashboard tab memory is session-scoped. It survives a refresh and the
      payment gateway round-trip (same tab), but is gone on a new browser
      session - a tab picked last week must not be re-applied automatically. */function save(k,v){if(v)try{sessionStorage.setItem(k,v)}catch(_){}}function get(k,def){try{return sessionStorage.getItem(k)||def}catch(_){return def}}/* The address bar is the authority for which tab is showing. Falling straight   back to the remembered view meant that after a refresh an automated render   asked for the *stored* tab while the URL asked for another - the render was   for the wrong tab, so it was dropped and the panel kept whatever it had   painted before the session loaded. Tapping worked only because a tap skips   this rewrite. Use the stored view only when the URL names no tab. */function routedTab(n){try{return (window.guidcyDashboardTabFromUrl&&window.guidcyDashboardTabFromUrl(n))||''}catch(_){return ''}}if(!oldUD?.__guidcyPersist){window.swUD=function(v,b){v=v||'upcoming';if(!b&&v==='upcoming')v=routedTab('swUD')||get('guidcy_user_dash_view','upcoming');save('guidcy_user_dash_view',v);if(window.guidcyClaimDashboardTab&&window.guidcyClaimDashboardTab('swUD',v,b,true)===false)return;if(v==='marketplace'&&window.GuidcyMarketplace?.purchases)return window.GuidcyMarketplace.purchases(b);setSide('user',v,b);return oldUD?oldUD.apply(this,[v,b]):undefined};window.swUD.__guidcyPersist=true;window.swUD.__gmkt=true}if(!oldCD?.__guidcyPersist){window.swCD=function(v,b){v=v||'overview';if(!b&&v==='overview')v=routedTab('swCD')||get('guidcy_cons_dash_view','overview');save('guidcy_cons_dash_view',v);if(window.guidcyClaimDashboardTab&&window.guidcyClaimDashboardTab('swCD',v,b,true)===false)return;if(v==='marketplace')return renderSellerMarketplace(b);if(v==='earnings')return renderConsultantEarnings(b);setSide('cons',v,b);return oldCD?oldCD.apply(this,[v,b]):undefined};window.swCD.__guidcyPersist=true;window.swCD.__gmkt=true}if(!oldAD?.__guidcyPersist){window.swAD=function(v,b){v=v||'overview';if(!b&&v==='overview')v=routedTab('swAD')||get('guidcy_admin_dash_view','overview');save('guidcy_admin_dash_view',v);if(window.guidcyClaimDashboardTab&&window.guidcyClaimDashboardTab('swAD',v,b,true)===false)return;if(v==='marketplace')return renderMarketplaceAdmin(b);setSide('admin',v,b);return oldAD?oldAD.apply(this,[v,b]):undefined};window.swAD.__guidcyPersist=true;window.swAD.__gmkt=true}}
   function install(){persistWrap();if(window.GuidcyMarketplace){window.GuidcyMarketplace.admin=renderMarketplaceAdmin;window.GuidcyMarketplace.seller=renderSellerMarketplace;window.GuidcyMarketplace.openMarketplacePayout=openMarketplacePayout;window.GuidcyMarketplace.confirmMarketplacePayout=confirmMarketplacePayout;window.GuidcyMarketplace.filterMarketplaceAdmin=filterMarketplaceAdmin;window.GuidcyMarketplace.clearMarketplaceFilters=clearMarketplaceFilters}}
@@ -20209,11 +20270,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function payStatus(r){let p=clean(r?.payment_status||r?.pay_status).toLowerCase(); if(['paid','completed','success','successful','captured'].includes(p))return 'success'; if(['failed','failure','payment_failed'].includes(p))return 'failed'; if(['free','not_required'].includes(p))return 'free'; if(['refunded','refund'].includes(p))return 'refunded'; return p||'pending'}
   function regWebinarId(r){return clean(r?.webinar_id||r?.wid||r?.webinarId)}
   function webinarTitle(w){return clean(w?.title||w?.webinar_title||w?.name)||'Webinar'}
-  function money(n){const x=Number(n||0);return x?('₹'+x.toLocaleString('en-IN')):'—'}
+  function money(n){const x=Number(n||0);return x?(window.guidcyFormatINR(x)):'—'}
   function csvCell(v){return '"'+String(v??'').replace(/"/g,'""').replace(/\r?\n/g,' ')+'"'}
   window.guidcyFilterWebinarRegs=function(){clearTimeout(window.__guidcyFilterWebinarRegsTimer);window.__guidcyFilterWebinarRegsTimer=setTimeout(function(){const webinars=window.__guidcyWebinarsForRegs||[], regs=window.__guidcyWebinarRegs||[], webMap=new Map(webinars.map(w=>[clean(w.id||w.webinar_id),w])); const wid=$('wbn-admin-reg-webinar')?.value||'all', ps=$('wbn-admin-reg-payment')?.value||'all', rs=$('wbn-admin-reg-status')?.value||'all', q=clean($('wbn-admin-reg-search')?.value).toLowerCase(); let list=regs.map(r=>{const rid=regWebinarId(r),w=webMap.get(rid)||{};return Object.assign({},r,{_webinar:w,_webinarTitle:clean(r.webinar_title||r.webinarTitle)||webinarTitle(w),_registration_status:regStatus(r),_payment_status:payStatus(r)})}).filter(r=>r._registration_status!=='deleted'||$('wbn-admin-show-deleted')?.checked); if(wid!=='all')list=list.filter(r=>regWebinarId(r)===wid); if(ps!=='all')list=list.filter(r=>r._payment_status===ps); if(rs!=='all')list=list.filter(r=>r._registration_status===rs||(rs==='pending_payment'&&r._registration_status==='payment_pending')); if(q)list=list.filter(r=>[r._webinarTitle,r.name,r.full_name,r.user_name,r.email,r.user_email,r.phone,r.role,r._payment_status,r._registration_status].map(clean).join(' ').toLowerCase().includes(q)); window.__guidcyFilteredWebinarRegs=list; const count=$('wbn-admin-reg-count'); if(count)count.textContent=(wid==='all'?'All active registrations':'Filtered registrations')+' — '+list.length; const box=$('wbn-admin-reg-table'); if(!box)return; if(!list.length){box.innerHTML='<div class="wbn-reg-empty">No registrations found for this webinar/filter.</div>';return} box.innerHTML='<div class="wbn-reg-table-wrap"><table class="wbn-reg-table"><thead><tr><th>Webinar</th><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Registration</th><th>Payment</th><th>Amount</th><th>Txn ID</th><th>Registered at</th><th>Action</th></tr></thead><tbody>'+list.map(r=>{const id=clean(r.id); const name=clean(r.name||r.full_name||r.user_name||r.registrant_name)||'—', email=clean(r.email||r.user_email||r.registrant_email)||'—', phone=clean(r.phone||r.user_phone)||'—', amount=r.amount_paid||r.payment_amount||r.amount||r.price||'', txn=clean(r.transaction_id||r.payment_id||r.razorpay_order_id||r.razorpay_payment_id)||'—', at=r.registered_at||r.registeredAt||r.created_at||''; return '<tr><td><strong>'+esc(r._webinarTitle)+'</strong></td><td>'+esc(name)+'</td><td>'+esc(email)+'</td><td>'+esc(phone)+'</td><td>'+esc(r.role||'—')+'</td><td><span class="wbn-reg-status '+esc(r._registration_status)+'">'+esc(r._registration_status.replace(/_/g,' '))+'</span></td><td><span class="wbn-reg-status '+esc(r._payment_status)+'">'+esc(r._payment_status)+'</span></td><td>'+esc(money(amount))+'</td><td>'+esc(txn)+'</td><td>'+esc(at?new Date(at).toLocaleString('en-IN'):'—')+'</td><td>'+(r._registration_status==='deleted'?'Deleted':'<button class="wbn-reg-delete-btn" onclick="guidcyConfirmDeleteWebinarReg(\''+esc(id)+'\')">Delete</button>')+'</td></tr>'}).join('')+'</tbody></table></div>'},200)};
   window.guidcyExportFilteredWebinarRegs=function(){const list=(window.__guidcyFilteredWebinarRegs||[]).filter(r=>r._registration_status!=='deleted'); if(!list.length){toast('No registrations to export.','red');return} const headers=['Webinar title','Webinar ID','Registrant name','Registrant email','Phone number','Role','Payment status','Registration status','Registered at','User ID','Amount paid','Transaction ID']; const rows=list.map(r=>[r._webinarTitle,regWebinarId(r),r.name||r.full_name||r.user_name||r.registrant_name,r.email||r.user_email||r.registrant_email,r.phone||r.user_phone,r.role,r._payment_status,r._registration_status,r.registered_at||r.registeredAt||r.created_at,r.user_id||r.registrant_id||r.profile_id,r.amount_paid||r.payment_amount||r.amount||r.price,r.transaction_id||r.payment_id||r.razorpay_order_id||r.razorpay_payment_id]); const csv=[headers.map(csvCell).join(',')].concat(rows.map(row=>row.map(csvCell).join(','))).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='guidcy_webinar_registrations.csv'; a.click(); URL.revokeObjectURL(a.href)};
-  function ensureDeleteModal(){let d=$('wbn-delete-reg-modal'); if(d)return d; d=document.createElement('div'); d.id='wbn-delete-reg-modal'; d.className='wbn-delete-modal'; d.innerHTML='<div class="wbn-delete-card"><h3>Delete webinar registration?</h3><div id="wbn-delete-reg-details" class="wbn-delete-detail-box"></div><div id="wbn-delete-reg-warning"></div><p>Are you sure you want to delete this registration? It will be hidden from the active list and excluded from CSV export.</p><label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Delete reason optional</label><textarea id="wbn-delete-reg-reason" placeholder="Example: Payment not completed / duplicate registration"></textarea><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'wbn-delete-reg-modal\').classList.remove(\'on\')">Cancel</button><button class="btn btn-red" onclick="guidcyDeleteWebinarRegistration()">Delete Registration</button></div></div>'; document.body.appendChild(d); return d;}
+  function ensureDeleteModal(){let d=$('wbn-delete-reg-modal'); if(d)return d; d=document.createElement('div'); d.id='wbn-delete-reg-modal'; d.className='wbn-delete-modal'; d.innerHTML='<div class="wbn-delete-card"><h3>Delete webinar registration?</h3><div id="wbn-delete-reg-details" class="wbn-delete-detail-box"></div><div id="wbn-delete-reg-warning"></div><p>Are you sure you want to delete this registration? It will be hidden from the active list and excluded from CSV export.</p><label style="font-size:12px;font-weight:var(--font-weight-semibold,600);color:var(--muted);text-transform:uppercase">Delete reason optional</label><textarea id="wbn-delete-reg-reason" placeholder="Example: Payment not completed / duplicate registration"></textarea><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" onclick="document.getElementById(\'wbn-delete-reg-modal\').classList.remove(\'on\')">Cancel</button><button class="btn btn-red" onclick="guidcyDeleteWebinarRegistration()">Delete Registration</button></div></div>'; document.body.appendChild(d); return d;}
   window.guidcyConfirmDeleteWebinarReg=function(id){const d=ensureDeleteModal(); window.__deleteWebinarRegId=id; const list=window.__guidcyWebinarRegs||[]; const r=list.find(x=>clean(x.id)===clean(id))||{}; const title=clean(r.webinar_title||r.webinarTitle)||'Selected webinar'; const name=clean(r.name||r.full_name||r.user_name||r.registrant_name)||'—'; const email=clean(r.email||r.user_email||r.registrant_email)||'—'; const ps=payStatus(r); $('wbn-delete-reg-details').innerHTML='<b>Webinar:</b> '+esc(title)+'<br><b>Registrant:</b> '+esc(name)+'<br><b>Email:</b> '+esc(email)+'<br><b>Payment status:</b> '+esc(ps); $('wbn-delete-reg-warning').innerHTML=ps==='success'?'<div class="wbn-delete-warning">This registration has successful payment. Deleting it may affect payment tracking.</div>':''; const reason=$('wbn-delete-reg-reason'); if(reason)reason.value=''; d.classList.add('on')};
   window.guidcyDeleteWebinarRegistration=async function(){const id=clean(window.__deleteWebinarRegId); if(!id||!isAdmin()){toast('Admin access required.','red');return} const reason=clean($('wbn-delete-reg-reason')?.value); let ok=false; try{const c=supa(); if(c?.from){const r=await c.from('webinar_registrations').update({is_deleted:true,registration_status:'deleted',deleted_at:new Date().toISOString(),deleted_by:userId(),delete_reason:reason}).eq('id',id); if(!r.error)ok=true; else console.warn(r.error)}}catch(e){console.warn(e)} $('wbn-delete-reg-modal')?.classList.remove('on'); if(ok){toast('Registration deleted successfully.','green'); if(typeof window.guidcyReloadWebinarRegsWithDeleted==='function')await window.guidcyReloadWebinarRegsWithDeleted(!!$('wbn-admin-show-deleted')?.checked); else window.guidcyFilterWebinarRegs?.()} else toast('Unable to delete registration. Please try again.','red')};
 })();
@@ -21281,10 +21342,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var id=c.id||c.dbId||c.profile_id||'';
       var role=c.role||c.specialty||c.category||'Consultant';
       var price=Number(c.video_price||c.price||c.rate||0);
-      return {key:id,query:q,label:c.name||'Guidcy expert',desc:[role,c.highest_education||c.education,c.college,price?('₹'+price.toLocaleString('en-IN')+'/session'):''].filter(Boolean).join(' · '),icon:'👤',bg:'#EBF4FF',color:'#1E72BE',search:textOf(c,['name','role','specialty','category','bio','tags','highest_education','college','current_work','current_company'])};
+      return {key:id,query:q,label:c.name||'Guidcy expert',desc:[role,c.highest_education||c.education,c.college,price?(window.guidcyFormatINR(price)+'/session'):''].filter(Boolean).join(' · '),icon:'👤',bg:'#EBF4FF',color:'#1E72BE',search:textOf(c,['name','role','specialty','category','bio','tags','highest_education','college','current_work','current_company'])};
     },4));
     out=out.concat(liveRowsFrom('Note','note',results[1],q,function(n){
-      var price=(Number(n.price||0)>0&&!n.is_free)?('₹'+Number(n.price).toLocaleString('en-IN')):'Free';
+      var price=(Number(n.price||0)>0&&!n.is_free)?(window.guidcyFormatINR(Number(n.price))):'Free';
       return {key:n.id||n.note_id||'',query:q,label:n.title||'Marketplace notes',desc:[n.category||n.subject,price,n.uploader_name||n.author].filter(Boolean).join(' · '),icon:'📄',bg:'#F0FDF4',color:'#15803D',search:textOf(n,['title','category','subject','description','tags','course','institution','uploader_name'])};
     },4));
     out=out.concat(liveRowsFrom('Webinar','webinar',results[2],q,function(w){
@@ -22399,7 +22460,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return '<article data-blog-index="'+i+'" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;margin-bottom:18px">'+imageHtml(p.image)+'<h2 style="font-size:30px;margin-bottom:10px;color:var(--ink);font-family:\'Plus Jakarta Sans\',sans-serif">'+esc(p.title)+'</h2><div style="font-size:14px;color:var(--muted);margin-bottom:18px">'+esc(p.date)+'</div><p style="white-space:pre-wrap;color:#42576b;font-size:16px;line-height:1.75">'+esc(short(p.body,420))+'</p><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px"><button class="btn btn-blue" onclick="guidcyOpenBlogPost(\''+esc(p.slug)+'\')">Read Article</button>'+(isAdmin()?'<button class="btn" onclick="guidcyEditBlogPost('+i+')">Edit on page</button><button class="btn" onclick="guidcyDeleteBlogPost('+i+')" style="border-color:#FCA5A5;color:#B91C1C;background:#FEF2F2">Delete</button>':'')+'</div></article>';
   }
   function detailHtml(p,i){
-    return '<article data-blog-index="'+i+'" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;margin-bottom:18px"><button class="btn" onclick="guidcyOpenBlogList()" style="margin-bottom:18px">Back to Blog</button>'+imageHtml(p.image)+'<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:54px;font-weight:500;line-height:1.05;margin-bottom:12px;color:var(--ink)">'+esc(p.title)+'</h1><div style="font-size:14px;color:var(--muted);margin-bottom:22px">'+esc(p.date)+'</div><p style="white-space:pre-wrap;color:#42576b;font-size:17px;line-height:1.8">'+esc(p.body)+'</p>'+(isAdmin()?'<div class="guidcy-blog-admin-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px"><button class="btn btn-blue" onclick="guidcyEditBlogPost('+i+')">Edit on page</button><button class="btn" onclick="guidcyDeleteBlogPost('+i+')" style="border-color:#FCA5A5;color:#B91C1C;background:#FEF2F2">Delete</button></div>':'')+commentsHtml(p,i)+'</article>';
+    return '<article data-blog-index="'+i+'" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;margin-bottom:18px"><button class="btn" onclick="guidcyOpenBlogList()" style="margin-bottom:18px">Back to Blog</button>'+imageHtml(p.image)+'<h1 style="font-family:\'Cormorant Garamond\',serif;font-size:54px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:12px;color:var(--ink)">'+esc(p.title)+'</h1><div style="font-size:14px;color:var(--muted);margin-bottom:22px">'+esc(p.date)+'</div><p style="white-space:pre-wrap;color:#42576b;font-size:17px;line-height:1.8">'+esc(p.body)+'</p>'+(isAdmin()?'<div class="guidcy-blog-admin-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px"><button class="btn btn-blue" onclick="guidcyEditBlogPost('+i+')">Edit on page</button><button class="btn" onclick="guidcyDeleteBlogPost('+i+')" style="border-color:#FCA5A5;color:#B91C1C;background:#FEF2F2">Delete</button></div>':'')+commentsHtml(p,i)+'</article>';
   }
   async function renderBlog(force){
     var renderToken=++blogRenderToken;
@@ -22407,7 +22468,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var hasUsableContent=!!page.querySelector('#blog-list article,#blog-list .guidcy-blog-empty');
     var hasCachedPosts=!!(cache.posts&&Date.now()-cache.time<300000&&cache.posts.length);
     if(!hasUsableContent&&!hasCachedPosts){
-      page.innerHTML='<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1><div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:24px;color:var(--muted)">Loading blog posts...</div></div>';
+      page.innerHTML='<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1><div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:24px;color:var(--muted)">Loading blog posts...</div></div>';
     }
     var posts=await loadPosts(force);
     if(renderToken!==blogRenderToken)return;
@@ -22415,7 +22476,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var slug=currentSlug();
     var index=slug?posts.findIndex(function(p){return p.slug===slug||p.id===slug}):-1;
     var body=index>=0?detailHtml(posts[index],index):(posts.length?posts.map(cardHtml).join(''):'<div class="guidcy-blog-empty" style="background:#fff;border:1px dashed var(--border);border-radius:18px;padding:30px;color:var(--muted);text-align:center">No blog posts are published yet.</div>');
-    page.innerHTML='<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:500;line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'+(!slug?publishForm():'')+'<div id="blog-list">'+body+'</div></div>';
+    page.innerHTML='<div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:\'Cormorant Garamond\',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1>'+(!slug?publishForm():'')+'<div id="blog-list">'+body+'</div></div>';
     showBlogPage();
   }
   function readImage(file,cb){
@@ -22871,6 +22932,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(typeof fn!=='function'||fn.__guidcyDataStability)return;
     var last='';
     window[name]=function(tab,btn){
+      // The route controller owns coalescing once installed. Nested copies of
+      // this legacy timer gate otherwise cancel the same accepted refresh.
+      if(window.__GUIDCY_ROUTE_AUTH_CONTROLLER_V6__)return fn.apply(this,arguments);
       var key=page+'|'+String(tab||'');
       if(!btn&&key===last&&Date.now()-(window.__guidcyLastDashSwitchAt||0)<500)return false;
       last=key;window.__guidcyLastDashSwitchAt=Date.now();
@@ -22879,6 +22943,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     window[name].__guidcyDataStability=true;
   }
   function installSwitchGuards(){
+    if(window.__GUIDCY_ROUTE_AUTH_CONTROLLER_V6__)return;
     wrapDashSwitcher('swAD','admin-dash');
     wrapDashSwitcher('swUD','user-dash');
     wrapDashSwitcher('swCD','cons-dash');
@@ -23475,7 +23540,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       +'<div class="field"><label>Department</label><input data-exp-field="department" value="'+esc(e.department)+'" placeholder="Example: Polymer R&D"/></div>'
       +'<div class="field"><label>Start Date</label><input data-exp-field="start_date" inputmode="numeric" placeholder="dd/mm/yyyy" value="'+esc(e.start_date)+'"/></div>'
       +'<div class="field"><label>End Date</label><input data-exp-field="end_date" inputmode="numeric" placeholder="dd/mm/yyyy" value="'+esc(e.end_date)+'"/></div>'
-      +'</div><div class="field guidcy-exp-about"><label>What you did in this role <span style="font-weight:400;text-transform:none;letter-spacing:0">— optional, shown on your profile</span></label>'
+      +'</div><div class="field guidcy-exp-about"><label>What you did in this role <span style="font-weight:var(--font-weight-regular,400);text-transform:none;letter-spacing:0">— optional, shown on your profile</span></label>'
       +'<textarea data-exp-field="description" rows="3" maxlength="1200" placeholder="Example: Led the polymer R&amp;D team of 8, took three products from concept to launch, and set up the in-house testing lab.">'+esc(e.description||'')+'</textarea>'
       +'<div class="guidcy-exp-hint">A couple of lines on what you owned and what came of it. This is what makes a profile read as real rather than a job title.</div></div>'
       +'<label class="guidcy-exp-current"><input type="checkbox" data-exp-field="currently_working" '+(e.currently_working?'checked':'')+'> Currently Working Here</label>'
@@ -24253,7 +24318,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 	    var edu=(c.highest_education&&c.college)?'<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>':'';
 	    var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+esc(col)+'22"></div>':'<div class="c-avatar" style="background:'+esc(bg)+';color:'+esc(col)+';border-color:'+esc(col)+'22">'+esc(initialsTxt)+'</div>';
 	    var starHtml=adaptiveStars(rating);
-	    return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',-1)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+starHtml+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">₹'+price.toLocaleString('en-IN')+'</div><div class="c-price-label">per session'+(exp?' · '+esc(exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',-1)">Book</button></div></div>';
+	    return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',-1)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+starHtml+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(price)+'</div><div class="c-price-label">per session'+(exp?' · '+esc(exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',-1)">Book</button></div></div>';
 	  }
 	  function activePageId(){
 	    var page=document.querySelector('.page.on,.page.active');
@@ -25346,6 +25411,11 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   window.guidcyRestoreBookingContext=function(){
     return restoreLockedContext(storedPaymentContext());
   };
+  window.guidcyPaymentConsultantId=function(){
+    var snapshot=storedPaymentContext();
+    var consultant=consultantNow();
+    return txt(snapshot&&snapshot.consultantId)||txt(consultant&&(consultant.dbId||consultant.id));
+  };
   function sameBooking(a,b,comparePrice){
     if(!a||!b)return false;
     var same=String(a.consultantId||'')===String(b.consultantId||'')&&String(a.timeSlot||'')===String(b.timeSlot||'')&&Number(a.duration||60)===Number(b.duration||60)&&String(a.sessionType||'video')===String(b.sessionType||'video');
@@ -25402,22 +25472,48 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     }
   }
   function emptyPayment(){
-    var amt=$('pay-amt'),desc=$('pay-desc'),box=$('pay-summary-box');
-    if(amt)amt.textContent='--';
-    if(desc)desc.textContent='Select a session to continue';
+    var box=$('pay-summary-box');
     if(box)box.innerHTML='';
     setBanner(null);
     setPayButton('Back to profile',false);
   }
+  // Checkout presentation only. All amounts and selection fields come from
+  // the existing locked booking snapshot; no calculations or flow ownership here.
+  function checkoutMoney(value){return window.guidcyFormatINR(value,{decimals:2})}
+  function checkoutIcon(name){
+    var paths={
+      calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2"/>',
+      video:'<rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
+      clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      tag:'<path d="M20 3h-8L3 12l9 9 9-9V4a1 1 0 0 0-1-1Z"/><circle cx="16" cy="8" r="1"/>',
+      info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+      receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 7h6M9 11h6M9 15h3"/>'
+    };
+    return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||'')+'</svg>';
+  }
+  function checkoutSessionHtml(s){
+    var c=s.consultant||{},photo=c.avatar_url||c.profile_image_url||c.photo_url||'';
+    var initials=String(s.consultantName||'').trim().split(/\s+/).map(function(v){return v.charAt(0)}).join('').slice(0,2).toUpperCase();
+    var avatar='<span class="pay-avatar" aria-hidden="true">'+esc(initials)+(photo?'<img src="'+esc(photo)+'" alt="" width="72" height="72" onerror="this.remove()">':'')+'</span>';
+    var type=String(s.sessionType||'');
+    var typeLabel=type.toLowerCase()==='video'?'Video (Google Meet)':type;
+    return '<section class="pay-detail-section"><h2>'+checkoutIcon('calendar')+'Session details</h2><div class="pay-consultant">'+avatar+'<div><h3>'+esc(s.consultantName)+'</h3><p>'+esc(s.duration)+'-min '+esc(type)+' session</p></div></div><dl class="pay-session-fields">'+
+      '<div><dt>'+checkoutIcon('calendar')+'Date &amp; time</dt><dd>'+esc(s.dateLabel)+' · '+esc(s.timeSlot)+' IST</dd></div>'+
+      '<div><dt>'+checkoutIcon('video')+'Session type</dt><dd>'+esc(typeLabel)+'</dd></div>'+
+      '<div><dt>'+checkoutIcon('clock')+'Duration</dt><dd>'+esc(s.duration)+' minutes</dd></div></dl></section>';
+  }
   function renderPayment(s){
     s=s||readLockedSnapshot();
     if(typeof window.guidcyPrepareGoogleCalendarAuthorization==='function')window.guidcyPrepareGoogleCalendarAuthorization().catch(function(){});
-    var amt=$('pay-amt'),desc=$('pay-desc'),box=$('pay-summary-box');
-    if(amt)amt.textContent=money(s.totalAmount);
-    if(desc)desc.textContent=s.duration+'-min '+s.sessionType+' session with '+s.consultantName;
+    var box=$('pay-summary-box');
     if(box){
-      var promoRow=s.discount>0?'<div class="pay-sum-row"><span>Promo discount'+(s.promoCode?' ('+esc(s.promoCode)+')':'')+'</span><span>-'+money(s.discount)+'</span></div>':'';
-      box.innerHTML='<div class="pay-sum-row"><span>Consultant</span><span>'+esc(s.consultantName)+'</span></div><div class="pay-sum-row"><span>Date & time</span><span>'+esc(s.dateLabel)+' · '+esc(s.timeSlot)+' IST</span></div><div class="pay-sum-row"><span>Session type</span><span>'+esc(s.sessionType)+'</span></div><div class="pay-sum-row"><span>Duration</span><span>'+s.duration+' min</span></div><div class="pay-sum-row"><span>Session fee</span><span>'+money(s.baseFee||s.fee)+'</span></div>'+promoRow+'<div class="pay-sum-row"><span>Platform fee (5%)</span><span>'+money(s.platformFee)+'</span></div><div class="pay-sum-row final"><span>Total you pay</span><span>'+money(s.totalAmount)+'</span></div>'+promoHtml(s);
+      var promoRow=s.discount>0?'<div class="pay-sum-row pay-discount"><span>Promo discount'+(s.promoCode?' ('+esc(s.promoCode)+')':'')+'</span><span>-'+checkoutMoney(s.discount)+'</span></div>':'';
+      box.innerHTML=checkoutSessionHtml(s)+'<section class="pay-breakdown"><h2>'+checkoutIcon('receipt')+'Payment breakdown</h2><div class="pay-breakdown-rows"><div class="pay-sum-row"><span>Session fee</span><span>'+checkoutMoney(s.baseFee||s.fee)+'</span></div>'+promoRow+'<div class="pay-sum-row"><span>Platform fee (5%) '+checkoutIcon('info')+'</span><span>'+checkoutMoney(s.platformFee)+'</span></div></div><div class="pay-sum-row final"><span>Total amount due</span><span>'+checkoutMoney(s.totalAmount)+'</span></div></section>'+promoHtml(s);
+    }
+    var security=document.querySelector('#page-payment .secure-row');
+    if(security&&security.querySelector('[data-checkout-outcome]')){
+      security.querySelector('[data-checkout-outcome]').innerHTML='Booking confirmed<br>after verification';
+      delete security.dataset.webinarCopy;
     }
     setBanner(s);
     var pending=storageGet(PENDING_KEY,localStorage);
@@ -25467,7 +25563,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   }
   function promoHtml(s){
     var applied=s&&s.promoCode?('Applied: '+esc(s.promoCode)):'';
-    return '<div class="guidcy-promo-box"><div class="guidcy-promo-row"><input id="guidcy-promo-code" placeholder="Promo code" value="'+esc(s&&s.promoCode||'')+'"><button type="button" onclick="guidcyApplyPromoCode()">Apply</button></div><div class="guidcy-promo-note '+(applied?'ok':'')+'" id="guidcy-promo-note">'+applied+'</div></div>';
+    return '<section class="guidcy-promo-box"><h2>'+checkoutIcon('tag')+'<label for="guidcy-promo-code">Have a promo code?</label></h2><div class="guidcy-promo-row"><input id="guidcy-promo-code" placeholder="Enter promo code" value="'+esc(s&&s.promoCode||'')+'"><button type="button" onclick="guidcyApplyPromoCode()">Apply</button></div><div class="guidcy-promo-note '+(applied?'ok':'')+'" id="guidcy-promo-note" role="status" aria-live="polite">'+applied+'</div></section>';
   }
   window.guidcyApplyPromoCode=function(){
     var code=txt($('guidcy-promo-code')&&$('guidcy-promo-code').value).toUpperCase();
@@ -25767,7 +25863,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     activeAdminButton(btn);
     var m=adminMain(); if(!m)return;
     var rows=localPromos().map(normalizePromo);
-    m.innerHTML='<div class="dash-title">Promo Codes</div><input type="hidden" id="guidcy-admin-promo-editing" value=""><div class="guidcy-admin-promo-grid"><div class="field"><label>Code</label><input id="guidcy-admin-promo-code" placeholder="WELCOME20"></div><div class="field"><label>Discount</label><select id="guidcy-admin-promo-type"><option value="percent">Percent</option><option value="fixed">Fixed amount</option></select></div><div class="field"><label>Value</label><input id="guidcy-admin-promo-value" type="number" min="0" placeholder="10"></div><div class="field"><label>Max discount</label><input id="guidcy-admin-promo-max" type="number" min="0" placeholder="100"></div><div class="field"><label>Start date</label><input id="guidcy-admin-promo-start" type="date"></div><div class="field"><label>End date</label><input id="guidcy-admin-promo-end" type="date"></div><button type="button" class="green-btn" onclick="guidcySavePromoCode()">Save</button></div><div class="guidcy-admin-promo-list">'+(rows.length?rows.map(function(p){return '<div class="guidcy-admin-promo-card"><div><b>'+esc(p.code)+'</b><div style="font-size:12px;color:var(--muted)">'+(p.type==='percent'?p.value+'% off'+(p.maxAmount>0?' up to ₹'+p.maxAmount:''):'₹'+p.value+' off')+' · '+(p.startDate||'Any start')+' to '+(p.endDate||'Any end')+' · '+(p.active?'Active':'Inactive')+'</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="btn" onclick="guidcyEditPromoCode(&quot;'+esc(p.code)+'&quot;)">Edit</button><button type="button" class="btn" onclick="guidcyTogglePromoCode(&quot;'+esc(p.code)+'&quot;)">'+(p.active?'Disable':'Enable')+'</button><button type="button" class="btn" onclick="guidcyDeletePromoCode(&quot;'+esc(p.code)+'&quot;)">Delete</button></div></div>'}).join(''):'<div style="color:var(--muted);font-size:13px">No promo codes created yet.</div>')+'</div>';
+    m.innerHTML='<div class="dash-title">Promo Codes</div><input type="hidden" id="guidcy-admin-promo-editing" value=""><div class="guidcy-admin-promo-grid"><div class="field"><label>Code</label><input id="guidcy-admin-promo-code" placeholder="WELCOME20"></div><div class="field"><label>Discount</label><select id="guidcy-admin-promo-type"><option value="percent">Percent</option><option value="fixed">Fixed amount</option></select></div><div class="field"><label>Value</label><input id="guidcy-admin-promo-value" type="number" min="0" placeholder="10"></div><div class="field"><label>Max discount</label><input id="guidcy-admin-promo-max" type="number" min="0" placeholder="100"></div><div class="field"><label>Start date</label><input id="guidcy-admin-promo-start" type="date"></div><div class="field"><label>End date</label><input id="guidcy-admin-promo-end" type="date"></div><button type="button" class="green-btn" onclick="guidcySavePromoCode()">Save</button></div><div class="guidcy-admin-promo-list">'+(rows.length?rows.map(function(p){return '<div class="guidcy-admin-promo-card"><div><b>'+esc(p.code)+'</b><div style="font-size:12px;color:var(--muted)">'+(p.type==='percent'?p.value+'% off'+(p.maxAmount>0?' up to '+window.guidcyFormatINR(p.maxAmount):''):window.guidcyFormatINR(p.value)+' off')+' · '+(p.startDate||'Any start')+' to '+(p.endDate||'Any end')+' · '+(p.active?'Active':'Inactive')+'</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="btn" onclick="guidcyEditPromoCode(&quot;'+esc(p.code)+'&quot;)">Edit</button><button type="button" class="btn" onclick="guidcyTogglePromoCode(&quot;'+esc(p.code)+'&quot;)">'+(p.active?'Disable':'Enable')+'</button><button type="button" class="btn" onclick="guidcyDeletePromoCode(&quot;'+esc(p.code)+'&quot;)">Delete</button></div></div>'}).join(''):'<div style="color:var(--muted);font-size:13px">No promo codes created yet.</div>')+'</div>';
   }
   window.guidcyRenderPromoAdmin=renderPromoAdmin;
   window.guidcyOpenPromoAdmin=function(btn){
@@ -25871,7 +25967,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function $(id){return document.getElementById(id)}
   function clean(v){return String(v==null?'':v).trim()}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(v){var n=Number(v||0);return n?('₹'+n.toLocaleString('en-IN')):'—'}
+  function money(v){var n=Number(v||0);return n?(window.guidcyFormatINR(n)):'—'}
   function toastSafe(msg,type){try{(window.toast||function(){})(msg,type||'blue')}catch(_){}}
   function client(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
   function currentUid(){try{return (window.currentUser||(typeof currentUser!=='undefined'?currentUser:null)||{}).id||''}catch(_){return ''}}
@@ -26057,7 +26153,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(Number(window.__guidcyCDMyBookingsId)!==requestId)return;
     m.innerHTML='<div class="dash-title">My bookings</div>'+
       (upcoming.length?upcoming.map(function(b){return renderUserBookingCard(b,dmap)}).join(''):'<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📅</div><div style="margin-bottom:16px;font-size:14px">No upcoming sessions you booked</div><button class="btn btn-blue" onclick="go(\'browse\')">Find the experts</button></div>')+
-      (past.length?'<div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:22px 0 12px">Past</div>'+past.map(function(b){return renderUserHistoryCard(b,dmap)}).join(''):'');
+      (past.length?'<div style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin:22px 0 12px">Past</div>'+past.map(function(b){return renderUserHistoryCard(b,dmap)}).join(''):'');
   };
 
   /* Returns null - not [] - when the read failed, so the panel can say the load
@@ -26650,6 +26746,10 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return dashTab.user||'upcoming';
   }
   function activeConsTab(){
+    // Overview has no text-match fallback below; the current route is the
+    // authority when a remote booking changes, including after a tab switch.
+    var routed=window.guidcyDashboardTabFromUrl&&window.guidcyDashboardTabFromUrl('swCD');
+    if(routed)return routed;
     var b=document.querySelector('#page-cons-dash .side-btn.on');
     var txt=lower(b&&b.textContent);
     if(txt.includes('my booking'))return 'my-bookings';
@@ -26703,7 +26803,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     });
   }
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(v){var n=Number(v||0);return n?('₹'+n.toLocaleString('en-IN')):'—'}
+  function money(v){var n=Number(v||0);return n?(window.guidcyFormatINR(n)):'—'}
   function localCard(row,status){
     row=row||{}; status=lower(status||row.status||row.session_status);
     var label=status==='completed'?'Completed':status==='disputed'?'Disputed':'Cancelled';
@@ -26812,7 +26912,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function selectedDateLabel(){try{var dates=typeof window.buildDates==='function'?window.buildDates():[], i=Number(window.selDate||(typeof selDate!=='undefined'?selDate:0))||0;return (dates[i]&&(dates[i].full||dates[i].label))||''}catch(_){return ''}}
   function sessionType(){return clean(window.selSType||(typeof selSType!=='undefined'?selSType:'video'))||'video'}
   function duration(){return Number(window.selDur||(typeof selDur!=='undefined'?selDur:60))||60}
-  function money(v){var n=Math.round(num(v));return n>0?'₹'+n.toLocaleString('en-IN'):'Free'}
+  function money(v){var n=Math.round(num(v));return n>0?window.guidcyFormatINR(n):'Free'}
   function setPayButton(label,disabled){var b=document.querySelector('#page-payment .green-btn');if(b){b.type='button';b.textContent=label;b.disabled=!!disabled}}
   function postJSON(url,body){return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(async function(r){var text=await r.text(),data={};try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}}if(!r.ok)throw new Error(data.error||data.message||text||('HTTP '+r.status));return data})}
   function patchTable(table,id,body){var c=client(); if(c&&c.from)return c.from(table).update(body).eq('id',id); if(typeof window.supabaseRest==='function')return window.supabaseRest(table+'?id=eq.'+encodeURIComponent(id),{method:'PATCH',body:body,prefer:'return=minimal'}); return Promise.resolve(null)}
@@ -27284,7 +27384,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(window.CFG){CFG.payment_gateway='razorpay';delete CFG.razorpay_key}
     var banner=$('testing-mode-banner');
     if(banner){var div=banner.querySelector('div')||banner; if(div&&/Razorpay/i.test(div.innerHTML||''))div.innerHTML='<b>Razorpay secure checkout.</b> Payment opens only after you click Pay. Booking is confirmed only after server-side verification.'}
-    var secure=document.querySelector('#page-payment .secure-row'); if(secure)secure.lastChild&&secure.lastChild.nodeType===3?secure.lastChild.textContent=' Razorpay secure payment · Booking saved after verified success':secure.insertAdjacentText('beforeend',' Razorpay secure payment · Booking saved after verified success');
+    var secure=document.querySelector('#page-payment .secure-row'); if(secure&&!secure.classList.contains('pay-security-indicators'))secure.lastChild&&secure.lastChild.nodeType===3?secure.lastChild.textContent=' Razorpay secure payment · Booking saved after verified success':secure.insertAdjacentText('beforeend',' Razorpay secure payment · Booking saved after verified success');
   }
   document.addEventListener('DOMContentLoaded',updatePaymentCopy);
   setTimeout(updatePaymentCopy,300);
@@ -27306,7 +27406,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   function clean(v){return String(v==null?'':v).trim()}
   function lower(v){return clean(v).toLowerCase()}
   function esc(v){return clean(v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})}
-  function money(v){var n=Number(v||0);return n>0?'₹'+n.toLocaleString('en-IN'):'—'}
+  function money(v){var n=Number(v||0);return n>0?window.guidcyFormatINR(n):'—'}
   function safeJson(v,f){try{return JSON.parse(v)}catch(_){return f}}
   function currentUser(){try{return window.currentUser||(typeof currentUser!=='undefined'?currentUser:null)||null}catch(_){return null}}
   function currentProfile(){try{return window.currentProfile||(typeof currentProfile!=='undefined'?currentProfile:null)||{} }catch(_){return {}}}
@@ -27676,7 +27776,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
 
   function el(id){return document.getElementById(id)}
   function h(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
-  function money(v){var n=Number(v||0);return '₹'+(isFinite(n)?n:0).toLocaleString('en-IN',{maximumFractionDigits:2})}
+  function money(v){var n=Number(v||0);return window.guidcyFormatINR(n)}
   function fmtDate(d){try{return d?new Date(d).toLocaleString('en-IN'):'—'}catch(_){return '—'}}
   function client(){try{return window.guidcyGetSupabaseClient?window.guidcyGetSupabaseClient():(window.sb||window.supabaseClient||window.supabase||null)}catch(_){return window.sb||null}}
   function notify(msg,type){try{(window.toast||window.showToast||console.log)(msg,type||'blue')}catch(_){}}
@@ -27754,7 +27854,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var payable=Number(o.seller_payable||0);
     var searchKey=[o.seller_name,o.seller_email,o.buyer_name,o.buyer_email,o.note_title].join(' ').toLowerCase();
     return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-search="'+h(searchKey)+'" data-status="'+(paid?'paid':'pending')+'">'
-      +'<div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">'+h(o.note_title||o.note_id||'Marketplace note')+'</div>'
+      +'<div class="guidcy-payout-admin-head"><div><div style="font-weight:var(--font-weight-semibold,600);color:#0f172a">'+h(o.note_title||o.note_id||'Marketplace note')+'</div>'
       +'<div style="font-size:12px;color:var(--muted)">Order '+h(String(o.order_reference||o.id||'').slice(0,12))+' · '+h(o.note_category||'')+'</div></div>'
       +'<span class="status-pill '+(paid?'sp-done':'sp-pending')+'">Payout '+h(o.seller_payout_status||'pending')+'</span></div>'
       +'<div class="guidcy-payout-grid">'
@@ -27770,7 +27870,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         +'<div class="guidcy-payout-kv">Payout mode / note<b>'+h(o.seller_payout_mode||'—')+'<br>'+h(o.seller_payout_note||'—')+'</b></div>'):'')
       +'</div>'
       +'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'
-      +(paid?'<span style="font-size:12px;color:#047857;font-weight:800">✓ Paid</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenMarketplacePayoutModal(\''+h(o.id)+'\')">Mark as Paid</button>')
+      +(paid?'<span style="font-size:12px;color:#047857;font-weight:var(--font-weight-semibold,600)">✓ Paid</span>':'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenMarketplacePayoutModal(\''+h(o.id)+'\')">Mark as Paid</button>')
       +'</div></div>';
   }
   async function renderMarketplacePayouts(view,btn){
@@ -27861,7 +27961,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var payable=webinarPayable(w);
     var searchKey=[w.title,w.publisher_name,w.publisher_email].join(' ').toLowerCase();
     return '<div class="guidcy-payout-admin-card guidcy-booking-card" data-search="'+h(searchKey)+'" data-status="'+(paid?'paid':'pending')+'">'
-      +'<div class="guidcy-payout-admin-head"><div><div style="font-weight:800;color:#0f172a">'+h(w.title||w.id)+'</div>'
+      +'<div class="guidcy-payout-admin-head"><div><div style="font-weight:var(--font-weight-semibold,600);color:#0f172a">'+h(w.title||w.id)+'</div>'
       +'<div style="font-size:12px;color:var(--muted)">'+h(w.category||'')+' · '+h(w.date||'')+' '+h(w.time||'')+'</div></div>'
       +'<span class="status-pill '+(paid?'sp-done':'sp-pending')+'">Payout '+h(w.payout_status||'pending')+'</span></div>'
       +'<div class="guidcy-payout-grid">'
@@ -27875,7 +27975,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
         +'<div class="guidcy-payout-kv">Payout mode / note<b>'+h(w.payout_mode||'—')+'<br>'+h(w.payout_note||'—')+'</b></div>'):'')
       +'</div>'
       +'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap">'
-      +(paid?'<span style="font-size:12px;color:#047857;font-weight:800">✓ Paid</span>':(payable>0?'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenWebinarPayoutModal(\''+h(w.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:var(--muted)">Nothing owed yet</span>'))
+      +(paid?'<span style="font-size:12px;color:#047857;font-weight:var(--font-weight-semibold,600)">✓ Paid</span>':(payable>0?'<button class="green-btn guidcy-paid-mini-btn" onclick="guidcyOpenWebinarPayoutModal(\''+h(w.id)+'\')">Mark as Paid</button>':'<span style="font-size:12px;color:var(--muted)">Nothing owed yet</span>'))
       +'</div></div>';
   }
   async function renderWebinarPayouts(view,btn){
@@ -28762,6 +28862,15 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     /* These views are registered below the router in this legacy bundle. The
        locked public controller intentionally cannot be overwritten, so route
        them explicitly once their renderers are available. */
+    // Marketplace used to install its switcher from DOMContentLoaded, after
+    // this controller captured the boot implementations. Dispatch its current
+    // renderers here so URL, selected tab, auth and in-flight ownership agree.
+    var marketplace=window.GuidcyMarketplace;
+    if(marketplace){
+      if((name==='swUD'&&tab==='marketplace')||(name==='swCD'&&tab==='marketplace-purchases'))return marketplace.purchases(button,dashboards[name].mainId);
+      if(tab==='marketplace'&&name==='swCD')return marketplace.seller(button);
+      if(tab==='marketplace'&&name==='swAD')return marketplace.admin(button);
+    }
     if(name==='swUD'&&tab==='saved'&&typeof window.guidcyRenderSavedConsultants==='function')return window.guidcyRenderSavedConsultants(button);
     if((name==='swUD'||name==='swCD')&&tab==='my-webinars'&&typeof window.guidcyRenderMyWebinars==='function')return window.guidcyRenderMyWebinars(name,button);
     if(name==='swAD'&&tab==='disputes'&&typeof window.guidcyRenderDisputeAdminList==='function')return window.guidcyRenderDisputeAdminList(button);
@@ -28799,6 +28908,8 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
      and so does anything past COALESCE_MS, which is set just past the longest
      restorer ladder (7.6s). */
   var COALESCE_MS=9000;
+  var dashboardDelegating={};
+  var dashboardInFlight={};
   var dashLastTab={swUD:'',swCD:'',swAD:''};
   var dashLastAt={swUD:0,swCD:0,swAD:0};
   function markDashboardsStale(){window.__guidcyDashboardsStaleAt=Date.now()}
@@ -28867,7 +28978,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
        place the repeat check runs for them. Without it the boot restorers and
        the booking-status fan-out re-ran e.g. Purchased Notes twenty times over,
        each pass repainting "Loading purchased notes…" - the blinking. */
-    if(checkRepeat&&!button&&dashboardRepaintIsRedundant(name,tab))return false;
+    if(checkRepeat&&!button&&!dashboardDelegating[name]&&dashboardRepaintIsRedundant(name,tab))return false;
     recordDashboardRender(name,tab);
     if(shouldOwnDashboardUrl(name,button))setDesiredDashboard(name,tab,!!button);
     markDashboardButton(name,tab,button);
@@ -28975,6 +29086,15 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
          page built from nothing (zeroed KPIs, empty lists). The owner replays
          it once both are ready. */
       if(window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
+      // One request per dashboard tab at a time. Boot restorers can ask again
+      // while the title is still loading; restarting that query repeatedly
+      // starved slow tabs. A real data change during the read queues one rerun.
+      var owner=String(window.__guidcyAuthUser&&window.__guidcyAuthUser.id||'')+':'+Number(window.__guidcyAuthEpoch||0);
+      var pending=dashboardInFlight[name];
+      if(pending&&pending.tab===tab&&pending.owner===owner&&!button){
+        if(Number(window.__guidcyDashboardsStaleAt||0)>pending.startedAt)pending.revalidate=true;
+        return pending.promise;
+      }
       if(button)noteUserChoseTab(name,tab);
       if(!button&&autoSwitchIsRefused(name,tab)){
         try{repairDashboardIntent(name)}catch(_){}
@@ -28997,7 +29117,26 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       var panel=document.getElementById(info.mainId);
       var keptContent=keepCurrentContent&&panel?panel.innerHTML:'';
       if(owns&&!keepCurrentContent)showDashboardLoading(name,tab);
-      var result=invokeDashboard(name,tab,button,this);
+      // The controller has already accepted this refresh. Nested legacy tab
+      // claimers must not reject that same invocation as a duplicate after
+      // recordDashboardRender stamps it. Keep the gate for separate callers.
+      var result;
+      var flight={tab:tab,owner:owner,startedAt:Date.now(),promise:null,revalidate:false};
+      dashboardInFlight[name]=flight;
+      dashboardDelegating[name]=(dashboardDelegating[name]||0)+1;
+      try{result=invokeDashboard(name,tab,button,this)}
+      catch(error){if(dashboardInFlight[name]===flight)delete dashboardInFlight[name];throw error}
+      finally{dashboardDelegating[name]--}
+      flight.promise=Promise.resolve(result);
+      var finishFlight=function(){
+        if(dashboardInFlight[name]!==flight)return;
+        delete dashboardInFlight[name];
+        if(flight.revalidate&&dashboardTabFromLocation(name)===tab){
+          markDashboardsStale();
+          Promise.resolve().then(function(){window[name](tab,null)});
+        }
+      };
+      flight.promise.then(finishFlight,finishFlight);
       /* Renderers paint their own "Loading…" line too, synchronously, before
          their first await - so by the time invokeDashboard has handed back its
          promise the panel is already blank. On a silent refresh put the
@@ -29222,6 +29361,13 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
   var swUDController=dashboardController('swUD');
   var swCDController=dashboardController('swCD');
   var swADController=dashboardController('swAD');
+  window.guidcyRetryDashboardSection=function(name,tab){
+    var info=dashboards[name];
+    if(!info||!pageIsActive(info.page)||dashboardTabFromLocation(name)!==tab)return;
+    if(window.guidcyInvalidateReadCache)window.guidcyInvalidateReadCache();
+    markDashboardsStale();
+    return ({swUD:swUDController,swCD:swCDController,swAD:swADController})[name](tab,null);
+  };
   lockFunction('go',goController);
   lockFunction('swUD',swUDController);
   lockFunction('swCD',swCDController);
@@ -29710,7 +29856,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     return '<div class="gadmin-case-card" data-dispute-status="'+esc(d.status)+'">'
       +'<div class="gadmin-case-head"><div><div class="gadmin-case-code">'+esc(d.dispute_code)+'</div><div class="gadmin-case-title">'+esc(d.issue_type||'Dispute')+'</div>'
       +'<div class="gadmin-case-meta">'+esc(d.name||'—')+' ('+esc(d.raised_by_role||'guest')+') · '+esc(d.email||'—')+'<br>Consultant: '+esc(d.consultant_name||'—')+' · Booking: '+esc(d.booking_id?String(d.booking_id).slice(0,8)+'…':(d.booking_reference||'—'))+'<br>Created: '+esc(fmtDate(d.created_at))+'</div></div>'
-      +'<div>'+(d.priority&&d.priority!=='Normal'?'<span style="color:#B91C1C;font-size:11px;font-weight:700;margin-right:6px">'+esc(d.priority)+'</span>':'')+'<span class="status-pill '+cls+'">'+esc(d.status)+'</span></div></div>'
+      +'<div>'+(d.priority&&d.priority!=='Normal'?'<span style="color:#B91C1C;font-size:11px;font-weight:var(--font-weight-semibold,600);margin-right:6px">'+esc(d.priority)+'</span>':'')+'<span class="status-pill '+cls+'">'+esc(d.status)+'</span></div></div>'
       +'<div class="gadmin-case-body">'+esc((d.details||'').slice(0,220))+((d.details||'').length>220?'…':'')+'</div>'
       +'<div class="gadmin-case-controls" style="justify-content:flex-end;display:flex"><button class="btn btn-blue" onclick="window.guidcyOpenDisputeThreadModal(\''+esc(d.id)+'\',\'admin\')">Open · View &amp; Manage</button></div>'
       +'</div>';
@@ -29823,8 +29969,9 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     const s=/₹|inr/i.test(String(c||''))?'₹':(clean(c)||'₹');
     a=Number(a||0); b=Number(b||0);
     if(!a&&!b)return 'Not disclosed';
-    if(a&&b&&a!==b)return s+a.toLocaleString('en-IN')+' – '+s+b.toLocaleString('en-IN');
-    return s+(a||b).toLocaleString('en-IN');
+    const display=value=>s==='₹'?window.guidcyFormatINR(value):s+value.toLocaleString('en-IN');
+    if(a&&b&&a!==b)return display(a)+' – '+display(b);
+    return display(a||b);
   }
   function fmtDate(d){if(!d)return '—';try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch(_){return String(d)}}
   function isNew(d){if(!d)return false;try{return (Date.now()-new Date(d).getTime())/86400000<=14}catch(_){return false}}
@@ -30439,7 +30586,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     if(!raw)return '—';
     const href=/^https?:\/\//i.test(raw)?raw:((signed||{})[raw]||'');
     return href
-      ? '<a href="'+esc(href)+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">Open</a>'
+      ? '<a href="'+esc(href)+'" target="_blank" rel="noopener" style="color:var(--blue);font-weight:var(--font-weight-semibold,600)">Open</a>'
       : '<span style="color:var(--muted)" title="The stored file could not be opened">Unavailable</span>';
   }
 
@@ -30716,7 +30863,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
     var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})};
     var lab=function(f){try{return window.guidcyProfileFieldLabel?window.guidcyProfileFieldLabel(f):f}catch(_){return f}};
     var items=(cache.fields||[]).map(function(f){return '<li>'+esc(lab(f))+'</li>'}).join('');
-    d.innerHTML='<div style="font-weight:800;margin-bottom:4px">Your profile is hidden from the website</div>'+
+    d.innerHTML='<div style="font-weight:var(--font-weight-semibold,600);margin-bottom:4px">Your profile is hidden from the website</div>'+
       '<div>'+(items?'Guidcy needs you to update the following before your profile is listed again:':'Add your professional title and a short bio, then press Save.')+'</div>'+
       (items?'<ul style="margin:8px 0 0;padding-left:20px">'+items+'</ul>':'')+
       (cache.note?'<div style="margin-top:10px;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:10px"><b>Note from Guidcy:</b> '+esc(cache.note)+'</div>':'')+
@@ -31004,7 +31151,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
                    :'<div class="bk-av" style="background:var(--blue-l);color:var(--blue)">'+initials+'</div>')+
       '<div class="bk-info">'+
         '<div class="bk-name">'+esc(c.name)+'</div>'+
-        '<div class="bk-meta">'+(esc(c.role)||'Consultant')+(price>0?' · ₹'+price.toLocaleString('en-IN')+' per session':'')+'</div>'+
+        '<div class="bk-meta">'+(esc(c.role)||'Consultant')+(price>0?' · '+window.guidcyFormatINR(price)+' per session':'')+'</div>'+
       '</div>'+
       '<div class="bk-actions">'+
         '<button class="bk-btn blue" onclick="openProfile(\''+esc(c.id)+'\',-1)">View profile</button>'+
@@ -31030,7 +31177,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
                  :'<div style="text-align:center;padding:40px 24px;color:var(--muted)">'+
                   '<div style="font-size:34px;margin-bottom:10px;opacity:.7">🔖</div>'+
                   'You have not saved any consultants yet.<br>'+
-                  '<button onclick="go(\'browse\')" style="margin-top:14px;background:none;border:none;color:var(--blue);cursor:pointer;font-weight:600">Browse consultants →</button>'+
+                  '<button onclick="go(\'browse\')" style="margin-top:14px;background:none;border:none;color:var(--blue);cursor:pointer;font-weight:var(--font-weight-semibold,600)">Browse consultants →</button>'+
                   '</div>');
   }
   window.guidcyRenderSavedConsultants=render;
@@ -31432,6 +31579,7 @@ async function renderConsultantEarnings(btn){setSide('cons','earnings',btn);var 
       /* No id/status: the repaint re-reads the row from the database rather
          than trusting a remote payload, and shouldBroadcast=false because every
          other tab has its own subscription. */
+      try{window.guidcyInvalidateReadCache&&window.guidcyInvalidateReadCache('bookings')}catch(_){}
       try{window.guidcyForceBookingStatusRefresh&&window.guidcyForceBookingStatusRefresh('realtime-booking',null,null,null,false)}catch(_){}
     },400);
   }
@@ -31944,7 +32092,7 @@ window.guidcyGoSignupFromLogin=function(){
   function clean(value){return String(value==null?'':value).trim()}
   function lower(value){return clean(value).toLowerCase()}
   function esc(value){return clean(value).replace(/[&<>"']/g,function(char){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]})}
-  function money(value){var n=Number(value||0);return '₹'+(Number.isFinite(n)?n:0).toLocaleString('en-IN',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})}
+  function money(value){var n=Number(value||0);return window.guidcyFormatINR(n)}
   function toastSafe(message,type){try{if(typeof window.toast==='function')return window.toast(message,type||'blue');if(typeof window.showToast==='function')return window.showToast(message,type||'blue')}catch(_){} }
   function client(){try{return window.guidcyGetSupabaseClient?window.guidcyGetSupabaseClient():window.sb}catch(_){return null}}
   function safeJson(raw,fallback){try{return JSON.parse(raw)}catch(_){return fallback}}
@@ -32096,10 +32244,10 @@ window.guidcyGoSignupFromLogin=function(){
     var status=lower(row.refund_status)||'not_required';
     var paymentReference=row.razorpay_payment_id||row.payment_id||row.razorpay_order_id||'—';
     return '<tr data-guidcy-refund-row data-refund-status="'+esc(status)+'">'
-      +'<td style="font-size:11px;font-weight:700;color:var(--blue);word-break:break-all">'+esc(row.id||'—')+'</td>'
+      +'<td style="font-size:11px;font-weight:var(--font-weight-semibold,600);color:var(--blue);word-break:break-all">'+esc(row.id||'—')+'</td>'
       +'<td>'+esc(row.user_name||'—')+'<br><span style="font-size:11px;color:var(--muted)">'+esc(row.user_email||'')+'</span></td>'
       +'<td>'+esc(row.consultant_name||'—')+'<br><span style="font-size:11px;color:var(--muted)">'+esc(row.consultant_email||'')+'</span></td>'
-      +'<td style="font-weight:700">'+money(row.total_amount||row.payment_amount||row.amount)+'</td>'
+      +'<td style="font-weight:var(--font-weight-semibold,600)">'+money(row.total_amount||row.payment_amount||row.amount)+'</td>'
       +'<td>'+esc(row.cancelled_at?new Date(row.cancelled_at).toLocaleString('en-IN'):'—')+'</td>'
       +'<td><span class="status-pill '+(lower(row.payment_status)==='success'||lower(row.payment_status)==='paid'?'sp-upcoming':lower(row.payment_status)==='failed'?'sp-cancelled':'sp-pending')+'">'+esc(paymentLabel(row.payment_status))+'</span><br><span style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(paymentReference)+'</span></td>'
       +'<td><span class="status-pill sp-cancelled">Cancelled</span></td>'

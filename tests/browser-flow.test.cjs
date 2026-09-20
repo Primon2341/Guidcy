@@ -168,7 +168,7 @@ const fakeSupabase = `
   assert.equal(profileAvatar.fit,'cover');
   const profileWorkStyle=await page.locator('.guidcy-profile-work-company').evaluate(el=>({color:getComputedStyle(el).color,weight:Number(getComputedStyle(el).fontWeight)}));
   assert.equal(profileWorkStyle.color, 'rgb(30, 114, 190)');
-  assert.ok(profileWorkStyle.weight>=700);
+  assert.equal(profileWorkStyle.weight,600,'profile card uses the shared semibold hierarchy');
   await page.waitForTimeout(900);
   assert.deepEqual((await page.evaluate(()=>window.__guidcyVisualStability.profileWorkChanges)), ['Career Coach, Guidcy Technologies']);
   assert.match(page.url(), /\/consultant\/test-expert$/);
@@ -179,14 +179,14 @@ const fakeSupabase = `
     return !!(active&&footer&&(active.compareDocumentPosition(footer)&Node.DOCUMENT_POSITION_FOLLOWING));
   }), true);
   assert.ok(await page.evaluate(() => document.querySelector('.footer')?.getBoundingClientRect().height || 0) > 100);
-  await page.screenshot({path: path.join(root, '..', 'tests', 'profile-desktop.png'), fullPage: true});
+  await page.screenshot({path: path.join('/private/tmp', 'profile-desktop.png'), fullPage: true});
 
   await page.locator('.avail-slot').first().click();
   await page.getByRole('button', {name: 'Book this session'}).click();
   await page.waitForSelector('#page-payment.on', {timeout: 10000});
   assert.equal(new URL(page.url()).pathname, '/payment');
   assert.deepEqual(await page.evaluate(() => Array.from(document.querySelectorAll('.page.on,.page.active')).map(page => page.id)), ['page-payment']);
-  assert.match(await page.locator('#pay-desc').innerText(), /Test Expert/);
+  assert.match(await page.locator('#pay-summary-box').innerText(), /Test Expert/);
   assert.doesNotMatch(await page.locator('#page-payment .green-btn').innerText(), /Back to profile/i);
   await page.waitForFunction(() => {
     const active=document.querySelector('#page-payment.on'), footer=document.querySelector('.footer');
@@ -209,7 +209,7 @@ const fakeSupabase = `
   await page.reload({waitUntil: 'domcontentloaded'});
   await page.waitForSelector('#page-payment.on', {timeout: 10000});
   await page.waitForTimeout(3600);
-  assert.match(await page.locator('#pay-desc').innerText(), /Test Expert/);
+  assert.match(await page.locator('#pay-summary-box').innerText(), /Test Expert/);
   assert.doesNotMatch(await page.locator('#page-payment .green-btn').innerText(), /Back to profile/i);
   assert.doesNotMatch(await page.locator('#toastbar').innerText().catch(() => ''), /please select (?:a )?time slot/i);
   assert.equal(await page.evaluate(() => window.selSlot), '10:00 AM');
@@ -218,7 +218,7 @@ const fakeSupabase = `
   assert.equal(refreshVisualStability.footerReadyLosses, 0, 'footer must not disappear again after first paint');
   assert.ok(refreshVisualStability.pageAnimationStarts.filter(id => id==='page-payment').length <= 1, 'payment page must not replay its entrance animation during refresh restoration');
   assert.ok(refreshVisualStability.activePageTransitions.filter(id => id==='page-payment').length <= 1, 'payment page must activate only once during refresh restoration');
-  await page.screenshot({path: path.join(root, '..', 'tests', 'payment-refresh-desktop.png'), fullPage: true});
+  await page.screenshot({path: path.join('/private/tmp', 'payment-refresh-desktop.png'), fullPage: true});
   await page.locator('#page-payment .green-btn').click();
   await page.waitForTimeout(250);
   assert.doesNotMatch(await page.locator('#toastbar').innerText().catch(() => ''), /please select (?:a )?time slot/i);
@@ -253,7 +253,7 @@ const categoryCards=page.locator('.guidcy-final-cat-card');
 assert.equal(await categoryCards.count(), 33);
 await categoryCards.last().scrollIntoViewIfNeeded();
 assert.match(await categoryCards.last().innerText(), /Content Creation/);
-await page.screenshot({path: path.join(root, '..', 'tests', 'mobile-categories.png'), fullPage: true});
+await page.screenshot({path: path.join('/private/tmp', 'mobile-categories.png'), fullPage: true});
 async function verifyRegisteredCategory(category,expectedNames){
   await page.evaluate(value=>window.filterAndBrowse(value),category);
   await page.waitForSelector('#page-browse.on', {timeout: 10000});
@@ -284,7 +284,7 @@ for(const width of [390,820,1365]){
   await page.evaluate(()=>window.filterAndBrowse('Technology'));
   await page.waitForSelector('#page-browse.on #browse-grid .ccard .c-avatar.has-photo img',{timeout:10000});
   const cardAvatar=await page.locator('#browse-grid .ccard .c-avatar.has-photo img').first().evaluate(img=>({width:img.getBoundingClientRect().width,height:img.getBoundingClientRect().height,display:getComputedStyle(img).display,fit:getComputedStyle(img).objectFit}));
-  assert.ok(cardAvatar.width>40&&cardAvatar.height>40,'card avatar must be visible at '+width+'px');
+  assert.ok(cardAvatar.width>40&&cardAvatar.height>40,'card avatar must be visible at '+width+'px: '+JSON.stringify(cardAvatar));
   assert.equal(cardAvatar.display,'block');
   assert.equal(cardAvatar.fit,'cover');
   await page.goBack();
@@ -329,7 +329,7 @@ await page.evaluate(() => window.go('blog'));
   assert.equal(await page.locator('#nav-links .nav-link', {hasText: /^Find Work$/}).count(), 0);
   assert.equal(await page.locator('.gmob-item', {hasText: /Find Work/}).count(), 0);
   assert.equal(await page.locator('.footer a[href="/careers"]').count(), 1);
-  await page.screenshot({path: path.join(root, '..', 'tests', 'careers-desktop.png'), fullPage: true});
+  await page.screenshot({path: path.join('/private/tmp', 'careers-desktop.png'), fullPage: true});
   console.log('step-careers-hydration-passed');
 
   // legacy /find-work links must resolve to the careers page
@@ -345,7 +345,7 @@ await page.evaluate(() => window.go('blog'));
   await page.waitForFunction(() => /Purchased Test Notes/.test(document.querySelector('#udash-main')?.textContent||''), null, {timeout: 10000});
   assert.match(await page.locator('#udash-main').innerText(), /Purchased Test Notes/);
   assert.doesNotMatch(await page.locator('#udash-main').innerText(), /No purchased notes yet/i);
-  await page.screenshot({path: path.join(root, '..', 'tests', 'purchased-notes-desktop.png'), fullPage: true});
+  await page.screenshot({path: path.join('/private/tmp', 'purchased-notes-desktop.png'), fullPage: true});
   console.log('step-purchased-notes-legacy-order-passed');
 
   await page.evaluate(() => window.guidcyRenderDisputesFromSupabase());
@@ -437,7 +437,7 @@ await page.waitForTimeout(500);
   console.log(JSON.stringify({
     passed: true,
     checks: ['careers direct fresh-window hydration', 'profile deep-link', 'stable current work and company', 'booking without repeat login', 'payment footer order', 'cold payment refresh with lost sessionStorage and delayed auth', 'single stable payment refresh paint', 'Pay after refresh without slot prompt', 'no false expired warning', 'stepwise Back navigation', 'mobile SPA navigation', 'mobile overflow', 'mobile drawers mutually exclusive', 'funds empty section removed', 'jobs empty section removed', 'careers hydration', 'careers posting is admin-only', 'careers reachable from footer only', 'legacy find-work redirect', 'legacy purchased notes visible', 'Supabase-only empty disputes', 'Google Meet-only policy', 'payout modal scroll lock', 'join expert page and links removed', 'dynamic admin payout/webinar routes'],
-    screenshots: ['tests/profile-desktop.png','tests/payment-refresh-desktop.png','tests/mobile-categories.png','tests/careers-desktop.png','tests/purchased-notes-desktop.png']
+    screenshots: ['/private/tmp/profile-desktop.png','/private/tmp/payment-refresh-desktop.png','/private/tmp/mobile-categories.png','/private/tmp/careers-desktop.png','/private/tmp/purchased-notes-desktop.png']
   }, null, 2));
   await browser.close();
   activeBrowser = null;
