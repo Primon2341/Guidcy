@@ -4965,6 +4965,10 @@ function doHeroSearch(){
   setTimeout(applyFilters,150);
 }
 
+// Register navigation before a direct dashboard route selects its active tab.
+// Waiting for load/timers left Notifications unselected after a refresh.
+guidcyInstallConsultantNotificationButton();
+
 const __guidcyOriginalGo=window.go;
 window.go=function(page){
   const result=__guidcyOriginalGo(page);
@@ -14559,6 +14563,8 @@ window.wbnRender=function(){
     if(view==='disputes'){renderDisputeAdmin();return}
     return previousSwAD?previousSwAD(view,btn):undefined;
   };
+  // The deferred bundle already has the sidebar DOM; register before routing.
+  addAdminButtons();
   document.addEventListener('DOMContentLoaded',()=>setTimeout(addAdminButtons,300));
   setTimeout(addAdminButtons,900);
 })();

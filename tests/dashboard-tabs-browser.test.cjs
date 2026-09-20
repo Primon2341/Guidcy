@@ -37,13 +37,15 @@ const server = http.createServer((req, res) => {
     window.__guidcyTestAuthUser={id,email,user_metadata:{full_name:'Test '+role,role}};
     window.__guidcyTestProfile={id,email,full_name:'Test '+role,role};
   },role);
-  await context.route('**/*',r=>{const u=r.request().url();if(u.includes('/assets/vendor/supabase.js'))return r.fulfill({contentType:'text/javascript',body:dashboardSupabase});if(!u.startsWith(origin)||u.includes('/api/'))return r.abort();return r.continue()});
+  await context.route('**/*',r=>{const u=r.request().url();if(u.includes('/assets/vendor/supabase.js'))return r.fulfill({contentType:'text/javascript',body:dashboardSupabase});if(u.includes('/rest/v1/notifications'))return r.fulfill({contentType:'application/json',body:'[]'});if(!u.startsWith(origin)||u.includes('/api/'))return r.abort();return r.continue()});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const owner=role==='consultant'?'cons':role,dash='#page-'+owner+'-dash',main='#'+(role==='consultant'?'c':role==='admin'?'a':'u')+'dash-main';
   const base=role==='user'?'/dashboard':role==='consultant'?'/consultant-dashboard':'/admin-dashboard';
   await page.goto(origin+base);await page.waitForFunction(()=>window.__guidcyAuthReadyFired);
   await page.waitForSelector(dash+' .side-btn[data-dash-section="marketplace"]');
   if(role!=='admin')await page.waitForSelector(dash+' .side-btn[data-dash-section="notification-preferences"]',{state:'attached'});
+  if(role==='consultant')await page.waitForSelector('#cons-notification-btn',{state:'attached'});
+  if(role==='admin')await page.waitForSelector('#gadmin-support-sidebtn',{state:'attached'});
   const links=await page.locator(dash+' .side-btn').evaluateAll(bs=>bs.map(b=>({tab:b.dataset.dashSection||b.dataset.adminSection,label:b.textContent.trim()})).filter(b=>b.tab));
   links.sort((a,b)=>Number(b.tab.startsWith('marketplace'))-Number(a.tab.startsWith('marketplace')));
   const titles={
