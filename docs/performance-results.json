@@ -1,0 +1,1368 @@
+{
+  "date": "2026-09-21",
+  "baselineCommit": "cd88ae76c554982974bcd72f894e6d89fca27277",
+  "environment": {
+    "chrome": "153.0.8010.50",
+    "lighthouse": "12.8.2",
+    "cpu": 4,
+    "fixtures": "empty read-only API responses, 100ms latency; real local Supabase SDK",
+    "root": "/Users/prakhartripathi/Guidcy/Code/Latest copy 6/public"
+  },
+  "median": {
+    "before": {
+      "performance": 48,
+      "lcpMs": 9361.4555,
+      "cls": 0.9565643100661798,
+      "tbtMs": 27.5,
+      "ttfbMs": 3.088,
+      "mainThreadMs": 1987.632000000016,
+      "jsExecutionMs": 977.144000000013,
+      "requests": 54,
+      "jsDecodedBytes": 2226853,
+      "transferBytes": 1650139
+    },
+    "after": {
+      "performance": 76,
+      "lcpMs": 5968.29175,
+      "cls": 0,
+      "tbtMs": 17,
+      "ttfbMs": 3.113,
+      "mainThreadMs": 1434.707999999992,
+      "jsExecutionMs": 540.1400000000009,
+      "requests": 50,
+      "jsDecodedBytes": 2132163,
+      "transferBytes": 932977
+    }
+  },
+  "lighthouseRuns": {
+    "before": [
+      {
+        "performance": 48,
+        "lcpMs": 9418.92455,
+        "cls": 0.9565643100661798,
+        "tbtMs": 29,
+        "ttfbMs": 5.383,
+        "mainThreadMs": 2086.928000000012,
+        "jsExecutionMs": 1036.7240000000072,
+        "requests": 54,
+        "jsDecodedBytes": 2226853,
+        "transferBytes": 1650139,
+        "warnings": []
+      },
+      {
+        "performance": 48,
+        "lcpMs": 9358.7281,
+        "cls": 0.9565643100661798,
+        "tbtMs": 24,
+        "ttfbMs": 3.088,
+        "mainThreadMs": 1938.3760000000138,
+        "jsExecutionMs": 900.6840000000083,
+        "requests": 54,
+        "jsDecodedBytes": 2226853,
+        "transferBytes": 1650157,
+        "warnings": []
+      },
+      {
+        "performance": 48,
+        "lcpMs": 9361.4555,
+        "cls": 0.9565643100661798,
+        "tbtMs": 27.5,
+        "ttfbMs": 2.926,
+        "mainThreadMs": 1987.632000000016,
+        "jsExecutionMs": 977.144000000013,
+        "requests": 54,
+        "jsDecodedBytes": 2226853,
+        "transferBytes": 1650130,
+        "warnings": []
+      }
+    ],
+    "after": [
+      {
+        "performance": 76,
+        "lcpMs": 6004.830250000001,
+        "cls": 0,
+        "tbtMs": 47.5,
+        "ttfbMs": 5.4750000000000005,
+        "mainThreadMs": 1793.0440000000033,
+        "jsExecutionMs": 648.2400000000066,
+        "requests": 50,
+        "jsDecodedBytes": 2132163,
+        "transferBytes": 932977,
+        "warnings": []
+      },
+      {
+        "performance": 76,
+        "lcpMs": 5968.29175,
+        "cls": 0,
+        "tbtMs": 17,
+        "ttfbMs": 3.113,
+        "mainThreadMs": 1389.0279999999927,
+        "jsExecutionMs": 531.0040000000002,
+        "requests": 50,
+        "jsDecodedBytes": 2132163,
+        "transferBytes": 932977,
+        "warnings": []
+      },
+      {
+        "performance": 76,
+        "lcpMs": 5967.7919999999995,
+        "cls": 0,
+        "tbtMs": 16,
+        "ttfbMs": 3.065,
+        "mainThreadMs": 1434.707999999992,
+        "jsExecutionMs": 540.1400000000009,
+        "requests": 50,
+        "jsDecodedBytes": 2132163,
+        "transferBytes": 932977,
+        "warnings": []
+      }
+    ]
+  },
+  "jsBundles": {
+    "before": [
+      {
+        "file": "app.js",
+        "bytes": 1896318,
+        "gzipBytes": 455747
+      },
+      {
+        "file": "auth-lifecycle.js",
+        "bytes": 2695,
+        "gzipBytes": 983
+      },
+      {
+        "file": "controllers.js",
+        "bytes": 17450,
+        "gzipBytes": 5276
+      },
+      {
+        "file": "core.js",
+        "bytes": 1116,
+        "gzipBytes": 503
+      },
+      {
+        "file": "jobs-search.js",
+        "bytes": 3329,
+        "gzipBytes": 1413
+      },
+      {
+        "file": "page-shell.js",
+        "bytes": 9264,
+        "gzipBytes": 3234
+      },
+      {
+        "file": "razorpay-checkout.js",
+        "bytes": 1965,
+        "gzipBytes": 848
+      },
+      {
+        "file": "shared-search.js",
+        "bytes": 25902,
+        "gzipBytes": 7513
+      },
+      {
+        "file": "ui-refresh.js",
+        "bytes": 2513,
+        "gzipBytes": 1111
+      },
+      {
+        "file": "webinar-flow.js",
+        "bytes": 63658,
+        "gzipBytes": 17223
+      }
+    ],
+    "after": [
+      {
+        "file": "app.js",
+        "bytes": 1807226,
+        "gzipBytes": 435413
+      },
+      {
+        "file": "auth-lifecycle.js",
+        "bytes": 2695,
+        "gzipBytes": 983
+      },
+      {
+        "file": "controllers.js",
+        "bytes": 11853,
+        "gzipBytes": 3409
+      },
+      {
+        "file": "core.js",
+        "bytes": 1116,
+        "gzipBytes": 503
+      },
+      {
+        "file": "jobs-search.js",
+        "bytes": 3329,
+        "gzipBytes": 1413
+      },
+      {
+        "file": "page-shell.js",
+        "bytes": 9264,
+        "gzipBytes": 3234
+      },
+      {
+        "file": "razorpay-checkout.js",
+        "bytes": 1965,
+        "gzipBytes": 848
+      },
+      {
+        "file": "shared-search.js",
+        "bytes": 25898,
+        "gzipBytes": 7512
+      },
+      {
+        "file": "ui-refresh.js",
+        "bytes": 2520,
+        "gzipBytes": 1131
+      },
+      {
+        "file": "webinar-flow.js",
+        "bytes": 63654,
+        "gzipBytes": 17223
+      }
+    ]
+  },
+  "assetHashes": {
+    "before": [
+      {
+        "path": "assets/js/app.js",
+        "bytes": 1896318,
+        "sha256": "e638b5ea86f7612c8536e29e7e12a8343dfc4aed682da00395d9b95a10c83670"
+      },
+      {
+        "path": "assets/js/auth-lifecycle.js",
+        "bytes": 2695,
+        "sha256": "dec9ea64d037c5bfbe6fff218dda7d93be87d676cecad66f5214ad010c4f923a"
+      },
+      {
+        "path": "assets/js/controllers.js",
+        "bytes": 17450,
+        "sha256": "69acdec21a284b8c4104f9b613decc86b79a06b9ba0afb35d20cdd3c4d7e3b47"
+      },
+      {
+        "path": "assets/js/core.js",
+        "bytes": 1116,
+        "sha256": "7a58ff33b030e6271eadbcae1f269c3a7a21d63c216ba02fee4010a910e1e089"
+      },
+      {
+        "path": "assets/js/jobs-search.js",
+        "bytes": 3329,
+        "sha256": "093b0181909f1c193024a656eb75832320f71947d957db9232202cb5d1835310"
+      },
+      {
+        "path": "assets/js/page-shell.js",
+        "bytes": 9264,
+        "sha256": "a024aa48a092833476d3b1d303267bd4d0dc203d5de0959bf6fb3e8d41afcb34"
+      },
+      {
+        "path": "assets/js/razorpay-checkout.js",
+        "bytes": 1965,
+        "sha256": "6d9c57dc88af51c06ba0f46b733576110b376774332ff7dff62ffeec47e315b0"
+      },
+      {
+        "path": "assets/js/shared-search.js",
+        "bytes": 25902,
+        "sha256": "f00ae42cbef9c5a116d584d4d3926e603b90c27a4feb48284e8e33961b0189f8"
+      },
+      {
+        "path": "assets/js/ui-refresh.js",
+        "bytes": 2513,
+        "sha256": "0712f750662a472c177f6894aaf06f4eea719498f78ca1c8806d509bd5c781a8"
+      },
+      {
+        "path": "assets/js/webinar-flow.js",
+        "bytes": 63658,
+        "sha256": "d135637bd8c4f24a997da117618d4121b1d9b1a4814a4413093308e61f94f5c1"
+      },
+      {
+        "path": "assets/css/base.css",
+        "bytes": 71416,
+        "sha256": "8c4b9b476c001f5f124a93a55d20f5a1563036a43acefa5a18e579ee5c35132c"
+      },
+      {
+        "path": "assets/css/fonts.css",
+        "bytes": 2048,
+        "sha256": "8cb994d76cb70a8a8e460e63611932ebb239cb1c1c848d252bceab0e217e072c"
+      },
+      {
+        "path": "assets/css/jobs-search.css",
+        "bytes": 3377,
+        "sha256": "3ac7867349206aaa748ba5e900886b99601ed687a787cc0f20e38086c2d5b02b"
+      },
+      {
+        "path": "assets/css/login.css",
+        "bytes": 7570,
+        "sha256": "1928bbc1e5cfb1e203d1e3eea9a3feb5f4a2f50bc2b4d6e52a951b592fbdb021"
+      },
+      {
+        "path": "assets/css/patches.css",
+        "bytes": 237309,
+        "sha256": "2cbdf63ea9c4770df63e8f1b8f55aef64ffb576bced9990f75de157ae57a6667"
+      },
+      {
+        "path": "assets/vendor/supabase.js",
+        "bytes": 211907,
+        "sha256": "ec004176d101aec77aeef266aa1c94411287fe2039c65ea5f6c72f5e14b3847d"
+      }
+    ],
+    "after": [
+      {
+        "path": "assets/js/app.js",
+        "bytes": 1807226,
+        "sha256": "3a5cdad8ece77b0e45127521436e4de0b62d144024d704eea189d3ea62a7396d"
+      },
+      {
+        "path": "assets/js/auth-lifecycle.js",
+        "bytes": 2695,
+        "sha256": "dec9ea64d037c5bfbe6fff218dda7d93be87d676cecad66f5214ad010c4f923a"
+      },
+      {
+        "path": "assets/js/controllers.js",
+        "bytes": 11853,
+        "sha256": "a9373604382308736e4fc52654b4e754968e35754266f2e4fbaff8e2b72c8a48"
+      },
+      {
+        "path": "assets/js/core.js",
+        "bytes": 1116,
+        "sha256": "7a58ff33b030e6271eadbcae1f269c3a7a21d63c216ba02fee4010a910e1e089"
+      },
+      {
+        "path": "assets/js/jobs-search.js",
+        "bytes": 3329,
+        "sha256": "093b0181909f1c193024a656eb75832320f71947d957db9232202cb5d1835310"
+      },
+      {
+        "path": "assets/js/page-shell.js",
+        "bytes": 9264,
+        "sha256": "a024aa48a092833476d3b1d303267bd4d0dc203d5de0959bf6fb3e8d41afcb34"
+      },
+      {
+        "path": "assets/js/razorpay-checkout.js",
+        "bytes": 1965,
+        "sha256": "6d9c57dc88af51c06ba0f46b733576110b376774332ff7dff62ffeec47e315b0"
+      },
+      {
+        "path": "assets/js/shared-search.js",
+        "bytes": 25898,
+        "sha256": "bf200acbfd761d4b5bce7b0c1a934cb8780fa986c9aa4f0709e294b921500fe5"
+      },
+      {
+        "path": "assets/js/ui-refresh.js",
+        "bytes": 2520,
+        "sha256": "aba5ed514031be8d6d650358c866c1be2319c0082333640199226d50413ad35a"
+      },
+      {
+        "path": "assets/js/webinar-flow.js",
+        "bytes": 63654,
+        "sha256": "2203048292c2262f03c3bbb3d01ee176c3842dc5b2a2c0056d922ab50d06c20b"
+      },
+      {
+        "path": "assets/css/base.css",
+        "bytes": 71373,
+        "sha256": "167aa27353ce88ce4c41cb168f6ee46b646f738ef92cbc0a851ac8903bd6c235"
+      },
+      {
+        "path": "assets/css/fonts.css",
+        "bytes": 2048,
+        "sha256": "8cb994d76cb70a8a8e460e63611932ebb239cb1c1c848d252bceab0e217e072c"
+      },
+      {
+        "path": "assets/css/jobs-search.css",
+        "bytes": 3378,
+        "sha256": "a2a499fbf7ee1df7851f0f7a5f9475d462fb59f51f8a413e5d826b25633f639c"
+      },
+      {
+        "path": "assets/css/login.css",
+        "bytes": 7379,
+        "sha256": "b4f3434095ea91878d52595e33f29f7668fc26b328450dcba408360bb621b51a"
+      },
+      {
+        "path": "assets/css/mobile.css",
+        "bytes": 4597,
+        "sha256": "6e3de83cbc4424cf8f9735697b4da56c7ed9b7aae1518be7dc4fe7b527cfb051"
+      },
+      {
+        "path": "assets/css/patches.css",
+        "bytes": 237477,
+        "sha256": "ae6d0a3e5091a17b5018f1450c775162806f242b5ba2c44a1440afa21031c40a"
+      },
+      {
+        "path": "assets/vendor/supabase.js",
+        "bytes": 211907,
+        "sha256": "ec004176d101aec77aeef266aa1c94411287fe2039c65ea5f6c72f5e14b3847d"
+      },
+      {
+        "path": "index.html",
+        "bytes": 187203,
+        "sha256": "f1bf51bfbd9ffeccaa440e9ff272987d80c5ef53b1b8009e1799c225df61a595"
+      }
+    ]
+  },
+  "routes": [
+    {
+      "route": "/",
+      "before": {
+        "scriptMs": 462.492,
+        "taskMs": 1010.1610000000001,
+        "supabaseReads": 10,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 208,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "guidcy-growth-paths-section": 1,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "cons-grid": 7,
+          "reviews-grid": 2,
+          "guidcy-ai-profile-builder": 1,
+          "guidcy-mixed-home-opps": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 240.9,
+        "taskMs": 723.994,
+        "supabaseReads": 10,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 186,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "cons-grid": 7,
+          "reviews-grid": 4,
+          "gpers-rec": 1,
+          "gpers-recent": 1,
+          "gpers-similar": 1,
+          "gpers-webinars": 1,
+          "gpers-trending": 1,
+          "gpers-roadmap": 1,
+          "guidcy-mixed-home-opps": 1,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    },
+    {
+      "route": "/find-experts",
+      "before": {
+        "scriptMs": 468.368,
+        "taskMs": 843.9929999999999,
+        "supabaseReads": 7,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 182,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "filter-cat-list": 13,
+          "browse-grid": 5,
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "active-filters": 2,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 252.509,
+        "taskMs": 586.7520000000001,
+        "supabaseReads": 6,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 165,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "filter-cat-list": 13,
+          "browse-grid": 5,
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "admin-webinars-btn": 1,
+          "cons-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "active-filters": 2,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    },
+    {
+      "route": "/marketplace",
+      "before": {
+        "scriptMs": 608.269,
+        "taskMs": 978.81,
+        "supabaseReads": 7,
+        "duplicateReads": [],
+        "longTaskCount": 3,
+        "longTaskTotalMs": 229,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "gmkt-cat": 6,
+          "guidcy-ai-profile-builder": 1,
+          "gmkt-grid": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 333.475,
+        "taskMs": 658.188,
+        "supabaseReads": 5,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 163,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "admin-webinars-btn": 1,
+          "cons-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "gmkt-cat": 6,
+          "guidcy-ai-profile-builder": 1,
+          "gmkt-grid": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    },
+    {
+      "route": "/webinars",
+      "before": {
+        "scriptMs": 584.115,
+        "taskMs": 998.239,
+        "supabaseReads": 8,
+        "duplicateReads": [],
+        "longTaskCount": 3,
+        "longTaskTotalMs": 223,
+        "maxInteractionSampleMs": 32,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "wbn-cards": 2,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 320.928,
+        "taskMs": 664.793,
+        "supabaseReads": 6,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 173,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "wbn-cards": 2,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    },
+    {
+      "route": "/find-jobs",
+      "before": {
+        "scriptMs": 498.811,
+        "taskMs": 846.453,
+        "supabaseReads": 6,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 175,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 249.87,
+        "taskMs": 564.546,
+        "supabaseReads": 4,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 172,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "guidcy-ai-profile-builder": 1,
+          "gc-admin-bar": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    },
+    {
+      "route": "/careers",
+      "before": {
+        "scriptMs": 491.869,
+        "taskMs": 874.5039999999999,
+        "supabaseReads": 7,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 185,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "gc-admin-bar": 3,
+          "gc-list": 2,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "gc-filter-dept": 2,
+          "gc-filter-loc": 2,
+          "gc-filter-type": 2,
+          "guidcy-ai-profile-builder": 1,
+          "browse-filter-toggle": 1,
+          "gpers-rec": 2,
+          "gpers-recent": 2,
+          "gpers-similar": 2,
+          "gpers-webinars": 2,
+          "gpers-trending": 2,
+          "gpers-roadmap": 2,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      },
+      "after": {
+        "scriptMs": 254.35600000000002,
+        "taskMs": 577.866,
+        "supabaseReads": 5,
+        "duplicateReads": [],
+        "longTaskCount": 2,
+        "longTaskTotalMs": 166,
+        "maxInteractionSampleMs": 24,
+        "panelHtmlWrites": {
+          "cons-notification-btn": 1,
+          "gadmin-support-sidebtn": 1,
+          "sc-cat": 5,
+          "guidcy-consultant-category-boxes": 3,
+          "cat-select": 5,
+          "filter-cat-list": 3,
+          "cats-full-grid": 4,
+          "grag-panel": 1,
+          "gc-admin-bar": 3,
+          "gc-list": 2,
+          "cons-webinars-btn": 1,
+          "admin-webinars-btn": 1,
+          "page-help": 1,
+          "page-dispute": 1,
+          "gc-filter-dept": 2,
+          "gc-filter-loc": 2,
+          "gc-filter-type": 2,
+          "guidcy-ai-profile-builder": 1,
+          "browse-filter-toggle": 1,
+          "guidcy-live-opp-list": 1,
+          "guidcy-startup-live-list": 1,
+          "hero-search-suggestions": 3
+        },
+        "errors": []
+      }
+    }
+  ],
+  "mobileNavigationBenchmark": {
+    "before": {
+      "passed": true,
+      "mode": "mobile-4x-cpu",
+      "homeReadyMs": 913,
+      "categoryReadyMs": 687,
+      "taskDurationMs": 307,
+      "scriptDurationMs": 90,
+      "layoutDurationMs": 31,
+      "recalcStyleDurationMs": 33,
+      "longTaskCount": 3,
+      "longTaskTotalMs": 315,
+      "maxLongTaskMs": 122,
+      "nodes": 3003,
+      "resources": [
+        {
+          "name": "core.js",
+          "transferSize": 1416,
+          "decodedBodySize": 1116,
+          "duration": 13.300000071525574
+        },
+        {
+          "name": "fonts.css",
+          "transferSize": 2348,
+          "decodedBodySize": 2048,
+          "duration": 12.600000023841858
+        },
+        {
+          "name": "base.css",
+          "transferSize": 71716,
+          "decodedBodySize": 71416,
+          "duration": 14.800000071525574
+        },
+        {
+          "name": "patches.css",
+          "transferSize": 237609,
+          "decodedBodySize": 237309,
+          "duration": 15.5
+        },
+        {
+          "name": "jobs-search.css",
+          "transferSize": 3677,
+          "decodedBodySize": 3377,
+          "duration": 15.800000071525574
+        },
+        {
+          "name": "login.css",
+          "transferSize": 7870,
+          "decodedBodySize": 7570,
+          "duration": 15.899999976158142
+        },
+        {
+          "name": "supabase.js",
+          "transferSize": 1538,
+          "decodedBodySize": 1238,
+          "duration": 7.800000071525574
+        },
+        {
+          "name": "auth-lifecycle.js",
+          "transferSize": 2995,
+          "decodedBodySize": 2695,
+          "duration": 34.800000071525574
+        },
+        {
+          "name": "jobs-search.js",
+          "transferSize": 3629,
+          "decodedBodySize": 3329,
+          "duration": 34.800000071525574
+        },
+        {
+          "name": "ui-refresh.js",
+          "transferSize": 2813,
+          "decodedBodySize": 2513,
+          "duration": 37.200000047683716
+        },
+        {
+          "name": "razorpay-checkout.js",
+          "transferSize": 2265,
+          "decodedBodySize": 1965,
+          "duration": 37.39999997615814
+        },
+        {
+          "name": "app.js",
+          "transferSize": 1896618,
+          "decodedBodySize": 1896318,
+          "duration": 44.39999997615814
+        },
+        {
+          "name": "shared-search.js",
+          "transferSize": 26202,
+          "decodedBodySize": 25902,
+          "duration": 39.799999952316284
+        },
+        {
+          "name": "controllers.js",
+          "transferSize": 17750,
+          "decodedBodySize": 17450,
+          "duration": 40.10000002384186
+        },
+        {
+          "name": "webinar-flow.js",
+          "transferSize": 63958,
+          "decodedBodySize": 63658,
+          "duration": 39.89999997615814
+        }
+      ],
+      "cpuHotspots": [
+        {
+          "functionName": "(idle)",
+          "file": "",
+          "line": 0,
+          "hits": 2850
+        },
+        {
+          "functionName": "(program)",
+          "file": "",
+          "line": 0,
+          "hits": 2058
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 149
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 121
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 97
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 90
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 68
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 58
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 49
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 44
+        },
+        {
+          "functionName": "capPopularCategoriesToTwoRows",
+          "file": "app.js",
+          "line": 1,
+          "hits": 40
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 38
+        },
+        {
+          "functionName": "renderStrip",
+          "file": "app.js",
+          "line": 1,
+          "hits": 36
+        },
+        {
+          "functionName": "capPopularCategoriesToTwoRows",
+          "file": "app.js",
+          "line": 1,
+          "hits": 36
+        },
+        {
+          "functionName": "(garbage collector)",
+          "file": "",
+          "line": 0,
+          "hits": 29
+        },
+        {
+          "functionName": "walk",
+          "file": "app.js",
+          "line": 1,
+          "hits": 19
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 15
+        },
+        {
+          "functionName": "lower",
+          "file": "app.js",
+          "line": 1,
+          "hits": 15
+        },
+        {
+          "functionName": "relabelNodeText",
+          "file": "app.js",
+          "line": 1,
+          "hits": 14
+        },
+        {
+          "functionName": "set",
+          "file": "ui-refresh.js",
+          "line": 1,
+          "hits": 14
+        },
+        {
+          "functionName": "query",
+          "file": "",
+          "line": 5719,
+          "hits": 14
+        },
+        {
+          "functionName": "clean",
+          "file": "app.js",
+          "line": 1,
+          "hits": 12
+        },
+        {
+          "functionName": "set",
+          "file": "ui-refresh.js",
+          "line": 1,
+          "hits": 11
+        },
+        {
+          "functionName": "relabelNodeText",
+          "file": "app.js",
+          "line": 1,
+          "hits": 11
+        }
+      ]
+    },
+    "after": {
+      "passed": true,
+      "mode": "mobile-4x-cpu",
+      "homeReadyMs": 549,
+      "categoryReadyMs": 673,
+      "taskDurationMs": 180,
+      "scriptDurationMs": 26,
+      "layoutDurationMs": 17,
+      "recalcStyleDurationMs": 18,
+      "longTaskCount": 2,
+      "longTaskTotalMs": 194,
+      "maxLongTaskMs": 110,
+      "nodes": 3003,
+      "resources": [
+        {
+          "name": "core.js",
+          "transferSize": 1416,
+          "decodedBodySize": 1116,
+          "duration": 11.600000023841858
+        },
+        {
+          "name": "supabase.js",
+          "transferSize": 1538,
+          "decodedBodySize": 1238,
+          "duration": 9.600000023841858
+        },
+        {
+          "name": "fonts.css",
+          "transferSize": 2348,
+          "decodedBodySize": 2048,
+          "duration": 13.299999952316284
+        },
+        {
+          "name": "login.css",
+          "transferSize": 7679,
+          "decodedBodySize": 7379,
+          "duration": 14.5
+        },
+        {
+          "name": "base.css",
+          "transferSize": 71673,
+          "decodedBodySize": 71373,
+          "duration": 15.200000047683716
+        },
+        {
+          "name": "jobs-search.css",
+          "transferSize": 3678,
+          "decodedBodySize": 3378,
+          "duration": 15.799999952316284
+        },
+        {
+          "name": "patches.css",
+          "transferSize": 237777,
+          "decodedBodySize": 237477,
+          "duration": 16.799999952316284
+        },
+        {
+          "name": "jobs-search.js",
+          "transferSize": 3629,
+          "decodedBodySize": 3329,
+          "duration": 27.399999976158142
+        },
+        {
+          "name": "auth-lifecycle.js",
+          "transferSize": 2995,
+          "decodedBodySize": 2695,
+          "duration": 27.5
+        },
+        {
+          "name": "ui-refresh.js",
+          "transferSize": 2820,
+          "decodedBodySize": 2520,
+          "duration": 27.600000023841858
+        },
+        {
+          "name": "razorpay-checkout.js",
+          "transferSize": 2265,
+          "decodedBodySize": 1965,
+          "duration": 27.09999990463257
+        },
+        {
+          "name": "mobile.css",
+          "transferSize": 4897,
+          "decodedBodySize": 4597,
+          "duration": 15.400000095367432
+        },
+        {
+          "name": "shared-search.js",
+          "transferSize": 26198,
+          "decodedBodySize": 25898,
+          "duration": 27.600000023841858
+        },
+        {
+          "name": "controllers.js",
+          "transferSize": 12153,
+          "decodedBodySize": 11853,
+          "duration": 28.600000023841858
+        },
+        {
+          "name": "webinar-flow.js",
+          "transferSize": 63954,
+          "decodedBodySize": 63654,
+          "duration": 28.700000047683716
+        },
+        {
+          "name": "app.js",
+          "transferSize": 1807526,
+          "decodedBodySize": 1807226,
+          "duration": 31.200000047683716
+        }
+      ],
+      "cpuHotspots": [
+        {
+          "functionName": "(idle)",
+          "file": "",
+          "line": 0,
+          "hits": 3123
+        },
+        {
+          "functionName": "(program)",
+          "file": "",
+          "line": 0,
+          "hits": 1488
+        },
+        {
+          "functionName": "capPopularCategoriesToTwoRows",
+          "file": "app.js",
+          "line": 1,
+          "hits": 139
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 73
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 32
+        },
+        {
+          "functionName": "visit",
+          "file": "app.js",
+          "line": 1,
+          "hits": 25
+        },
+        {
+          "functionName": "(garbage collector)",
+          "file": "",
+          "line": 0,
+          "hits": 16
+        },
+        {
+          "functionName": "query",
+          "file": "",
+          "line": 5719,
+          "hits": 14
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 12
+        },
+        {
+          "functionName": "set",
+          "file": "ui-refresh.js",
+          "line": 1,
+          "hits": 11
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 11
+        },
+        {
+          "functionName": "walk",
+          "file": "app.js",
+          "line": 1,
+          "hits": 11
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "",
+          "line": 17,
+          "hits": 10
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 10
+        },
+        {
+          "functionName": "walk",
+          "file": "app.js",
+          "line": 1,
+          "hits": 10
+        },
+        {
+          "functionName": "fixTextNode",
+          "file": "app.js",
+          "line": 1,
+          "hits": 10
+        },
+        {
+          "functionName": "renderStrip",
+          "file": "app.js",
+          "line": 1,
+          "hits": 9
+        },
+        {
+          "functionName": "clean",
+          "file": "app.js",
+          "line": 1,
+          "hits": 9
+        },
+        {
+          "functionName": "capPopularCategoriesToTwoRows",
+          "file": "app.js",
+          "line": 1,
+          "hits": 9
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 9
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 8
+        },
+        {
+          "functionName": "querySelectorAll",
+          "file": "",
+          "line": 0,
+          "hits": 7
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 7
+        },
+        {
+          "functionName": "(anonymous)",
+          "file": "app.js",
+          "line": 1,
+          "hits": 6
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "No field INP measured",
+    "Localhost TTFB, not production backend latency",
+    "Empty read-only data fixtures",
+    "Two existing browser assertions fail on baseline and optimized builds"
+  ]
+}

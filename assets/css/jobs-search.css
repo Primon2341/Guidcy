@@ -2,7 +2,7 @@
 :is(#page-jobs, #page-opportunities) .jobs-companion-rail { height:100px; position:relative; overflow:hidden; pointer-events:none; mix-blend-mode:multiply; }
 :is(#page-jobs, #page-opportunities) .jobs-peek-window { position:absolute; width:96px; height:100px; bottom:0; left:0; overflow:hidden; }
 :is(#page-jobs, #page-opportunities) .jobs-character { position:absolute; width:96px; height:96px; bottom:-6px; left:0; transform:translateY(0); transition:transform .28s ease-in,opacity .22s ease; }
-:is(#page-jobs, #page-opportunities) .jobs-character-art { display:block; width:100%; height:100%; background:url('/assets/images/guidcy-boy-poses.png') 0 0 / 300% 100% no-repeat; }
+:is(#page-jobs, #page-opportunities) .jobs-character-art { display:block; width:100%; height:100%; background:url('/assets/images/guidcy-boy-poses.webp') 0 0 / 300% 100% no-repeat; }
 :is(#page-jobs, #page-opportunities) [data-pose="look"] .jobs-character-art { background-position:50% 0; }
 :is(#page-jobs, #page-opportunities) [data-pose="wave"] .jobs-character-art { background-position:100% 0; }
 :is(#page-jobs, #page-opportunities) [data-position="center"] .jobs-peek-window { left:calc(50% - 48px); }

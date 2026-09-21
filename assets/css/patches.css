@@ -2587,7 +2587,7 @@ body.guidcy-razorpay-opening #page-payment .green-btn{opacity:.88;transform:tran
 .gc-empty-icon{font-size:38px;display:block;margin-bottom:12px;opacity:.75}
 .gc-skel{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px 24px;margin-bottom:14px}
 .gc-skel-bar{height:12px;border-radius:6px;background:linear-gradient(90deg,#EEF4FB 25%,#DCE9F6 37%,#EEF4FB 63%);background-size:400% 100%;animation:gcShimmer 1.3s ease infinite}
-@keyframes gcShimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@keyframes gcShimmer{0%,100%{opacity:1}50%{opacity:.55}}
 
 /* ── ADMIN BAR ── */
 .gc-admin-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:linear-gradient(135deg,var(--blue-l),var(--green-l));border:1px solid var(--blue-m);border-radius:16px;padding:14px 18px;margin-bottom:18px}
@@ -3168,3 +3168,8 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 #page-payment .pay-webinar-summary .pay-sum-row{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:start;gap:16px}
 #page-payment .pay-webinar-label{white-space:nowrap;color:var(--muted);font-weight:var(--font-weight-regular)}
 #page-payment .pay-webinar-value{min-width:0;overflow-wrap:anywhere;text-align:right;font-weight:var(--font-weight-semibold)}
+
+/* Respect reduced motion for loading indicators and later-mounted dialogs too. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}

@@ -128,8 +128,8 @@
      remote Google Fonts stylesheet round-trips. -->
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/dm-sans.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/cormorant-garamond.woff2">
-<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/dm-sans-inr.woff2">
-<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/cormorant-garamond-inr.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/fonts/cormorant-garamond-italic.woff2">
+
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/patches.css">
@@ -203,6 +203,7 @@
 
 
 
+<link rel="stylesheet" href="/assets/css/mobile.css">
 <script src="/assets/js/page-shell.js"></script>
 </head>
 <body>
@@ -212,7 +213,7 @@
   <div class="logo-wrap" onclick="go('home')">
     <div class="logo-svg-wrap guidcy-header-brand">
       <svg viewBox="190 390 820 460" width="112" height="63" role="img" aria-label="Guidcy — Guidance Made Simple" focusable="false">
-        <image href="/assets/images/guidcy-homepage-logo.jpg" x="0" y="0" width="1200" height="1200"/>
+        <image href="/assets/images/header-logo.webp" x="0" y="0" width="1200" height="1200"/>
       </svg>
     </div>
   </div>
@@ -277,19 +278,50 @@
   </div>
 
   <!-- Categories -->
+<section id="guidcy-growth-paths-section" class="guidcy-growth-section"><div class="guidcy-growth-wrap"><div><div class="guidcy-growth-kicker">✨ Everything in one place</div><h2 class="guidcy-growth-title">One profile. <span>All Guidcy tools.</span></h2><p class="guidcy-growth-copy">Guidcy brings Home, Find the Expert, Jobs, Categories, Blog, Webinars, Funds & Grants Finder, and Career & College AI Finder into one clean platform without confusing users across different names.</p><div class="guidcy-growth-grid"><div class="guidcy-growth-card" data-page="webinar"><div class="guidcy-growth-ico">🎙️</div><div><h3>Publish & join webinars</h3><p>Consultants can publish webinars, while learners can discover sessions that match their interests.</p></div></div><div class="guidcy-growth-card" data-page="jobs"><div class="guidcy-growth-ico">💼</div><div><h3>Find Jobs + Career & College AI</h3><p>Search jobs and use Career & College AI Finder from the same platform without switching tabs.</p></div></div><div class="guidcy-growth-card" data-page="smart-finder"><div class="guidcy-growth-ico">🤖</div><div><h3>Career & College AI Finder</h3><p>Get profile-based suggestions for jobs, colleges, career direction and admission options.</p></div></div><div class="guidcy-growth-card" data-page="opportunities"><div class="guidcy-growth-ico">🏆</div><div><h3>Funds & Grants Finder</h3><p>Find hackathons, scholarships, grants, competitions and startup programs, then save them for later.</p></div></div></div><div class="guidcy-growth-actions"><button class="btn btn-blue" id="guidcy-growth-smart-btn">Try Career & College AI Finder →</button><button class="btn" id="guidcy-growth-webinar-btn">Explore Webinars</button><button class="btn" id="guidcy-growth-jobs-btn">Search Jobs</button><button class="btn" id="guidcy-growth-opp-btn">Funds & Grants Finder →</button></div></div><div class="guidcy-growth-visual"><div class="guidcy-mix-board"><span class="guidcy-mix-dot d1"></span><span class="guidcy-mix-dot d2"></span><span class="guidcy-mix-dot d3"></span><div id="guidcy-mixed-home-opps"><div class="guidcy-mix-empty">Loading daily opportunities…</div></div></div></div></div></section>
+  <section class="guidcy-personal-section" id="guidcy-personalization-section">
+      <div class="guidcy-personal-shell">
+        <div class="guidcy-personal-head">
+          <div><div class="guidcy-personal-kicker">AI-powered personalization</div><h2 class="guidcy-personal-title">Made for your next step</h2><p class="guidcy-personal-sub">Personalized consultants, webinars, field trends and roadmap progress are generated from your latest searches, profile signals and live Live data.</p></div>
+          <div class="guidcy-personal-refresh"><button class="btn btn-blue" onclick="guidcyRefreshPersonalization()">Refresh recommendations</button><button class="btn" onclick="go('browse')">Find the Expert</button></div>
+        </div>
+        <div class="guidcy-personal-tabs" id="guidcy-personal-tabs">
+          <button class="guidcy-personal-tab on" data-panel="rec">Recommended consultants for you</button>
+          <button class="guidcy-personal-tab" data-panel="recent">Recently viewed experts</button>
+          <button class="guidcy-personal-tab" data-panel="similar">Similar experts</button>
+          <button class="guidcy-personal-tab" data-panel="webinars">Webinars you may like</button>
+          <button class="guidcy-personal-tab" data-panel="trending">Trending in your field</button>
+          <button class="guidcy-personal-tab" data-panel="roadmap">Continue your career roadmap</button>
+        </div>
+        <div id="gpers-panel-rec" class="guidcy-personal-panel on"><div id="gpers-rec" class="guidcy-personal-grid"></div></div>
+        <div id="gpers-panel-recent" class="guidcy-personal-panel"><div id="gpers-recent" class="guidcy-personal-grid"></div></div>
+        <div id="gpers-panel-similar" class="guidcy-personal-panel"><div id="gpers-similar" class="guidcy-personal-grid"></div></div>
+        <div id="gpers-panel-webinars" class="guidcy-personal-panel"><div id="gpers-webinars" class="guidcy-personal-mini-grid"></div></div>
+        <div id="gpers-panel-trending" class="guidcy-personal-panel"><div id="gpers-trending" class="guidcy-personal-mini-grid"></div></div>
+        <div id="gpers-panel-roadmap" class="guidcy-personal-panel"><div id="gpers-roadmap" class="guidcy-personal-mini-grid"></div></div>
+      </div>
+    </section>
+
   <div class="home-categories-section">
     <div class="home-section-header">
       <span class="home-section-label">EXPLORE TOP CATEGORIES</span>
       <h2 class="home-section-title">Popular Categories</h2>
       <p class="home-section-sub">Find the perfect expert in your area of need</p>
     </div>
+    <!-- Fixed twelve-card collection; CSS alone controls responsive rows. -->
     <div class="home-cats-grid">
-      <div class="home-cat-card" onclick="filterAndBrowse('Business')"><div class="home-cat-icon" style="background:#EBF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1E72BE" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="home-cat-name">Business &amp; Strategy</div><div class="home-cat-count">Explore experts →</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Technology')"><div class="home-cat-icon" style="background:#F0FDF4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><div class="home-cat-name">Technology</div><div class="home-cat-count">Explore experts →</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Marketing')"><div class="home-cat-icon" style="background:#FFF7ED"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div><div class="home-cat-name">Marketing</div><div class="home-cat-count">Explore experts →</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Career')"><div class="home-cat-icon" style="background:#FFF0F3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E11D48" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="home-cat-name">Career Coaching</div><div class="home-cat-count">Explore experts →</div></div>
-      <div class="home-cat-card" onclick="filterAndBrowse('Wellness')"><div class="home-cat-icon" style="background:#FDF4FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A21CAF" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="home-cat-name">Health &amp; Wellness</div><div class="home-cat-count">Explore experts →</div></div>
-      <div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="1.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div><div class="home-cat-name">View All</div><div class="home-cat-count">All specialties</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Business Strategy')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">💼</div><div class="home-cat-name">Business Strategy</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Technology')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">💻</div><div class="home-cat-name">Technology</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Finance')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">💰</div><div class="home-cat-name">Finance</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Legal')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">⚖️</div><div class="home-cat-name">Legal</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Career Coaching')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">🎯</div><div class="home-cat-name">Career Coaching</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Education')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">🎓</div><div class="home-cat-name">Education</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Medical')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">🩺</div><div class="home-cat-name">Medical</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Startup')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">🚀</div><div class="home-cat-name">Startup</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Artificial Intelligence')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">🤖</div><div class="home-cat-name">Artificial Intelligence</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Data Science')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">📊</div><div class="home-cat-name">Data Science</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="filterAndBrowse('Marketing')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">📣</div><div class="home-cat-name">Marketing</div><div class="home-cat-count">Explore experts →</div></div>
+      <div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA;font-size:24px">📂</div><div class="home-cat-name">View All</div><div class="home-cat-count">All categories →</div></div>
     </div>
   </div>
 
@@ -444,7 +476,7 @@
         <button type="button" class="type-tab" id="li-a" onclick="swLoginType('admin')" aria-label="Admin sign in"><svg class="login-icon" aria-hidden="true"><use href="/assets/icons/login.svg#lock-keyhole"/></svg><span>Admin Login</span><svg class="login-icon login-chevron" aria-hidden="true"><use href="/assets/icons/login.svg#chevron-right"/></svg></button>
       </div>
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
-        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <img loading="lazy" decoding="async" src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
         <div class="guidcy-form-logo-tagline" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:var(--font-weight-semibold,600);line-height:1;text-align:center;background:linear-gradient(90deg,#0B4A9B,#2E8B1F);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Guidance Made Simple</div>
       </div>
       <p class="login-brand-note">Learn &middot; Connect &middot; Grow</p>
@@ -477,7 +509,7 @@
   <div class="form-page" style="max-width:520px">
     <div class="form-card">
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
-        <img src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
+        <img loading="lazy" decoding="async" src="/logo.jpeg?v=guidcy-login-logo-20260517" alt="Guidcy" style="height:58px;width:auto;max-width:180px;object-fit:contain">
         <div class="guidcy-form-logo-tagline" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:var(--font-weight-semibold,600);line-height:1;text-align:center;background:linear-gradient(90deg,#0B4A9B,#2E8B1F);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent">Guidance Made Simple</div>
       </div>
       <div class="form-title">Join Guidcy</div>
@@ -1873,7 +1905,7 @@
       </div>
       <div class="gc-hero-art">
         <div class="gc-art-stack">
-          <img id="gc-hero-photo" src="/careers-team.jpg" alt="The Guidcy team">
+          <img id="gc-hero-photo" loading="lazy" decoding="async" width="1400" height="747" src="/assets/images/careers-team.webp" alt="The Guidcy team">
           <span class="gc-float-pill"><i class="gc-dot"></i>One team. Meaningful impact.</span>
         </div>
       </div>
@@ -1899,7 +1931,7 @@
     <div class="gc-wrap gc-work-inner">
       <div class="gc-work-art">
         <div class="gc-art-stack gc-art-stack-sm">
-          <img src="/careers-work.jpg" alt="The Guidcy team working together" loading="lazy">
+          <img decoding="async" width="1200" height="567" src="/assets/images/careers-work.webp" alt="The Guidcy team working together" loading="lazy">
           <span class="gc-float-pill gc-float-pill-dark">Ideas become impact here</span>
         </div>
       </div>
@@ -2352,7 +2384,7 @@
   <div class="footer">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src="/logo.png" alt="Guidcy" style="height:52px;width:auto;filter:brightness(10)">
+        <img src="/assets/images/footer-logo.webp" loading="lazy" decoding="async" alt="Guidcy" style="height:52px;width:auto;filter:brightness(10)">
         <p>India's premier consultation marketplace connecting verified experts with individuals and businesses.</p>
       </div>
       <div class="footer-col"><h4>Platform</h4><a href="/find-experts" onclick="go('browse');return false">Find Experts</a><a href="/find-jobs" onclick="go('jobs');return false">Find Jobs</a><a href="/marketplace" onclick="go('marketplace');return false">Marketplace Notes</a><a href="/webinars" onclick="go('webinar');return false">Webinars</a><a href="/funds-grants" onclick="go('opportunities');return false">Funds & Grants Finder</a><a href="/career-ai-finder" onclick="go('smart-finder');return false">Career & College AI Finder</a><a href="/blog" onclick="go('blog');return false">Guidcy Blog</a></div>

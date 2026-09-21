@@ -38,7 +38,7 @@ async function metrics(cdp){
 (async()=>{
   server=http.createServer(serve);
   await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
-  browser=await chromium.launch({headless:true});
+  browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||(process.platform==='darwin'?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':undefined)});
   const context=await browser.newContext(desktopMode?
     {viewport:{width:1440,height:900},deviceScaleFactor:1}:
     {viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});

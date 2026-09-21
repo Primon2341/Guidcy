@@ -280,6 +280,9 @@ function withRouteSeo(indexHtml, route){
   const meta = metaFor(route);
   const url = siteUrl + (meta.canonicalPath === "/" ? "/" : meta.canonicalPath);
   let html = indexHtml;
+  // Discover the LCP image with the document, without fetching Home's image
+  // at high priority on unrelated deep links.
+  if(route==='/'||route==='/home')html=html.replace('</head>','<link rel="preload" as="image" href="/assets/images/home-hero.webp" fetchpriority="high">\n</head>');
   html = setOrInsert(html, /<title>[\s\S]*?<\/title>/i, `<title>${esc(meta.title)}</title>`);
   html = setOrInsert(html, /<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${esc(meta.description)}">`);
   html = setOrInsert(html, /<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${esc(url)}">`);
@@ -355,17 +358,17 @@ fs.copyFileSync(supabaseBrowserSdk, supabaseBrowserDest);
 console.log("Copied: pinned Supabase browser SDK (local, same-origin)");
 
 // Reduce the mobile download/parse cost while keeping the authored source
-// readable. Name mangling and compression rewrites stay disabled because the
-// legacy SPA intentionally inspects some function source and global names.
+// readable. Global names and function names remain stable because the legacy
+// SPA intentionally inspects some function source and global names.
 function minifyDeployableJavaScript(relPath){
   const full = path.join(publicDir, relPath);
   if(!exists(full)) return;
   const source = fs.readFileSync(full, "utf8");
   const result = minify_sync(source, {
-    /* Remove only statically unreachable legacy patch bodies. Broader
+    /* Remove statically unreachable code and unused local bindings. Broader
        compression remains off because parts of the SPA inspect handler source
        and depend on stable global names. */
-    compress: {defaults:false, dead_code:true, unused:false},
+    compress: {defaults:false, dead_code:true, unused:true},
     mangle: {toplevel:false, keep_fnames:true, keep_classnames:true},
     keep_fnames: true,
     keep_classnames: true,
@@ -377,7 +380,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js"].forEach(minifyDeployableJavaScript);
+["assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js","assets/js/controllers.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -388,7 +391,7 @@ function minifyDeployableCss(relPath){
   fs.writeFileSync(full, output.styles, "utf8");
   console.log(`Optimized: ${relPath} (${(source.length-output.styles.length).toLocaleString()} bytes removed)`);
 }
-["assets/css/jobs-search.css","assets/css/base.css","assets/css/patches.css","assets/css/fonts.css"].forEach(minifyDeployableCss);
+["assets/css/jobs-search.css","assets/css/base.css","assets/css/patches.css","assets/css/fonts.css","assets/css/login.css","assets/css/mobile.css"].forEach(minifyDeployableCss);
 
 // Cache-bust core.js/app.js/base.css/patches.css with a hash of their own
 // content. Without this, browsers and CDN edges can keep serving a stale
@@ -420,7 +423,9 @@ function cacheBustAssets(html){
  "assets/vendor/supabase.js",
     "assets/css/base.css",
     "assets/css/patches.css",
-    "assets/css/fonts.css"
+    "assets/css/fonts.css",
+    "assets/css/login.css",
+    "assets/css/mobile.css"
   ].forEach(relPath => {
     const version = assetVersionTag(relPath);
     if(!version) return;

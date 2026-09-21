@@ -27,12 +27,11 @@
    also what runs a task the first time, so the retry ladders are unnecessary. */
 (function(){
   if(window.guidcyOnDomSettled)return;
-  var tasks=[], scheduled=false, watching=false;
+  var tasks=[], pending=new Set(), scheduled=false, watching=false;
   function runAll(){
     scheduled=false;
-    for(var i=0;i<tasks.length;i++){
-      try{tasks[i]()}catch(e){console.warn('Guidcy maintenance task failed:',e)}
-    }
+    var run=Array.from(pending);pending.clear();
+    run.forEach(function(task){try{task.fn()}catch(e){console.warn('Guidcy maintenance task failed:',e)}});
   }
   function schedule(){
     if(scheduled)return;
@@ -45,20 +44,91 @@
     watching=true;
     try{
       new MutationObserver(function(records){
-        for(var i=0;i<records.length;i++){
-          if(records[i].addedNodes&&records[i].addedNodes.length){schedule();return}
-        }
+        tasks.forEach(function(task){
+          if(records.some(function(record){
+            if(!record.addedNodes.length)return false;
+            if(!task.selector)return true;
+            if(record.target.closest&&record.target.closest(task.selector))return true;
+            return Array.from(record.addedNodes).some(function(node){return node.nodeType===1&&(node.matches(task.selector)||node.querySelector(task.selector))});
+          }))pending.add(task);
+        });
+        if(pending.size)schedule();
       }).observe(document.body,{childList:true,subtree:true});
     }catch(e){}
   }
-  window.guidcyRunMaintenance=schedule;
-  window.guidcyOnDomSettled=function(fn){
+  window.guidcyRunMaintenance=function(){tasks.forEach(function(task){pending.add(task)});schedule()};
+  window.guidcyOnDomSettled=function(fn,selector){
     if(typeof fn!=='function')return;
-    tasks.push(fn);
+    var task={fn:fn,selector:selector};tasks.push(task);pending.add(task);
     schedule();
     if(document.body)watch();
     else document.addEventListener('DOMContentLoaded',watch,{once:true});
   };
+})();
+
+/* === guidcy-home-section-gate ===
+   The two homepage opportunity sections each refreshed on a fixed ladder of
+   timers (DOMContentLoaded+600/2600/5200 and +350/1800/4200, plus one more
+   each), regardless of which page was showing. On a dashboard that meant a
+   dozen home_opportunities_cache reads for content that was nowhere on screen -
+   the single largest group of requests in the whole waterfall.
+
+   Run them when the home page is actually visible instead, once, and never if
+   the visitor does not go there. */
+(function(){
+  if(window.guidcyWhenHomeVisible)return;
+  function homeVisible(){
+    if(!/^\/(?:home\/?|index\.html)?$/.test(location.pathname||'/'))return false;
+    var boot=document.documentElement.getAttribute('data-guidcy-boot');
+    if(boot&&boot!=='home')return false;
+    var el=document.getElementById('page-home');
+    return !!(el&&(el.classList.contains('on')||el.classList.contains('active')));
+  }
+  window.guidcyHomeIsVisible=homeVisible;
+  /* Calls fn once, as soon as home is on screen. Keeps watching for a while so
+     it still fires if the visitor arrives at home later from another route. */
+  window.guidcyWhenHomeVisible=function(fn){
+    if(typeof fn!=='function')return;
+    var done=false, observer;
+    function attempt(){
+      if(done)return true;
+      if(!homeVisible())return false;
+      done=true;
+      if(observer)observer.disconnect();
+      try{fn()}catch(e){console.warn('home section init failed',e)}
+      return true;
+    }
+    observer=new MutationObserver(attempt);
+    var home=document.getElementById('page-home');
+    if(home)observer.observe(home,{attributes:true,attributeFilter:['class']});
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-guidcy-boot']});
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attempt,{once:true});else queueMicrotask(attempt);
+  };
+})();
+
+/* Scan newly mounted controls once, rather than every control on the site on
+   each unrelated mutation. Text replacement also visits its parent control. */
+(function(){
+  var subscribers=[];
+  function visit(root,entry){
+    if(root.nodeType===1&&root.matches(entry.selector))entry.fn(root);
+    if(root.querySelectorAll)root.querySelectorAll(entry.selector).forEach(entry.fn);
+  }
+  window.guidcyObserveElements=function(selector,fn){
+    var entry={selector:selector,fn:fn};subscribers.push(entry);visit(document,entry);
+  };
+  new MutationObserver(function(records){
+    var roots=new Set();
+    records.forEach(function(record){
+      record.addedNodes.forEach(function(node){if(node.nodeType===1)roots.add(node);else if(node.nodeType===3)roots.add(record.target)});
+    });
+    // One subtree walk even if a parent and several descendants were inserted.
+    roots.forEach(function(root){
+      if(!root.isConnected)return;
+      for(var parent=root.parentElement;parent;parent=parent.parentElement)if(roots.has(parent))return;
+      subscribers.forEach(function(entry){visit(root,entry)});
+    });
+  }).observe(document.documentElement,{childList:true,subtree:true});
 })();
 
 /* === guidcy-booking-financial-lifecycle-ui-v1 ===
@@ -535,92 +605,78 @@ window.CFG = CFG;
      the same query), so a 1.5s window missed almost all of them. Widen it, and
      keep it safe by dropping a table's cached reads the moment anything writes
      to that table - so a refresh after a booking change is never stale. */
-  var TTL_MS=8000;
-  var MAX_ENTRIES=160;
-  var inflight=new Map();        // key -> Promise<Response>
-  var recent=new Map();          // key -> {at, response, table}
-
-  function tableOf(url){
-    var m=String(url).match(/\/rest\/v1\/([^/?]+)/);
-    return m?m[1]:'';
-  }
+  var TTL_MS=8000, MAX_ENTRIES=160;
+  var inflight=new Map(), recent=new Map(), versions=new Map(), generation=0;
+  function tableOf(url){var m=String(url).match(/\/rest\/v1\/([^/?]+)/);return m?m[1]:''}
   function invalidateTable(table){
-    if(!table)return;
-    recent.forEach(function(v,k){if(v.table===table)recent.delete(k)});
-    if((table==='consultants'||table==='profiles')&&typeof window.guidcyInvalidateConsultantSourceCache==='function')window.guidcyInvalidateConsultantSourceCache();
+    if(!table){generation++;recent.clear();inflight.clear();}
+    else{
+      versions.set(table,(versions.get(table)||0)+1);
+      recent.forEach(function(v,k){if(v.table===table)recent.delete(k)});
+      inflight.forEach(function(v,k){if(v.table===table)inflight.delete(k)});
+    }
+    if((!table||table==='consultants'||table==='profiles')&&typeof window.guidcyInvalidateConsultantSourceCache==='function')window.guidcyInvalidateConsultantSourceCache();
   }
-  window.guidcyInvalidateReadCache=function(table){
-    if(table)invalidateTable(table); else recent.clear();
-  };
-
-  function isDedupableRead(url,init){
-    var method=String((init&&init.method)||'GET').toUpperCase();
-    if(method!=='GET')return false;
-    if(!/\/rest\/v1\//.test(url))return false;      // PostgREST reads only
-    if(/\/auth\/v1\//.test(url))return false;       // never touch auth
-    if(init&&init.body)return false;
-    return true;
+  window.guidcyInvalidateReadCache=invalidateTable;
+  function keyFor(url,input,init){
+    var h=new Headers(init.headers||(input&&input.headers)||{});
+    // Include schema, identity and response-shaping headers, case-insensitively.
+    return JSON.stringify([url,input&&input.credentials,init.credentials,
+      ['authorization','apikey','accept','accept-profile','range','range-unit','prefer'].map(function(name){return h.get(name)||''})]);
   }
-  function keyFor(url,init){
-    /* Identity, plus the headers that change the shape of the same URL's
-       answer: Accept (.single() wants one object, not an array), Range
-       (.range() pagination) and Prefer (count=exact). */
-    var parts=[];
-    try{
-      var h=(init&&init.headers)||{};
-      var get=function(n){
-        if(typeof Headers!=='undefined'&&h instanceof Headers)return h.get(n)||'';
-        return h[n]||h[n.toLowerCase()]||'';
-      };
-      parts=['Authorization','Accept','Range','Prefer'].map(get);
-    }catch(_){}
-    var normalized=url; try{normalized=decodeURIComponent(url)}catch(_){}   // '%2C' and ',' are the same query
-    return normalized+'\n'+parts.join('\n');          // never share across identities
-  }
-  function prune(){
-    if(recent.size<=MAX_ENTRIES)return;
-    var cutoff=Date.now()-TTL_MS;
-    recent.forEach(function(v,k){if(v.at<cutoff)recent.delete(k)});
-    while(recent.size>MAX_ENTRIES)recent.delete(recent.keys().next().value);
-  }
-
   var nativeFetch=window.fetch;
   if(typeof nativeFetch!=='function')return;
-
-  var wrapped=function(input,init){
-    var url;
-    try{url=String((input&&input.url)||input||'')}catch(_){return nativeFetch.apply(this,arguments)}
-    if(!isDedupableRead(url,init)){
-      // A write invalidates every cached read of that table, immediately.
-      try{
-        var method=String((init&&init.method)||'GET').toUpperCase();
-        if(method!=='GET'&&/\/rest\/v1\//.test(url))invalidateTable(tableOf(url));
-      }catch(_){}
-      return nativeFetch.apply(this,arguments);
-    }
-
-    var key=keyFor(url,init);
-    var hit=recent.get(key);
-    if(hit&&Date.now()-hit.at<TTL_MS){
-      try{return Promise.resolve(hit.response.clone())}catch(_){}
-    }
-    var live=inflight.get(key);
-    if(live){
-      // Share the one request already on the wire; each caller gets its own body.
-      return live.then(function(r){return r.clone()});
-    }
-    var p=nativeFetch.apply(this,arguments).then(function(resp){
-      try{
-        if(resp&&resp.ok){recent.set(key,{at:Date.now(),response:resp.clone(),table:tableOf(url)});prune()}
-      }catch(_){}
-      inflight.delete(key);
-      return resp;
-    },function(err){
-      inflight.delete(key);
-      throw err;
+  function subscribe(entry,signal){
+    entry.readers++;
+    return new Promise(function(resolve,reject){
+      var done=false;
+      function finish(error,response){
+        if(done)return;done=true;entry.readers--;
+        if(signal)signal.removeEventListener('abort',abort);
+        if(!entry.settled&&!entry.readers){entry.controller.abort();if(inflight.get(entry.key)===entry)inflight.delete(entry.key)}
+        if(error)reject(error);else resolve(response.clone());
+      }
+      function abort(){finish(signal.reason||new DOMException('The operation was aborted.','AbortError'))}
+      if(signal){if(signal.aborted){abort();return}signal.addEventListener('abort',abort,{once:true})}
+      entry.promise.then(function(response){finish(null,response)},function(error){finish(error)});
     });
-    inflight.set(key,p);
-    return p.then(function(r){return r.clone()});
+  }
+  var wrapped=function(input,init){
+    init=init||{};
+    var url=String((input&&input.url)||input||'');
+    var method=String(init.method||(input&&input.method)||'GET').toUpperCase();
+    var table=tableOf(url), args=arguments, self=this;
+    if(!table)return nativeFetch.apply(self,args); // Auth/storage/API contracts untouched.
+    if(method!=='GET'&&method!=='HEAD'){
+      var affected=table==='rpc'?null:table;
+      invalidateTable(affected);
+      // A read started before a write must never refill the cache after it.
+      return Promise.resolve().then(function(){return nativeFetch.apply(self,args)}).finally(function(){invalidateTable(affected)});
+    }
+    var signal=init.signal||(input&&input.signal);
+    var cache=init.cache||(input&&input.cache);
+    if(method!=='GET'||init.body||table==='rpc'||cache==='no-store'||cache==='reload')return nativeFetch.apply(self,args);
+    if(signal&&signal.aborted)return Promise.reject(signal.reason||new DOMException('The operation was aborted.','AbortError'));
+    var now=Date.now();
+    recent.forEach(function(v,k){if(now-v.at>=TTL_MS)recent.delete(k)});
+    var key=keyFor(url,input,init), hit=recent.get(key);
+    if(hit)return Promise.resolve(hit.response.clone());
+    var live=inflight.get(key);
+    if(live)return subscribe(live,signal);
+    var version=versions.get(table)||0, epoch=generation;
+    var entry={table:table,key:key,promise:null,readers:0,settled:false,controller:new AbortController()};
+    // Each subscriber keeps its timeout. Cancel the wire request only when no
+    // subscribers remain, so one slow panel cannot abort another panel's read.
+    var options=Object.assign({},init,{signal:entry.controller.signal});
+    entry.promise=Promise.resolve().then(function(){return nativeFetch.call(self,input,options)}).then(function(response){
+      if(response.ok&&epoch===generation&&version===(versions.get(table)||0)){
+        recent.set(key,{at:Date.now(),response:response.clone(),table:table});
+        while(recent.size>MAX_ENTRIES)recent.delete(recent.keys().next().value);
+      }
+      return response;
+    }).finally(function(){entry.settled=true;if(inflight.get(key)===entry)inflight.delete(key)});
+    inflight.set(key,entry);
+    return subscribe(entry,signal);
   };
   wrapped.__guidcyDedupe=true;
   try{window.fetch=wrapped}catch(_){}
@@ -1514,9 +1570,8 @@ async function sendBookingEmails(bk,consEmail){
       booking_id:bookingId
     };
 
-    console.log(`📧 Sending ${role} email via EmailJS to:`,toEmail);
     const result=await emailjs.send(CFG.emailjs_service_id,templateId,params);
-    console.log(`✅ ${role} email sent result:`,result);
+
     return result;
   }
 
@@ -1795,7 +1850,7 @@ async function initGoogleAuth(){
     scope:'https://www.googleapis.com/auth/calendar.events',
     callback:()=>{}
  });
- console.log('✅ Google Auth initialized');
+
 }
 
 async function ensureGoogleCalendarAuthorization(){
@@ -1892,7 +1947,6 @@ async function createGoogleMeetLink(consultantName, dateLabel, timeSlot, duratio
     throw new Error('No meet link in Calendar API response');
   }
 
-  console.log('✅ Google Meet link created:', link);
   if(data&&data.id){
     if(typeof window.guidcyRememberGoogleMeetEvent==='function')window.guidcyRememberGoogleMeetEvent(link,data.id);
     else{
@@ -3196,13 +3250,10 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     status:'confirmed'
   };
 
-  console.log('Saving booking payload:',bookingPayload);
-  console.log('Final payload going to DB:',JSON.stringify(bookingPayload,null,2));
 
   let savedRow=null;
 
   try{
-    console.log('Supabase REST auth token present:',!!getSupabaseAccessTokenSync());
 
     const insertResult=await supabaseRest('bookings?select=*',{
       method:'POST',
@@ -3210,8 +3261,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
       prefer:'return=representation',
       timeoutMs:30000
     });
-
-    console.log('Supabase REST insert result:',insertResult);
 
     if(!insertResult.ok){
       console.error('❌ Booking REST insert failed:',insertResult);
@@ -3228,7 +3277,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     }
 
     lastBooking={...lastBooking,...savedRow,meet_link:savedRow?.meet_link||meetLink};
-    console.log('✅ Booking successfully inserted via REST:',savedRow);
 
     const updResult=await supabaseRest('bookings?id=eq.'+encodeURIComponent(savedRow.id)+'&select=id,meet_link',{
       method:'PATCH',
@@ -3236,8 +3284,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
       prefer:'return=representation',
       timeoutMs:30000
     });
-
-    console.log('Supabase REST meet_link force update result:',updResult);
 
     if(!updResult.ok){
       console.warn('⚠️ Meet link update failed, but insert may already contain link:',updResult);
@@ -3251,8 +3297,6 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
       timeoutMs:30000
     });
 
-    console.log('Final Supabase REST DB verification:',verifyResult);
-
     const verifyRow=Array.isArray(verifyResult.data)?verifyResult.data[0]:verifyResult.data;
 
     if(!verifyResult.ok){
@@ -3261,7 +3305,7 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
       console.error('❌ Booking exists but meet_link is empty in DB:',verifyRow);
       toast('Booking saved but Meet link is empty in DB.','red');
     }else{
-      console.log('✅ Meet link is saved in Supabase:',verifyRow.meet_link);
+
     }
 
   }catch(e){
@@ -3363,7 +3407,7 @@ async function swUD(view,btn){
       const row=bookings.find(bk=>bk.id===lastBooking.id&&!bk.meet_link);
       if(row&&sb){
         sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id)
-          .then(({error})=>error?console.warn('meet_link patch error:',error):console.log('✅ meet_link patched in DB'))
+          .then(({error})=>{if(error)console.warn('meet_link patch error:',error)})
           .catch(e=>console.warn('meet_link patch exception:',e));
       }
       bookings=bookings.map(bk=>bk.id===lastBooking.id&&!bk.meet_link?{...bk,meet_link:lastBooking.meet_link}:bk);
@@ -3817,7 +3861,7 @@ async function swCD(view,btn){
         const row=requests.find(r=>r.id===lastBooking.id&&!r.meet_link);
         if(row&&sb){
           sb.from('bookings').update({meet_link:lastBooking.meet_link}).eq('id',row.id)
-            .then(({error})=>error?console.warn('consultant meet_link patch error:',error):console.log('✅ consultant meet_link patched in DB'))
+            .then(({error})=>{if(error)console.warn('consultant meet_link patch error:',error)})
             .catch(e=>console.warn('consultant meet_link patch exception:',e));
         }
         requests=requests.map(r=>r.id===lastBooking.id&&!r.meet_link?{...r,meet_link:lastBooking.meet_link}:r);
@@ -4772,7 +4816,7 @@ async function guidcyScheduleReminderTimersForBooking(bk,consultantEmail=null,co
       if(!localStorage.getItem(key)){
         localStorage.setItem(key,'scheduled');
         setTimeout(()=>guidcySendReminderForBooking(bk,minutes,consultantEmail,consultantProfileId),delay);
-        console.log(`✅ Scheduled ${minutes}-minute reminder in ${Math.round(delay/1000)} sec for booking`,bk.id||bk.payment_id);
+
       }
     }else if(delay<=0 && delay>-10*60000){
       guidcySendReminderForBooking(bk,minutes,consultantEmail,consultantProfileId);
@@ -4847,11 +4891,11 @@ async function saveBooking(payId,dateLabel,fee,tot,meetLink){
     payment_id:payId,
     meet_link:meetLink
   };
-  console.log('Saving booking payload:',bookingPayload);
+
   let savedRow=null;
   try{
     const insertResult=await supabaseRest('bookings?select=*',{method:'POST',body:bookingPayload,prefer:'return=representation',timeoutMs:30000});
-    console.log('Supabase REST insert result:',insertResult);
+
     if(!insertResult.ok){toast('Booking not saved: '+(insertResult.data?.message||insertResult.raw||insertResult.statusText),'red');return null;}
     savedRow=Array.isArray(insertResult.data)?insertResult.data[0]:insertResult.data;
     if(!savedRow?.id){toast('Booking saved but ID was not returned.','red');return null;}
@@ -5198,7 +5242,7 @@ async function refreshCurrentConsultantBeforePayment(){
   const id=curCons?.dbId||curCons?.id;
   if(!id) return curCons;
   const latest=await fetchLatestConsultantForBooking(id);
-  if(latest){curCons=latest;console.log('✅ Latest consultant pricing loaded before payment:',{consultant_id:curCons.id,video_price:curCons.video_price,audio_price:curCons.audio_price,chat_price:curCons.chat_price,rate:curCons.rate});}
+  if(latest){curCons=latest;}
   return curCons;
 }
 function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
@@ -5413,7 +5457,7 @@ async function refreshCurrentConsultantBeforePayment(){
   const id=curCons?.dbId||curCons?.id;
   if(!id) return curCons;
   const latest=await fetchLatestConsultantForBooking(id);
-  if(latest){curCons=latest;console.log('✅ Latest consultant pricing loaded before payment:',{consultant_id:curCons.id,video_price:curCons.video_price,audio_price:curCons.audio_price,chat_price:curCons.chat_price,rate:curCons.rate});}
+  if(latest){curCons=latest;}
   return curCons;
 }
 function getBookingFeeFromLatest(){return Math.round(getSTypePrice(curCons)*getDurMultiplier());}
@@ -6205,11 +6249,7 @@ cancelBooking=async function(bookingId,role){
       catPage.dataset.expanded='1';
       moreCats.forEach(c=>{const card=document.createElement('div');card.className='cat-card';card.onclick=()=>{try{filterAndBrowse(c)}catch(_){}};card.innerHTML=`<div class="cat-icon">${c==='Medical'?'🩺':c==='Agriculture'?'🌾':c==='Fashion'?'👗':c==='Music'?'🎵':c==='Manufacturing'?'🏭':c==='R&D'?'🔬':'✨'}</div><h3>${c}</h3><p>Connect with verified ${c} experts.</p>`;catPage.appendChild(card);});
     }
-    const homeGrid=document.querySelector('.home-cats-grid');
-    if(homeGrid && !homeGrid.dataset.morecats){
-      homeGrid.dataset.morecats='1';
-      ['Medical','Startup','Manufacturing','R&D','Social Media','Agriculture'].forEach(c=>{const card=document.createElement('div');card.className='home-cat-card';card.onclick=()=>{try{filterAndBrowse(c)}catch(_){}};card.innerHTML=`<div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">${c==='Medical'?'🩺':c==='Manufacturing'?'🏭':c==='R&D'?'🔬':c==='Agriculture'?'🌾':'✨'}</div><div class="home-cat-name">${c}</div><div class="home-cat-count">Explore experts →</div>`;homeGrid.insertBefore(card,homeGrid.lastElementChild);});
-    }
+
   };
   document.addEventListener('DOMContentLoaded',()=>setTimeout(window.guidcyExpandCategories,100));
   setTimeout(window.guidcyExpandCategories,800);
@@ -6280,7 +6320,7 @@ cancelBooking=async function(bookingId,role){
   const oldSwCD=window.swCD; if(oldSwCD) window.swCD=async function(v,b){const r=await oldSwCD(v,b);setTimeout(refreshDashPhoto,30);return r};
   const oldUpdateNav=window.updateNav; window.updateNav=function(){try{oldUpdateNav&&oldUpdateNav()}catch(e){}setTimeout(refreshDashPhoto,30)};
   window.initCategories=async function(){const grid=gid('cats-full-grid');if(!grid)return;grid.innerHTML=MAIN_CATEGORIES.map(cat=>`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${esc(cat.name)}</div><div style="font-size:12px;color:var(--muted)">${cat.count.toLocaleString()} experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${esc(cat.name)}')">Find experts →</button></div><div class="tag-list">${cat.subs.map(s=>`<span class="skill-tag" onclick="filterAndBrowse('${esc(cat.name)}')" style="cursor:pointer">${esc(s)}</span>`).join('')}</div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`).join('')};
-  function renderClean(page){ensureJobs();ensureBlog();document.querySelectorAll('.page').forEach(p=>{p.classList.remove('on');p.classList.remove('active')});const el=gid('page-'+page)||gid('page-home');el.classList.add('on');window.scrollTo(0,0);if(page==='categories')window.initCategories();if(page==='blog')renderBlog();if(page==='jobs'){};if(page==='opportunities'){try{ if(typeof initOpportunitiesFinder==='function') initOpportunitiesFinder(); }catch(e){console.warn(e)}};try{const qs=new URLSearchParams(location.search||'');const path=(location.pathname||'').replace(/\/+$/,'');/* Session-scoped only. Reading localStorage here meant a tab chosen in a
+  function renderClean(page){ensureJobs();ensureBlog();const el=gid('page-'+page)||gid('page-home');document.querySelectorAll('.page.on,.page.active').forEach(p=>{if(p!==el)p.classList.remove('on','active')});const alreadyVisible=el.classList.contains('on');if(!alreadyVisible){el.classList.add('on');window.scrollTo(0,0);}if(page==='categories')window.initCategories();if(page==='blog')renderBlog();if(page==='jobs'){};if(page==='opportunities'){try{ if(typeof initOpportunitiesFinder==='function') initOpportunitiesFinder(); }catch(e){console.warn(e)}};try{const qs=new URLSearchParams(location.search||'');const path=(location.pathname||'').replace(/\/+$/,'');/* Session-scoped only. Reading localStorage here meant a tab chosen in a
        previous browser session (e.g. "Webinar history") was replayed onto a
        bare /consultant-dashboard or /admin-dashboard URL days later, which is
        what moved people off their dashboard a few seconds after it opened. */
@@ -6362,15 +6402,9 @@ cancelBooking=async function(bookingId,role){
       const present=new Set([...catList.querySelectorAll('input[type=checkbox]')].map(i=>i.value));
       EXTRA_CATS.forEach(([ic,n])=>{if(!present.has(n)){catList.insertAdjacentHTML('beforeend',`<label class="filter-check"><input type="checkbox" value="${safe(n)}" onchange="applyFilters()"/> ${ic} ${safe(n)}</label>`);}});
     }
-    const grid=$('cats-full-grid');
-    if(grid){
-      const old=window.initCategories;
-      window.initCategories=function(){
-        try{old&&old()}catch(e){}
-        const g=$('cats-full-grid'); if(!g)return;
-        EXTRA_CATS.forEach(([ic,n])=>{if(!g.textContent.includes(n)){g.insertAdjacentHTML('beforeend',`<div style="margin-bottom:28px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:24px">${ic}</span><div><div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${safe(n)}</div><div style="font-size:12px;color:var(--muted)">Verified experts</div></div><button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(n)}')">Find experts →</button></div><div class="tag-list"><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">${safe(n)} consulting</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Strategy</span><span class="skill-tag" onclick="filterAndBrowse('${safe(n)}')" style="cursor:pointer">Growth</span></div></div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`);}});
-      };
-    }
+    // The Categories page has one canonical card renderer below. Do not wrap
+    // initCategories here or append the retired list/HR markup to its grid.
+
   }
   const oldInitBrowse=window.initBrowse;
   window.initBrowse=async function(){const r=oldInitBrowse?await oldInitBrowse():null; ensureCategories(); return r;};
@@ -7193,117 +7227,6 @@ cancelBooking=async function(bookingId,role){
   })();
 
   /* ── 7. MOBILE FIXES (no extra hamburger — original .mobile-burger already exists) ── */
-  function injectMobileCSS(){
-    if(document.getElementById('guidcy-mobile-v5'))return;
-    const s=document.createElement('style');s.id='guidcy-mobile-v5';
-    s.textContent=`
-/* Guidcy mobile v5 */
-*{box-sizing:border-box}
-body{overflow-x:hidden}
-
-/* Fix blog page — adds .active support same as .on */
-.page.active{display:block!important}
-
-/* Browse page mobile — collapsible filter */
-#browse-filter-toggle{display:none;width:100%;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;font-weight:var(--font-weight-medium,500);cursor:pointer;margin-bottom:12px;text-align:left;align-items:center;gap:8px}
-
-@media(max-width:900px){
-  /* Nav — only original .mobile-burger, no duplicates */
-  .nav-links{display:none}
-  .nav-links.on{display:none!important}/* disabled: new drawer used instead */
-  .nav{padding:0 12px!important;height:58px!important;gap:8px!important}
-  .nav-right .btn{padding:6px 10px!important;font-size:12px!important}
-
-  /* How-it-works — force single column, hide desktop connector line */
-  .how-grid{display:grid!important;grid-template-columns:1fr!important;gap:20px!important;max-width:100%!important}
-  .how-grid::before{display:none!important}
-  .how-item{padding:0 8px!important}
-
-  /* Hero */
-  .hero,.hero-wrap{padding:28px 14px 22px!important}
-  .hero h1,.hero-title{font-size:clamp(24px,6vw,36px)!important;letter-spacing:-.3px!important}
-  .hero-sub{font-size:13px!important;margin-bottom:18px!important}
-  .hero-search{flex-direction:column!important;padding:10px!important;gap:8px!important;border-radius:14px!important}
-  .hero-search input{width:100%!important;font-size:16px!important}
-  .hero-search .btn{width:100%!important;border-radius:12px!important;padding:12px!important}
-  .hero-cats{flex-wrap:wrap!important;gap:6px!important}
-
-  /* Browse — show filter toggle button, hide panel by default */
-  #browse-filter-toggle{display:flex!important}
-  .filter-panel{display:none}
-  .filter-panel.mob-open{display:block!important}
-  .browse-layout{grid-template-columns:1fr!important}
-  .browse-main{padding:16px!important}
-
-  /* Profile */
-  .profile-layout{grid-template-columns:1fr!important}
-  .profile-sidebar{position:relative!important;top:auto!important;border-left:none!important;border-top:1px solid var(--border)!important;padding:16px!important}
-  .profile-main{padding:16px!important;border-right:none!important}
-  .profile-hero{flex-wrap:wrap!important;gap:10px!important}
-  .profile-name{font-size:20px!important}
-
-  /* Dashboard */
-  .dash-wrap{grid-template-columns:1fr!important}
-  .dash-side{position:fixed!important;left:-100%!important;top:58px!important;bottom:0!important;width:260px!important;max-width:82vw!important;z-index:90!important;transition:left .28s ease!important;overflow-y:auto!important;box-shadow:4px 0 20px rgba(0,0,0,.12)!important}
-  .dash-side.on{left:0!important}
-  .dash-mobile-toggle{display:flex!important;top:58px!important}
-  .dash-main{padding:14px 12px!important}
-  .dash-title{font-size:20px!important}
-
-  /* Stats & grids */
-  .stats-grid,.admin-stats{grid-template-columns:1fr 1fr!important;gap:10px!important}
-  .earn-grid{grid-template-columns:1fr!important;max-width:100%!important}
-  .section{padding:26px 14px!important}
-  .grid{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))!important}
-  .sec-head{flex-direction:column!important;align-items:flex-start!important;gap:6px!important}
-
-  /* Forms */
-  .form-page{padding:18px 12px!important;max-width:100%!important}
-  .form-card{padding:20px 14px!important;border-radius:14px!important}
-  .field-row{grid-template-columns:1fr!important;gap:0!important}
-  .field input,.field select,.field textarea{font-size:16px!important}
-
-  /* Payment */
-  .pay-wrap,.confirm-wrap{padding:18px 12px!important;max-width:100%!important}
-  .pay-method-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
-
-  /* Booking */
-  .slot-grid{grid-template-columns:1fr 1fr!important}
-  .date-btn{min-width:46px!important;padding:6px 8px!important;font-size:10px!important}
-
-  /* Booking items */
-  .bk-item{flex-wrap:wrap!important;gap:8px!important}
-  .bk-actions{flex-wrap:wrap!important;width:100%!important}
-  .bk-btn{flex:1!important;min-width:70px!important;text-align:center!important}
-
-  /* Become consultant */
-  .become-hero{padding:44px 16px!important}
-  .become-hero h1{font-size:clamp(26px,6vw,40px)!important}
-
-  /* Trust strip */
-  .trust-strip{grid-template-columns:1fr 1fr!important;padding:14px!important}
-  .trust-item{padding:10px 10px!important;border-right:none!important;border-bottom:1px solid var(--border)!important}
-  .trust-item:nth-last-child(-n+2){border-bottom:none!important}
-
-  /* Footer */
-  .footer-grid{grid-template-columns:1fr 1fr!important;gap:20px!important;padding:28px 16px!important}
-  .footer-bottom{flex-direction:column!important;text-align:center!important;gap:8px!important;padding:16px!important}
-}
-
-@media(max-width:480px){
-  .hero h1,.hero-title{font-size:22px!important}
-  .stats-grid,.admin-stats{grid-template-columns:1fr!important}
-  .grid{grid-template-columns:1fr!important}
-  .footer-grid{grid-template-columns:1fr!important}
-  .benefit-grid{grid-template-columns:1fr!important}
-  .profile-meta{flex-direction:column!important;gap:4px!important}
-  /* Shrink, don't hide: display:none here also killed the saved-consultant photo. */
-  .bk-av{width:38px!important;height:38px!important;font-size:12px!important}
-  .form-card{padding:16px 12px!important}
-  .pay-method-row{grid-template-columns:1fr 1fr!important}
-}`;
-    document.head.appendChild(s);
-  }
 
   /* Browse page filter toggle */
   function injectBrowseFilterToggle(){
@@ -7324,7 +7247,6 @@ body{overflow-x:hidden}
 
   /* Boot */
   document.addEventListener('DOMContentLoaded',()=>{
-    injectMobileCSS();
     removeGoogleBtns();setTimeout(removeGoogleBtns,400);
     setTimeout(loadHomeStats,800);
     setTimeout(ensureAdminOnBoot,500);
@@ -7334,7 +7256,7 @@ body{overflow-x:hidden}
     setTimeout(injectBrowseFilterToggle,600);
     setTimeout(injectBrowseFilterToggle,1500);
   });
-  setTimeout(()=>{injectMobileCSS();ensureAdminOnBoot();loadHomeStats();},1200);
+  setTimeout(()=>{ensureAdminOnBoot();loadHomeStats();},1200);
   // Re-inject toggle when navigating to browse
   const _g2=window.go;
   window.go=function(page){
@@ -7351,8 +7273,6 @@ body{overflow-x:hidden}
     if(page==='categories')setTimeout(()=>{try{window.initCategories&&window.initCategories();}catch(_){}},50);
     return _prevGo?_prevGo.apply(this,arguments):null;
   };
-
-  console.log('[Guidcy v5] Fix pack loaded.');
 
   /* Last-word marketplace notes download override.
      This lives in the known-running boot script, then waits for Marketplace to load. */
@@ -9346,168 +9266,7 @@ body{overflow-x:hidden}
      Keeping this async rewrite active caused the visible work line to change
      after first paint and issued duplicate profile queries. */
   return;
-  function gEsc(v){
-    try{ return (typeof esc==='function') ? esc(v) : String(v||'').replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
-    catch(_){ return String(v||''); }
-  }
-  function cleanVal(v){ return String(v||'').replace(/undefined|null/gi,'').replace(/\s+/g,' ').trim(); }
-  function firstVal(obj, keys){
-    obj=obj||{};
-    for(var i=0;i<keys.length;i++){
-      var v=cleanVal(obj[keys[i]]);
-      if(v) return v;
-    }
-    return '';
-  }
-  function currentWork(c){
-    return firstVal(c,[
-      'current_work','currentWork','current_job','currentJob','designation','job_title','jobTitle','position','current_position','currentPosition','role_title','profession'
-    ]);
-  }
-  function currentCompany(c){
-    return firstVal(c,[
-      'current_company_college','currentCompanyCollege','current_company','currentCompany','company','company_name','companyName','organization','organisation','employer','college_company','collegeCompany','current_college','currentCollege','institute','institution'
-    ]);
-  }
-  function isSame(a,b){ return cleanVal(a).toLowerCase()===cleanVal(b).toLowerCase(); }
-  function workCompanyLine(c){
-    var work=currentWork(c);
-    var company=currentCompany(c);
-    /* Avoid duplicating the same text. Also avoid showing specialty as company. */
-    if(company && (isSame(company,work) || isSame(company,c&&c.role))) company='';
-    if(work && company) return work+', '+company;
-    if(work) return work;
-    if(company) return company;
-    return '';
-  }
-  async function enrichOne(c){
-    c=c||{};
-    var id=c.dbId||c.id;
-    if(!id || !window.sb) return c;
-    try{
-      var raw=null;
-      var r=await window.sb.from('consultants').select('*').eq('id',id).maybeSingle();
-      if(r && r.data) raw=r.data;
-      if(!raw){
-        var p=await window.sb.from('profiles').select('*').eq('id',id).maybeSingle();
-        if(p && p.data) raw=p.data;
-      }
-      if(raw){
-        c=Object.assign({}, raw, c, {
-          current_work: currentWork(c)||currentWork(raw),
-          current_company_college: currentCompany(c)||currentCompany(raw)
-        });
-      }
-    }catch(e){ console.warn('Current company enrichment skipped:',e); }
-    return c;
-  }
-  async function enrichList(list){
-    if(!Array.isArray(list) || !list.length || !window.sb) return list;
-    try{
-      var ids=list.map(function(c){return c&&String(c.dbId||c.id||'');}).filter(Boolean);
-      ids=[].filter.call(ids,function(x,i){return ids.indexOf(x)===i;});
-      if(!ids.length) return list;
-      var rawMap={};
-      try{
-        var r=await window.sb.from('consultants').select('*').in('id',ids);
-        (r.data||[]).forEach(function(x){ rawMap[String(x.id)]=x; });
-      }catch(_){ }
-      try{
-        var missing=ids.filter(function(id){return !rawMap[id];});
-        if(missing.length){
-          var pr=await window.sb.from('profiles').select('*').in('id',missing);
-          (pr.data||[]).forEach(function(x){ rawMap[String(x.id)]=x; });
-        }
-      }catch(_){ }
-      return list.map(function(c){
-        var raw=rawMap[String(c&& (c.dbId||c.id))]||{};
-        return Object.assign({}, raw, c, {
-          current_work: currentWork(c)||currentWork(raw),
-          current_company_college: currentCompany(c)||currentCompany(raw)
-        });
-      });
-    }catch(e){ console.warn('Current company list enrichment skipped:',e); return list; }
-  }
-
-  var oldFetch=window.fetchConsultants;
-  if(typeof oldFetch==='function' && !oldFetch.guidcyCurrentCompanyFix){
-    var patchedFetch=async function(filters){
-      var list=await oldFetch.apply(this,arguments);
-      return await enrichList(Array.isArray(list)?list:[]);
-    };
-    patchedFetch.guidcyCurrentCompanyFix=true;
-    window.fetchConsultants=patchedFetch;
-  }
-
-  function updateRenderedCards(list){
-    list=Array.isArray(list)?list:[];
-    var cards=document.querySelectorAll('.ccard');
-    cards.forEach(function(card,idx){
-      var c=list[idx]||{};
-      var roleEl=card.querySelector('.c-role');
-      if(!roleEl) return;
-      var role=cleanVal(c.role||c.specialty||c.category||roleEl.textContent||'Consultant');
-      var line=workCompanyLine(c);
-      if(line){
-        roleEl.innerHTML=gEsc(line);
-        roleEl.classList.add('guidcy-role-with-company');
-      }else{
-        roleEl.textContent=role;
-      }
-      /* Remove older separate company row, because company is now combined with work/role line. */
-      var extra=card.querySelector('.lang-tag');
-      if(extra && /🏢/.test(extra.textContent||'')) extra.remove();
-    });
-  }
-
-  var oldRender=window.renderGrid;
-  if(typeof oldRender==='function' && !oldRender.guidcyCurrentCompanyFix){
-    var patchedRender=function(list,containerId){
-      var out=oldRender.apply(this,arguments);
-      setTimeout(function(){updateRenderedCards(list);},0);
-      setTimeout(function(){updateRenderedCards(list);},120);
-      return out;
-    };
-    patchedRender.guidcyCurrentCompanyFix=true;
-    window.renderGrid=patchedRender;
-  }
-
-  async function updateProfileRole(){
-    var c=window.curCons||{};
-    var id=c.dbId||c.id;
-    c=await enrichOne(c);
-    if(id && window.curCons) window.curCons=Object.assign({},window.curCons,c);
-    var roleEl=document.querySelector('#profile-layout .profile-role');
-    if(!roleEl) return;
-    var role=cleanVal(c.role||c.specialty||roleEl.textContent||'Consultant');
-    /* If old text already contains comma/company, keep only first role before re-rendering. */
-    role=role.split(',')[0].trim()||role;
-    var line=workCompanyLine(c);
-    if(line){
-      roleEl.innerHTML=gEsc(line);
-      roleEl.classList.add('guidcy-role-with-company');
-    }
-    var meta=document.querySelector('#profile-layout .profile-education-meta');
-    if(meta){
-      meta.querySelectorAll('.meta-item').forEach(function(x){ if(/🏢/.test(x.textContent||'')) x.remove(); });
-      if(!meta.textContent.trim()) meta.remove();
-    }
-  }
-  var oldOpen=window.openProfile;
-  if(typeof oldOpen==='function' && !oldOpen.guidcyCurrentCompanyFix){
-    var patchedOpen=async function(){
-      var out=await oldOpen.apply(this,arguments);
-      setTimeout(updateProfileRole,80);
-      setTimeout(updateProfileRole,350);
-      return out;
-    };
-    patchedOpen.guidcyCurrentCompanyFix=true;
-    window.openProfile=patchedOpen;
-  }
-  var style=document.createElement('style');
-  style.textContent='.guidcy-current-company-blue{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)}.guidcy-role-with-company{color:var(--blue)!important;font-size:12px!important;line-height:1.45}.profile-role.guidcy-role-with-company{font-size:14px!important;margin-bottom:10px!important}';
-  document.head.appendChild(style);
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){updateRenderedCards([]);updateProfileRole();},700);});
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -9517,97 +9276,7 @@ body{overflow-x:hidden}
 (function(){
   /* Superseded by .guidcy-profile-work-company and the canonical mapper. */
   return;
-  function esc2(v){try{return (typeof esc==='function')?esc(v):String(v||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}catch(_){return String(v||'');}}
-  function clean(v){return String(v||'').replace(/undefined|null/gi,'').replace(/\s+/g,' ').trim();}
-  function blueStyle(){
-    if(document.getElementById('guidcy-profile-work-blue-style')) return;
-    var st=document.createElement('style');
-    st.id='guidcy-profile-work-blue-style';
-    st.textContent='\n.profile-role,.c-role{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important}\n.guidcy-current-company-blue{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important}\n.profile-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important;font-size:14px!important;margin-bottom:10px!important}\n.c-role.guidcy-role-with-company{color:var(--blue)!important;font-weight:var(--font-weight-semibold,600)!important;line-height:1.45!important}\n';
-    document.head.appendChild(st);
-  }
-  function getCompanyFromMeta(scope){
-    scope=scope||document;
-    var items=scope.querySelectorAll('.profile-meta .meta-item,.profile-education-meta .meta-item,.meta-item');
-    for(var i=0;i<items.length;i++){
-      var t=clean(items[i].textContent||'');
-      if(/^🏢/.test(t) || /\b(current company|company|college)\b/i.test(t)){
-        return {text:clean(t.replace(/^🏢\s*/,'')), el:items[i]};
-      }
-    }
-    return {text:'',el:null};
-  }
-  function firstDataCompany(c){
-    c=c||{};
-    var keys=['current_company_college','currentCompanyCollege','current_company','currentCompany','company','company_name','companyName','organization','organisation','employer','current_college','currentCollege'];
-    for(var i=0;i<keys.length;i++){var v=clean(c[keys[i]]); if(v) return v;}
-    return '';
-  }
-  function firstDataWork(c){
-    c=c||{};
-    var keys=['current_work','currentWork','current_job','currentJob','designation','job_title','jobTitle','position','current_position','currentPosition'];
-    for(var i=0;i<keys.length;i++){var v=clean(c[keys[i]]); if(v) return v;}
-    return '';
-  }
-  async function fetchExtraForCurrent(){
-    var c=window.curCons||{};
-    var id=c.dbId||c.id||'';
-    if(!id || !window.sb) return c;
-    try{
-      var r=await window.sb.from('consultants').select('*').eq('id',id).maybeSingle();
-      if(r&&r.data) c=Object.assign({},r.data,c);
-    }catch(_){ }
-    try{
-      var pid=c.profile_id||c.profileId||id;
-      var p=await window.sb.from('profiles').select('*').eq('id',pid).maybeSingle();
-      if(p&&p.data) c=Object.assign({},p.data,c);
-    }catch(_){ }
-    window.curCons=Object.assign({},window.curCons||{},c);
-    return c;
-  }
-  async function fixProfileWorkCompany(){
-    blueStyle();
-    var roleEls=document.querySelectorAll('.profile-role');
-    if(!roleEls.length) return;
-    var c=await fetchExtraForCurrent();
-    roleEls.forEach(function(roleEl){
-      var scope=roleEl.closest('.profile-hero')||roleEl.closest('.profile-main')||document;
-      var metaCompany=getCompanyFromMeta(scope);
-      var existing=clean(roleEl.textContent||'');
-      var work=firstDataWork(c);
-      var company=firstDataCompany(c)||metaCompany.text;
-      /* If current_work was already rendered as 'Work, Company', split it safely. */
-      if(!work && existing.indexOf(',')>-1){
-        var parts=existing.split(',').map(function(x){return clean(x);}).filter(Boolean);
-        work=parts[0]||'';
-        if(!company && parts.length>1) company=parts[parts.length-1];
-      }
-      if(company && company.toLowerCase()===work.toLowerCase()) company='';
-      var finalLine=work ? (work+(company?', '+company:'')) : (company || existing.split(',')[0].trim() || 'Consultant');
-      roleEl.innerHTML=esc2(finalLine);
-      roleEl.classList.add('guidcy-role-with-company');
-      roleEl.style.color='var(--blue)';
-      roleEl.style.fontWeight='600';
-      if(metaCompany.el){
-        var parent=metaCompany.el.parentElement;
-        metaCompany.el.remove();
-        if(parent && !clean(parent.textContent)) parent.remove();
-      }
-    });
-  }
-  var oldOpen=window.openProfile;
-  if(typeof oldOpen==='function' && !oldOpen.guidcyProfileBlueHotfix){
-    var patched=function(){
-      var res=oldOpen.apply(this,arguments);
-      Promise.resolve(res).then(function(){setTimeout(fixProfileWorkCompany,60);setTimeout(fixProfileWorkCompany,300);setTimeout(fixProfileWorkCompany,900);});
-      return res;
-    };
-    patched.guidcyProfileBlueHotfix=true;
-    window.openProfile=patched;
-  }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(fixProfileWorkCompany,250);setTimeout(fixProfileWorkCompany,1000);});
-  var mo=new MutationObserver(function(){clearTimeout(window.__guidcyProfileBlueTimer);window.__guidcyProfileBlueTimer=setTimeout(fixProfileWorkCompany,80);});
-  try{mo.observe(document.body,{childList:true,subtree:true});}catch(_){ }
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -9617,45 +9286,7 @@ body{overflow-x:hidden}
 (function(){
   /* Superseded by the canonical profile/card renderers. */
   return;
-  function clean(v){return String(v||'').replace(/undefined|null/gi,'').replace(/\s+/g,' ').trim();}
-  function esc3(v){try{return (typeof esc==='function')?esc(v):String(v||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}catch(_){return String(v||'');}}
-  function first(obj, keys){obj=obj||{};for(var i=0;i<keys.length;i++){var v=clean(obj[keys[i]]);if(v)return v;}return '';}
-  function workOf(c){return first(c,['current_work','currentWork','current_job','currentJob','designation','job_title','jobTitle','position','current_position','currentPosition']);}
-  function companyOf(c){return first(c,['current_company_college','currentCompanyCollege','current_company','currentCompany','company','company_name','companyName','organization','organisation','employer','current_college','currentCollege']);}
-  function lineOf(c, fallbackText){
-    var work=workOf(c), company=companyOf(c), existing=clean(fallbackText);
-    if(!work && existing.indexOf(',')>-1){var parts=existing.split(',').map(clean).filter(Boolean); work=parts[0]||''; if(!company && parts.length>1) company=parts[parts.length-1];}
-    if(company && work && company.toLowerCase()===work.toLowerCase()) company='';
-    return work ? (work+(company?', '+company:'')) : (company || existing);
-  }
-  async function enrichCurrent(c){
-    c=c||{}; var id=c.dbId||c.id||c.profile_id||c.profileId;
-    if(!window.sb || !id) return c;
-    try{var r=await window.sb.from('consultants').select('*').eq('id',id).maybeSingle(); if(r&&r.data)c=Object.assign({},r.data,c);}catch(_){}
-    try{var pid=c.profile_id||c.profileId||id; var p=await window.sb.from('profiles').select('*').eq('id',pid).maybeSingle(); if(p&&p.data)c=Object.assign({},p.data,c);}catch(_){}
-    return c;
-  }
-  async function fixVisible(){
-    var cur=await enrichCurrent(window.curCons||{});
-    document.querySelectorAll('.profile-role').forEach(function(el){
-      var txt=el.textContent||''; var line=lineOf(cur,txt); if(line){el.innerHTML=esc3(line); el.classList.add('guidcy-role-with-company'); el.style.color='var(--blue)'; el.style.fontWeight='600';}
-      var scope=el.closest('.profile-hero')||document; scope.querySelectorAll('.meta-item').forEach(function(m){if(/^🏢/.test(clean(m.textContent||'')))m.remove();});
-    });
-    document.querySelectorAll('.ccard').forEach(function(card){
-      var el=card.querySelector('.c-role'); if(!el) return;
-      var txt=clean(el.textContent||'');
-      // If duplicate pattern like "Speciality, Work, Company" exists, keep the last two meaningful parts.
-      if(txt.indexOf(',')>-1){var parts=txt.split(',').map(clean).filter(Boolean); if(parts.length>=3) txt=parts.slice(1).join(', ');}
-      el.innerHTML=esc3(txt); el.classList.add('guidcy-role-with-company'); el.style.color='var(--blue)'; el.style.fontWeight='600';
-    });
-  }
-  var old=window.openProfile;
-  if(typeof old==='function' && !old.guidcyWorkCompanyOnlyFinal){
-    var patched=function(){var r=old.apply(this,arguments); Promise.resolve(r).then(function(){setTimeout(fixVisible,80);setTimeout(fixVisible,400);}); return r;};
-    patched.guidcyWorkCompanyOnlyFinal=true; window.openProfile=patched;
-  }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(fixVisible,500);setTimeout(fixVisible,1200);});
-  try{new MutationObserver(function(){clearTimeout(window.__guidcyWorkCompanyOnlyT); window.__guidcyWorkCompanyOnlyT=setTimeout(fixVisible,120);}).observe(document.body,{childList:true,subtree:true});}catch(_){}
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -9951,7 +9582,6 @@ body{overflow-x:hidden}
     {icon:'✍️',name:'Content Creation',desc:'Writing, video content, creator strategy, content calendars, storytelling, and monetization.'}
   ];
   window.CATEGORIES_FULL=CATEGORY_DEFS;
-  const HOME_CATEGORIES=['Business Strategy','Technology','Finance','Legal','Career Coaching','Education','Medical','Startup','Artificial Intelligence','Data Science','Marketing','R&D'];
   const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
   const alias={
     'business':'Business Strategy','business strategy':'Business Strategy','business and strategy':'Business Strategy','strategy':'Business Strategy',
@@ -9994,13 +9624,6 @@ body{overflow-x:hidden}
   }
   function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
   function iconFor(name){return (CATEGORY_DEFS.find(c=>c.name===canonicalCategory(name))||{}).icon||'✨';}
-  function renderHomeCategories(){
-    const grid=document.querySelector('.home-cats-grid'); if(!grid)return;
-    grid.innerHTML=HOME_CATEGORIES.map(name=>{
-      const def=CATEGORY_DEFS.find(c=>c.name===name)||{icon:'✨',name};
-      return `<div class="home-cat-card" onclick="filterAndBrowse('${esc(name)}')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">${def.icon}</div><div class="home-cat-name">${esc(name)}</div><div class="home-cat-count">Explore experts →</div></div>`;
-    }).join('')+`<div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA;font-size:24px">📂</div><div class="home-cat-name">View All</div><div class="home-cat-count">All categories →</div></div>`;
-  }
   window.initCategories=async function(){
     const grid=document.getElementById('cats-full-grid'); if(!grid)return;
     grid.className='guidcy-cats-grid-v2';
@@ -10051,7 +9674,6 @@ body{overflow-x:hidden}
      displayed. It now renders from the static category list. */
   function refreshCategoryUI(){
     addCategoryOptions();
-    renderHomeCategories();
     if(document.getElementById('page-categories')?.classList.contains('on'))window.initCategories();
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshCategoryUI,250));
@@ -10091,40 +9713,14 @@ body{overflow-x:hidden}
       }
     });
   }
-  let lastCapState=null;
-  function capPopularCategoriesToTwoRows(){
-    const grid=document.querySelector('#page-home .home-cats-grid');
-    if(!grid) return;
-    const cards=[...grid.querySelectorAll('.home-cat-card')];
-    if(!cards.length) return;
-    const nextState={grid,width:window.innerWidth,count:cards.length,first:cards[0],last:cards[cards.length-1]};
-    if(lastCapState&&lastCapState.grid===nextState.grid&&lastCapState.width===nextState.width&&lastCapState.count===nextState.count&&lastCapState.first===nextState.first&&lastCapState.last===nextState.last)return;
-    lastCapState=nextState;
-    cards.forEach(c=>c.style.display='');
-    let viewAll=cards.find(c=>/view all/i.test(c.textContent||'')) || cards[cards.length-1];
-    if(viewAll && viewAll!==grid.lastElementChild) grid.appendChild(viewAll);
-    const colsRaw=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
-    const cols=Math.max(1,colsRaw||6);
-    const maxCards=Math.max(2,cols*2);
-    const current=[...grid.querySelectorAll('.home-cat-card')];
-    if(current.length>maxCards){
-      const visibleBeforeViewAll=maxCards-1;
-      let shown=0;
-      current.forEach(card=>{
-        if(card===viewAll){card.style.display='';return;}
-        shown++;
-        if(shown>visibleBeforeViewAll) card.style.display='none';
-      });
-      if(viewAll) viewAll.style.display='';
-    }
-  }
-  function runFixes(){relabelMenus();capPopularCategoriesToTwoRows();}
+  // Popular Categories is static markup. Never infer a card limit from a
+  // hidden route's unresolved grid tracks; CSS handles the responsive layout.
+  function runFixes(){relabelMenus();}
   let runFixesTimer=0;
   function scheduleRunFixes(){clearTimeout(runFixesTimer);runFixesTimer=setTimeout(runFixes,100);}
   document.addEventListener('DOMContentLoaded',runFixes);
   window.addEventListener('load',scheduleRunFixes);
-  window.addEventListener('resize',()=>setTimeout(capPopularCategoriesToTwoRows,120));
-  window.guidcyOnDomSettled(runFixes);   // shared observer - see guidcy-maintenance-scheduler
+  window.guidcyOnDomSettled(runFixes,'#main-nav,#gmob-drawer,#guidcy-mob-drawer,.footer');   // shared observer - see guidcy-maintenance-scheduler
 })();
 
 
@@ -10445,7 +10041,7 @@ body{overflow-x:hidden}
   function relabelNodeText(node){
     if(!node || node.nodeType!==3) return;
     const original=node.nodeValue;
-    if(!original || !original.trim()) return;
+    if(!original || !/Browse|Opportunities|Smart Finder/.test(original)) return;
     let out=original;
     for(const rule of RULES){
       rule.re.lastIndex=0;
@@ -10800,31 +10396,9 @@ body{overflow-x:hidden}
     }
   }
   function insertHomeSection(){
-    const home=document.getElementById('page-home'); if(!home||document.getElementById('guidcy-personalization-section'))return;
-    const trust=document.getElementById('home-trust-strip');
-    const html=`<section class="guidcy-personal-section" id="guidcy-personalization-section">
-      <div class="guidcy-personal-shell">
-        <div class="guidcy-personal-head">
-          <div><div class="guidcy-personal-kicker">AI-powered personalization</div><h2 class="guidcy-personal-title">Made for your next step</h2><p class="guidcy-personal-sub">Personalized consultants, webinars, field trends and roadmap progress are generated from your latest searches, profile signals and live Live data.</p></div>
-          <div class="guidcy-personal-refresh"><button class="btn btn-blue" onclick="guidcyRefreshPersonalization()">Refresh recommendations</button><button class="btn" onclick="go('browse')">Find the Expert</button></div>
-        </div>
-        <div class="guidcy-personal-tabs" id="guidcy-personal-tabs">
-          <button class="guidcy-personal-tab on" data-panel="rec">Recommended consultants for you</button>
-          <button class="guidcy-personal-tab" data-panel="recent">Recently viewed experts</button>
-          <button class="guidcy-personal-tab" data-panel="similar">Similar experts</button>
-          <button class="guidcy-personal-tab" data-panel="webinars">Webinars you may like</button>
-          <button class="guidcy-personal-tab" data-panel="trending">Trending in your field</button>
-          <button class="guidcy-personal-tab" data-panel="roadmap">Continue your career roadmap</button>
-        </div>
-        <div id="gpers-panel-rec" class="guidcy-personal-panel on"><div id="gpers-rec" class="guidcy-personal-grid"></div></div>
-        <div id="gpers-panel-recent" class="guidcy-personal-panel"><div id="gpers-recent" class="guidcy-personal-grid"></div></div>
-        <div id="gpers-panel-similar" class="guidcy-personal-panel"><div id="gpers-similar" class="guidcy-personal-grid"></div></div>
-        <div id="gpers-panel-webinars" class="guidcy-personal-panel"><div id="gpers-webinars" class="guidcy-personal-mini-grid"></div></div>
-        <div id="gpers-panel-trending" class="guidcy-personal-panel"><div id="gpers-trending" class="guidcy-personal-mini-grid"></div></div>
-        <div id="gpers-panel-roadmap" class="guidcy-personal-panel"><div id="gpers-roadmap" class="guidcy-personal-mini-grid"></div></div>
-      </div>
-    </section>`;
-    if(trust)trust.insertAdjacentHTML('afterend',html);else home.insertAdjacentHTML('afterbegin',html);
+    const section=document.getElementById('guidcy-personalization-section');
+    if(!section||section.dataset.guidcyBound)return;
+    section.dataset.guidcyBound='1';
     const tabs=document.getElementById('guidcy-personal-tabs');
     if(tabs)tabs.addEventListener('click',function(e){const b=e.target.closest('.guidcy-personal-tab');if(!b)return;tabs.querySelectorAll('.guidcy-personal-tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('#guidcy-personalization-section .guidcy-personal-panel').forEach(x=>x.classList.remove('on'));document.getElementById('gpers-panel-'+b.dataset.panel)?.classList.add('on');});
   }
@@ -10867,7 +10441,7 @@ body{overflow-x:hidden}
       el.innerHTML=goals.map(g=>{let tasks=[];try{tasks=Array.isArray(g.tasks)?g.tasks:JSON.parse(g.tasks||'[]')}catch(e){};const done=tasks.filter(t=>t.done||t.completed).length;return `<div class="guidcy-roadmap-card"><div class="guidcy-roadmap-title">${esc(g.my_goal||g.goal||'My Goal')}</div><div class="guidcy-roadmap-meta">${esc(done+'/'+tasks.length+' tasks completed')}${g.deadline?' · Deadline: '+esc(g.deadline):''}${g.next_session?' · Next: '+esc(g.next_session):''}</div><button class="btn btn-blue" style="padding:7px 14px;font-size:12px" onclick="go('user-dash');setTimeout(()=>swUD('goals',null),150)">Continue roadmap</button></div>`}).join('');
     }catch(e){el.innerHTML='<div class="guidcy-personal-empty">Goal tracker data is not available yet. Run the goal tracker SQL if this is your first test.</div>';}
   }
-  async function guidcyRefreshPersonalization(query){
+  async function renderPersonalization(query){
     insertHomeSection();installRecentTracker();
     if(query)localStorage.setItem(LAST_QUERY_KEY,query);
     const persona=query||currentPersonaText();
@@ -10891,6 +10465,14 @@ body{overflow-x:hidden}
        Kept as a no-op because several search/navigation wrappers still call it. */
     insertBrowseSection();
   }
+  var personalRequest=null,personalKey='';
+  function guidcyRefreshPersonalization(query){
+    var key=String(query||currentPersonaText());
+    if(personalRequest&&personalKey===key)return personalRequest;
+    personalKey=key;
+    var request=renderPersonalization(query).finally(function(){if(personalRequest===request)personalRequest=null});
+    personalRequest=request;return request;
+  }
   window.guidcyRefreshPersonalization=guidcyRefreshPersonalization;
   window.guidcyRenderBrowsePersonalization=guidcyRenderBrowsePersonalization;
   function patchSearches(){
@@ -10906,9 +10488,9 @@ body{overflow-x:hidden}
       if(typeof oldGo==='function')window.go=function(page){const out=oldGo.apply(this,arguments);setTimeout(()=>{if(page==='home')guidcyRefreshPersonalization();if(page==='browse')guidcyRenderBrowsePersonalization();},350);return out;};
     }
   }
-  function boot(){installRecentTracker();insertHomeSection();insertBrowseSection();patchSearches();setTimeout(()=>guidcyRefreshPersonalization(),700);setTimeout(()=>guidcyRenderBrowsePersonalization(),900);}
+  function boot(){installRecentTracker();insertHomeSection();insertBrowseSection();patchSearches();window.guidcyWhenHomeVisible(function(){guidcyRefreshPersonalization()});}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
-  window.addEventListener('load',()=>setTimeout(boot,600));
+
 })();
 
 
@@ -12547,83 +12129,7 @@ body{overflow-x:hidden}
      independent repaint ladders and could replay a tab after a newer user
      interaction or logout. */
   return;
-  function path(){return (location.pathname||'/').replace(/\/+$/,'')||'/'}
-  function params(){return new URLSearchParams(location.search||'')}
-  function info(){
-    var p=path(),tab=params().get('tab')||'';
-    if(p==='/dashboard'||p==='/user-dashboard'||p==='/user-dash')return {page:'user-dash',main:'udash-main',fn:'swUD',base:'/dashboard',tab:tab||'upcoming',fallback:'upcoming',side:'#page-user-dash'};
-    if(p==='/consultant-dashboard'||p==='/cons-dash')return {page:'cons-dash',main:'cdash-main',fn:'swCD',base:'/consultant-dashboard',tab:tab||'overview',fallback:'overview',side:'#page-cons-dash'};
-    if(p==='/admin/webinar-registrations')return {page:'admin-dash',main:'adash-main',fn:'swAD',base:'/admin/webinar-registrations',tab:'webinar-registrations',fallback:'webinar-registrations',side:'#page-admin-dash'};
-    if(p==='/admin'||p==='/admin-dashboard'||p==='/admin-dash')return {page:'admin-dash',main:'adash-main',fn:'swAD',base:'/admin-dashboard',tab:tab||'overview',fallback:'overview',side:'#page-admin-dash'};
-    return null;
-  }
-  function expectedTitle(tab){
-    return {
-      upcoming:'Upcoming sessions',goals:'Goal Tracker',history:'Session history',saved:'Saved',payments:'Payment history',notifications:'Notifications',reviews:'reviews',settings:'settings',
-      overview:'Overview',requests:'Booking Requests',schedule:'My schedule',earnings:'Earnings',marketplace:'Marketplace',
-      consultants:'Manage Consultants',users:'Users',bookings:'bookings',disputes:'Disputes','webinar-registrations':'Webinar Registrations'
-    }[tab]||tab;
-  }
-  function markSide(i){
-    try{
-      document.querySelectorAll(i.side+' .side-btn').forEach(function(b){b.classList.remove('on')});
-      var all=Array.from(document.querySelectorAll(i.side+' .side-btn'));
-      // An exact data-admin-section beats the substring test below, which lights
-      // "Marketplace payouts" for "payments"/"marketplace" and vice versa.
-      var btn=all.find(function(b){return b.dataset&&(b.dataset.dashSection===i.tab||b.dataset.adminSection===i.tab)})||all.find(function(b){
-        var s=(b.getAttribute('onclick')||'')+' '+(b.textContent||'');
-        return s.indexOf("'"+i.tab+"'")>-1||s.indexOf('"'+i.tab+'"')>-1||(i.tab==='marketplace'&&/Marketplace|Purchased Notes/i.test(s))||(i.tab==='payments'&&/Payments/i.test(s))||(i.tab==='webinar-registrations'&&/Webinar Registrations/i.test(s));
-      });
-      if(btn)btn.classList.add('on');
-    }catch(_){}
-  }
-  function urlFor(i){return i.base==='/admin/webinar-registrations'?i.base:(i.base+'?tab='+encodeURIComponent(i.tab||i.fallback))}
-  function restore(){
-    var i=info(); if(!i)return false;
-    try{
-      document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active')});
-      var page=document.getElementById('page-'+i.page); if(page)page.classList.add('on');
-    }catch(_){}
-    try{if(typeof window[i.fn]==='function')window[i.fn](i.tab,null)}catch(e){console.warn('Dashboard restore retry skipped:',e)}
-    markSide(i);
-    try{var u=urlFor(i); if(location.pathname+location.search!==u)history.replaceState({page:i.page,tab:i.tab},'',u)}catch(_){}
-    return true;
-  }
-  function restoreUntilSettled(){
-    var i=info(); if(!i)return;
-    restore();
-    [250,700,1300,2300,3800,5600,7600].forEach(function(ms){
-      setTimeout(function(){
-        var current=info(); if(!current)return;
-        /* expectedTitle() only knows a handful of the sections, so for every
-           other one ("Consultant Payouts", "Saved consultants", "Notification
-           Preferences", …) the title never matched and this ladder re-rendered
-           the section that was already on screen seven times over - each pass
-           wiping the panel and refetching. Ask the dashboard owner whether the
-           section is already showing instead. */
-        var owner=current.fn;
-        if(typeof window.guidcyDashboardShowsTab==='function'&&
-           window.guidcyDashboardShowsTab(owner,current.tab)&&
-           location.pathname+location.search===urlFor(current))return;
-        var title=(document.getElementById(current.main)?.querySelector('.dash-title')?.textContent||'').trim();
-        if(!title||title!==expectedTitle(current.tab)||location.pathname+location.search!==urlFor(current))restore();
-      },ms);
-    });
-  }
-  var oldGo=window.go;
-  if(typeof oldGo==='function'&&!oldGo.__guidcyBodyRefreshGuard){
-    window.go=function(page){
-      var out=oldGo.apply(this,arguments);
-      setTimeout(restoreUntilSettled,120);
-      return out;
-    };
-    window.go.__guidcyBodyRefreshGuard=true;
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restoreUntilSettled);
-  else restoreUntilSettled();
-  window.addEventListener('load',restoreUntilSettled);
-  window.addEventListener('pageshow',restoreUntilSettled);
-  window.addEventListener('popstate',function(){setTimeout(restoreUntilSettled,0)});
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -12960,119 +12466,7 @@ body{overflow-x:hidden}
      arrived, overwriting public navigation performed immediately after the
      first successful logout repaint. */
   return;
-  var logoutInProgress=false,lastLogoutAt=0;
-  function clean(v){return String(v==null?'':v).trim()}
-  function client(){try{return window.guidcyGetSupabaseClient()}catch(_){return null}}
-  function setLoggedOutState(){
-    try{window.currentUser=null}catch(_){}
-    try{window.currentProfile=null}catch(_){}
-    try{window.loggedIn=null}catch(_){}
-    try{window.loggedInUser=null}catch(_){}
-    try{window.currentSession=null}catch(_){}
-    try{currentUser=null}catch(_){}
-    try{currentProfile=null}catch(_){}
-    try{loggedIn=null}catch(_){}
-  }
-  function clearLogoutStorage(){
-    // Dashboard view/tab state is mirrored into localStorage, so it used to survive a
-    // sign-out and then fight the next account's default tab — the router restored the
-    // previous session's tab while the new session pushed its own, which is what made
-    // login look like it was hanging and flipping between tabs. Every per-session key
-    // has to go on logout.
-    ['guidcy_active_role','guidcy_pending_action','guidcyPendingAction','guidcy_pending_marketplace_action','guidcy_after_login_action',
-     'guidcy_user_dash_view','guidcy_user_dash_tab','guidcy_cons_dash_view','guidcy_cons_dash_tab','guidcy_admin_dash_view','guidcy_admin_dash_tab',
-     'guidcy_pending_route','guidcy_pending_after_login','guidcy_pending_return','guidcy_return_url','guidcy_return_at',
-     'guidcy_careers_pending','guidcy_last_role','guidcy_login_role'].forEach(function(k){
-      try{sessionStorage.removeItem(k)}catch(_){}
-      try{localStorage.removeItem(k)}catch(_){}
-    });
-  }
-  function setLoggedOutNav(){
-    var nr=document.getElementById('nav-right');
-    if(!nr)return;
-    nr.innerHTML="<button class=\"btn\" onclick=\"go('login')\">Log in</button><button class=\"btn btn-blue\" onclick=\"go('signup');setTimeout(function(){try{swType('consultant')}catch(e){}},50)\">Get started</button>";
-  }
-  function showHomeNow(){
-    try{
-      document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active')});
-      var home=document.getElementById('page-home');
-      if(home){home.classList.add('on');home.classList.add('active')}
-    }catch(_){}
-    try{history.replaceState({page:'home'},'','/')}catch(_){}
-    try{if(typeof window.renderPage==='function')window.renderPage('home')}catch(_){}
-    try{if(typeof window.initHome==='function')window.initHome()}catch(_){}
-    try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){try{window.scrollTo(0,0)}catch(__){}}
-  }
-  function isLoggedIn(){
-    try{return !!(window.currentUser&&window.currentUser.id)||!!(window.loggedInUser&&window.loggedInUser.id)||!!window.loggedIn||!!(window.currentProfile&&window.currentProfile.id)}
-    catch(_){return false}
-  }
-  function isDashboardPage(page){
-    page=clean(page).toLowerCase();
-    return ['dashboard','user-dash','user-dashboard','consultant-dashboard','cons-dash','admin','admin-dash','admin-dashboard'].indexOf(page)>-1;
-  }
-  function isDashboardPath(){
-    var path=clean(location.pathname).toLowerCase();
-    return /(^|\/)(dashboard|user-dashboard|consultant-dashboard|admin-dashboard|admin)(\/|$)/.test(path);
-  }
-  function shouldForcePublicAfterLogout(){
-    return !!lastLogoutAt && Date.now()-lastLogoutAt<8000;
-  }
-  function finishLogout(showToast){
-    var now=Date.now();
-    if(now-lastLogoutAt<250)return;
-    lastLogoutAt=now;
-    setLoggedOutState();
-    clearLogoutStorage();
-    setLoggedOutNav();
-    showHomeNow();
-    try{document.body.classList.remove('guidcy-modal-open','guidcy-final-auth-open')}catch(_){}
-    if(showToast!==false){
-      try{(window.toast||window.showToast||console.log)('Signed out','blue')}catch(_){}
-    }
-  }
-  var previousLogOut=window.logOut||(typeof logOut==='function'?logOut:null);
-  window.logOut=async function(){
-    if(logoutInProgress)return;
-    logoutInProgress=true;
-    try{
-      var c=client();
-      if(c&&c.auth&&typeof c.auth.signOut==='function')await c.auth.signOut();
-      else if(typeof previousLogOut==='function')await previousLogOut.apply(this,arguments);
-    }catch(e){
-      console.warn('Guidcy logout signOut skipped:',e&&e.message?e.message:e);
-    }finally{
-      finishLogout(true);
-      logoutInProgress=false;
-    }
-  };
-  try{logOut=window.logOut}catch(_){}
-  var oldGo=window.go;
-  if(typeof oldGo==='function'&&!oldGo.__guidcyLogoutRefreshFix){
-    window.go=function(page){
-      if(isDashboardPage(page)&&!isLoggedIn()&&shouldForcePublicAfterLogout()){finishLogout(false);return}
-      return oldGo.apply(this,arguments);
-    };
-    window.go.__guidcyLogoutRefreshFix=true;
-  }
-  function guardDashboardUrl(){
-    if(isDashboardPath()&&!isLoggedIn()&&shouldForcePublicAfterLogout())finishLogout(false);
-  }
-  window.addEventListener('popstate',function(){setTimeout(guardDashboardUrl,0)},true);
-  [60,300,900,1800].forEach(function(ms){setTimeout(guardDashboardUrl,ms)});
-  function installAuthWatcher(){
-    var c=client();
-    if(!c||!c.auth||typeof c.auth.onAuthStateChange!=='function'||c.auth.__guidcyLogoutRefreshWatcher)return;
-    c.auth.__guidcyLogoutRefreshWatcher=true;
-    try{
-      c.auth.onAuthStateChange(function(event){
-        if(event==='SIGNED_OUT')setTimeout(function(){finishLogout(false)},30);
-      });
-    }catch(_){}
-  }
-  installAuthWatcher();
-  setTimeout(installAuthWatcher,800);
-  setTimeout(installAuthWatcher,2200);
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -17796,25 +17190,6 @@ document.addEventListener('DOMContentLoaded',function(){
     try{window.guidcySyncBrowseCategoryChecks&&window.guidcySyncBrowseCategoryChecks()}catch(_){}
   }
 
-  function renderAllCategoriesPage(){
-    const grid = document.getElementById('cats-full-grid');
-    if(!grid) return;
-    grid.innerHTML = GUIDCY_CONSULTANT_CATEGORIES.map(function(pair){
-      const icon = pair[0], name = pair[1];
-      return `<div style="margin-bottom:28px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-          <span style="font-size:24px">${icon}</span>
-          <div>
-            <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:var(--font-weight-medium,500)">${safe(name)}</div>
-            <div style="font-size:12px;color:var(--muted)">Explore experts</div>
-          </div>
-          <button class="btn btn-blue" style="margin-left:auto;font-size:12px;padding:6px 14px" onclick="filterAndBrowse('${safe(name)}')">Browse →</button>
-        </div>
-        <div class="tag-list"><span class="skill-tag" onclick="filterAndBrowse('${safe(name)}')" style="cursor:pointer">${safe(name)}</span></div>
-      </div><hr style="border:none;border-top:1px solid var(--border);margin-bottom:28px"/>`;
-    }).join('');
-  }
-
   function patchHomeExploreText(){
     document.querySelectorAll('.home-cat-count').forEach(function(el){
       if((el.closest('.home-cat-card')?.textContent || '').toLowerCase().includes('view all')) return;
@@ -17826,7 +17201,6 @@ document.addEventListener('DOMContentLoaded',function(){
     patchConsultantRegistrationCategories();
     patchHeroCategoryDropdown();
     patchBrowseCategoryFilters();
-    renderAllCategoriesPage();
     patchHomeExploreText();
   }
 
@@ -17839,12 +17213,6 @@ document.addEventListener('DOMContentLoaded',function(){
       return result;
     }
     if(typeof window.applyFilters === 'function') return window.applyFilters();
-  };
-
-  const previousInitCategories = window.initCategories;
-  window.initCategories = async function(){
-    renderAllCategoriesPage();
-    return null;
   };
 
   const previousFetchConsultants = window.fetchConsultants;
@@ -17934,7 +17302,6 @@ document.addEventListener('DOMContentLoaded',function(){
     {icon:'🎨',name:'Design',desc:'UI/UX, graphic design, branding, product design, visual identity, and creative direction.'},
     {icon:'✍️',name:'Content Creation',desc:'Writing, video content, creator strategy, content calendars, storytelling, and monetization.'}
   ];
-  const HOME_CATEGORIES=['Business Strategy','Technology','Finance','Legal','Career Coaching','Education','Medical','Startup','Artificial Intelligence','Data Science','R&D'];
   const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
   const aliases={
     'business':'Business Strategy','business strategy':'Business Strategy','business and strategy':'Business Strategy','strategy':'Business Strategy',
@@ -17959,13 +17326,6 @@ document.addEventListener('DOMContentLoaded',function(){
     return [];
   }
   function countByCategory(rows){const counts={}; CATEGORY_DEFS.forEach(c=>counts[c.name]=0); (rows||[]).forEach(r=>{const cat=consultantCategory(r); if(Object.prototype.hasOwnProperty.call(counts,cat))counts[cat]++;}); return counts;}
-  function renderHome(){
-    const grid=document.querySelector('.home-cats-grid'); if(!grid)return;
-    if(grid.dataset.guidcyFinalHomeCategories==='1')return;
-    grid.innerHTML=HOME_CATEGORIES.map(name=>{const def=CATEGORY_DEFS.find(c=>c.name===name)||{icon:'✨',name}; return `<div class="home-cat-card" onclick="filterAndBrowse('${esc(name)}')"><div class="home-cat-icon" style="background:#EBF4FF;font-size:24px">${def.icon}</div><div class="home-cat-name">${esc(name)}</div><div class="home-cat-count">Explore experts →</div></div>`;}).join('')+
-      `<div class="home-cat-card" onclick="go('categories')"><div class="home-cat-icon" style="background:#F0FDFA;font-size:24px">📂</div><div class="home-cat-name">View All</div><div class="home-cat-count">All categories →</div></div>`;
-    grid.dataset.guidcyFinalHomeCategories='1';
-  }
   let categoryRenderPromise=null;
   window.guidcyRenderAllCategoriesFinal=function(){
     const grid=document.getElementById('cats-full-grid'); if(!grid)return;
@@ -17994,7 +17354,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(typeof applyFilters==='function')applyFilters();
     },180);
   };
-  function refresh(){renderHome(); if(document.getElementById('page-categories')?.classList.contains('on')) window.guidcyRenderAllCategoriesFinal();}
+  function refresh(){if(document.getElementById('page-categories')?.classList.contains('on')) window.guidcyRenderAllCategoriesFinal();}
   document.addEventListener('DOMContentLoaded',()=>setTimeout(refresh,120));
   setTimeout(refresh,700); setTimeout(refresh,1800);
   const obs=new MutationObserver(()=>{if(document.getElementById('page-categories')?.classList.contains('on')) setTimeout(window.guidcyRenderAllCategoriesFinal,40);});
@@ -18162,42 +17522,6 @@ document.addEventListener('DOMContentLoaded',function(){
   setTimeout(init,1300);setTimeout(ensureSection,2600);
 })();
 
-
-/* === guidcy-home-section-gate ===
-   The two homepage opportunity sections each refreshed on a fixed ladder of
-   timers (DOMContentLoaded+600/2600/5200 and +350/1800/4200, plus one more
-   each), regardless of which page was showing. On a dashboard that meant a
-   dozen home_opportunities_cache reads for content that was nowhere on screen -
-   the single largest group of requests in the whole waterfall.
-
-   Run them when the home page is actually visible instead, once, and never if
-   the visitor does not go there. */
-(function(){
-  if(window.guidcyWhenHomeVisible)return;
-  function homeVisible(){
-    var el=document.getElementById('page-home');
-    return !!(el&&(el.classList.contains('on')||el.classList.contains('active')));
-  }
-  window.guidcyHomeIsVisible=homeVisible;
-  /* Calls fn once, as soon as home is on screen. Keeps watching for a while so
-     it still fires if the visitor arrives at home later from another route. */
-  window.guidcyWhenHomeVisible=function(fn){
-    if(typeof fn!=='function')return;
-    var done=false, ticks=0;
-    function attempt(){
-      if(done)return true;
-      if(!homeVisible())return false;
-      done=true;
-      try{fn()}catch(e){console.warn('home section init failed',e)}
-      return true;
-    }
-    if(attempt())return;
-    var t=setInterval(function(){
-      ticks++;
-      if(attempt()||ticks>600)clearInterval(t);   // watch for ~5 minutes
-    },500);
-  };
-})();
 
 /* === guidcy-home-daily-shared-opportunity-cache === */
 
@@ -18419,11 +17743,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function url(o){try{var u=o&& (o.url||o.link||o.apply_url||o.source_url); if(!u)return '#'; var x=new URL(String(u),location.origin); return /^https?:$/.test(x.protocol)?x.href:'#'}catch(e){return '#'}}
   function uniq(list){var seen={};return (list||[]).filter(function(o){var key=(String((o&&o.title)||'').toLowerCase().trim()+'|'+url(o));if(!key||seen[key])return false;seen[key]=1;return true})}
   function insertSection(){
-    if(document.getElementById(SECTION_ID))return;
-    var strip=document.getElementById('home-trust-strip'); if(!strip)return;
-    var el=document.createElement('section'); el.id=SECTION_ID; el.className='guidcy-growth-section';
-    el.innerHTML='<div class="guidcy-growth-wrap"><div><div class="guidcy-growth-kicker">✨ Everything in one place</div><h2 class="guidcy-growth-title">One profile. <span>All Guidcy tools.</span></h2><p class="guidcy-growth-copy">Guidcy brings Home, Find the Expert, Jobs, Categories, Blog, Webinars, Funds & Grants Finder, and Career & College AI Finder into one clean platform without confusing users across different names.</p><div class="guidcy-growth-grid"><div class="guidcy-growth-card" data-page="webinar"><div class="guidcy-growth-ico">🎙️</div><div><h3>Publish & join webinars</h3><p>Consultants can publish webinars, while learners can discover sessions that match their interests.</p></div></div><div class="guidcy-growth-card" data-page="jobs"><div class="guidcy-growth-ico">💼</div><div><h3>Find Jobs + Career & College AI</h3><p>Search jobs and use Career & College AI Finder from the same platform without switching tabs.</p></div></div><div class="guidcy-growth-card" data-page="smart-finder"><div class="guidcy-growth-ico">🤖</div><div><h3>Career & College AI Finder</h3><p>Get profile-based suggestions for jobs, colleges, career direction and admission options.</p></div></div><div class="guidcy-growth-card" data-page="opportunities"><div class="guidcy-growth-ico">🏆</div><div><h3>Funds & Grants Finder</h3><p>Find hackathons, scholarships, grants, competitions and startup programs, then save them for later.</p></div></div></div><div class="guidcy-growth-actions"><button class="btn btn-blue" id="guidcy-growth-smart-btn">Try Career & College AI Finder →</button><button class="btn" id="guidcy-growth-webinar-btn">Explore Webinars</button><button class="btn" id="guidcy-growth-jobs-btn">Search Jobs</button><button class="btn" id="guidcy-growth-opp-btn">Funds & Grants Finder →</button></div></div><div class="guidcy-growth-visual"><div class="guidcy-mix-board"><span class="guidcy-mix-dot d1"></span><span class="guidcy-mix-dot d2"></span><span class="guidcy-mix-dot d3"></span><div id="guidcy-mixed-home-opps"><div class="guidcy-mix-empty">Loading daily opportunities…</div></div></div></div></div>';
-    strip.insertAdjacentElement('afterend',el);
+    var el=document.getElementById(SECTION_ID);if(!el||el.dataset.guidcyBound)return;
+    el.dataset.guidcyBound='1';
     el.querySelectorAll('.guidcy-growth-card').forEach(function(card){card.addEventListener('click',function(){var p=card.getAttribute('data-page'); if(p==='opportunities')goOpp(); else goPage(p);});});
     var sb=document.getElementById('guidcy-growth-smart-btn'); if(sb)sb.onclick=function(){goPage('smart-finder')};
     var wb=document.getElementById('guidcy-growth-webinar-btn'); if(wb)wb.onclick=function(){goPage('webinar')};
@@ -21032,21 +20353,16 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   window.addEventListener('load',()=>setTimeout(patchEmailJsSend,400));
 
   /* Remove bank verification wording/status from the consultant payout settings UI only. */
-  const bankUiObserver=new MutationObserver(function(){
-    document.querySelectorAll('.guidcy-bank-card .status-pill').forEach(function(el){
-      const txt=lower(el.textContent);
-      if(txt==='verified'||txt==='not verified'||txt.includes('verification')){
-        el.textContent='Saved for payout';
-        el.classList.remove('sp-pending');
-        el.classList.add('sp-done');
-      }
-    });
-    document.querySelectorAll('button,a').forEach(function(el){
-      const txt=lower(el.textContent||'');
-      if(/verify bank|reject bank|bank verification/.test(txt)) el.remove();
-    });
+  window.guidcyObserveElements('.guidcy-bank-card .status-pill',function(el){
+    const txt=lower(el.textContent);
+    if(txt==='verified'||txt==='not verified'||txt.includes('verification')){
+      el.textContent='Saved for payout';
+      el.classList.remove('sp-pending');el.classList.add('sp-done');
+    }
   });
-  try{bankUiObserver.observe(document.documentElement,{childList:true,subtree:true});}catch(_){ }
+  window.guidcyObserveElements('button,a',function(el){
+    if(/verify bank|reject bank|bank verification/.test(lower(el.textContent||'')))el.remove();
+  });
 })();
 
 
@@ -21459,150 +20775,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
      by the locked router, which restored stale dashboard routes after newer
      taps and after logout. */
   return;
-  var restoring=false;
-  var routeGen=0; // bumped on every navigation so stale settleUrl() timeouts from an earlier page can detect they're outdated and skip reverting the URL
-  var routeMap={
-    '/':'home','/home':'home','/index.html':'home',
-    '/browse':'browse','/find-experts':'browse','/experts':'browse','/consultants':'browse',
-    '/jobs':'jobs','/find-jobs':'jobs',
-    '/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers',
-    '/marketplace':'marketplace',
-    '/categories':'categories','/blog':'blog',
-    '/webinar':'webinar','/webinars':'webinar',
-    '/smart-finder':'smart-finder','/smartfinder':'smart-finder','/career-ai-finder':'smart-finder','/career-ai':'smart-finder',
-    '/opportunities':'opportunities','/funds-grants':'opportunities',
-    '/login':'login','/signup':'signup','/get-started':'signup',
-    '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
-    '/help':'help','/help-center':'help','/support':'help',
-    '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
-    '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
-    '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash',
-    '/admin/webinar-registrations':'admin-dash',
-    '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review'
-  };
-  var pageUrls={
-    home:'/',browse:'/browse',jobs:'/find-jobs',careers:'/careers',work:'/careers',marketplace:'/marketplace',categories:'/categories',blog:'/blog',
-    webinar:'/webinars','smart-finder':'/career-ai-finder',opportunities:'/funds-grants',login:'/login',signup:'/get-started',about:'/about',contact:'/contact',
-    faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',help:'/help-center',dispute:'/dispute-resolution',
-    'user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard',payment:'/payment',confirm:'/confirm',meeting:'/meeting',review:'/review'
-  };
-  function cleanPath(path){path=String(path||'/').split('?')[0].replace(/\/+$/,'');return path||'/'}
-  function pageForPath(path){
-    path=cleanPath(path);
-    if(routeMap[path])return routeMap[path];
-    if(/^\/consultant\/[^/]+$/.test(path))return 'profile';
-    if(/^\/book\/[^/]+$/.test(path))return 'profile';
-    var hash=(location.hash||'').replace('#','').trim();
-    return hash||'home';
-  }
-  function canonicalUrl(page){
-    page=String(page||'home');
-    var url=pageUrls[page]||('/'+page);
-    if(page==='admin-dash'){
-      try{var tab=sessionStorage.getItem('guidcy_admin_dash_tab')||'';if(tab)url+='?tab='+encodeURIComponent(tab)}catch(_){}
-    }
-    if(page==='user-dash'){
-      try{var utab=sessionStorage.getItem('guidcy_user_dash_tab')||'';if(utab)url+='?tab='+encodeURIComponent(utab)}catch(_){}
-    }
-    if(page==='cons-dash'){
-      try{var ctab=sessionStorage.getItem('guidcy_cons_dash_tab')||'';if(ctab)url+='?tab='+encodeURIComponent(ctab)}catch(_){}
-    }
-    return url;
-  }
-  function render(page){
-    if(typeof window.renderPage==='function') window.renderPage(page);
-    else if(typeof renderPage==='function') renderPage(page);
-  }
-  function restoreDashboardTab(page,requestedTab,requestedPath){
-    var qs=new URLSearchParams(location.search),tab=requestedTab||qs.get('tab')||'';
-    if((requestedPath||location.pathname).replace(/\/$/,'')==='/admin/webinar-registrations')tab='webinar-registrations';
-    if(!tab)return;
-    try{
-      if(page==='admin-dash')sessionStorage.setItem('guidcy_admin_dash_tab',tab)
-      if(page==='user-dash')sessionStorage.setItem('guidcy_user_dash_tab',tab)
-      if(page==='cons-dash')sessionStorage.setItem('guidcy_cons_dash_tab',tab)
-    }catch(_){}
-    restoring=true;
-    setTimeout(function(){
-      try{
-        if(page==='admin-dash'&&typeof window.swAD==='function')window.swAD(tab,null);
-        if(page==='user-dash'&&typeof window.swUD==='function')window.swUD(tab,null);
-        if(page==='cons-dash'&&typeof window.swCD==='function')window.swCD(tab,null);
-      }catch(e){console.warn('Dashboard tab restore failed',e)}
-      restoring=false;
-    },250);
-  }
-  function desiredUrl(page,requestedTab,requestedPath){
-    requestedPath=cleanPath(requestedPath||location.pathname);
-    if(requestedPath==='/admin/webinar-registrations')return '/admin/webinar-registrations';
-    var url=pageUrls[page]||requestedPath||'/';
-    if((page==='admin-dash'||page==='user-dash'||page==='cons-dash')&&requestedTab)url+='?tab='+encodeURIComponent(requestedTab);
-    return url;
-  }
-  function settleUrl(page,requestedTab,requestedPath,gen){
-    var url=desiredUrl(page,requestedTab,requestedPath);
-    [80,700,1600].forEach(function(ms){
-      setTimeout(function(){
-        if(routeGen!==gen)return; // a newer navigation happened since this was scheduled - don't revert it
-        try{if(location.pathname+location.search!==url)history.replaceState({page:page,tab:requestedTab||''},'',url)}catch(_){}
-      },ms);
-    });
-  }
-  async function routeFromLocation(){
-    var myGen=++routeGen;
-    var path=cleanPath(location.pathname),page=pageForPath(path),requestedTab=(new URLSearchParams(location.search).get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(location.pathname)))||'';
-    try{
-      var original=new URL(window.__guidcyInitialPathWithSearch||'',location.origin);
-      var originalPath=cleanPath(original.pathname);
-      var originalTab=original.searchParams.get('tab')||'';
-      var useInitial=Date.now()<Number(window.__guidcyInitialRouteExpires||0);
-      if(useInitial&&originalTab&&originalPath===path)requestedTab=originalTab;
-      if(useInitial&&originalPath==='/admin/webinar-registrations'&&page==='admin-dash'){path=originalPath;requestedTab='webinar-registrations'}
-    }catch(_){}
-    var m=path.match(/^\/consultant\/([^/]+)$/);
-    if(m&&typeof window.openProfile==='function'){await window.openProfile(decodeURIComponent(m[1]),-1);return true}
-    m=path.match(/^\/book\/([^/]+)$/);
-    if(m&&typeof window.openProfile==='function'){await window.openProfile(decodeURIComponent(m[1]),-1);setTimeout(function(){try{window.startBooking&&window.startBooking()}catch(e){}},450);return true}
-    render(page);restoreDashboardTab(page,requestedTab,path);settleUrl(page,requestedTab,path,myGen);
-    setTimeout(function(){if(routeGen!==myGen)return;restoreDashboardTab(page,requestedTab,path);settleUrl(page,requestedTab,path,myGen)},900);
-    return true;
-  }
-  function pushUrl(page,replace){
-    var url=canonicalUrl(page);
-    if(location.pathname+location.search===url)return;
-    try{(replace?history.replaceState:history.pushState).call(history,{page:page},'',url)}catch(_){}
-  }
-  var previousGo=window.go||(typeof go==='function'?go:null);
-  window.go=function(page){
-    routeGen++; // invalidate any pending stale settleUrl() reversion scheduled by an earlier routeFromLocation() call
-    var aliases={'careers':'careers','find-work':'careers','guidcy-work':'careers','work':'careers','find-jobs':'jobs','career-ai':'smart-finder','career-ai-finder':'smart-finder','smartfinder':'smart-finder','funds-grants':'opportunities','experts':'browse','consultants':'browse','find-experts':'browse','admin':'admin-dash','dashboard':'user-dash','consultant-dashboard':'cons-dash','webinars':'webinar'};
-    page=aliases[page]||page||'home';
-    pushUrl(page,false);
-    try{render(page)}catch(e){if(previousGo)return previousGo.apply(this,arguments)}
-    restoreDashboardTab(page);
-  };
-  function wrapDash(name,page,url){
-    var old=window[name]; if(typeof old!=='function'||old.__guidcyCanonical)return;
-    window[name]=function(tab,btn){
-      if(tab){try{sessionStorage.setItem('guidcy_'+page.replace('-','_')+'_tab',tab)}catch(_){}}
-      var out=old.apply(this,arguments);
-      if(!restoring&&tab){try{history.replaceState({page:page,tab:tab},'',url+'?tab='+encodeURIComponent(tab))}catch(_){}}
-      return out;
-    };
-    window[name].__guidcyCanonical=true;
-  }
-  wrapDash('swAD','admin-dash','/admin-dashboard');
-  wrapDash('swUD','user-dash','/dashboard');
-  wrapDash('swCD','cons-dash','/consultant-dashboard');
-  window.guidcyRouteFromPath=routeFromLocation;
-  window.getPageFromPath=function(){return pageForPath(location.pathname)};
-  window.PAGE_URLS=Object.assign({},window.PAGE_URLS||{},pageUrls);
-  window.addEventListener('popstate',function(){setTimeout(routeFromLocation,0)});
-  function boot(){routeFromLocation()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(boot,120)});
-  else setTimeout(boot,120);
-  window.addEventListener('load',function(){setTimeout(boot,650)});
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -22622,124 +21795,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   if(window.__GUIDCY_WHOLE_SITE_REFRESH_ROUTE_LOCK__)return;
   window.__GUIDCY_WHOLE_SITE_REFRESH_ROUTE_LOCK__=true;
   return;
-
-  var bootPath=(location.pathname||'/')+(location.search||'')+(location.hash||'');
-  var bootUntil=Date.now()+12000;
-  var restoring=false;
-  var routeMap={
-    '/':'home','/home':'home','/index.html':'home',
-    '/browse':'browse','/find-experts':'browse','/experts':'browse','/consultants':'browse',
-    '/jobs':'jobs','/find-jobs':'jobs',
-    '/careers':'careers','/find-work':'careers','/work':'careers','/guidcy-work':'careers',
-    '/marketplace':'marketplace',
-    '/categories':'categories','/blog':'blog',
-    '/webinar':'webinar','/webinars':'webinar',
-    '/smart-finder':'smart-finder','/smartfinder':'smart-finder','/career-ai-finder':'smart-finder','/career-ai':'smart-finder',
-    '/opportunities':'opportunities','/funds-grants':'opportunities',
-    '/login':'login','/signup':'signup','/get-started':'signup',
-    '/about':'about','/contact':'contact','/faq':'faq','/terms':'terms','/privacy':'privacy','/refund':'refund','/disclaimer':'disclaimer',
-    '/help':'help','/help-center':'help','/support':'help',
-    '/dispute':'dispute','/dispute-resolution':'dispute',
-    '/dashboard':'user-dash','/dashboard/webinars':'user-dash','/dashboard/my-webinars':'user-dash','/dashboard/payments':'user-dash','/dashboard/history':'user-dash','/dashboard/profile':'user-dash','/dashboard/settings':'user-dash','/dashboard/upcoming':'user-dash','/dashboard/saved':'user-dash','/dashboard/marketplace':'user-dash','/consultant-dashboard/webinars':'cons-dash','/consultant-dashboard/my-webinars':'cons-dash','/consultant-dashboard/profile':'cons-dash','/consultant-dashboard/settings':'cons-dash','/consultant-dashboard/earnings':'cons-dash','/consultant-dashboard/history':'cons-dash','/consultant-dashboard/schedule':'cons-dash','/consultant-dashboard/requests':'cons-dash','/consultant-dashboard/marketplace':'cons-dash','/admin-dashboard/webinars':'admin-dash','/admin-dashboard/users':'admin-dash','/admin-dashboard/payments':'admin-dash','/admin-dashboard/bookings':'admin-dash','/admin-dashboard/analytics':'admin-dash','/admin-dashboard/marketplace':'admin-dash','/admin-dashboard/webinar-registrations':'admin-dash','/user-dashboard':'user-dash','/user-dash':'user-dash',
-    '/consultant-dashboard':'cons-dash','/cons-dash':'cons-dash',
-    '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
-    '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'
-  };
-  var canonical={
-    home:'/',browse:'/browse',jobs:'/find-jobs',careers:'/careers',work:'/careers',marketplace:'/marketplace',categories:'/categories',blog:'/blog',
-    webinar:'/webinars','smart-finder':'/career-ai-finder',opportunities:'/funds-grants',login:'/login',signup:'/get-started',
-    about:'/about',contact:'/contact',faq:'/faq',terms:'/terms',privacy:'/privacy',refund:'/refund',disclaimer:'/disclaimer',
-    help:'/help-center',dispute:'/dispute-resolution','user-dash':'/dashboard','cons-dash':'/consultant-dashboard','admin-dash':'/admin-dashboard',
-    payment:'/payment',confirm:'/confirm',meeting:'/meeting',review:'/review',profile:'/profile'
-  };
-  function cleanPath(path){path=String(path||'/').split('?')[0].split('#')[0].replace(/\/+$/,'');return path||'/'}
-  function pathWithSearch(){return (location.pathname||'/')+(location.search||'')}
-  function parsePath(raw){
-    var u;try{u=new URL(raw||pathWithSearch(),location.origin)}catch(_){u=new URL(pathWithSearch(),location.origin)}
-    var path=cleanPath(u.pathname), tab=u.searchParams.get('tab')||(window.guidcyDashboardPathTab&&window.guidcyDashboardPathTab(u.pathname))||'';
-    if(routeMap[path])return {known:true,page:routeMap[path],path:path,search:u.search||'',tab:tab,url:path+(u.search||'')};
-    var m=path.match(/^\/consultant\/([^/]+)$/);
-    if(m)return {known:true,page:'profile',kind:'consultant',id:decodeURIComponent(m[1]),path:path,search:u.search||'',url:path+(u.search||'')};
-    m=path.match(/^\/book\/([^/]+)$/);
-    if(m)return {known:true,page:'profile',kind:'book',id:decodeURIComponent(m[1]),path:path,search:u.search||'',url:path+(u.search||'')};
-    m=path.match(/^\/blog\/([^/]+)$/);
-    if(m)return {known:true,page:'blog',kind:'blog',id:decodeURIComponent(m[1]),path:path,search:u.search||'',url:path+(u.search||'')};
-    var hash=(location.hash||'').replace('#','').trim();
-    if(hash)return {known:true,page:hash,path:path,search:u.search||'',url:path+(u.search||'')+location.hash};
-    return {known:false,page:'home',path:path,search:u.search||'',url:path+(u.search||'')};
-  }
-  var bootInfo=parsePath(bootPath);
-  function currentInfo(){
-    var info=parsePath(pathWithSearch());
-    if(Date.now()<bootUntil&&bootInfo.known&&bootInfo.page!=='home'&&info.page==='home'&&cleanPath(location.pathname)==='/')return bootInfo;
-    return info;
-  }
-  function activePage(){
-    var el=document.querySelector('.page.on,.page.active');
-    return el&&el.id?el.id.replace(/^page-/,''):'';
-  }
-  function keepUrl(info){
-    if(!info||!info.known)return;
-    var desired=info.url||canonical[info.page]||('/'+info.page);
-    if(info.path==='/admin/webinar-registrations')desired='/admin/webinar-registrations';
-    if((info.page==='admin-dash'||info.page==='user-dash'||info.page==='cons-dash')&&info.tab&&info.path!=='/admin/webinar-registrations'){
-      desired=(canonical[info.page]||info.path)+'?tab='+encodeURIComponent(info.tab);
-    }
-    try{if(pathWithSearch()!==desired)history.replaceState({page:info.page,tab:info.tab||''},'',desired)}catch(_){}
-  }
-  function saveTab(info){
-    if(!info||!info.tab)return;
-    try{
-      if(info.page==='admin-dash')sessionStorage.setItem('guidcy_admin_dash_tab',info.tab)
-      if(info.page==='user-dash')sessionStorage.setItem('guidcy_user_dash_tab',info.tab)
-      if(info.page==='cons-dash')sessionStorage.setItem('guidcy_cons_dash_tab',info.tab)
-    }catch(_){}
-  }
-  function showPage(page){
-    try{
-      if(typeof window.renderPage==='function')window.renderPage(page);
-      else{
-        document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');p.classList.remove('active')});
-        var el=document.getElementById('page-'+page);if(el)el.classList.add('on');
-      }
-    }catch(e){console.warn('Guidcy refresh route render skipped:',e)}
-  }
-  function restore(info){
-    if(restoring)return false;
-    info=info||currentInfo();
-    if(!info.known)return false;
-    restoring=true;
-    try{
-      if(info.kind==='consultant'&&typeof window.openProfile==='function'){window.openProfile(info.id,-1);keepUrl(info);restoring=false;return true}
-      if(info.kind==='book'&&typeof window.openProfile==='function'){window.openProfile(info.id,-1);setTimeout(function(){try{window.startBooking&&window.startBooking()}catch(_){}},450);keepUrl(info);restoring=false;return true}
-      saveTab(info);
-      showPage(info.page);
-      if(info.page==='admin-dash'&&info.path==='/admin/webinar-registrations'&&typeof window.swAD==='function')setTimeout(function(){try{window.swAD('webinar-registrations',null)}catch(_){}},220);
-      if(info.tab&&info.page==='admin-dash'&&typeof window.swAD==='function')setTimeout(function(){try{window.swAD(info.tab,null)}catch(_){}},260);
-      if(info.tab&&info.page==='user-dash'&&typeof window.swUD==='function')setTimeout(function(){try{window.swUD(info.tab,null)}catch(_){}},260);
-      if(info.tab&&info.page==='cons-dash'&&typeof window.swCD==='function')setTimeout(function(){try{window.swCD(info.tab,null)}catch(_){}},260);
-      keepUrl(info);
-      if(info.page!=='home'&&activePage()==='home')setTimeout(function(){showPage(info.page);keepUrl(info)},180);
-      return true;
-    }finally{restoring=false}
-  }
-  var previousGo=window.go;
-  if(typeof previousGo==='function'&&!previousGo.__guidcyWholeSiteRouteLock){
-    window.go=function(page){
-      var out=previousGo.apply(this,arguments);
-      setTimeout(function(){restore(parsePath(pathWithSearch()))},80);
-      return out;
-    };
-    window.go.__guidcyWholeSiteRouteLock=true;
-  }
-  window.guidcyRefreshRouteFromLocation=function(){return restore(currentInfo())};
-  window.getPageFromPath=function(){return currentInfo().page};
-  [0,180,520,1200,2400].forEach(function(ms){setTimeout(function(){restore(currentInfo())},ms)});
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){restore(currentInfo());setTimeout(function(){restore(currentInfo())},650)});
-  else{restore(currentInfo());setTimeout(function(){restore(currentInfo())},650)}
-  window.addEventListener('load',function(){restore(currentInfo());setTimeout(function(){restore(currentInfo())},900)});
-  window.addEventListener('pageshow',function(){restore(currentInfo())});
-  window.addEventListener('popstate',function(){setTimeout(function(){restore(parsePath(pathWithSearch()))},0)});
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -24144,20 +23200,12 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	    enhanceEditOptions(root||document);
 	    syncDashAvatarFromProfile();
 	  }
-  var scanScheduled=false;
-  function scheduleScan(){
-    if(scanScheduled)return;
-    scanScheduled=true;
-    (window.requestAnimationFrame||function(fn){return setTimeout(fn,16)})(function(){
-      scanScheduled=false;
-      scan(document);
-    });
-  }
-  var mo=new MutationObserver(scheduleScan);
-  try{mo.observe(document.documentElement,{childList:true,subtree:true})}catch(_){}
-  document.addEventListener('DOMContentLoaded',function(){scan(document)},{once:true});
-  window.addEventListener('load',function(){scan(document)},{once:true});
-  setTimeout(function(){scan(document)},600);
+  window.guidcyObserveElements('input[type="file"][accept*="image"],#su-avatar,#sc-avatar,#us-avatar,#cd-avatar,[data-guidcy-avatar-trigger]',function(node){
+    scan(node.parentElement||node);
+  });
+  document.addEventListener('DOMContentLoaded',function(){syncDashAvatarFromProfile()},{once:true});
+  window.addEventListener('guidcy:auth-ready',function(){syncDashAvatarFromProfile()});
+
 	})();
 	
 
@@ -24684,69 +23732,13 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   'use strict';
   if(window.__GUIDCY_FINAL_FOOTER_NO_FLASH_HARDENING__)return;
   window.__GUIDCY_FINAL_FOOTER_NO_FLASH_HARDENING__=true;
-  function routedPageId(){
-    var path=(location.pathname||'/').replace(/\/+$/,'')||'/';
-    if(path==='/careers'||path==='/find-work'||path==='/work'||path==='/guidcy-work')return 'page-careers';
-    if(path==='/find-jobs'||path==='/jobs')return 'page-jobs';
-    if(path==='/marketplace')return 'page-marketplace';
-    if(path==='/funds-grants'||path==='/opportunities')return 'page-opportunities';
-    if(path==='/career-ai-finder'||path==='/career-ai'||path==='/smart-finder')return 'page-smart-finder';
-    if(path==='/webinars'||path==='/webinar')return 'page-webinar';
-    if(path==='/blog')return 'page-blog';
-    if(path==='/categories')return 'page-categories';
-    if(path==='/find-experts'||path==='/browse'||path==='/experts'||path==='/consultants')return 'page-browse';
-    return '';
-  }
-  function activePage(){
-    var routed=routedPageId();
-    if(routed){
-      try{if(routed==='page-careers'&&!document.getElementById(routed)&&typeof window.guidcyEnsureCareersPage==='function')window.guidcyEnsureCareersPage()}catch(_){}
-      var exact=document.getElementById(routed);
-      if(exact && (exact.classList.contains('on') || exact.classList.contains('active')))return exact;
-      return null;
-    }
-    return document.querySelector('.page.on,.page.active')||document.querySelector('#page-home')||document.querySelector('.page');
-  }
   function placeFooter(){
-    try{
-      var footer=document.querySelector('.footer');
-      if(!footer)return;
-      var active=activePage();
-      if(!active||!active.parentNode){
-        setTimeout(placeFooter,80);
-        return;
-      }
-      if(!(active.classList.contains('on') || active.classList.contains('active'))){
-        setTimeout(placeFooter,80);
-        return;
-      }
-      if(footer.previousElementSibling!==active)active.insertAdjacentElement('afterend',footer);
-      footer.hidden=false;
-      footer.style.display='';
-      footer.style.visibility='';
-      footer.style.opacity='';
-      var toast=document.getElementById('toastbar');
-      if(toast)document.body.appendChild(toast);
-      requestAnimationFrame(function(){
-        requestAnimationFrame(function(){
-          try{
-            var current=activePage();
-            if(!current||!current.parentNode){
-              setTimeout(placeFooter,80);
-              return;
-            }
-            if(current&&current.parentNode&&footer.previousElementSibling!==current){
-              current.insertAdjacentElement('afterend',footer);
-            }
-            document.documentElement.classList.add('guidcy-app-ready');
-            document.body.classList.add('guidcy-footer-ready');
-          }catch(_){
-            document.documentElement.classList.add('guidcy-app-ready');
-            document.body.classList.add('guidcy-footer-ready');
-          }
-        });
-      });
-    }catch(_){}
+    var footer=document.querySelector('.footer');if(!footer)return;
+    var pages=document.querySelectorAll('.page'),last=pages[pages.length-1];
+    if(last&&footer.previousElementSibling!==last)last.insertAdjacentElement('afterend',footer);
+    footer.hidden=false;footer.style.display='';footer.style.visibility='';footer.style.opacity='';
+    if(!document.documentElement.classList.contains('guidcy-app-ready'))document.documentElement.classList.add('guidcy-app-ready');
+    if(!document.body.classList.contains('guidcy-footer-ready'))document.body.classList.add('guidcy-footer-ready');
   }
   // The route switches synchronously; retaining the painted frame prevents a
   // white/footer flash while the next route is selected.
@@ -28094,386 +27086,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
      dashboard-tab and login-return state. Running this older controller too
      added three perpetual timers and could restore a page after Back. */
   return;
-  // Captured immediately, before this page's own initial render has a
-  // chance to call go() and overwrite it with whatever the (possibly
-  // stale) URL says. This is "what page was the user actually on right
-  // before this load" for the last-page-mismatch fallback further down.
-  var CAPTURED_LAST_PAGE=null;
-  try{CAPTURED_LAST_PAGE=sessionStorage.getItem('guidcy_claude_last_page')}catch(e){}
-
-  /* ---- Refresh-lands-on-wrong-page fix ----
-     Nav links call go(page). Several older patches update the URL only
-     for the page they were written for, so visiting e.g. Marketplace
-     after Webinars can leave the address bar on /webinars. Reloading
-     then reads the stale URL and shows the wrong page. After every
-     go() call we snap the URL back to the canonical PAGE_URLS entry for
-     that page (skipping dynamic/dashboard pages that manage their own
-     URL, like /consultant/:id or dashboard tabs). */
-  var URL_SKIP={profile:1,'user-dash':1,'cons-dash':1,'admin-dash':1};
-  function correctUrl(page){
-    try{
-      var urls=window.PAGE_URLS||{};
-      var url=urls[page];
-      if(!url||URL_SKIP[page])return;
-      var target=url.replace(/\/$/,'')||'/';
-      // Some page renders (marketplace in particular) do heavy synchronous
-      // DOM work, and a few other legacy patches on this page reassert a
-      // stale URL of their own for a few seconds after certain
-      // navigations. Defer past the next paint and keep retrying for
-      // several seconds - comfortably longer than any known competing
-      // timer - bailing out as soon as the URL actually reflects the
-      // change.
-      // Note: deliberately NOT using requestAnimationFrame here - rAF
-      // callbacks are suspended entirely for background/hidden tabs, so a
-      // user who navigates and then switches tabs before it fires would
-      // never get corrected. setTimeout still runs (just throttled) in
-      // that case, which is what we want.
-      var attempt=function(triesLeft){
-        try{
-          var cur=(location.pathname||'/').replace(/\/$/,'')||'/';
-          if(cur===target)return;
-          history.replaceState(Object.assign({},history.state,{page:page}),'',url+(location.search||''));
-        }catch(e){}
-        if(triesLeft>0)setTimeout(function(){attempt(triesLeft-1)},200);
-      };
-      attempt(25);
-    }catch(e){}
-  }
-
-  /* ---- "Already signed in" modal ----
-     Visiting /login while a session is active used to silently render
-     the empty login form. Show a clear choice instead. */
-  function showAlreadyLoggedInModal(){
-    try{
-      var existing=document.getElementById('guidcy-already-logged-in-modal');
-      if(existing)existing.remove();
-      var role=(window.currentProfile&&window.currentProfile.role)||'user';
-      var who=(window.currentProfile&&window.currentProfile.full_name)||(window.currentUser&&window.currentUser.email)||'your account';
-      var dashPage=role==='consultant'?'cons-dash':role==='admin'?'admin-dash':'user-dash';
-      var esc=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]})};
-      var div=document.createElement('div');
-      div.id='guidcy-already-logged-in-modal';
-      div.className='modal-overlay on';
-      div.innerHTML=
-        '<div class="modal-card" style="max-width:380px;text-align:center;padding-top:36px">'+
-          '<button class="modal-close" data-gci-close>×</button>'+
-          '<div style="width:56px;height:56px;border-radius:50%;background:var(--blue-l);display:flex;align-items:center;justify-content:center;margin:0 auto 18px">'+
-            '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>'+
-          '</div>'+
-          '<div class="form-title" style="margin-bottom:6px">You\'re already signed in</div>'+
-          '<div class="form-sub" style="margin-bottom:22px;line-height:1.5">You\'re logged in as <strong style="color:var(--ink)">'+esc(who)+'</strong>.</div>'+
-          '<button class="primary-btn" style="width:100%;margin-bottom:10px" data-gci-dash="'+esc(dashPage)+'">Go to my dashboard</button>'+
-          '<button style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--rx);background:none;color:var(--muted);font-size:13px;cursor:pointer" data-gci-logout>Log out</button>'+
-        '</div>';
-      document.body.appendChild(div);
-      document.body.style.overflow='hidden';
-      var close=function(){try{div.remove();document.body.style.overflow=''}catch(e){}};
-      div.addEventListener('click',function(ev){
-        if(ev.target===div||ev.target.closest('[data-gci-close]'))close();
-      });
-      var dashBtn=div.querySelector('[data-gci-dash]');
-      if(dashBtn)dashBtn.addEventListener('click',function(){close();try{window.go&&window.go(dashBtn.getAttribute('data-gci-dash'))}catch(e){}});
-      var logoutBtn=div.querySelector('[data-gci-logout]');
-      if(logoutBtn)logoutBtn.addEventListener('click',function(){close();try{window.logOut&&window.logOut()}catch(e){}});
-    }catch(e){}
-  }
-  function isSignedIn(){
-    try{return !!(window.currentUser&&window.currentUser.id)}catch(e){return false}
-  }
-  function roleCheckInFlight(){
-    try{return !!window.__guidcyAuthRoleChecking||Date.now()<Number(window.__guidcyStayOnLoginUntil||0)}catch(e){return false}
-  }
-  var LAST_PAGE_KEY='guidcy_claude_last_page';
-  function rememberPage(page){
-    try{
-      if(page&&window.PAGE_URLS&&window.PAGE_URLS[page]&&!URL_SKIP[page]){
-        sessionStorage.setItem(LAST_PAGE_KEY,page);
-      }
-    }catch(e){}
-  }
-  function wrapGo(prev){
-    var fn=function(page){
-      if(page==='login'&&isSignedIn()&&!roleCheckInFlight()){
-        showAlreadyLoggedInModal();
-        return;
-      }
-      var r=prev.apply(this,arguments);
-      rememberPage(page);
-      correctUrl(page);
-      setTimeout(function(){correctUrl(page)},80);
-      return r;
-    };
-    fn.__guidcyFinal=true;
-    return fn;
-  }
-
-  /* ---- Refresh shows the wrong page, belt-and-suspenders #2 ----
-     Even when the URL bar itself can be corrected, some environments
-     (and possibly some browser/extension combinations) can still load a
-     stale document.location on reload faster than the app's own router
-     re-derives the page. As a last resort, remember the last page the
-     user was actually looking at (this tab only, via sessionStorage) and
-     re-assert it shortly after load if the freshly-loaded page disagrees
-     with the URL the browser actually navigated to. This only ever
-     "wins" against the page's own initial render if the two disagree,
-     and only for the static top-level pages (never dashboards or
-     consultant/book deep links, which are excluded via URL_SKIP /
-     PAGE_URLS lookups). */
-  function isTrueReload(){
-    // Only trust sessionStorage's last-page hint on an actual F5/refresh
-    // of this document - never on a genuine fresh navigation (typed URL,
-    // clicked link, opened in a new tab), where the current URL is the
-    // real intent and must win even if it differs from wherever the user
-    // happened to be earlier in this tab's session.
-    try{
-      var nav=performance.getEntriesByType('navigation')[0];
-      if(nav)return nav.type==='reload';
-      // Older browsers: performance.navigation.TYPE_RELOAD === 1
-      if(performance.navigation)return performance.navigation.type===1;
-    }catch(e){}
-    return false;
-  }
-  function restoreLastPageIfMismatched(){
-    // The current URL is the source of truth on refresh. Restoring a
-    // sessionStorage "last page" here caused refreshes to jump backwards.
-    return false;
-  }
-
-  /* ---- Dashboard tab jumps to top while reading (auto-refresh) + ----
-     ---- deterministic "Marketplace" tab routing ----
-     Booking-status polling/realtime updates re-render the active
-     dashboard tab's full HTML, which resets scroll to the top. Explicit
-     user clicks (which pass a real button element) still jump to top as
-     normal; only silent auto-refreshes (called with a null button, e.g.
-     swCD(activeConsTab(), null)) get their scroll position restored.
-     Separately, the notes Marketplace tab is forced to the correct
-     renderer so it can never fall through to an unrelated screen (e.g.
-     Work Marketplace Management) regardless of patch order. */
-  function scrollTargets(){
-    return ['cdash-main','udash-main','adash-main'].map(function(id){return document.getElementById(id)}).filter(Boolean);
-  }
-  var DASH_SWITCHER_INFO={
-    swCD:{pageId:'page-cons-dash'},
-    swUD:{pageId:'page-user-dash'},
-    swAD:{pageId:'page-admin-dash'}
-  };
-  var LAST_DASH_TAB_KEY='guidcy_claude_last_dash_tab';
-  var CAPTURED_LAST_DASH_TAB=null;
-  try{
-    var _rawDashTab=sessionStorage.getItem(LAST_DASH_TAB_KEY);
-    if(_rawDashTab)CAPTURED_LAST_DASH_TAB=JSON.parse(_rawDashTab);
-  }catch(e){}
-  function rememberDashTab(switcherName,view){
-    try{
-      if(!view)return;
-      sessionStorage.setItem(LAST_DASH_TAB_KEY,JSON.stringify({switcher:switcherName,view:view}));
-    }catch(e){}
-  }
-
-  /* ---- Click-time capture: the real fix ----
-     window.go / swCD / swUD / swAD get reassigned by roughly half a
-     dozen other patches in this file on their own independent timers
-     (some every 1.2s, some every 2.5s, for up to 45s after load), each
-     one becoming the new outermost wrapper when it fires. There is no
-     stable "outermost wrapper" during that window - whichever patch
-     last reassigned window.go wins, and for the specific pages users
-     hit refresh trouble on (marketplace in particular), the version
-     that wins is sometimes an old one that returns early without ever
-     calling our wrapper, so relying on wrapping the function is
-     fundamentally unreliable no matter how often we re-assert it.
-     Instead, capture the *intent* directly off the clicked element at
-     click time, in the capture phase (fires before any onclick handler
-     runs, so it can't be skipped by whichever competing patch happens
-     to own the function at that instant). This works identically
-     whether the button was wired via onclick="go('marketplace')",
-     onclick="swCD('requests',this)", or a dynamically-assigned
-     .onclick = function(){window.swAD('marketplace',this)} (how the
-     Marketplace/Promo Codes buttons are injected) - all of these are
-     read straight from the handler's own source text. */
-  function handlerSourceFor(el){
-    try{
-      var attr=el.getAttribute&&el.getAttribute('onclick');
-      if(attr)return attr;
-      if(el.onclick)return el.onclick.toString();
-    }catch(e){}
-    return '';
-  }
-  function extractGoTarget(src){
-    var m=src.match(/(?:^|[^\w.])go\(\s*['"]([^'"]+)['"]/);
-    return m?m[1]:null;
-  }
-  function extractSwitcherTarget(src){
-    var m=src.match(/sw(CD|UD|AD)\s*\(\s*['"]([^'"]+)['"]/);
-    return m?{switcher:'sw'+m[1],view:m[2]}:null;
-  }
-  document.addEventListener('click',function(e){
-    try{
-      var el=e.target;
-      for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){
-        var src=handlerSourceFor(el);
-        if(!src)continue;
-        var swTarget=extractSwitcherTarget(src);
-        if(swTarget){rememberDashTab(swTarget.switcher,swTarget.view);break}
-        var pageTarget=extractGoTarget(src);
-        if(pageTarget){rememberPage(pageTarget);break}
-      }
-    }catch(err){}
-  },true); // capture phase
-
-  /* ---- DOM-scan fallback for remembering the active dashboard tab ----
-     Wrapping swCD/swUD/swAD only reliably sees a call when OUR wrapper
-     happens to be the outermost one at that exact moment - this file's
-     dashboard switchers get re-wrapped by several other patches on their
-     own timers (e.g. every 2.5s, up to 16 times), so which wrapper is
-     "on top" flips back and forth. Rather than fight that race, also
-     scan periodically for which side-nav button is actually marked
-     active and read the view straight out of its click handler's own
-     source (works whether it was wired via an onclick="" attribute or a
-     .onclick = function(){...} property assignment, which is how the
-     Marketplace/Promo Codes nav buttons are added). */
-  var DASH_NAV_SCAN=[
-    {switcher:'swCD',pageId:'page-cons-dash',navSel:'#page-cons-dash .side-nav'},
-    {switcher:'swUD',pageId:'page-user-dash',navSel:'#page-user-dash .side-nav'},
-    {switcher:'swAD',pageId:'page-admin-dash',navSel:'#page-admin-dash .side-nav'}
-  ];
-  function viewFromHandlerSource(src){
-    if(!src)return '';
-    var m=src.match(/sw(?:CD|UD|AD)\s*\(\s*['"]([^'"]+)['"]/)||src.match(/\(\s*['"]([^'"]+)['"]\s*,\s*(?:this|null)\s*\)/);
-    return m?m[1]:'';
-  }
-  // Fallback signal: some views (Marketplace in particular) render their
-  // content correctly but don't reliably mark the right side-nav button
-  // "on" (a separate, pre-existing bug in this file's setSide() active-
-  // button tracking) - so the button-scan above can miss the exact view
-  // that's actually showing. The dash-title heading text is a much more
-  // reliable "what's actually on screen right now" signal for the views
-  // users most run into refresh trouble with; map the ones we know.
-  var DASH_TITLE_TO_VIEW={
-    swCD:{'my marketplace':'marketplace','earnings':'earnings','booking requests':'requests','my posted work':'posted-work'},
-    swAD:{'marketplace':'marketplace','promo codes':'promo-codes','payment management':'payments','work marketplace management':'work-marketplace'},
-    swUD:{'purchased notes':'marketplace','payment history':'payments'}
-  };
-  function scanActiveDashTab(){
-    if(document.hidden)return;
-    try{
-      var titleEl=null;
-      for(var i=0;i<DASH_NAV_SCAN.length;i++){
-        var info=DASH_NAV_SCAN[i];
-        var pageEl=document.getElementById(info.pageId);
-        if(!pageEl||!pageEl.classList.contains('on'))continue;
-        var activeBtn=document.querySelector(info.navSel+' .side-btn.on');
-        if(activeBtn){
-          var src=activeBtn.getAttribute('onclick')||(activeBtn.onclick?activeBtn.onclick.toString():'');
-          var view=viewFromHandlerSource(src);
-          if(view)rememberDashTab(info.switcher,view);
-        }
-        titleEl=pageEl.querySelector('.dash-title');
-        if(titleEl){
-          var titleKey=String(titleEl.textContent||'').trim().toLowerCase();
-          var titleMap=DASH_TITLE_TO_VIEW[info.switcher];
-          if(titleMap&&titleMap[titleKey])rememberDashTab(info.switcher,titleMap[titleKey]);
-        }
-      }
-    }catch(e){}
-  }
-  setInterval(scanActiveDashTab,2000);
-  // Deliberately re-runs at every scheduled interval rather than
-  // stopping after the first attempt (like several other retry loops
-  // already in this file) - there's no reliable DOM signal for "which
-  // dashboard tab is currently showing" to detect success against, so
-  // re-asserting a few times over ~4.5s is the simplest way to reliably
-  // win the race against the dashboard's own initial default-tab render.
-  function restoreDashTabIfMismatched(){
-    try{
-      if(!isTrueReload())return;
-      if(!CAPTURED_LAST_DASH_TAB||!CAPTURED_LAST_DASH_TAB.switcher||!CAPTURED_LAST_DASH_TAB.view)return;
-      var info=DASH_SWITCHER_INFO[CAPTURED_LAST_DASH_TAB.switcher];
-      if(!info)return;
-      var pageEl=document.getElementById(info.pageId);
-      if(!pageEl||!pageEl.classList.contains('on'))return; // only relevant if we're actually on that dashboard
-      var fn=window[CAPTURED_LAST_DASH_TAB.switcher];
-      if(typeof fn==='function')fn(CAPTURED_LAST_DASH_TAB.view,null);
-    }catch(e){}
-  }
-  function wrapDashSwitcher(prev,opts){
-    var switcherName=opts&&opts.name;
-    var marketplaceHandler=opts&&opts.marketplaceHandler;
-    var fn=function(view,btn){
-      if(view)rememberDashTab(switcherName,view);
-      if(marketplaceHandler&&view==='marketplace'&&window.GuidcyMarketplace&&typeof window.GuidcyMarketplace[marketplaceHandler]==='function'){
-        return window.GuidcyMarketplace[marketplaceHandler](btn);
-      }
-      var auto=!btn;
-      var snap=auto?scrollTargets().map(function(el){return {el:el,top:el.scrollTop}}):null;
-      var winY=auto?window.scrollY:null;
-      var result=prev.apply(this,arguments);
-      if(auto){
-        var restore=function(){
-          try{snap.forEach(function(s){s.el.scrollTop=s.top})}catch(e){}
-          try{if(winY!=null)window.scrollTo(window.scrollX,winY)}catch(e){}
-        };
-        try{Promise.resolve(result).then(restore,restore)}catch(e){restore()}
-        setTimeout(restore,0);setTimeout(restore,80);setTimeout(restore,250);
-      }
-      return result;
-    };
-    fn.__guidcyFinal=true;
-    return fn;
-  }
-
-  function ensureWrapped(name,factory,arg){
-    var cur=window[name];
-    if(typeof cur!=='function'||cur.__guidcyFinal)return;
-    window[name]=factory(cur,arg);
-  }
-  function reassertAll(){
-    if(document.hidden)return;
-    if(window.__GUIDCY_ROUTE_AUTH_CONTROLLER_V6__)return;
-    ensureWrapped('go',wrapGo);
-    ensureWrapped('swCD',wrapDashSwitcher,{name:'swCD',marketplaceHandler:'seller'});
-    ensureWrapped('swAD',wrapDashSwitcher,{name:'swAD',marketplaceHandler:'admin'});
-    ensureWrapped('swUD',wrapDashSwitcher,{name:'swUD',marketplaceHandler:null});
-  }
-  reassertAll();
-  setInterval(reassertAll,5000);
-  document.addEventListener('DOMContentLoaded',reassertAll);
-  window.addEventListener('load',reassertAll);
-
-  [400,1000,2000,3500].forEach(function(ms){setTimeout(restoreLastPageIfMismatched,ms)});
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(restoreLastPageIfMismatched,400)});
-  window.addEventListener('load',function(){setTimeout(restoreLastPageIfMismatched,400)});
-
-  // Dashboard tabs (My Marketplace, Promo Codes, etc.) need a longer
-  // delay: the dashboard itself has to finish its own async
-  // consultant/profile lookup and initial tab render first, and we want
-  // to win the race against that, not the other way around.
-  [900,1800,3000,4500].forEach(function(ms){setTimeout(restoreDashTabIfMismatched,ms)});
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(restoreDashTabIfMismatched,900)});
-  window.addEventListener('load',function(){setTimeout(restoreDashTabIfMismatched,900)});
-
-  /* ---- Belt-and-suspenders URL sync, driven by the DOM instead of by
-     intercepting go() ----
-     Wrapping go() can only catch navigations that go through go() at a
-     moment our wrapper is actually installed. Some older patches
-     reassign window.go from inside deferred callbacks that can briefly
-     replace it again. Rather than chase every one of those, this timer
-     just looks at which .page.on element is actually on screen (that's
-     the real source of truth for "what page is the user looking at")
-     and makes sure the address bar matches it - independent of which
-     code path rendered it. */
-  function correctUrlFromDom(){
-    if(document.hidden)return;
-    try{
-      var el=document.querySelector('.page.on')||document.querySelector('.page.active');
-      if(!el||!el.id)return;
-      var key=el.id.replace(/^page-/,'');
-      if(!key||URL_SKIP[key])return;
-      correctUrl(key);
-    }catch(e){}
-  }
-  document.addEventListener('click',function(){setTimeout(correctUrlFromDom,0)},true);
-  window.addEventListener('popstate',function(){setTimeout(correctUrlFromDom,0)});
-  setInterval(correctUrlFromDom,3000);
+  // Obsolete implementation removed; this compatibility marker is intentionally inert.
 })();
 
 
@@ -29390,7 +28003,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     }catch(e){console.warn('Guidcy navigation failed:',e)}
   },true);
 
-  function bindNavigationElements(){
+  function bindNavigationElements(root){
     if(document.hidden)return;
     var selector='.nav-links .nav-link,.gmob-item,.footer a,[onclick^="go("],[onclick^="window.go("]';
     var navText={
@@ -29398,7 +28011,10 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       'categories':'categories','blog':'blog','marketplace':'marketplace','webinars':'webinar',
       'funds & grants finder':'opportunities','career & college ai finder':'smart-finder'
     };
-    Array.from(document.querySelectorAll(selector)).forEach(function(element){
+    root=root||document;
+    var elements=Array.from(root.querySelectorAll(selector));
+    if(root.nodeType===1&&root.matches(selector))elements.unshift(root);
+    elements.forEach(function(element){
       if(element.dataset.guidcyRouteBoundV6==='1')return;
       var source=clean(element.getAttribute('onclick'));
       var match=source.match(/^\s*(?:window\.)?go\(\s*['"]([^'"]+)['"]\s*\)\s*;?(?:\s*(?:closeMobileMenu|closeMobDrawer)\(\)\s*;?)*\s*(?:return\s+false\s*;?)?\s*$/);
@@ -29434,9 +28050,9 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   var navigationBindTimer=0;
   function scheduleNavigationBind(){
     clearTimeout(navigationBindTimer);
-    navigationBindTimer=setTimeout(bindNavigationElements,100);
+    navigationBindTimer=setTimeout(function(){bindNavigationElements(document)},100);
   }
-  window.guidcyOnDomSettled(bindNavigationElements);   // shared observer - its own body observer removed
+  window.guidcyObserveElements('.nav-links .nav-link,.gmob-item,.footer a,[onclick^="go("],[onclick^="window.go("]',bindNavigationElements);   // shared observer - its own body observer removed
 
   function restoreFromLocation(acceptCurrentIntent){
     var path=pathOnly(),page=pathPages[path];
@@ -29849,7 +28465,10 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       lastPage=key;lastAt=now;
       return base.apply(this,arguments);
     }
-    if(key&&key===lastPage&&(now-lastAt)<DEDUPE_MS)return;
+    // A legacy route renderer can activate another page without passing through
+    // this wrapper. A recent cache entry alone must not suppress Back to Home.
+    var mounted=key&&document.getElementById('page-'+key);
+    if(key&&key===lastPage&&(now-lastAt)<DEDUPE_MS&&mounted&&mounted.classList.contains('on'))return;
     lastPage=key;lastAt=now;
     return base.apply(this,arguments);
   };
@@ -31310,14 +29929,17 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
      dialog. Watch for any open overlay instead and lock the background centrally.
      body{overflow:hidden} alone is ignored by iOS Safari, so the body is pinned with
      position:fixed and the offset restored on close. */
+  var MODALS='.modal-overlay,.guidcy-modal-backdrop,.gc-modal,.gw-modal,.wbn-modal-overlay,.wbn-delete-modal,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay';
   var OVERLAYS='.modal-overlay.on,.guidcy-modal-backdrop.on,.gc-modal.on,.gw-modal.on,.wbn-modal-overlay.on,.wbn-delete-modal.on,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay.on';
+  var modals=new Set(),syncQueued=false;
   var lockedY=0, locked=false;
 
   function anyOpen(){
     try{
-      var nodes=document.querySelectorAll(OVERLAYS);
-      for(var i=0;i<nodes.length;i++){
-        var el=nodes[i], cs=window.getComputedStyle(el);
+      for(var el of modals){
+        if(!el.isConnected){modals.delete(el);continue}
+        if(!el.matches(OVERLAYS))continue;
+        var cs=window.getComputedStyle(el);
         if(cs.display!=='none'&&cs.visibility!=='hidden')return true;
       }
     }catch(_){}
@@ -31344,16 +29966,31 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   }
   window.guidcySyncModalScrollLock=sync;
 
-  /* Modals are appended to (and removed from) body, so a childList watch on body
-     alone catches them. Watching the whole document tree for class/style changes
-     fired this on every attribute mutation on the page, which is far too much work
-     for what it does — the click/Escape hooks and a light poll cover the rest. */
-  try{
-    new MutationObserver(function(){sync()}).observe(document.body||document.documentElement,{childList:true});
-  }catch(_){}
-  document.addEventListener('click',function(){setTimeout(sync,30)},true);
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')setTimeout(sync,30)},true);
-  setInterval(function(){if(!document.hidden)sync()},1500);
+  function scheduleSync(){
+    if(syncQueued)return;syncQueued=true;
+    queueMicrotask(function(){syncQueued=false;sync()});
+  }
+  // Observe only the overlay's own visibility attributes. No document-wide
+  // selector on every click, body insertion or repeating idle timer.
+  var visibilityObserver=new MutationObserver(scheduleSync);
+  window.guidcyObserveElements(MODALS,function(el){
+    if(modals.has(el))return;
+    modals.add(el);visibilityObserver.observe(el,{attributes:true,attributeFilter:['class','style','hidden']});
+    scheduleSync();
+  });
+  new MutationObserver(function(records){
+    if(records.some(function(record){return record.removedNodes.length})){
+      var removed=false;
+      modals.forEach(function(el){if(!el.isConnected){modals.delete(el);removed=true}});
+      if(removed){
+        visibilityObserver.disconnect();
+        modals.forEach(function(el){visibilityObserver.observe(el,{attributes:true,attributeFilter:['class','style','hidden']})});
+        scheduleSync();
+      }
+    }
+  }).observe(document.body,{childList:true,subtree:true});
+  // A separate modal owner may release its body lock after this one opens.
+  new MutationObserver(scheduleSync).observe(document.body,{attributes:true,attributeFilter:['class']});
 })();
 
 

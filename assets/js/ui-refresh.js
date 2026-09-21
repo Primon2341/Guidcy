@@ -42,11 +42,11 @@
     return text.length > 0 && text.length <= PLACEHOLDER_MAX_TEXT && PLACEHOLDER_WORDS.test(text);
   }
 
-  function hasContent(el) {
+  function hasContent(el, html) {
     /* A panel showing nothing but its own placeholder is not content worth
        keeping, so a slow first load still gets to show the spinner. */
     if (!el || !el.firstChild) return false;
-    var text = textOf(native.get.call(el));
+    var text = textOf(html === undefined ? native.get.call(el) : html);
     if (!text) return false;
     return !(text.length <= PLACEHOLDER_MAX_TEXT && PLACEHOLDER_WORDS.test(text));
   }
@@ -70,23 +70,27 @@
             // Some legacy views bypass the dashboard controller. They must not
             // publish empty/zero data while session and profile are unresolved.
             if(/^(u|c|a)dash-main$/.test(target.id)&&window.guidcyDashboardAuthReady&&!window.guidcyDashboardAuthReady())return;
-            var incomingTitle=String(value).match(/class=["']dash-title["'][^>]*>([^<]*)/);
-            var previousTitle=native.get.call(target).match(/class=["']dash-title["'][^>]*>([^<]*)/);
-            var sameSection=!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1];
-            if (sameSection && isPlaceholder(value) && hasContent(target)) {
+            var html=String(value),previous=native.get.call(target);
+            var skeleton=isPlaceholder(html);
+            var sameSection=true;
+            if(skeleton){
+              var incomingTitle=html.match(/class=["']dash-title["'][^>]*>([^<]*)/);
+              var previousTitle=previous.match(/class=["']dash-title["'][^>]*>([^<]*)/);
+              sameSection=!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1];
+            }
+            if (sameSection && skeleton && hasContent(target,previous)) {
               setBusy(target, true);
               target.setAttribute('aria-busy', 'true');
               return;
             }
             setBusy(target, false);
             // Preserve focused controls and mounted descendants for identical data.
-            if(native.get.call(target)!==String(value))native.set.call(target, value);
+            if(previous!==html)native.set.call(target, value);
             if(target.__guidcyRestoreMinHeight!==undefined){target.style.minHeight=target.__guidcyRestoreMinHeight;delete target.__guidcyRestoreMinHeight}
             target.removeAttribute('inert');
             target.removeAttribute('data-guidcy-restored');
             /* An empty panel keeps its placeholder, but drawn as a quiet skeleton
                rather than a bare "Loading..." line; the real markup clears it. */
-            var skeleton = isPlaceholder(value);
             target.classList.toggle('guidcy-panel-skeleton', skeleton);
             if (skeleton) target.setAttribute('aria-busy', 'true'); else target.removeAttribute('aria-busy');
             if (skeleton) return;
