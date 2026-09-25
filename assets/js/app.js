@@ -2907,6 +2907,7 @@ async function openProfile(dbId,localId){
     if(existingId&&existingId===incomingId&&profilePage&&(profilePage.classList.contains('on')||profilePage.classList.contains('active'))&&document.querySelector('#profile-layout .profile-name')){
       sessionStorage.setItem('guidcy_last_consultant_id',incomingId);
       window.GuidcyProfileResources?.mount(curCons);
+      window.guidcyMountProfileWebinars?.(curCons);
       return curCons;
     }
   }catch(_){}
@@ -2956,6 +2957,7 @@ async function openProfile(dbId,localId){
       ${revList.length?revList.map(r=>`<div class="review-card"><div class="reviewer-row"><div class="reviewer-av">${mkInitials(r.n)}</div><div><div class="reviewer-name">${r.n}</div><div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="color:#F59E0B;font-size:11px">${'★'.repeat(r.s)}</span><span class="reviewer-date">${r.d}</span></div></div></div><div class="review-text">"${r.t}"</div></div>`).join(''):`<div style="color:var(--muted);font-size:13px;padding:16px 0;text-align:center">No reviews yet — be the first!</div>`}
     </div>
     <section id="profile-resources" class="guidcy-profile-resources" aria-label="Consultant resources" hidden></section>
+    <section id="profile-webinars" class="guidcy-profile-resources" aria-label="Consultant webinars" hidden></section>
   </div>
   <div class="profile-sidebar">
     <div class="book-box">
@@ -3007,6 +3009,7 @@ async function openProfile(dbId,localId){
   if(typeof window.renderPage==='function')window.renderPage('profile');
   else renderPage('profile');
   window.GuidcyProfileResources?.mount(c);
+  window.guidcyMountProfileWebinars?.(c);
   setTimeout(()=>{try{window.guidcyPlaceFooterAfterPages&&window.guidcyPlaceFooterAfterPages()}catch(_){}},0);
 }
 
@@ -13239,7 +13242,8 @@ document.addEventListener('click',function(event){
   var _webinars  = [];   // [{id,title,cat,desc,date,time,dur,seats,speaker,speakerRole,link}]
   var _regCounts = {};   // { webinar_id: count }
   var _regCountsReady = false;
-  var _webinarsLoaded = false, _webinarRenderKey = null;
+  var _webinarsLoaded = false, _webinarRenderKey = null, _webinarLoadedAt = 0;
+  var _profileWebinars = null;
   var _curWid    = null; // id of webinar whose modal is open
   var _editId    = null; // id being edited in admin form
 
@@ -13344,11 +13348,15 @@ document.addEventListener('click',function(event){
       var rows=await fetchWebinars();
       if(!rows){
         await countsReady;
+        if(!_webinarsLoaded&&_profileWebinars?.el.isConnected){
+          _profileWebinars.el.innerHTML='<p class="gpr-status">Webinars could not be loaded. <button type="button" class="btn" onclick="wbnLoad()">Retry</button></p>';
+          _profileWebinars.el.hidden=false;
+        }
         if(cont&&!_webinarsLoaded&&!cont.hasAttribute('data-guidcy-restored'))cont.innerHTML='<div class="wbn-empty" style="grid-column:1/-1">Unable to load webinars. <button type="button" class="wbn-edit-btn" onclick="wbnLoad()">Try again</button></div>';
         return _webinars;
       }
       rows.forEach(function(w){var previous=_webinars.find(function(old){return old.id===w.id});if(previous)w.publisherPhoto=previous.publisherPhoto});
-      _webinars=rows;_webinarsLoaded=true;
+      _webinars=rows;_webinarsLoaded=true;_webinarLoadedAt=Date.now();
       window.wbnRender();
       window.wbnApplyAdminState();
       await Promise.all([
@@ -13412,6 +13420,7 @@ document.addEventListener('click',function(event){
       if(button){button.disabled=sl<=0;button.textContent=sl<=0?'Full':paid?'Pay & register':'Register free'}
     });
     if(_webinarsLoaded)window.guidcySavePublicWebinars(_webinars);
+    renderProfileWebinars();
   }
   function ensureWebinarRealtime(){
     if(_webinarRealtimeChannel)return;
@@ -13426,6 +13435,39 @@ document.addEventListener('click',function(event){
       .subscribe();
   }
 
+  /* Profiles share the public catalog, seat counts and registration handlers. */
+  function renderProfileWebinars(){
+    var view=_profileWebinars;
+    if(!view||!view.el.isConnected||!_webinarsLoaded)return;
+    var esc=window.guidcyEscapeHtml||function(value){return String(value||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+    var rows=_webinars.filter(function(w){return w.createdBy===view.owner&&wbnStatus(w)!=='past'});
+    rows.sort(function(a,b){return window.guidcyWebinarSchedule(a).start-window.guidcyWebinarSchedule(b).start});
+    var html='<h3>Webinars by '+esc(view.name)+'</h3><div class="gpr-list">'+rows.slice(0,view.limit).map(function(w){
+      var paid=!!(w.isPaid||w.priceAmount>0||w.priceType==='paid');
+      var full=_regCountsReady&&Math.max(0,w.seats-(_regCounts[w.id]||0))<=0;
+      var label=!_regCountsReady?'Checking availability…':full?'Full':paid?'Pay & register':'Register free';
+      var dateParts=fmtDate(w.date).split(' ');
+      return '<article class="gpr-card" data-profile-webinar-id="'+esc(w.id)+'"><div class="gpr-cover gpw-date" aria-hidden="true"><span class="gpw-month">'+esc(dateParts[1])+'</span><strong class="gpw-day">'+esc(dateParts[0])+'</strong><span class="gpw-year">'+esc(dateParts[2])+'</span></div><div class="gpr-body">'+
+        '<div class="gpr-category">'+esc(w.cat)+' · '+(wbnStatus(w)==='live'?'Live / starting soon':'Upcoming')+'</div><h4>'+esc(w.title)+'</h4>'+
+        '<div class="gmkt-desc">'+window.guidcyMarketplaceDescription(w.desc)+'</div>'+
+        '<div class="gpr-meta"><span>'+esc(fmtDate(w.date))+' · '+esc(fmtTime(w.time))+' · '+esc(w.dur)+'</span><strong>'+(paid?window.guidcyFormatINR(w.priceAmount):'Free')+'</strong></div>'+
+        '<div class="gpr-actions"><button type="button" class="btn btn-blue" data-wbn-register="'+esc(w.id)+'" '+(!_regCountsReady||full?'disabled':'')+'>'+label+'</button></div></div></article>';
+    }).join('')+'</div>'+(rows.length>view.limit?'<button type="button" class="btn gpr-more" onclick="guidcyShowProfileWebinars()">View all webinars</button>':'');
+    if(view.html!==html){view.el.innerHTML=html;view.html=html}
+    view.el.hidden=!rows.length;
+  }
+  window.guidcyShowProfileWebinars=function(){if(_profileWebinars){_profileWebinars.limit+=20;renderProfileWebinars()}};
+  window.guidcyMountProfileWebinars=function(consultant){
+    var el=byId('profile-webinars'),owner=String(consultant&&consultant.profile_id||'');
+    if(!el||!owner){_profileWebinars=null;if(el)el.hidden=true;return}
+    if(!_profileWebinars||_profileWebinars.el!==el||_profileWebinars.owner!==owner){
+      _profileWebinars={el:el,owner:owner,name:consultant.name||'Consultant',limit:4,html:''};
+    }
+    renderProfileWebinars();
+    ensureWebinarRealtime();
+    if(!_webinarsLoaded||Date.now()-_webinarLoadedAt>30000)wbnLoad();
+  };
+
   /* ── Render webinar cards ─────────────────────────────────────────── */
   /* The card description is clamped to two lines; this un-clamps the one the
    reader asked to see. Delegated through the inline handler so it survives a
@@ -13438,6 +13480,7 @@ window.wbnToggleDesc=function(btn){
 };
 window.wbnRender=function(){
     if(!_webinarsLoaded)return;
+    renderProfileWebinars();
     var list=_webinars.slice();
     var cat=(byId('wbn-filter-cat')&&byId('wbn-filter-cat').value)||'';
     if(cat.trim())list=list.filter(function(w){return w.cat===cat.trim()});
@@ -13627,6 +13670,8 @@ window.wbnRender=function(){
     var form=byId('wbn-reg-form'),success=byId('wbn-reg-success');
     if(form)form.style.display='block';if(success)success.classList.remove('on');
     var modal=byId('wbn-reg-modal');
+    // The shared registration dialog must also open from a consultant profile.
+    if(modal&&modal.parentElement!==document.body)document.body.appendChild(modal);
     if(modal){modal.classList.add('on');modal.style.display='flex';}
     setTimeout(function(){var f=byId('wbn-reg-name');if(f)f.focus();},100);
   };
@@ -13801,7 +13846,7 @@ window.wbnRender=function(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
   window.addEventListener('pageshow',function(event){if(event.persisted)scheduleWebinarHydration()});
   window.addEventListener('popstate',scheduleWebinarHydration);
-  document.addEventListener('visibilitychange',function(){if(!document.hidden&&webinarRouteRequested()&&window.__guidcyVisRefreshOK('webinar'))wbnLoad()});
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&(webinarRouteRequested()||byId('page-profile')?.classList.contains('on'))&&window.__guidcyVisRefreshOK('webinar'))wbnLoad()});
   /* history.pushState-driven SPA navigation (go('webinar') from a nav click) never fires
      popstate/pageshow, and several independent legacy router copies race to be the one that
      actually flips #page-webinar to visible — so watch the element itself instead of trying

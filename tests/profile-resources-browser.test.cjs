@@ -8,12 +8,13 @@ const source = fs.readFileSync(path.join(__dirname, 'browser-flow.test.cjs'), 'u
 const start = source.indexOf('const fakeSupabase =');
 let sdk = vm.runInNewContext(source.slice(start, source.indexOf('\n(async', start)) + '\nfakeSupabase');
 sdk = sdk.replace("var consultant={", "var consultant={company_experience:[{company_name:'Guidcy',designation:'Consultant',start_date:'2024-01'}],")
+  .replace("if(table==='job_posts')return [work];", "if(table==='webinars')return window.__webinars;if(table==='webinar_registrations')return window.__webinarRegs;if(table==='job_posts')return [work];")
   .replace("if(table==='marketplace_notes')return [purchasedNote];", "if(table==='marketplace_notes')return window.__resources;")
   .replace("if(table==='marketplace_orders')return [legacyOrder];", "if(table==='marketplace_orders')return window.__orders;")
   .replace('q.select=function(){return q};', "q.select=function(fields){if(table==='marketplace_notes')window.__resourceQueries.push(fields);return q};q.is=function(field,value){filters.push(row=>row[field]==value);return q};")
   .replace('q.then=function(resolve,reject){var data=result();return Promise.resolve({data:data,error:null,count:data.length}).then(resolve,reject)};', "q.then=function(resolve,reject){var data=result();return new Promise(done=>setTimeout(()=>done({data:data,error:table==='marketplace_notes'&&window.__failResourceReads?new Error('fixture offline'):null,count:data.length}),table==='marketplace_notes'?window.__resourceDelay||0:0)).then(resolve,reject)};")
   .replace('out=mutationValue;', "if(table==='marketplace_orders')mutationValue=mutationValue.map(row=>{const saved=Object.assign({id:'purchase-'+window.__orders.length},row);window.__orders.push(saved);return saved});out=mutationValue;")
-  .replace('from:function(table){return query(table)}', "channel:function(){const ch={on:function(type,filter,cb){window.__resourceRealtime=cb;return ch},subscribe:function(){return ch}};return ch},removeChannel:function(){window.__resourceRealtime=null;window.__removedChannels=(window.__removedChannels||0)+1;return Promise.resolve()},from:function(table){return query(table)}");
+  .replace('from:function(table){return query(table)}', "channel:function(){const ch={on:function(type,filter,cb){if(filter.table==='webinars')window.__webinarRealtime=cb;else if(filter.table==='marketplace_notes')window.__resourceRealtime=cb;return ch},subscribe:function(){return ch}};return ch},removeChannel:function(){window.__resourceRealtime=null;window.__removedChannels=(window.__removedChannels||0)+1;return Promise.resolve()},from:function(table){return query(table)}");
 assert.ok(sdk.includes("return window.__resources"));
 assert.ok(sdk.includes("return window.__orders"));
 const setup = `
@@ -22,7 +23,13 @@ window.__resources=Array.from({length:7},(_,i)=>({id:'resource-'+i,uploader_id:'
 ['draft','rejected','inactive','deleted','unpublished'].forEach((status,i)=>window.__resources.push({...window.__resources[0],id:'hidden-'+i,status,title:'Hidden '+status}));
 window.__resources.push({...window.__resources[0],id:'wrong-owner',uploader_id:'someone-else',title:'Wrong owner'});
 window.__resources.push({...window.__resources[0],id:'removed',removed_at:new Date().toISOString(),title:'Removed resource'});
+window.__webinars=Array.from({length:6},(_,i)=>({id:'profile-webinar-'+i,created_by:'expert-profile',title:'Expert webinar '+i,description:'A full workshop with practical examples, guidance and questions from attendees.',category:'Career',date:'2099-09-'+(25+i),time:'16:00',duration:'60 minutes',seats:i===0?1:10,speaker:'Test Expert',price_type:i===2?'paid':'free',price_amount:i===2?199:0,is_paid:i===2}));
+window.__webinars.push({...window.__webinars[1],id:'other-webinar',created_by:'someone-else',title:'Wrong owner webinar'});
+window.__webinars.push({...window.__webinars[1],id:'past-webinar',date:'2000-01-01',title:'Past webinar'});
+window.__webinarRegs=[{id:'full-seat',webinar_id:'profile-webinar-0',email:'other@example.com',payment_status:'free',registration_status:'confirmed'}, {id:'owned-seat',webinar_id:'profile-webinar-3',email:'user@example.com',name:'Test User',payment_status:'free',registration_status:'confirmed',payment_verified:true}];
 window.fetch=async function(url,options){
+ if(String(url).includes('/rest/v1/webinars?'))return new Response(JSON.stringify(window.__webinars),{headers:{'Content-Type':'application/json'}});
+ if(String(url).includes('/rest/v1/webinar_registrations?'))return new Response(JSON.stringify(window.__webinarRegs),{headers:{'Content-Type':'application/json'}});
  if(String(url).includes('/api/create-order')){window.__createdPayment=JSON.parse(options.body);return new Response(JSON.stringify({keyId:'fixture',order:{id:'order_RESOURCE1',amount:19900,currency:'INR'}}))}
  if(String(url).includes('/api/verify-payment')){const args=JSON.parse(options.body);const order=window.__orders.find(o=>o.id===args.orderId);Object.assign(order,{download_granted:true,payment_verified:true,payment_status:'success',order_status:'completed'});window.__verifiedOrder=order.id;return new Response(JSON.stringify({order}))}
  return new Response('[]',{headers:{'Content-Type':'application/json'}});
@@ -63,9 +70,41 @@ let browser;
     await page.goto(origin+'/consultant/test-expert');
     await page.waitForSelector('#profile-resources .gpr-card');
     await page.waitForTimeout(1800);
-    assert.equal(await page.locator('.gpr-card').count(),4);
+    assert.equal(await page.locator('#profile-resources .gpr-card').count(),4);
     assert.equal(await page.locator('#profile-resources h3').innerText(),'Resources by Test Expert');
     await page.waitForSelector('.guidcy-profile-experience');
+    await page.waitForSelector('#profile-webinars .gpr-card');
+    assert.equal(await page.locator('#profile-webinars .gpr-card').count(),4);
+    assert.equal(await page.locator('#profile-webinars h3').innerText(),'Webinars by Test Expert');
+    const calendar=page.locator('#profile-webinars .gpw-date').first();
+    assert.equal(await calendar.locator('.gpw-day').innerText(),'25');
+    assert.match(await calendar.locator('.gpw-month').innerText(),/^Sept?$/i);
+    assert.equal(await calendar.locator('.gpw-year').innerText(),'2099');
+    assert.ok(await page.evaluate(()=>!!(document.querySelector('#profile-webinars').compareDocumentPosition(document.querySelector('.guidcy-profile-experience')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    assert.equal(await page.locator('[data-wbn-register="profile-webinar-0"]').first().isDisabled(),true,'full webinar cannot register');
+    assert.equal(await page.locator('#profile-webinars [data-wbn-register="profile-webinar-2"]').innerText(),'Pay & register');
+    await page.locator('#profile-webinars [data-wbn-register="profile-webinar-1"]').click();
+    await page.waitForSelector('#wbn-reg-modal.on');
+    assert.match(await page.locator('#wbn-reg-webinar-name').innerText(),/Expert webinar 1/);
+    assert.equal(await page.locator('#page-profile').evaluate(el=>el.classList.contains('on')),true,'registration opens directly from profile');
+    await page.evaluate(()=>window.wbnCloseModal());
+    await page.locator('#profile-webinars [data-wbn-register="profile-webinar-2"]').click();
+    await page.waitForSelector('#wbn-reg-modal.on');
+    await page.waitForFunction(()=>document.querySelector('#wbn-modal-subtitle').textContent.includes('199'));
+    await page.evaluate(()=>window.wbnCloseModal());
+    await page.locator('#profile-webinars [data-wbn-register="profile-webinar-3"]').click();
+    await page.waitForSelector('#wbn-reg-success.on');
+    assert.match(await page.locator('#wbn-reg-success').innerText(),/already registered/);
+    await page.evaluate(()=>window.wbnCloseModal());
+    await page.locator('#profile-webinars .gpr-more').click();
+    assert.equal(await page.locator('#profile-webinars .gpr-card').count(),6);
+    assert.doesNotMatch(await page.locator('#profile-webinars').innerText(),/Wrong owner webinar|Past webinar/);
+    await page.locator('#profile-webinars').screenshot({path:'/private/tmp/guidcy-profile-webinars-'+width+'.png'});
+    await page.locator('.book-box').evaluate(el=>{window.__webinarBookingNode=el;return true});
+    await page.evaluate(()=>{window.__webinars=window.__webinars.filter(w=>w.id!=='profile-webinar-1');window.__webinarRealtime()});
+    await page.waitForFunction(()=>document.querySelectorAll('#profile-webinars .gpr-card').length===5);
+    assert.ok(await page.evaluate(()=>window.__webinarBookingNode===document.querySelector('.book-box')),'webinar refresh preserves booking');
+
     assert.ok(await page.evaluate(()=>!!(document.querySelector('#profile-resources').compareDocumentPosition(document.querySelector('.guidcy-profile-experience')) & Node.DOCUMENT_POSITION_FOLLOWING)));
     assert.equal(await page.locator('[data-resource-id="resource-0"] [data-resource-action="buy"]').innerText(),'Download');
     assert.equal(await page.locator('[data-resource-id="resource-1"] [data-resource-action="buy"]').innerText(),'Download Free');
@@ -74,9 +113,9 @@ let browser;
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal page overflow at '+width);
     await page.locator('#profile-resources').screenshot({path:'/private/tmp/guidcy-profile-resources-'+width+'.png'});
     await page.evaluate(()=>{window.__bookingNode=document.querySelector('.book-box');window.__profileNode=document.querySelector('.profile-hero')});
-    await page.locator('[data-resource-action="more"]').click();
-    await page.waitForFunction(()=>document.querySelectorAll('.gpr-card').length===7);
-    assert.equal(await page.locator('[data-resource-action="more"]').count(),0);
+    await page.locator('#profile-resources [data-resource-action="more"]').click();
+    await page.waitForFunction(()=>document.querySelectorAll('#profile-resources .gpr-card').length===7);
+    assert.equal(await page.locator('#profile-resources [data-resource-action="more"]').count(),0);
     assert.ok(await page.evaluate(()=>window.__bookingNode===document.querySelector('.book-box')&&window.__profileNode===document.querySelector('.profile-hero')));
     await page.locator('.gpr-card[data-resource-id="resource-0"]').scrollIntoViewIfNeeded();
     await page.waitForSelector('.gpr-card[data-resource-id="resource-0"] img[alt^="First page"]');
@@ -137,6 +176,7 @@ let browser;
     await page.waitForTimeout(650);
     await page.evaluate(()=>{window.__resourceDelay=0});
     assert.equal(await page.locator('#profile-resources').isVisible(),false,'no resources hides the entire section');
+    assert.equal(await page.locator('#profile-webinars').isVisible(),false,'no webinars hides the entire section');
     await page.evaluate(()=>window.openProfile('test-expert',-1));
     await page.waitForSelector('.gpr-card');
     await page.evaluate(()=>window.go('home'));
@@ -146,7 +186,7 @@ let browser;
     await page.waitForSelector('#page-profile.on .gpr-card');
     await page.reload();
     await page.waitForSelector('.gpr-card');
-    assert.equal(await page.locator('.gpr-card').count(),4,'refresh starts with four');
+    assert.equal(await page.locator('#profile-resources .gpr-card').count(),4,'refresh starts with four');
     // Verify the separate public Marketplace card renderer on its own route.
     await page.goto(origin+'/marketplace');
     const more=page.locator('#gmkt-grid .gmkt-description-toggle[aria-expanded="false"]').first();

@@ -907,12 +907,12 @@ body.gmob-open{overflow:hidden}
     border-radius:100px!important;
   }
 
-  #page-webinar .wbn-modal{
+  #wbn-reg-modal .wbn-modal{
     width:92%!important;
     max-width:480px!important;
     border-radius:20px!important;
   }
-  #page-webinar .wbn-modal-body{padding:24px 28px!important;}
+  #wbn-reg-modal .wbn-modal-body{padding:24px 28px!important;}
 }
 
 @media(max-width:520px){
@@ -926,8 +926,8 @@ body.gmob-open{overflow:hidden}
   #page-webinar .wbn-card-footer{align-items:flex-start!important;flex-direction:column!important;}
   #page-webinar .wbn-admin-actions{width:100%!important;justify-content:flex-start!important;}
   #page-webinar .wbn-register-btn{width:100%!important;}
-  #page-webinar .wbn-modal{width:96%!important;}
-  #page-webinar .wbn-modal-body{padding:18px!important;}
+  #wbn-reg-modal .wbn-modal{width:96%!important;}
+  #wbn-reg-modal .wbn-modal-body{padding:18px!important;}
 }
 
 /* === guidcy-webinar-admin-registration-final-css === */
@@ -3202,3 +3202,10 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 .gpr-more{margin-top:16px}
 .gpr-status{font-size:13px;color:var(--muted);line-height:1.5}
 @media(max-width:600px){.gpr-card{gap:12px;padding:14px}.gpr-cover{flex-basis:64px;width:64px;height:84px;font-size:32px}.gpr-body h4{font-size:15px}.gpr-actions .btn{padding:8px 10px}.guidcy-profile-resources h3{font-size:25px}}
+
+.gpw-date{grid-template-rows:auto 1fr auto;place-items:stretch;font-size:12px;text-align:center;box-sizing:border-box;line-height:1.2;background:#fff;border:1px solid var(--border,#dce7f1);box-shadow:0 2px 6px rgba(30,72,110,.06)}
+.gpw-month{padding:7px 4px;background:var(--blue,#1e72be);color:#fff;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.gpw-day{align-self:center;font-size:34px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.gpw-year{padding:0 4px 9px;color:var(--muted);font-size:11px}
+@media(max-width:600px){.gpw-day{font-size:26px}.gpw-month{padding:5px 3px;font-size:10px}.gpw-year{padding-bottom:5px;font-size:10px}}
+#profile-webinars .gmkt-desc{margin-bottom:12px;min-height:0}
