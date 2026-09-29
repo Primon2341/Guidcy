@@ -28,17 +28,7 @@ function emailLike(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
 }
 
-function safeRedirect(value) {
-  const fallback = `${env('SITE_URL') || 'https://www.guidcy.com'}/login`;
-  const raw = clean(value, 500) || fallback;
-  try {
-    const url = new URL(raw, fallback);
-    if (!/^https?:$/.test(url.protocol)) return fallback;
-    return url.href;
-  } catch (_) {
-    return fallback;
-  }
-}
+const { safeRedirect } = require('../lib/api-security');
 
 function esc(value) {
   return String(value ?? '')
@@ -50,6 +40,7 @@ function esc(value) {
 }
 
 async function readJson(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -149,13 +140,15 @@ module.exports = async function handler(req, res) {
       const actionLink = await generateRecoveryLink({ supabaseUrl, serviceKey, email, redirectTo });
       if (!actionLink || !/^https?:\/\//i.test(actionLink)) throw new Error('Could not generate recovery link');
       await sendRecoveryWithResend({ email, actionLink });
-      return sendJson(res, 200, { ok: true, provider: 'resend_admin_link' });
+      return sendJson(res, 200, { ok: true, message: 'If an account exists, a password reset email will be sent.' });
     }
 
     await requestRecoveryEdgeFunction({ supabaseUrl, anonKey, email, redirectTo });
-    return sendJson(res, 200, { ok: true, provider: 'supabase_recovery_function' });
+    return sendJson(res, 200, { ok: true, message: 'If an account exists, a password reset email will be sent.' });
   } catch (error) {
-    const message = clean(error.message || error || 'Could not send reset email', 300);
-    return sendJson(res, 502, { ok: false, error: message });
+    console.warn('Password recovery failed');
+    return sendJson(res, 200, { ok: true, message: 'If an account exists, a password reset email will be sent.' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'forgot-password',limit:5,seconds:900});

@@ -1,3 +1,4 @@
+const { authorizeEmail } = require('../lib/email-authorization');
 const SUBJECTS = {
   user_welcome: 'Welcome to Guidcy',
   booking_created_user: 'Your Guidcy booking request has been received',
@@ -208,6 +209,7 @@ async function alreadySent({ to, type, relatedTable, relatedId }) {
 }
 
 async function readJson(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => {
@@ -231,17 +233,10 @@ function sendJson(res, status, body) {
 }
 
 async function getAdminUser(req, payload = {}) {
-  const supabaseUrl = normalizeSupabaseUrl(clean(payload.supabase_url, 500) || env('SUPABASE_URL') || env('NEXT_PUBLIC_SUPABASE_URL') || env('VITE_SUPABASE_URL') || '');
+  const supabaseUrl = normalizeSupabaseUrl(env('SUPABASE_URL') || env('NEXT_PUBLIC_SUPABASE_URL') || env('VITE_SUPABASE_URL') || '');
   const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') || env('SUPABASE_SECRET_KEY') || '';
-  const anonKey = env('SUPABASE_ANON_KEY') || env('NEXT_PUBLIC_SUPABASE_ANON_KEY') || env('VITE_SUPABASE_ANON_KEY') || clean(payload.supabase_key, 3000) || serviceKey;
+  const anonKey = env('SUPABASE_ANON_KEY') || env('NEXT_PUBLIC_SUPABASE_ANON_KEY') || env('VITE_SUPABASE_ANON_KEY') || serviceKey;
   const bearer = clean((req.headers.authorization || '').replace(/^Bearer\s+/i, ''), 3000);
-  const adminEmails = new Set(
-    [env('ADMIN_EMAIL'), env('ADMIN_EMAILS'), 'guidcytechnologies@gmail.com']
-      .join(',')
-      .split(',')
-      .map(v => emailLike(v))
-      .filter(Boolean)
-  );
   if (!supabaseUrl || !serviceKey) throw new Error('Admin database service is not configured');
   if (!bearer) throw new Error('Admin session is missing');
   const auth = await fetch(`${supabaseUrl}/auth/v1/user`, {
@@ -255,7 +250,7 @@ async function getAdminUser(req, payload = {}) {
   const profile = Array.isArray(profileResult && profileResult.data) ? profileResult.data[0] : null;
   const email = emailLike(user.email || (profile && profile.email));
   const role = clean(profile && profile.role).toLowerCase();
-  if (!adminEmails.has(email) && role !== 'admin') throw new Error('Only admin can perform this action');
+  if (role !== 'admin') throw new Error('Only admin can perform this action');
   return { id: user.id, email, role: role || 'admin' };
 }
 
@@ -286,7 +281,7 @@ function referralPayload(input) {
 
 async function handleAdminReferral(payload, req, debugId) {
   await getAdminUser(req, payload);
-  const supabaseUrl = clean(payload.supabase_url, 500);
+  const supabaseUrl = ''; // Database destinations are server configuration only.
   const action = clean(payload.action || payload.referralAction || 'save', 40).toLowerCase();
   const id = uuidOrNull(payload.id || payload.referralId || (payload.row && payload.row.id));
   if (action === 'delete') {
@@ -332,7 +327,7 @@ async function getBookingForEmail(id, fallback) {
       if (row && row.id) return row;
     }
   }
-  return fallback && typeof fallback === 'object' ? fallback : null;
+  return null;
 }
 
 async function patchBookingEmailFlags(id, patch) {
@@ -505,6 +500,11 @@ module.exports = async function handler(req, res) {
     return sendJson(res, error.status || 400, { ok: false, error: error.message, debug_id: debugId });
   }
 
+  try {
+    if (!SUBJECTS[payload.type] && !['booking_confirmation_pair','admin_referral_code'].includes(payload.type)) return sendJson(res,400,{ok:false,error:'Unsupported notification'});
+    payload = await authorizeEmail(req, payload);
+  } catch (error) { return sendJson(res,error.status || 403,{ok:false,error:'Notification not authorized'}); }
+
   if (clean(payload.type || payload.event, 80) === 'admin_referral_code') {
     try {
       const result = await handleAdminReferral(payload, req, debugId);
@@ -626,3 +626,5 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 500, { ok: false, error: 'Email sending failed', detail: message, debug_id: debugId });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'send-guidcy-email',limit:30,seconds:300});

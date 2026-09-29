@@ -28,6 +28,7 @@ window.__webinars.push({...window.__webinars[1],id:'other-webinar',created_by:'s
 window.__webinars.push({...window.__webinars[1],id:'past-webinar',date:'2000-01-01',title:'Past webinar'});
 window.__webinarRegs=[{id:'full-seat',webinar_id:'profile-webinar-0',email:'other@example.com',payment_status:'free',registration_status:'confirmed'}, {id:'owned-seat',webinar_id:'profile-webinar-3',email:'user@example.com',name:'Test User',payment_status:'free',registration_status:'confirmed',payment_verified:true}];
 window.fetch=async function(url,options){
+ if(String(url).includes('/rest/v1/guidcy_webinar_counts?'))return new Response(JSON.stringify([{webinar_id:'profile-webinar-0',count:1},{webinar_id:'profile-webinar-3',count:1}]),{headers:{'Content-Type':'application/json'}});
  if(String(url).includes('/rest/v1/webinars?'))return new Response(JSON.stringify(window.__webinars),{headers:{'Content-Type':'application/json'}});
  if(String(url).includes('/rest/v1/webinar_registrations?'))return new Response(JSON.stringify(window.__webinarRegs),{headers:{'Content-Type':'application/json'}});
  if(String(url).includes('/api/create-order')){window.__createdPayment=JSON.parse(options.body);return new Response(JSON.stringify({keyId:'fixture',order:{id:'order_RESOURCE1',amount:19900,currency:'INR'}}))}
@@ -57,7 +58,7 @@ let browser;
       window.__pdfLoads=[];window.__pdfPages=[];
       window.pdfjsLib={GlobalWorkerOptions:{},getDocument({url}){
         window.__pdfLoads.push(url);
-        return {promise:Promise.resolve({numPages:1,destroy:async()=>{},getPage:async number=>{
+        return {destroy:async()=>{},promise:Promise.resolve({numPages:1,destroy:async()=>{},getPage:async number=>{
           window.__pdfPages.push(number);
           return {getViewport:({scale})=>({width:600*scale,height:800*scale}),render:({canvasContext:ctx,viewport:v})=>{
             ctx.fillStyle='#fff';ctx.fillRect(0,0,v.width,v.height);ctx.fillStyle='#1e72be';ctx.fillRect(0,0,v.width,v.height/4);ctx.fillStyle='#172a40';ctx.font='14px serif';ctx.fillText('Career guide',8,v.height/3);return {promise:Promise.resolve()};

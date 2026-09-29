@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
  const origin = 'http://127.0.0.1:' + server.address().port;
  browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
- for (const role of ['user', 'consultant', 'admin']) {
+ for (const role of ['user', 'consultant', 'admin'].filter(role => !process.env.DASHBOARD_ROLE || process.env.DASHBOARD_ROLE === role)) {
  const context = await browser.newContext({ viewport: { width: 320, height: 812 } });
  await context.addInitScript(role => {
  const id = role === 'consultant' ? 'expert-profile' : role === 'admin' ? 'test-admin' : 'test-user';
@@ -95,6 +95,17 @@ const server = http.createServer((req, res) => {
  const navScroll = await page.locator(dash + ' .side-nav').evaluate(el => ({ overflow: getComputedStyle(el).overflowY, client: el.clientHeight, scroll: el.scrollHeight }));
  assert.equal(navScroll.overflow, 'visible', role + ': no nested menu scrollbar at ' + width);
  assert.ok(navScroll.scroll <= navScroll.client + 1, role + ': menu is not height-clipped');
+ if (role === 'admin') {
+ const movement = await page.locator(dash + ' .dash-side').evaluate(side => {
+ const controls = [side.querySelector('[data-guidcy-webinar-reg-nav]'), side.querySelector('.side-logout button[onclick="logOut()"]')];
+ side.scrollTop = 0;
+ const before = controls.map(el => el.getBoundingClientRect().top);
+ side.scrollTop = 100;
+ return { scroll: side.scrollTop, delta: controls.map((el, i) => before[i] - el.getBoundingClientRect().top) };
+ });
+ assert.ok(movement.scroll > 0, 'admin menu must scroll');
+ for (const delta of movement.delta) assert.ok(Math.abs(delta - movement.scroll) < 1, 'webinar and sign out must move with the menu');
+ }
  const signout = page.locator(dash + ' .side-logout button[onclick="logOut()"]');
  await signout.scrollIntoViewIfNeeded();
  assert.ok(await signout.evaluate(el => { const r=el.getBoundingClientRect(); return r.top >= 60 && r.bottom <= innerHeight; }), 'last menu control is reachable');

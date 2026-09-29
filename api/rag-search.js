@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
         match_threshold: Number(body.match_threshold || 0.2),
         match_count: Number(body.match_count || 8),
         filter_source_type: sourceType,
-        filter_visibility: body.filter_visibility || 'public'
+        filter_visibility: 'public'
       })
     });
     return json(res, 200, { ok: true, matches: Array.isArray(matches) ? matches : [] });
@@ -34,3 +34,5 @@ module.exports = async function handler(req, res) {
     return json(res, e.status || 500, { error: e.message || 'Unable to search Guidcy knowledge.' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'rag-search',limit:20,seconds:60});

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script defer src="/assets/js/seo.js"></script>
+<script defer src="/assets/js/blog-content.js"></script>
 <script defer src="/assets/js/core.js"></script>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -27,7 +29,7 @@
     '/admin':'admin-dash','/admin-dashboard':'admin-dash','/admin-dash':'admin-dash','/admin/webinar-registrations':'admin-dash',
     '/payment':'payment','/confirm':'confirm','/meeting':'meeting','/review':'review','/profile':'profile'};
   /* Each route has its structural markup in this document. */
-  var page=pages[path]||(/^\/(?:consultant|book)\/[^/]+$/.test(path)?'profile':'');
+  var page=pages[path]||(/^\/(?:consultant|book)\/[^/]+$/.test(path)?'profile':/^\/(?:marketplace|webinars|careers)\/[^/]+$/.test(path)?'seo-detail':'');
   var root=document.documentElement;
   var style=null;
   if(page&&page!=='home'){
@@ -145,6 +147,7 @@
      `sb` stays null and booking/payment silently stop working. The preload starts the
      download as early as possible to keep that wait short. -->
 <link rel="preload" as="script" href="/assets/vendor/supabase.js">
+<script defer src="/assets/js/security-client.js"></script>
 <script defer src="/assets/vendor/supabase.js"></script>
 <!-- Razorpay checkout is initiated by secure server-side form POST; no frontend gateway secret or SDK is loaded. -->
 <!-- All transactional email goes through Resend (api/send-guidcy-email.js + the Supabase edge function), not EmailJS -->
@@ -163,20 +166,21 @@
 
 <!-- === GUIDCY REQUESTED HOME LAYOUT FIXES === -->
 
+<link rel="stylesheet" href="/assets/css/cookie-consent.css">
+<script defer src="/assets/js/cookie-consent.js"></script>
 <script defer src="/assets/js/jobs-search.js"></script>
 <script defer src="/assets/js/auth-lifecycle.js"></script>
 <script defer src="/assets/js/ui-refresh.js"></script>
 <script defer src="/assets/js/razorpay-checkout.js"></script>
+<script defer src="/assets/js/availability.js"></script>
 <script defer src="/assets/js/app.js"></script>
 <script defer src="/assets/js/profile-resources.js"></script>
 <script defer src="/assets/js/shared-search.js"></script>
 <script defer src="/assets/js/controllers.js"></script>
 <script defer src="/assets/js/webinar-flow.js"></script>
+<script defer src="/assets/js/seo-client.js"></script>
+<script defer src="/assets/js/blog.js"></script>
 
-<!-- Vercel Web Analytics: page views + visitors, cookie-less. Enable under Vercel → guidcy → Analytics.
-     Only on the deployed hosts: a plain static server (local dev, the test harness) answers this
-     path with index.html, which the browser then fails to parse as a script. -->
-<script>if(/(^|\.)guidcy\.com$|\.vercel\.app$/.test(location.hostname)){var s=document.createElement('script');s.defer=true;s.src='/_vercel/insights/script.js';document.head.appendChild(s)}</script>
 <!-- === END GUIDCY REQUESTED HOME LAYOUT FIXES === -->
 
 
@@ -205,30 +209,31 @@
 
 
 <link rel="stylesheet" href="/assets/css/mobile.css">
+<link rel="stylesheet" href="/assets/css/blog.css">
 <script src="/assets/js/page-shell.js"></script>
 </head>
 <body>
 
 <!-- ════ NAV ════ -->
 <nav class="nav" id="main-nav">
-  <div class="logo-wrap" onclick="go('home')">
+  <a href="/" class="logo-wrap" onclick="go('home');return false" aria-label="Guidcy home">
     <div class="logo-svg-wrap guidcy-header-brand">
       <svg viewBox="190 390 820 460" width="112" height="63" role="img" aria-label="Guidcy — Guidance Made Simple" focusable="false">
         <image href="/assets/images/header-logo.webp" x="0" y="0" width="1200" height="1200"/>
       </svg>
     </div>
-  </div>
+  </a>
   <button class="mobile-burger" id="mobile-burger" onclick="openMobDrawer()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
   <div class="nav-links" id="nav-links">
-    <button class="nav-link" onclick="go('home');closeMobileMenu()">Home</button>
-    <button class="nav-link" onclick="go('browse');closeMobileMenu()">Find the Expert</button>
-    <button class="nav-link" onclick="go('jobs');closeMobileMenu()">Find Jobs</button>
-    <button class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</button><button class="nav-link" onclick="go('blog');closeMobileMenu()">Blog</button>
-    <button class="nav-link" data-guidcy-marketplace-nav="1" onclick="go('marketplace');closeMobileMenu()">Marketplace</button>
-    <button class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</button><button class="nav-link" onclick="go('opportunities');closeMobileMenu()">Funds &amp; Grants Finder</button>
-    <button class="nav-link" data-sf-link="1" onclick="go('smart-finder');closeMobileMenu()">Career &amp; College AI Finder</button>
+    <a href="/" class="nav-link" onclick="go('home');closeMobileMenu()">Home</a>
+    <a href="/find-experts" class="nav-link" onclick="go('browse');closeMobileMenu()">Find the Expert</a>
+    <a href="/find-jobs" class="nav-link" onclick="go('jobs');closeMobileMenu()">Find Jobs</a>
+    <a href="/categories" class="nav-link" onclick="go('categories');closeMobileMenu()">Categories</a><a href="/blog" class="nav-link" onclick="go('blog');closeMobileMenu()">Blog</a>
+    <a href="/marketplace" class="nav-link" data-guidcy-marketplace-nav="1" onclick="go('marketplace');closeMobileMenu()">Marketplace</a>
+    <a href="/webinars" class="nav-link" onclick="go('webinar');closeMobileMenu()">Webinars</a><a href="/funds-grants" class="nav-link" onclick="go('opportunities');closeMobileMenu()">Funds &amp; Grants Finder</a>
+    <a href="/career-ai-finder" class="nav-link" data-sf-link="1" onclick="go('smart-finder');closeMobileMenu()">Career &amp; College AI Finder</a>
   </div>
   <div class="nav-right" id="nav-right">
     <button class="btn" onclick="go('login')">Log in</button>
@@ -241,7 +246,7 @@
 <div id="guidcy-boot-skeleton" aria-hidden="true"><div class="gbs-bar" style="width:38%"></div><div class="gbs-bar" style="width:62%"></div><div class="gbs-grid"><div class="gbs-card"></div><div class="gbs-card"></div><div class="gbs-card"></div></div></div>
 
 <!-- ════ HOME ════ -->
-<div id="page-home" class="page on">
+<div id="page-home" class="page on" role="main">
   <div class="hero">
     <div class="hero-overlay"></div>
     <div class="hero-content">
@@ -392,7 +397,8 @@
 </div>
 
 <!-- ════ BROWSE ════ -->
-<div id="page-browse" class="page">
+<div id="page-browse" class="page" role="main">
+  <h1 class="guidcy-visually-hidden">Find Experts on Guidcy</h1>
   <div class="browse-search-toolbar" style="padding:16px 32px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
     <div class="search-suggest-wrap">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:var(--muted);flex-shrink:0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -465,12 +471,13 @@
 </div>
 
 <!-- ════ PROFILE ════ -->
-<div id="page-profile" class="page">
+<div id="page-seo-detail" class="page" role="main"></div>
+<div id="page-profile" class="page" role="main">
   <div id="profile-layout" class="profile-layout"></div>
 </div>
 
 <!-- ════ LOGIN ════ -->
-<div id="page-login" class="page">
+<div id="page-login" class="page" role="main">
   <div class="form-page">
     <div class="form-card">
       <div class="login-admin-entry">
@@ -506,7 +513,7 @@
 </div>
 
 <!-- ════ SIGNUP ════ -->
-<div id="page-signup" class="page">
+<div id="page-signup" class="page" role="main">
   <div class="form-page" style="max-width:520px">
     <div class="form-card">
       <div class="form-logo-wrap" style="flex-direction:column;gap:6px">
@@ -592,7 +599,7 @@
 </div>
 
 <!-- ════ PAYMENT ════ -->
-<div id="page-payment" class="page">
+<div id="page-payment" class="page" role="main">
   <div class="pay-wrap">
     <button type="button" class="pay-back" onclick="guidcyPaymentBack()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Back to profile</button>
     <div class="pay-progress" aria-label="Booking progress">
@@ -652,7 +659,7 @@
 </div>
 
 <!-- ════ CONFIRMATION ════ -->
-<div id="page-confirm" class="page">
+<div id="page-confirm" class="page" role="main">
   <div class="confirm-wrap">
     <div class="confirm-card">
       <div class="confirm-icon">
@@ -680,7 +687,7 @@
 </div>
 
 <!-- ════ USER DASHBOARD ════ -->
-<div id="page-user-dash" class="page">
+<div id="page-user-dash" class="page" role="main">
   <button class="dash-mobile-toggle" onclick="toggleDashMenu('user')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
@@ -734,7 +741,7 @@
 </div>
 
 <!-- ════ CONSULTANT DASHBOARD ════ -->
-<div id="page-cons-dash" class="page">
+<div id="page-cons-dash" class="page" role="main">
   <button class="dash-mobile-toggle" onclick="toggleDashMenu('cons')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
@@ -782,7 +789,7 @@
 </div>
 
 <!-- ════ ADMIN DASHBOARD ════ -->
-<div id="page-admin-dash" class="page">
+<div id="page-admin-dash" class="page" role="main">
   <button class="dash-mobile-toggle" onclick="toggleDashMenu('admin')" aria-label="Dashboard menu"><span></span><span></span><span></span> Menu</button>
   <div class="dash-wrap">
     <div class="dash-side">
@@ -803,6 +810,7 @@
         <button class="side-btn" data-admin-section="consultants" onclick="swAD('consultants',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Consultants
         </button>
+        <button class="side-btn" data-admin-section="blog" onclick="swAD('blog',this)"><span class="si" aria-hidden="true">📰</span> Blog Management</button>
         <button class="side-btn" data-admin-section="users" onclick="swAD('users',this)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Users
         </button>
@@ -827,7 +835,7 @@
 </div>
 
 <!-- ════ REVIEW PAGE ════ -->
-<div id="page-review" class="page">
+<div id="page-review" class="page" role="main">
   <div style="max-width:500px;margin:0 auto;padding:40px 20px">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)">
       <div style="padding:28px;border-bottom:1px solid var(--border);text-align:center;background:linear-gradient(135deg,var(--blue-l),var(--green-l))">
@@ -871,7 +879,7 @@
 </div>
 
 <!-- ════ CATEGORIES PAGE ════ -->
-<div id="page-categories" class="page">
+<div id="page-categories" class="page" role="main">
   <div style="padding:48px 32px;max-width:1000px;margin:0 auto">
     <h1 style="font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:var(--font-weight-medium,500);margin-bottom:6px">All Categories</h1>
     <p style="font-size:14px;color:var(--muted);margin-bottom:36px">Browse expert specializations across all our major categories</p>
@@ -880,7 +888,7 @@
 </div>
 
 <!-- ════ ABOUT PAGE ════ -->
-<div id="page-about" class="page">
+<div id="page-about" class="page" role="main">
   <div class="info-page">
     <h1>About Guidcy</h1>
     <p class="lead">We're building India's most trusted bridge between world-class expertise and the people who need it most.</p>
@@ -906,7 +914,7 @@
 </div>
 
 <!-- ════ CONTACT PAGE ════ -->
-<div id="page-contact" class="page">
+<div id="page-contact" class="page" role="main">
   <div class="info-page">
     <h1>Contact Us</h1>
     <p class="lead">We're here to help. Reach out through any channel that's most convenient for you.</p>
@@ -946,7 +954,7 @@
 </div>
 
 <!-- ════ FAQ PAGE ════ -->
-<div id="page-faq" class="page">
+<div id="page-faq" class="page" role="main">
   <div class="info-page">
     <h1>Frequently Asked Questions</h1>
     <p class="lead">Everything you need to know about using Guidcy as a client or consultant.</p>
@@ -958,13 +966,13 @@
 </div>
 
 <!-- ════ LEGAL PAGES ════ -->
-<div id="page-terms" class="page"><div class="info-page"><h1>Terms & Conditions</h1><p class="lead">Last updated: April 2025</p><h2>1. Acceptance of Terms</h2><p>By accessing or using Guidcy, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our platform.</p><h2>2. Platform Description</h2><p>Guidcy is a consultation marketplace that connects clients with verified independent consultants. Guidcy facilitates the connection but is not a party to the consultation agreement.</p><h2>3. User Accounts</h2><p>You must provide accurate, complete information when creating your account. You are responsible for maintaining the security of your account credentials.</p><h2>4. Bookings & Cancellations</h2><p>Sessions must be cancelled at least instantly in advance for a full refund. Cancellations within instantly may be subject to a 50% cancellation fee.</p><h2>5. Platform Fees</h2><p>Two separate charges apply to a booking. Clients pay a <b>5% Guidcy platform fee</b> on top of the consultant's session fee. It is itemised at checkout and included in the total shown before you pay. Consultants pay a <b>15% commission</b> on their session fee, which is deducted from their payout, so a consultant receives 85% of the rate they set. The client's platform fee does not reduce the consultant's earnings.</p><h2>6. Prohibited Conduct</h2><p>Users may not exchange personal contact information to bypass the platform, post false reviews, or use the platform for any illegal purpose.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-terms" class="page" role="main"><div class="info-page"><h1>Terms & Conditions</h1><p class="lead">Last updated: April 2025</p><h2>1. Acceptance of Terms</h2><p>By accessing or using Guidcy, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use our platform.</p><h2>2. Platform Description</h2><p>Guidcy is a consultation marketplace that connects clients with verified independent consultants. Guidcy facilitates the connection but is not a party to the consultation agreement.</p><h2>3. User Accounts</h2><p>You must provide accurate, complete information when creating your account. You are responsible for maintaining the security of your account credentials.</p><h2>4. Bookings & Cancellations</h2><p>Sessions must be cancelled at least instantly in advance for a full refund. Cancellations within instantly may be subject to a 50% cancellation fee.</p><h2>5. Platform Fees</h2><p>Two separate charges apply to a booking. Clients pay a <b>5% Guidcy platform fee</b> on top of the consultant's session fee. It is itemised at checkout and included in the total shown before you pay. Consultants pay a <b>15% commission</b> on their session fee, which is deducted from their payout, so a consultant receives 85% of the rate they set. The client's platform fee does not reduce the consultant's earnings.</p><h2>6. Prohibited Conduct</h2><p>Users may not exchange personal contact information to bypass the platform, post false reviews, or use the platform for any illegal purpose.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
-<div id="page-privacy" class="page"><div class="info-page"><h1>Privacy Policy</h1><p class="lead">Last updated: April 2025</p><h2>Information We Collect</h2><p>We collect information you provide directly (name, email, phone), information from your use of the platform (booking history, session data, reviews), and technical data (device type, IP address, browser).</p><h2>How We Use Your Information</h2><ul><li>To facilitate bookings and sessions between clients and consultants</li><li>To send transactional notifications (booking confirmations, reminders)</li><li>To improve our platform and personalise your experience</li><li>To prevent fraud and ensure platform safety</li></ul><h2>Data Security</h2><p>We use 256-bit SSL encryption for all data in transit and AES-256 encryption for sensitive data at rest. Payment information is handled exclusively by our secure payment processor and is never stored on Guidcy servers.</p><h2>Your Rights</h2><p>Under India's DPDP Act 2023, you have the right to access, correct, and delete your personal data. Contact guidcytechnologies@gmail.com to exercise these rights.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-privacy" class="page" role="main"><div class="info-page"><h1>Privacy Policy</h1><p class="lead">Last updated: April 2025</p><h2>Information We Collect</h2><p>We collect information you provide directly (name, email, phone), information from your use of the platform (booking history, session data, reviews), and technical data (device type, IP address, browser).</p><h2>How We Use Your Information</h2><ul><li>To facilitate bookings and sessions between clients and consultants</li><li>To send transactional notifications (booking confirmations, reminders)</li><li>To improve our platform and personalise your experience</li><li>To prevent fraud and ensure platform safety</li></ul><h2>Cookies and Privacy Choices</h2><p>Essential cookies and browser storage support sign-in, security, bookings and payments. Optional Vercel Web Analytics measures visits and page usage without cookies and only loads after you allow it. We remember your choice on this browser for six months. You can change or withdraw permission at any time using Cookie settings in the footer.</p><button type="button" class="btn" data-cookie-settings>Cookie settings</button><h2>Data Security</h2><p>We use 256-bit SSL encryption for all data in transit and AES-256 encryption for sensitive data at rest. Payment information is handled exclusively by our secure payment processor and is never stored on Guidcy servers.</p><h2>Your Rights</h2><p>Under India's DPDP Act 2023, you have the right to access, correct, and delete your personal data. Contact guidcytechnologies@gmail.com to exercise these rights.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
-<div id="page-refund" class="page"><div class="info-page"><h1>Refund Policy</h1><p class="lead">Last updated: April 2025</p><h2>Full Refunds</h2><p>You are eligible for a full refund if: you cancel at least instantly before the scheduled session; the consultant cancels or does not show up; or a technical issue prevents the session from taking place.</p><h2>Partial Refunds</h2><p>A 50% refund may be issued for cancellations made between 12 and instantly before the session.</p><h2>No Refunds</h2><p>No refund will be issued for cancellations made less than 12 hours before the session, sessions that have already commenced, or sessions completed as scheduled.</p><h2>Processing Time</h2><p>Approved refunds are processed within 5–7 business days to the original payment method.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-refund" class="page" role="main"><div class="info-page"><h1>Refund Policy</h1><p class="lead">Last updated: April 2025</p><h2>Full Refunds</h2><p>You are eligible for a full refund if: you cancel at least instantly before the scheduled session; the consultant cancels or does not show up; or a technical issue prevents the session from taking place.</p><h2>Partial Refunds</h2><p>A 50% refund may be issued for cancellations made between 12 and instantly before the session.</p><h2>No Refunds</h2><p>No refund will be issued for cancellations made less than 12 hours before the session, sessions that have already commenced, or sessions completed as scheduled.</p><h2>Processing Time</h2><p>Approved refunds are processed within 5–7 business days to the original payment method.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
-<div id="page-disclaimer" class="page"><div class="info-page"><h1>Disclaimer</h1><p class="lead">Important information about the nature of consultations on Guidcy.</p><p>Consultations provided through Guidcy are for informational and advisory purposes only. They do not constitute professional legal, medical, financial, or psychological advice in a formal client-advisor relationship unless explicitly agreed upon separately.</p><p>Guidcy does not guarantee any specific outcomes from consultations. The expertise and credentials of consultants are self-reported and verified to the best of our ability, but Guidcy cannot guarantee their accuracy in all cases.</p><p>For medical emergencies, please contact emergency services immediately. For urgent legal matters, please consult a licensed attorney directly.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
+<div id="page-disclaimer" class="page" role="main"><div class="info-page"><h1>Disclaimer</h1><p class="lead">Important information about the nature of consultations on Guidcy.</p><p>Consultations provided through Guidcy are for informational and advisory purposes only. They do not constitute professional legal, medical, financial, or psychological advice in a formal client-advisor relationship unless explicitly agreed upon separately.</p><p>Guidcy does not guarantee any specific outcomes from consultations. The expertise and credentials of consultants are self-reported and verified to the best of our ability, but Guidcy cannot guarantee their accuracy in all cases.</p><p>For medical emergencies, please contact emergency services immediately. For urgent legal matters, please consult a licensed attorney directly.</p><button class="btn" style="margin-top:20px" onclick="go('home')">← Back to home</button></div></div>
 
 <!-- ════ TOAST ════ -->
 <div class="toast-bar" id="toastbar"></div>
@@ -1070,7 +1078,7 @@
 
 
 <!-- ════ WEBINAR PAGE ════ -->
-<div id="page-webinar" class="page">
+<div id="page-webinar" class="page" role="main">
 
 
 <div class="wbn-wrap">
@@ -1217,7 +1225,7 @@
 </div><!-- /page-webinar -->
 
 <!-- ════ HELP CENTER PAGE ════ -->
-<div id="page-help" class="page">
+<div id="page-help" class="page" role="main">
 <div class="ghelp-page-wrap">
 
   <div class="ghelp-hero">
@@ -1319,7 +1327,7 @@
 </div>
 
 <!-- ════ DISPUTE RESOLUTION PAGE ════ -->
-<div id="page-dispute" class="page">
+<div id="page-dispute" class="page" role="main">
 <div class="ghelp-page-wrap">
 
   <div class="ghelp-hero">
@@ -1780,7 +1788,7 @@
 <!-- ════════════════════════════════════════════════════════════
      GUIDCY OPPORTUNITIES FINDER PAGE
 ════════════════════════════════════════════════════════════ -->
-<div id="page-opportunities" class="page">
+<div id="page-opportunities" class="page" role="main">
   <div style="max-width:1100px;margin:0 auto;padding:40px 24px 60px">
 
     <!-- Header -->
@@ -1885,7 +1893,7 @@
 <!-- ════════════════════════════════════════════════════════════
      GUIDCY CAREERS PAGE  (footer-only entry, admin-managed roles)
 ════════════════════════════════════════════════════════════ -->
-<div id="page-careers" class="page">
+<div id="page-careers" class="page" role="main">
 
   <!-- ── HERO ── -->
   <section class="gc-hero">
@@ -2250,7 +2258,7 @@
 
 
 <!-- Static public structures; dynamic regions hydrate in place. -->
-<div id="page-jobs" class="page"><div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
+<div id="page-jobs" class="page" role="main"><div style="max-width:1100px;margin:0 auto;padding:36px 16px 80px">
       <h1 style="font-family:'Cormorant Garamond',serif;font-size:clamp(26px,5vw,42px);font-weight:var(--font-weight-medium,500);margin-bottom:6px">Find Your Next Job</h1>
       <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Live listings from across the web. Click any job to apply directly on the employer's site.</p>
       <div class="jobs-companion-rail" data-state="idle" data-position="left" data-pose="wave">
@@ -2284,8 +2292,8 @@
       <div id="jobs-saved-area" style="display:none"></div>
       <div id="jobs-main-area"></div>
     </div></div>
-<div id="page-marketplace" class="page"><div class="gmkt-wrap"><section class="gmkt-hero"><div><h1>Marketplace</h1><p>Buy, download, and sell useful PDF notes on Guidcy. Sellers choose how many opening pages buyers can preview before purchase, then paid notes unlock full access after login and payment.</p><div class="gmkt-actions"><button class="btn btn-blue" onclick="GuidcyMarketplace.openUpload()">Sell Your Notes</button><button class="btn" onclick="GuidcyMarketplace.render()">Refresh Notes</button></div></div><div class="gmkt-panel"><b>Secure notes flow</b><p style="color:#64748B;line-height:1.6;margin:8px 0 0">Only PDFs up to 15 MB are accepted.</p></div></section><div class="gmkt-filters"><input id="gmkt-search" placeholder="Search notes, subject, exam..." oninput="GuidcyMarketplace.renderList()"><select id="gmkt-cat" onchange="GuidcyMarketplace.renderList()"><option value="all">All categories</option><option value="career">Career</option></select><select id="gmkt-price" onchange="GuidcyMarketplace.renderList()"><option value="all">Free / Paid / All</option><option value="free">Free</option><option value="paid">Paid</option></select><select id="gmkt-sort" onchange="GuidcyMarketplace.renderList()"><option value="latest">Latest</option><option value="popular">Popular</option><option value="price-low">Price Low to High</option><option value="price-high">Price High to Low</option></select></div><div id="gmkt-grid" class="gmkt-grid guidcy-panel-skeleton" aria-busy="true"></div></div></div>
-<div id="page-smart-finder" class="page">
+<div id="page-marketplace" class="page" role="main"><div class="gmkt-wrap"><section class="gmkt-hero"><div><h1>Marketplace</h1><p>Buy, download, and sell useful PDF notes on Guidcy. Sellers choose how many opening pages buyers can preview before purchase, then paid notes unlock full access after login and payment.</p><div class="gmkt-actions"><button class="btn btn-blue" onclick="GuidcyMarketplace.openUpload()">Sell Your Notes</button><button class="btn" onclick="GuidcyMarketplace.render()">Refresh Notes</button></div></div><div class="gmkt-panel"><b>Secure notes flow</b><p style="color:#64748B;line-height:1.6;margin:8px 0 0">Only PDFs up to 15 MB are accepted.</p></div></section><div class="gmkt-filters"><input id="gmkt-search" placeholder="Search notes, subject, exam..." oninput="GuidcyMarketplace.renderList()"><select id="gmkt-cat" onchange="GuidcyMarketplace.renderList()"><option value="all">All categories</option><option value="career">Career</option></select><select id="gmkt-price" onchange="GuidcyMarketplace.renderList()"><option value="all">Free / Paid / All</option><option value="free">Free</option><option value="paid">Paid</option></select><select id="gmkt-sort" onchange="GuidcyMarketplace.renderList()"><option value="latest">Latest</option><option value="popular">Popular</option><option value="price-low">Price Low to High</option><option value="price-high">Price High to Low</option></select></div><div id="gmkt-grid" class="gmkt-grid guidcy-panel-skeleton" aria-busy="true"></div></div></div>
+<div id="page-smart-finder" class="page" role="main">
     <div style="max-width:860px;margin:0 auto;padding:40px 16px 80px">
 
       <!-- Header -->
@@ -2379,7 +2387,7 @@
       <!-- Results area -->
       <div id="sf-results" style="margin-top:32px"></div>
     </div></div>
-<div id="page-blog" class="page"><div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1><div id="blog-list"></div></div></div>
+<div id="page-blog" class="page" role="main"><div class="guidcy-blog-wrap" style="max-width:1100px;margin:0 auto;padding:50px 28px"><h1 style="font-family:'Cormorant Garamond',serif;font-size:56px;font-weight:var(--font-weight-medium,500);line-height:1.05;margin-bottom:28px;color:var(--ink)">Guidcy Blog</h1><div id="blog-list"></div></div></div>
 
   <!-- Footer -->
   <div class="footer">
@@ -2390,7 +2398,7 @@
       </div>
       <div class="footer-col"><h4>Platform</h4><a href="/find-experts" onclick="go('browse');return false">Find Experts</a><a href="/find-jobs" onclick="go('jobs');return false">Find Jobs</a><a href="/marketplace" onclick="go('marketplace');return false">Marketplace Notes</a><a href="/webinars" onclick="go('webinar');return false">Webinars</a><a href="/funds-grants" onclick="go('opportunities');return false">Funds & Grants Finder</a><a href="/career-ai-finder" onclick="go('smart-finder');return false">Career & College AI Finder</a><a href="/blog" onclick="go('blog');return false">Guidcy Blog</a></div>
       <div class="footer-col"><h4>Company</h4><a href="/categories" onclick="go('categories');return false">All Categories</a><a href="/about" onclick="go('about');return false">About Us</a><a href="/careers" onclick="go('careers');return false">Careers</a><a href="/contact" onclick="go('contact');return false">Contact Us</a><a href="/help-center" onclick="go('help');return false">Help Centre</a><a href="/dispute-resolution" onclick="go('dispute');return false">Dispute Resolution</a></div>
-      <div class="footer-col"><h4>Legal</h4><a href="/terms" onclick="go('terms');return false">Terms & Conditions</a><a href="/privacy" onclick="go('privacy');return false">Privacy Policy</a><a href="/refund" onclick="go('refund');return false">Refund Policy</a><a href="/disclaimer" onclick="go('disclaimer');return false">Disclaimer</a></div>
+      <div class="footer-col"><h4>Legal</h4><button type="button" data-cookie-settings>Cookie settings</button><a href="/terms" onclick="go('terms');return false">Terms & Conditions</a><a href="/privacy" onclick="go('privacy');return false">Privacy Policy</a><a href="/refund" onclick="go('refund');return false">Refund Policy</a><a href="/disclaimer" onclick="go('disclaimer');return false">Disclaimer</a></div>
     </div>
     <div class="footer-bottom">
       <span>© 2026 Guidcy Technologies Pvt. Ltd. · Guidcy Hyderabad Office Near TCS Adibatla</span>

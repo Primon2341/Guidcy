@@ -54,8 +54,9 @@
     if (covers.has(url)) return covers.get(url);
     const pending = (async () => {
       const lib = await window.GuidcyMarketplace.loadPdfJs();
-      const pdf = await lib.getDocument({url, withCredentials:false}).promise;
+      const task = lib.getDocument({url, withCredentials:false,isEvalSupported:false});
       try {
+        const pdf = await task.promise;
         const page = await pdf.getPage(1);
         const base = page.getViewport({scale:1});
         const viewport = page.getViewport({scale:192 / base.width});
@@ -64,7 +65,7 @@
         canvas.height = Math.ceil(viewport.height);
         await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
         return canvas.toDataURL('image/jpeg', 0.85);
-      } finally { await pdf.destroy(); }
+      } finally { await task.destroy(); }
     })();
     covers.set(url, pending);
     if (covers.size > 32) covers.delete(covers.keys().next().value);
@@ -120,7 +121,7 @@
     return '<article class="gpr-card" data-resource-id="'+esc(n.id)+'">' +
       '<div class="gpr-cover"'+(preview ? ' data-resource-preview="'+esc(preview)+'"' : '')+'>' + (preview ? '<span class="gpr-preview-status">Loading preview…</span>' : cover ? '<img src="'+esc(cover)+'" alt="" width="96" height="120" loading="lazy" decoding="async">' : '<span class="gpr-preview-status">Preview unavailable</span>') + '</div>' +
       '<div class="gpr-body"><div class="gpr-category">'+esc(n.category || 'Resource')+'</div>' +
-      '<h4>'+esc(n.title)+'</h4><p class="gpr-description"><span class="gpr-description-text">'+esc(n.description || '')+'</span><button type="button" class="gpr-description-toggle" data-resource-action="description" aria-expanded="false" hidden>… View more</button></p>' +
+      '<h4><a class="guidcy-content-link" href="/marketplace/'+encodeURIComponent(n.id)+'">'+esc(n.title)+'</a></h4><p class="gpr-description"><span class="gpr-description-text">'+esc(n.description || '')+'</span><button type="button" class="gpr-description-toggle" data-resource-action="description" aria-expanded="false" hidden>… View more</button></p>' +
       '<div class="gpr-meta"><strong>'+esc(price)+'</strong>' +
       (n.downloads_count != null ? '<span>'+esc(Number(n.downloads_count) || 0)+' downloads</span>' : '') + '</div>' +
       '<div class="gpr-actions"><button type="button" class="btn" data-resource-action="details" data-resource-id="'+esc(n.id)+'">View Details</button>' +

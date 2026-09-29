@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
+    "pdfjs-dist": "6.3.289",
     "razorpay": "^2.9.8"
   },
   "devDependencies": {

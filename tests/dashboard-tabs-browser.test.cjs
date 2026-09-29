@@ -13,6 +13,7 @@ const fakeSupabase = vm.runInNewContext(fixtureSource.slice(fixtureStart, fixtur
 // Seed owned purchases and a seller listing so the regression verifies records,
 // not merely a successful-looking empty table.
 const dashboardSupabase=fakeSupabase
+ .replace("rpc:function(){return Promise.resolve({data:[],error:null})}","rpc:function(name){return Promise.resolve({data:name==='guidcy_is_admin'?window.__guidcyTestProfile?.role==='admin':[],error:null})}")
  .replace("uploader_name:'Test Seller',status:","uploader_id:'expert-profile',uploader_name:'Test Seller',status:")
  .replace("buyer_email:'user@example.com'","seller_id:'expert-profile',buyer_email:(window.__guidcyTestAuthUser?.email||'user@example.com')");
 const root = path.resolve(__dirname, '..', 'public');
@@ -51,7 +52,7 @@ const server = http.createServer((req, res) => {
   const titles={
    user:{upcoming:/upcoming sessions/i,goals:/goal tracker/i,history:/session history/i,saved:/saved consultants/i,payments:/payment history/i,notifications:/^notifications$/i,reviews:/my reviews/i,settings:/settings/i,marketplace:/purchased notes/i,'my-webinars':/my webinars/i,'notification-preferences':/notification preferences/i},
    consultant:{overview:/^overview$/i,requests:/booking requests/i,'my-bookings':/my bookings/i,'my-webinars':/my webinars/i,schedule:/availability|schedule/i,earnings:/^earnings$/i,reviews:/client reviews/i,webinars:/webinar history/i,notifications:/^notifications$/i,settings:/settings/i,marketplace:/my marketplace/i,'marketplace-purchases':/purchased notes/i,'notification-preferences':/notification preferences/i},
-   admin:{overview:/analytics|overview/i,consultants:/manage consultants/i,users:/users/i,bookings:/bookings/i,payments:/payment/i,support:/support tickets/i,disputes:/disputes/i,'marketing-strip':/moving consultant strip/i,webinars:/webinar history/i,'promo-codes':/promo codes/i,'referral-program':/referral program/i,'marketplace-payouts':/marketplace payouts/i,'webinar-payouts':/webinar payouts/i,'consultant-earnings':/consultant earnings/i,approvals:/approval requests/i,payouts:/consultant payouts/i,featured:/featured experts/i,marketplace:/^marketplace$/i,'webinar-registrations':/webinar registrations/i}
+   admin:{blog:/blog management/i,overview:/analytics|overview/i,consultants:/manage consultants/i,users:/users/i,bookings:/bookings/i,payments:/payment/i,support:/support tickets/i,disputes:/disputes/i,'marketing-strip':/moving consultant strip/i,webinars:/webinar history/i,'promo-codes':/promo codes/i,'referral-program':/referral program/i,'marketplace-payouts':/marketplace payouts/i,'webinar-payouts':/webinar payouts/i,'consultant-earnings':/consultant earnings/i,approvals:/approval requests/i,payouts:/consultant payouts/i,featured:/featured experts/i,marketplace:/^marketplace$/i,'webinar-registrations':/webinar registrations/i}
   };
   async function settled(tab){
     assert.ok(titles[role][tab],'explicit content expectation for '+role+' '+tab);
@@ -62,6 +63,7 @@ const server = http.createServer((req, res) => {
     },{main,tab,titlePattern:titles[role][tab].source},{timeout:10000}).catch(async e=>{console.log('FAIL',role,width,tab,await page.locator(main).innerText(),errors);throw e});
     const text=await page.locator(main).innerText();
     assert.doesNotMatch(text,/Unable to load|Could not load|temporarily unavailable|Please sign in/i,role+' '+tab+' must load successfully');
+    if(tab==='blog')assert.match(text,/Create article/);
     if(tab==='marketplace')assert.match(text,role==='consultant'?/My Marketplace[\s\S]*Sales & Payouts/:role==='user'?/My Purchased Notes[\s\S]*Purchased Test Notes/:/Marketplace/);
     if(tab==='marketplace'&&role==='consultant')assert.match(text,/Purchased Test Notes/);
     if(tab==='marketplace-purchases')assert.match(text,/My Purchased Notes[\s\S]*Purchased Test Notes/);

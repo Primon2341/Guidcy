@@ -141,3 +141,11 @@ module.exports = async function handler(req, res) {
     return res.status(500).end(JSON.stringify({ error: 'Server error while fetching jobs.', detail: error.message }));
   }
 };
+
+const protectedJobs = require('../lib/api-security').protect(module.exports, {scope:'jobs',limit:60,seconds:60});
+module.exports = function(req,res){
+  // Public HTML uses the anonymous catalog only and CDN caching. Keep existing
+  // job search/payment-related protections untouched.
+  if(req.query?.service==='seo')return require('../lib/seo-public').handler(req,res);
+  return protectedJobs(req,res);
+};

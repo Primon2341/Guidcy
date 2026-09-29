@@ -17,7 +17,7 @@ test('Vercel deployment stays within the Hobby 12-function limit', () => {
 test('/api/opportunities is preserved through the shared jobs function', () => {
   const vercel = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
   const jobs = fs.readFileSync(path.join(root, 'api', 'jobs.js'), 'utf8');
-  assert.deepEqual(vercel.routes[0], {
+  assert.deepEqual(vercel.routes.find(route => route.src === "/api/opportunities"), {
     src: '/api/opportunities',
     dest: '/api/jobs?service=opportunities',
   });

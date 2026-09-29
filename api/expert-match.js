@@ -423,3 +423,5 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'expert-match',limit:20,seconds:60});

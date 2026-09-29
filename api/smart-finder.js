@@ -302,3 +302,5 @@ Include 15-20 programs mixing Safe Pick, Good Fit, and Stretch Goal categories w
 
   return res.status(400).end(JSON.stringify({ error: 'mode must be "jobs" or "education"' }));
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'smart-finder',limit:20,seconds:60});

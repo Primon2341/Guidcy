@@ -12,29 +12,206 @@
     },
     "api/rag-ingest.js": {
       "maxDuration": 300
+    },
+    "api/jobs.js": {
+      "includeFiles": "public/{seo-template.html,seo-config.json}",
+      "maxDuration": 30
     }
   },
-  "headers": [
+  "routes": [
     {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600, stale-while-revalidate=86400"
-        }
-      ]
+      "src": "/(.*)",
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://*.razorpay.com https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://lsthngfxehayeqyctkla.supabase.co wss://lsthngfxehayeqyctkla.supabase.co https://*.razorpay.com https://*.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src https://*.razorpay.com https://accounts.google.com https://docs.google.com https://drive.google.com blob:; worker-src 'self' blob:; form-action 'self' https://*.razorpay.com; upgrade-insecure-requests"
+      },
+      "continue": true
     },
     {
-      "source": "/(.*\\.(?:png|jpg|jpeg|ico|webmanifest))",
-      "headers": [
+      "src": "/assets/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400"
+      },
+      "continue": true
+    },
+    {
+      "src": "/assets/(.*)",
+      "has": [
         {
-          "key": "Cache-Control",
-          "value": "public, max-age=2592000, stale-while-revalidate=86400"
+          "type": "query",
+          "key": "v",
+          "value": "[a-f0-9]{10}"
         }
-      ]
-    }
-  ],
-  "routes": [
+      ],
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*\\.(?:png|jpg|jpeg|ico|webmanifest))",
+      "headers": {
+        "Cache-Control": "public, max-age=2592000, stale-while-revalidate=86400"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "guidcy.com"
+        }
+      ],
+      "headers": {
+        "Location": "https://www.guidcy.com/$1"
+      },
+      "status": 308
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(?:index(?:\\.html)?|home)",
+      "headers": {
+        "Location": "/"
+      },
+      "status": 308
+    },
+    {
+      "src": "/browse",
+      "headers": {
+        "Location": "/find-experts"
+      },
+      "status": 308
+    },
+    {
+      "src": "/experts",
+      "headers": {
+        "Location": "/find-experts"
+      },
+      "status": 308
+    },
+    {
+      "src": "/consultants",
+      "headers": {
+        "Location": "/find-experts"
+      },
+      "status": 308
+    },
+    {
+      "src": "/jobs",
+      "headers": {
+        "Location": "/find-jobs"
+      },
+      "status": 308
+    },
+    {
+      "src": "/find-work",
+      "headers": {
+        "Location": "/careers"
+      },
+      "status": 308
+    },
+    {
+      "src": "/work",
+      "headers": {
+        "Location": "/careers"
+      },
+      "status": 308
+    },
+    {
+      "src": "/guidcy-work",
+      "headers": {
+        "Location": "/careers"
+      },
+      "status": 308
+    },
+    {
+      "src": "/webinar",
+      "headers": {
+        "Location": "/webinars"
+      },
+      "status": 308
+    },
+    {
+      "src": "/opportunities",
+      "headers": {
+        "Location": "/funds-grants"
+      },
+      "status": 308
+    },
+    {
+      "src": "/career-ai",
+      "headers": {
+        "Location": "/career-ai-finder"
+      },
+      "status": 308
+    },
+    {
+      "src": "/smart-finder",
+      "headers": {
+        "Location": "/career-ai-finder"
+      },
+      "status": 308
+    },
+    {
+      "src": "/help",
+      "headers": {
+        "Location": "/help-center"
+      },
+      "status": 308
+    },
+    {
+      "src": "/support",
+      "headers": {
+        "Location": "/help-center"
+      },
+      "status": 308
+    },
+    {
+      "src": "/dispute",
+      "headers": {
+        "Location": "/dispute-resolution"
+      },
+      "status": 308
+    },
+    {
+      "src": "/(?:seo-template\\.html|seo-config\\.json)",
+      "dest": "/404.html",
+      "status": 404
+    },
+    {
+      "src": "/blog(?:/([a-z0-9-]{1,100}))?",
+      "dest": "/api/jobs?service=seo&path=/blog/$1"
+    },
+    {
+      "src": "/sitemap.xml",
+      "dest": "/api/jobs?service=seo&path=/sitemap.xml"
+    },
+    {
+      "src": "/(consultant|marketplace|webinars|careers)/([a-zA-Z0-9_-]{1,100})",
+      "dest": "/api/jobs?service=seo&path=/$1/$2"
+    },
+    {
+      "src": "/api/(.*)",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
     {
       "src": "/api/opportunities",
       "dest": "/api/jobs?service=opportunities"
@@ -47,8 +224,25 @@
       "handle": "filesystem"
     },
     {
+      "src": "/(?:dashboard|user-dashboard|user-dash)(?:/.*)?",
+      "dest": "/dashboard/index.html"
+    },
+    {
+      "src": "/(?:consultant-dashboard|cons-dash)(?:/.*)?",
+      "dest": "/consultant-dashboard/index.html"
+    },
+    {
+      "src": "/(?:admin|admin-dashboard|admin-dash)(?:/.*)?",
+      "dest": "/admin-dashboard/index.html"
+    },
+    {
+      "src": "/book/[^/]+",
+      "dest": "/book/index.html"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/404.html",
+      "status": 404
     }
   ]
 }

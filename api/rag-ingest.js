@@ -111,3 +111,5 @@ module.exports = async function handler(req, res) {
     return json(res, e.status || 500, { error: e.message || 'Unable to ingest Guidcy knowledge.' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'rag-ingest',limit:5,seconds:300});

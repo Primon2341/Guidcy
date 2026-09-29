@@ -1362,7 +1362,7 @@ body.gmob-open{overflow:hidden}
 /* === guidcy-admin-dashboard-root-fix-css === */
 #page-admin-dash .dash-side{display:flex!important;flex-direction:column!important;height:100vh!important;max-height:100vh!important;position:sticky!important;top:0!important;overflow:hidden!important;}
   #page-admin-dash .side-nav{flex:1 1 auto!important;overflow-y:auto!important;padding-bottom:12px!important;}
-  #page-admin-dash .side-logout{flex:0 0 auto!important;position:sticky!important;bottom:0!important;background:var(--surface,#fff)!important;border-top:1px solid var(--border,#e5e7eb)!important;padding-top:10px!important;z-index:15!important;}
+  #page-admin-dash .side-logout{flex:0 0 auto!important;background:var(--surface,#fff)!important;border-top:1px solid var(--border,#e5e7eb)!important;padding-top:10px!important;}
   #page-admin-dash .guidcy-admin-bottom-actions{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;}
   #page-admin-dash .guidcy-admin-bottom-actions .side-btn{width:100%;}
   #guidcy-login-required-modal,.guidcy-login-required-modal{z-index:10080!important;}
@@ -3209,3 +3209,27 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 .gpw-year{padding:0 4px 9px;color:var(--muted);font-size:11px}
 @media(max-width:600px){.gpw-day{font-size:26px}.gpw-month{padding:5px 3px;font-size:10px}.gpw-year{padding-bottom:5px;font-size:10px}}
 #profile-webinars .gmkt-desc{margin-bottom:12px;min-height:0}
+
+/* Semantic headings and crawlable card links preserve their existing appearance. */
+.guidcy-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+h1.profile-name,h2.block-title{margin-top:0}
+a.guidcy-content-link{color:inherit;text-decoration:none}
+a.guidcy-content-link:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+a.nav-link,a.logo-wrap{text-decoration:none}
+a.nav-link{display:inline-flex;align-items:center;justify-content:center;text-align:center}
+
+/* Annual consultant availability editor. */
+.availability-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;max-width:1100px}.availability-layout h2{font-size:20px;margin-bottom:14px}.availability-hint{font-size:12px;color:var(--muted);line-height:1.7;margin:12px 0}.availability-enable{display:flex;align-items:center;gap:8px;font-size:14px}.availability-days{display:flex;flex-wrap:wrap;gap:12px;border:0;padding:12px 0}.availability-days legend{font-size:13px;padding-top:12px}.availability-days label{display:flex;align-items:center;gap:5px;font-size:13px}.availability-hours{display:flex;flex-wrap:wrap;gap:12px}.availability-hours label,.availability-calendar-nav label{display:grid;gap:6px;font-size:12px;min-width:0}.availability-hours input,.availability-hours select,.availability-calendar-nav input,.availability-calendar-nav select{padding:8px;border:1px solid var(--border);border-radius:var(--rs);background:#fff;color:var(--ink);min-width:0;max-width:100%}.availability-calendar-nav{display:flex;align-items:end;gap:8px;margin:20px 0 12px}.availability-calendar-nav input{width:90px}.availability-calendar-nav .btn{padding:8px 12px}.availability-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;font-size:11px;margin:8px 0}.availability-layout .year-calendar{grid-template-columns:repeat(7,minmax(0,1fr))!important;max-height:none;overflow:visible;gap:5px}.year-calendar .avail-date-card{font:inherit;min-width:0;padding:10px 2px;display:flex;flex-direction:column;gap:3px;align-items:center}.year-calendar .avail-date-card:disabled{opacity:.4;cursor:default}.year-calendar .avail-date-count{font-size:9px}.year-calendar .avail-date-num{font-size:22px}.availability-date-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.availability-layout #recurring-availability{border:1px solid var(--border);border-radius:var(--rs);padding:18px;background:#fff}.availability-layout #availability-status{font-size:13px;line-height:1.6;margin-top:12px}@media(max-width:900px){.availability-layout{grid-template-columns:minmax(0,1fr)}.availability-hours label{flex:1;min-width:90px}.availability-calendar-nav{gap:5px}.availability-calendar-nav label{flex:1}.availability-calendar-nav input{width:100%}.year-calendar .avail-date-num{font-size:18px}}
+/* Public booking calendar: one month at a time, with bounded time-slot scrolling. */
+#booking-calendar .booking-month-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 12px;font-size:14px;font-weight:600}
+#booking-calendar .booking-month-nav .btn{padding:8px 12px;min-height:40px}
+#booking-calendar .booking-weekdays,#booking-calendar .booking-date-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+#booking-calendar .booking-weekdays{font-size:10px;color:var(--muted);margin-bottom:6px}
+#booking-calendar .date-btn{font:inherit;min-width:0!important;width:100%;min-height:40px;padding:7px 1px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:6px;cursor:pointer}
+#booking-calendar .date-btn .dnum{font-size:14px}
+#booking-calendar .date-btn.sel{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d)}
+#booking-calendar .date-btn:disabled{opacity:.35;cursor:default}
+#booking-calendar button:focus-visible,#avail-slots-container:focus-visible,#avail-slots-container button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#profile-layout #avail-slots-container{max-height:200px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:3px}
+#avail-slots-container .avail-slots-row{flex-shrink:0}
+#avail-slots-container .avail-slot{font-family:inherit;min-height:36px}

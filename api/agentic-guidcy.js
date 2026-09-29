@@ -825,6 +825,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = await readBody(req);
+    body.user_id = req.headers.authorization ? (await require('../lib/razorpay-utils').getAuthenticatedUser(req)).id : null;
     if (body.action === 'track' || body.event_type) return json(res, 200, await trackEvent(body));
     const form = {
       goal: clean(body.goal || body.query || body.question || '', 1200),
@@ -864,3 +865,5 @@ module.exports = async function handler(req, res) {
     });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'agentic-guidcy',limit:20,seconds:60});

@@ -1,3 +1,5 @@
+const { getAuthenticatedUser } = require('../lib/razorpay-utils');
+const { paymentOwner } = require('../lib/api-security');
 const {
   clean,
   json,
@@ -8,7 +10,6 @@ const {
   moneyToPaise,
   isFulfilled,
   createRazorpayOrder,
-  createRawRazorpayOrder,
   patchById,
 } = require('../lib/razorpay-utils');
 
@@ -16,7 +17,7 @@ function appReference(body) {
   return clean(body.referenceId || body.bookingId || body.registrationId || body.orderId || body.ref || body.id, 120);
 }
 
-async function createGuidcyFlowOrder(body) {
+async function createGuidcyFlowOrder(body, req, user) {
   const cfg = getRazorpayConfig();
   const flow = clean(body.flow || 'booking', 40).toLowerCase();
   if (!['booking', 'webinar', 'marketplace'].includes(flow)) throw Object.assign(new Error('Invalid payment flow'), { status: 400 });
@@ -25,6 +26,7 @@ async function createGuidcyFlowOrder(body) {
 
   const row = await loadPaymentRecord(flow, referenceId);
   if (!row) throw Object.assign(new Error('Payment reference not found'), { status: 404 });
+  await paymentOwner(req, flow, row, user);
   if (isFulfilled(flow, row)) {
     return { ok: true, alreadyPaid: true, keyId: cfg.keyId, flow, referenceId, row };
   }
@@ -65,20 +67,13 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   try {
+    const user = await getAuthenticatedUser(req);
     const body = await readBody(req);
     if (body.flow || appReference(body)) {
-      const data = await createGuidcyFlowOrder(body);
+      const data = await createGuidcyFlowOrder(body, req, user);
       return json(res, 200, data);
     }
-    const amount = Number(body.amount);
-    const currency = clean(body.currency || 'INR', 3).toUpperCase() || 'INR';
-    const receipt = clean(body.receipt || `guidcy-${Date.now()}`, 40);
-    const order = await createRawRazorpayOrder({ amount, currency, receipt });
-    return json(res, 200, {
-      order_id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-    });
+    return json(res, 400, { error: 'A Guidcy payment reference is required' });
   } catch (error) {
     console.error('Razorpay standard create-order error:', error);
     const message = error.message || 'Unable to create Razorpay order';
@@ -86,3 +81,5 @@ module.exports = async function handler(req, res) {
     return json(res, status, { error: message });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'create-order',limit:60,seconds:60});

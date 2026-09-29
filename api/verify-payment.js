@@ -1,3 +1,4 @@
+const { paymentOwner } = require('../lib/api-security');
 const {
   clean,
   json,
@@ -81,6 +82,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   try {
+    const actor = await getAuthenticatedUser(req);
     const body = await readBody(req);
     if (body.action === 'refund_booking') {
       const refundResult = await refundBookingRequest(req, body);
@@ -94,6 +96,7 @@ module.exports = async function handler(req, res) {
       if (flow === 'webinar' && body.free === true) {
         const row = await loadPaymentRecord(flow, referenceId);
         if (!row) return json(res, 404, { error: 'Webinar registration not found' });
+        await paymentOwner(req, flow, row, actor);
         const amount = await authoritativeAmount(flow, row);
         if (moneyToPaise(amount) > 0) return json(res, 400, { error: 'Payment is required for this webinar' });
         const patched = await patchById(flow, row.id, {
@@ -155,6 +158,7 @@ module.exports = async function handler(req, res) {
 
       const row = await loadPaymentRecord(flow, referenceId, orderId);
       if (!row) return json(res, 404, { error: 'Payment reference not found' });
+      await paymentOwner(req, flow, row, actor);
       if (!row.razorpay_order_id || row.razorpay_order_id !== orderId) return json(res, 400, { error: 'Razorpay order does not match the stored payment reference' });
 
       if (isFulfilled(flow, row)) {
@@ -165,14 +169,6 @@ module.exports = async function handler(req, res) {
       }
 
       if (!verifyPaymentSignature({ orderId: row.razorpay_order_id, paymentId, signature })) {
-        await patchById(flow, row.id, {
-          payment_gateway: 'razorpay',
-          payment_status: 'failed',
-          razorpay_status: 'signature_failed',
-          payment_verified: false,
-          payment_response: { error: 'signature_failed', razorpay_order_id: orderId, razorpay_payment_id: paymentId },
-          updated_at: new Date().toISOString(),
-        });
         return json(res, 400, { error: 'Invalid Razorpay payment signature' });
       }
 
@@ -190,7 +186,7 @@ module.exports = async function handler(req, res) {
         return json(res, 400, { error: 'Razorpay payment amount or order mismatch' });
       }
 
-      if (!['captured', 'authorized'].includes(clean(payment.status).toLowerCase())) {
+      if (clean(payment.status).toLowerCase() !== 'captured') {
         await patchById(flow, row.id, {
           payment_gateway: 'razorpay',
           payment_status: 'failed',
@@ -217,17 +213,11 @@ module.exports = async function handler(req, res) {
         order: flow === 'marketplace' ? patched : null,
       });
     }
-    const orderId = clean(body.razorpay_order_id || body.order_id, 120);
-    const paymentId = clean(body.razorpay_payment_id || body.payment_id, 120);
-    const signature = clean(body.razorpay_signature, 256);
-    if (!orderId || !paymentId || !signature) {
-      return json(res, 400, { success: false, error: 'razorpay_order_id, razorpay_payment_id and razorpay_signature are required' });
-    }
-    const verified = verifyPaymentSignature({ orderId, paymentId, signature });
-    if (!verified) return json(res, 400, { success: false, error: 'Invalid Razorpay payment signature' });
-    return json(res, 200, { success: true, verified: true });
+    return json(res, 400, { success: false, error: 'A Guidcy payment reference is required' });
   } catch (error) {
     console.error('Razorpay standard verify-payment error:', error);
     return json(res, error.status || 500, { success: false, error: error.message || 'Payment verification failed' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'verify-payment',limit:60,seconds:60});

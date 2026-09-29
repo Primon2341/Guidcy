@@ -75,6 +75,7 @@ module.exports = async function handler(req, res) {
 
     const bookingId = clean(body.bookingId || body.booking_id || '', 120);
 
+    if (!bookingId) return json(res, 400, { error: 'A saved booking is required' });
     let row = null;
     if (bookingId) {
       row = await loadPaymentRecord('booking', bookingId);
@@ -88,6 +89,7 @@ module.exports = async function handler(req, res) {
       if (String(row.status || '').toLowerCase() === 'cancelled' || String(row.session_status || '').toLowerCase() === 'cancelled') {
         return json(res, 409, { error: 'A meeting cannot be created for a cancelled booking' });
       }
+      if (row.payment_verified !== true || row.payment_status !== 'success') return json(res, 403, { error: 'A verified booking is required' });
       if (isMeetLink(row.meet_link)) {
         return json(res, 200, {
           ok: true,
@@ -102,14 +104,13 @@ module.exports = async function handler(req, res) {
     const consultantName = clean(body.consultantName || (row && row.consultant_name) || 'Consultant', 160);
     const created = await createMeetLink({
       summary: `Guidcy Session — ${consultantName}`,
-      dateLabel: clean(body.dateLabel || (row && row.date_label) || '', 60),
-      timeSlot: clean(body.timeSlot || (row && row.time_slot) || '', 40),
-      duration: Number(body.duration || (row && row.duration) || 60),
+      dateLabel: clean((row && row.date_label) || '', 60),
+      timeSlot: clean((row && row.time_slot) || '', 40),
+      duration: Number((row && row.duration) || 60),
       attendees: [
         user.email,
         row && row.user_email,
         row && row.consultant_email,
-        body.consultantEmail,
       ],
     });
 
@@ -136,3 +137,5 @@ module.exports = async function handler(req, res) {
     return json(res, error.status || 500, { error: error.message || 'Meeting link could not be created' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'create-meet-link',limit:60,seconds:60});

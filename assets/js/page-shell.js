@@ -6,7 +6,7 @@
  var pathTabs={"/dashboard/webinars":"my-webinars","/dashboard/my-webinars":"my-webinars","/dashboard/payments":"payments","/dashboard/history":"history","/dashboard/profile":"settings","/dashboard/settings":"settings","/dashboard/upcoming":"upcoming","/dashboard/saved":"saved","/dashboard/marketplace":"marketplace","/consultant-dashboard/webinars":"my-webinars","/consultant-dashboard/my-webinars":"my-webinars","/consultant-dashboard/profile":"settings","/consultant-dashboard/settings":"settings","/consultant-dashboard/earnings":"earnings","/consultant-dashboard/history":"webinar-history","/consultant-dashboard/schedule":"schedule","/consultant-dashboard/requests":"requests","/consultant-dashboard/marketplace":"marketplace","/admin-dashboard/webinars":"webinars","/admin-dashboard/users":"users","/admin-dashboard/payments":"payments","/admin-dashboard/bookings":"bookings","/admin-dashboard/analytics":"overview","/admin-dashboard/marketplace":"marketplace","/admin-dashboard/webinar-registrations":"webinar-registrations"};
  window.guidcyDashboardPathTab=function(path){return pathTabs[String(path||'').replace(/\/$/,'')]||''};
  var KEY='guidcy:refresh:v1',TTL=10*60*1000,LIMIT=900000;
- var regions=['adash-main','cdash-main','udash-main','browse-grid','cats-full-grid','cons-grid','cons-rec-grid','reviews-grid','wbn-regs-list','gmkt-grid','gc-list','jobs-main-area','sf-results','opp-results','profile-layout','blog-list','home-trust-strip'];
+ var regions=['adash-main','cdash-main','udash-main','browse-grid','cats-full-grid','cons-grid','cons-rec-grid','reviews-grid','wbn-regs-list','gmkt-grid','gc-list','jobs-main-area','sf-results','opp-results','profile-layout','home-trust-strip'];
  var controls=['job-q','job-loc','job-source','job-salary','job-exp','job-filter-loc','job-sector','gmkt-search','gmkt-cat','gmkt-price','gmkt-sort'];
  var identity=['udash-name','cdash-name','udash-av','cdash-av','adash-av'];
  var route=function(){return location.pathname+location.search};
@@ -101,7 +101,7 @@
    if(!page||!window.__guidcyAuthReadyFired||window.__guidcySignedOut)return;
    var id=page.id.replace('page-','');
    // Payment, confirmation, meeting and auth forms always use their live flow.
-   if(['login','signup','payment','confirm','meeting','review'].indexOf(id)>=0)return;
+   if(['login','signup','payment','confirm','meeting','review','blog'].indexOf(id)>=0||page.querySelector('#blog-editor,#blog-admin-list'))return;
    var uid=owner(),isPrivate=/-dash$/.test(id);
    if(isPrivate&&(!uid||!window.currentUser||window.currentUser.id!==uid))return;
    var cache=read(),previous=cache[route()];
@@ -135,6 +135,7 @@
   window.guidcyRestorePublicWebinars();
   var cache=read(),entry=cache[bootRoute],uid=owner();
   if(!entry||entry.uid!==uid||Date.now()-entry.at>TTL)return;
+  if(entry.page==='blog'||/[?&]tab=blog(?:&|$)/.test(bootRoute))return;
   if(!/^[a-z-]+$/.test(entry.page))return;
   window.__guidcyRestoredOwner=entry.uid;
   var page=document.getElementById('page-'+entry.page);

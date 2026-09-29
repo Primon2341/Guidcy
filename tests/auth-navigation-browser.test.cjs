@@ -59,8 +59,9 @@ const server = http.createServer((req, res) => {
  for (const width of [390, 1280]) for (const role of ['user', 'consultant', 'admin']) {
  const context = await browser.newContext({ viewport: { width, height: 850 } });
  await context.addInitScript(role => {
+ localStorage.setItem('guidcy_cookie_consent_v1',JSON.stringify({version:1,analytics:false,savedAt:Date.now()}));
  const id = role === 'consultant' ? 'expert-profile' : role === 'admin' ? 'test-admin' : 'test-user';
- const email = role === 'consultant' ? 'expert@example.com' : role === 'admin' ? 'admin@example.com' : 'user@example.com';
+ const email = role === 'consultant' ? 'guidcytechnologies@gmail.com' : role === 'admin' ? 'admin@example.com' : 'user@example.com';
  window.__guidcyTestAuthUser = { id, email, user_metadata: { full_name: 'Test ' + role, role } };
  window.__guidcyTestProfile = { id, email, full_name: 'Test ' + role, role };
  window.__routeTestLog = [];

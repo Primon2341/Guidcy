@@ -165,6 +165,15 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
+  // Only trusted server jobs may supply recipients; browser requests use the
+  // API's persisted-event authorization and rate limit.
+  if (!serviceRole || req.headers.get("authorization") !== `Bearer ${serviceRole}`) {
+    const response = await fetch("https://www.guidcy.com/api/send-guidcy-email", {
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": req.headers.get("authorization") || "" },
+      body: await req.text(), redirect: "error",
+    });
+    return new Response(await response.text(), { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
   const resendKey = Deno.env.get("RESEND_API_KEY") || "";
   const from = Deno.env.get("RESEND_FROM_EMAIL") || "Guidcy <notifications@guidcy.com>";
   const siteUrl = Deno.env.get("SITE_URL") || "https://www.guidcy.com";

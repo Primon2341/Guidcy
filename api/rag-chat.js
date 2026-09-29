@@ -180,3 +180,5 @@ module.exports = async function handler(req, res) {
     return json(res, status, { error: e.message || 'Unable to answer with Guidcy AI.' });
   }
 };
+
+module.exports = require('../lib/api-security').protect(module.exports, {scope:'rag-chat',limit:20,seconds:60});

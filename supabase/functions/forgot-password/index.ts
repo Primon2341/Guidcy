@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 const DEFAULT_SITE_URL = "https://www.guidcy.com";
-const recentRequests = new Map<string, number>();
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -38,10 +37,7 @@ function safeRedirect(value: unknown) {
   const fallback = `${DEFAULT_SITE_URL}/login`;
   try {
     const url = new URL(clean(value, 500) || fallback);
-    const hostname = url.hostname.toLowerCase();
-    const allowed = hostname === "guidcy.com" || hostname === "www.guidcy.com" ||
-      hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".vercel.app");
-    return allowed && /^https?:$/.test(url.protocol) ? url.href : fallback;
+    return url.origin === new URL(DEFAULT_SITE_URL).origin && url.protocol === "https:" ? url.href : fallback;
   } catch (_) {
     return fallback;
   }
@@ -129,12 +125,14 @@ Deno.serve(async (req: Request) => {
   const email = validEmail(payload.email);
   if (!email) return json(400, { ok: false, error: "Enter a valid email address" });
 
-  const now = Date.now();
-  const previous = recentRequests.get(email) || 0;
-  if (now - previous < 60_000) {
-    return json(429, { ok: false, error: "Please wait a minute before requesting another reset link." });
-  }
-  recentRequests.set(email, now);
+  const keyBytes = await crypto.subtle.digest("SHA-256",new TextEncoder().encode("recovery:"+email));
+  const key=Array.from(new Uint8Array(keyBytes),x=>x.toString(16).padStart(2,"0")).join("");
+  const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const limited=await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/guidcy_rate_limit`,{
+    method:"POST",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Content-Type":"application/json"},
+    body:JSON.stringify({p_key:key,p_limit:3,p_seconds:900}),
+  });
+  if(!limited.ok || await limited.json()!==true)return json(429,{ok:false,error:"Please try again later."});
 
   try {
     const actionLink = await generateRecoveryLink(email, safeRedirect(payload.redirectTo));
@@ -143,14 +141,7 @@ Deno.serve(async (req: Request) => {
     await sendRecoveryEmail(email, actionLink);
     return json(200, { ok: true });
   } catch (error) {
-    const detail = clean(error instanceof Error ? error.message : error, 300);
-    console.error("Password recovery failed", detail);
-    if (/only send testing emails|verify a domain|domain.*not verified/i.test(detail)) {
-      return json(503, { ok: false, code: "resend_domain_unverified", error: "Guidcy's Resend sending domain is not verified yet." });
-    }
-    if (/RESEND_API_KEY is not configured/i.test(detail)) {
-      return json(503, { ok: false, code: "resend_not_configured", error: "Guidcy's Resend email service is not configured." });
-    }
-    return json(502, { ok: false, error: "Could not deliver the reset email. Please try again shortly." });
+    console.error("Password recovery failed");
+    return json(200, { ok: true });
   }
 });
