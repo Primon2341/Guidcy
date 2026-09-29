@@ -10,20 +10,40 @@
     m=s.match(/^(\d{2}):(\d{2})$/);return m&&+m[1]<24&&+m[2]<60?+m[1]*60 + +m[2]:null;
   }
   function label(n){return (Math.floor(n/60)%12||12)+':'+String(n%60).padStart(2,'0')+(n<720?' AM':' PM')}
+  function validateHours(hours){
+    const start=minutes(hours?.start),end=minutes(hours?.end);
+    if(!/^\d{2}:\d{2}$/.test(hours?.start)||!/^\d{2}:\d{2}$/.test(hours?.end)||start===null||end===null||end<=start)throw new Error('Choose an end time after the start time.');
+    if(end-start<30)throw new Error('Working hours must span at least 30 minutes.');
+    return hours;
+  }
   function validate(rule){
-    if(!rule||typeof rule.enabled!=='boolean'||!Array.isArray(rule.days)||rule.days.length>7||new Set(rule.days).size!==rule.days.length||rule.days.some(d=>!Number.isInteger(d)||d<0||d>6))throw new Error('Choose valid working days.');
+    if(!rule||typeof rule.enabled!=='boolean'||![30,60].includes(rule.interval))throw new Error('Choose a valid schedule and a 30 or 60 minute slot interval.');
+    if(Object.hasOwn(rule,'weekly')){
+      if(!Array.isArray(rule.weekly)||rule.weekly.length!==7)throw new Error('Provide a schedule for each day of the week.');
+      rule.weekly.forEach((hours,i)=>{if(hours!==null)try{validateHours(hours)}catch(error){throw new Error(days[i]+': '+error.message)}});
+      return rule;
+    }
+    if(!Array.isArray(rule.days)||rule.days.length>7||new Set(rule.days).size!==rule.days.length||rule.days.some(d=>!Number.isInteger(d)||d<0||d>6))throw new Error('Choose valid working days.');
     const start=minutes(rule.start),end=minutes(rule.end);
     if(!/^\d{2}:\d{2}$/.test(rule.start)||!/^\d{2}:\d{2}$/.test(rule.end)||start===null||end===null||end<=start||![30,60].includes(rule.interval))throw new Error('Choose an end time after the start time and a 30 or 60 minute slot interval.');
     if(rule.enabled&&(!rule.days.length||end-start<30))throw new Error('Choose at least one working day and a window of at least 30 minutes.');
     return rule;
+  }
+  function weeklyRule(rule){
+    validate(rule);
+    return {enabled:rule.enabled,interval:rule.interval,weekly:days.map((_,i)=>{
+      const hours=rule.weekly?rule.weekly[i]:(rule.days.includes(i)?rule:null);
+      return hours?{start:hours.start,end:hours.end}:null;
+    })};
   }
   function slots(key,overrides={},rule=null,duration=60){
     const d=date(key);if(!d)return [];
     if(Object.hasOwn(overrides,key))return [...new Set((Array.isArray(overrides[key])?overrides[key]:[]).filter(s=>minutes(s)!==null))].sort((a,b)=>minutes(a)-minutes(b));
     if(!rule?.enabled)return [];
     try{validate(rule)}catch(_){return []}
-    if(!rule.days.includes(d.getUTCDay()))return [];
-    const out=[],end=minutes(rule.end);for(let n=minutes(rule.start);n+duration<=end;n+=rule.interval)out.push(label(n));return out;
+    const hours=rule.weekly?rule.weekly[d.getUTCDay()]:(rule.days.includes(d.getUTCDay())?rule:null);
+    if(!hours)return [];
+    const out=[],end=minutes(hours.end);for(let n=minutes(hours.start);n+duration<=end;n+=rule.interval)out.push(label(n));return out;
   }
   function calendarDates(now=new Date(),months=[]){
     const start=today(now),end=date(start);end.setUTCFullYear(end.getUTCFullYear()+1);
@@ -45,5 +65,5 @@
     for(const key of [...keys].sort()){if(key<start||!date(key))continue;const list=slots(key,overrides,rule,duration);if(list.length)out[key]=list;}
     return out;
   }
-  return {days,today,date,minutes,label,validate,slots,calendarDates,resolve};
+  return {days,today,date,minutes,label,validateHours,validate,weeklyRule,slots,calendarDates,resolve};
 });

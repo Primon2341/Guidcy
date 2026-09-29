@@ -15,12 +15,20 @@ begin
     raise exception 'Invalid hours accepted';
   exception when check_violation then null; end;
   if public.guidcy_valid_recurring_availability('{"enabled":true,"days":[1,1],"start":"18:00","end":"21:00","interval":60}') or public.guidcy_valid_recurring_availability('{"enabled":true,"days":[7],"start":"18:00","end":"21:00","interval":60}') then raise exception 'Invalid days accepted'; end if;
+  update public.consultants set recurring_availability='{"enabled":true,"interval":60,"weekly":[{"start":"10:00","end":"18:00"},{"start":"19:00","end":"22:00"},{"start":"19:00","end":"22:00"},null,{"start":"19:00","end":"22:00"},{"start":"19:00","end":"22:00"},{"start":"10:00","end":"18:00"}]}' where id=current_setting('guidcy.test_consultant')::uuid;
+  if not exists(select 1 from public.guidcy_consultants where id=current_setting('guidcy.test_consultant')::uuid and recurring_availability->'weekly'->3='null'::jsonb and availability_map->'2027-01-04'='[]'::jsonb) then raise exception 'Weekly hours lost date overrides'; end if;
+  begin
+    update public.consultants set recurring_availability=jsonb_set(recurring_availability,'{weekly,1,end}','"18:00"') where id=current_setting('guidcy.test_consultant')::uuid;
+    raise exception 'Invalid weekday hours accepted';
+  exception when check_violation then null; end;
+  if public.guidcy_valid_recurring_availability('{"enabled":true,"interval":60,"weekly":[]}') or public.guidcy_valid_recurring_availability('{"enabled":true,"interval":60,"weekly":[null,null,null,null,null,null,{}]}') or public.guidcy_valid_recurring_availability('{"enabled":true,"weekly":[null,null,null,null,null,null,null]}') then raise exception 'Malformed weekly rule accepted'; end if;
+  if not public.guidcy_valid_recurring_availability('{"enabled":true,"interval":60,"weekly":[null,null,null,null,null,null,null]}') then raise exception 'All days unavailable rejected'; end if;
 end $$;
 reset role;
 select set_config('request.jwt.claims','{"role":"anon"}',true);
 set local role anon;
 do $$ begin
-  if not exists(select 1 from public.guidcy_consultants where id=current_setting('guidcy.test_consultant')::uuid and recurring_availability->>'enabled'='true') then raise exception 'Public directory lost recurring hours'; end if;
+  if not exists(select 1 from public.guidcy_consultants where id=current_setting('guidcy.test_consultant')::uuid and recurring_availability->>'enabled'='true' and recurring_availability->'weekly'->0->>'start'='10:00') then raise exception 'Public directory lost recurring hours'; end if;
 end $$;
 reset role;
 select set_config('request.jwt.claims',jsonb_build_object('sub',gen_random_uuid(),'role','authenticated')::text,true);

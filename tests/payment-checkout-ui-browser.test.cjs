@@ -95,13 +95,14 @@ async function waitForUrlTab(page, tab) {
           }).filter(Boolean);
           if (clauses.length) filtered = filtered.filter(row => clauses.some(clause => String(row && row[clause.field]) === clause.value));
         }
-        const limit = Number(requestUrl.searchParams.get('limit'));
+        const limit = requestUrl.searchParams.has('limit') ? Number(requestUrl.searchParams.get('limit')) : NaN;
         return Number.isFinite(limit) && limit >= 0 ? filtered.slice(0, limit) : filtered;
       }
 
       window.fetch = async function(input, init) {
         const url = typeof input === 'string' ? input : input.url;
-        const body = (() => { try { return JSON.parse(init && init.body || '{}'); } catch (_) { return {}; } })();
+        const request = new Request(input instanceof Request ? input : new URL(input, location.href), init);
+        const body = await request.clone().json().catch(() => ({}));
 
         if (/\/api\/create-order(?:\?|$)/.test(url)) {
           window.__guidcyPaymentEvents.push({type: 'create-order', bookingId: body.bookingId});
@@ -143,8 +144,8 @@ async function waitForUrlTab(page, tab) {
         }
         const requestUrl = new URL(url, location.href);
         if (requestUrl.hostname.endsWith('.supabase.co') && requestUrl.pathname.startsWith('/rest/v1/')) {
-          const table = decodeURIComponent(requestUrl.pathname.slice('/rest/v1/'.length));
-          const method = String(init && init.method || 'GET').toUpperCase();
+          const table = decodeURIComponent(requestUrl.pathname.slice('/rest/v1/'.length)).replace(/^guidcy_/, '');
+          const method = request.method;
           const sourceRows = restRows(table);
           const matchingRows = filterRestRows(sourceRows, requestUrl);
           if (method === 'GET' || method === 'HEAD') return response(method === 'HEAD' ? null : matchingRows);
@@ -261,6 +262,7 @@ async function waitForUrlTab(page, tab) {
     await page.waitForFunction(()=>window.lastBooking?.payment_verified&&window.lastBooking?.meet_link);
     await page.waitForFunction(()=>window.__guidcyPaymentEvents.some(e=>e.type==='email'));
     const result=await page.evaluate(()=>({booking:window.lastBooking,events:window.__guidcyPaymentEvents,confirmed:[...document.querySelectorAll('#page-payment .step-circle')].every(n=>n.classList.contains('done'))}));
+    assert.ok(result.booking.id, 'verified payment retains its saved booking reference');
     const index=type=>result.events.findIndex(e=>e.type===type);
     assert.ok(index('create-order')>=0&&index('razorpay-opened')>index('create-order')&&index('verify-payment')>index('razorpay-opened'));
     assert.ok(index('calendar-created')>index('verify-payment')&&index('email')>index('calendar-created'));
@@ -280,5 +282,8 @@ async function waitForUrlTab(page, tab) {
     }
     assert.deepEqual(pageErrors,[]);
     console.log('Cancellation, checkout failure, rejected verification, dynamic values and 320–1365px layouts passed');
+  }catch(error){
+    console.error('checkout diagnostics', JSON.stringify({pageErrors,consoleErrors,apiFailures,responseErrors,state:await page.evaluate(()=>({events:window.__guidcyPaymentEvents,status:document.querySelector('#guidcy-payment-status')?.textContent,booking:window.lastBooking}))}));
+    throw error;
   }finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
 })().catch(error=>{console.error(error);process.exitCode=1});

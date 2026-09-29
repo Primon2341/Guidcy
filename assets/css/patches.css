@@ -3166,6 +3166,7 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 }
 
 /* Keep checkout labels intact; long webinar titles wrap within their value column. */
+#page-payment .pay-wrap:has(.pay-webinar-summary){width:min(100%,560px);max-width:560px}
 #page-payment .pay-webinar-summary .pay-sum-row{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:start;gap:16px}
 #page-payment .pay-webinar-label{white-space:nowrap;color:var(--muted);font-weight:var(--font-weight-regular)}
 #page-payment .pay-webinar-value{min-width:0;overflow-wrap:anywhere;text-align:right;font-weight:var(--font-weight-semibold)}
@@ -3233,3 +3234,13 @@ a.nav-link{display:inline-flex;align-items:center;justify-content:center;text-al
 #profile-layout #avail-slots-container{max-height:200px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:3px}
 #avail-slots-container .avail-slots-row{flex-shrink:0}
 #avail-slots-container .avail-slot{font-family:inherit;min-height:36px}
+/* Day-specific recurring hours reuse the availability form controls. */
+.recurring-day-row{display:grid;grid-template-columns:minmax(100px,1.2fr) repeat(2,minmax(0,1fr));gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.recurring-day-row>label,.recurring-copy>label{display:grid;gap:5px;font-size:12px;min-width:0}
+.recurring-day-row .availability-enable{font-size:13px;gap:5px}
+.recurring-day-row .availability-hint{font-size:11px;margin:4px 0 0;display:block}
+.recurring-day-row input[type=time],.recurring-copy select{box-sizing:border-box;width:100%;min-width:0;padding:8px 4px;border:1px solid var(--border);border-radius:var(--rs);background:#fff;color:var(--ink);font:inherit}
+.recurring-day-row input:disabled{background:var(--surface2);color:var(--muted)}
+.recurring-copy{margin:16px 0;border:1px solid var(--border);border-radius:var(--rs);padding:12px}
+.recurring-copy summary{font-size:13px;cursor:pointer}.recurring-copy[open] summary{margin-bottom:12px}
+@media(max-width:430px){.recurring-day-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.recurring-day-row>div{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}.recurring-day-row .availability-hint{margin:0}}

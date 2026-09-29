@@ -247,7 +247,11 @@
       payment_verified: !paid,
       is_deleted: false
     };
-    if (existing && existing.id) return updateRegistration(existing.id, patch);
+    // Retrying reuses the server-owned order and payment state. Only attendee
+    // details are client-editable; resetting financial fields is rejected by RLS.
+    if (existing && existing.id) return updateRegistration(existing.id, {
+      name: details.name, phone: details.phone, role: details.role, goal: details.goal
+    });
     var database = client();
     var row = Object.assign({
       id: 'REG-' + Date.now() + '-' + Math.floor(Math.random() * 100000),
@@ -522,21 +526,6 @@
     ensurePaymentPage();
   };
 
-  async function markUnsuccessfulRegistration(state, status) {
-    if (!state || !state.registration || !state.registration.id) return;
-    try {
-      state.registration = await updateRegistration(state.registration.id, {
-        payment_status: status,
-        registration_status: status === 'cancelled' ? 'cancelled' : 'payment_failed',
-        payment_verified: false,
-        razorpay_status: status
-      });
-      savePaymentState(state);
-    } catch (error) {
-      console.warn('Unable to persist unsuccessful webinar payment state:', error);
-    }
-  }
-
   async function startWebinarPayment() {
     var state = paymentState();
     if (!state || !state.webinar || !state.registration) {
@@ -626,10 +615,10 @@
       window.__guidcyPaymentFlowLock = false;
       ensurePaymentPage();
       if (error && error.cancelled) {
-        await markUnsuccessfulRegistration(state, 'cancelled');
+        // Dismissing checkout does not establish the provider's payment state.
+        // Keep the unpaid server record intact so the same order can be retried.
         setPaymentStatus('cancelled', 'Payment cancelled', 'The webinar registration was not confirmed or marked as paid. You can retry from this page.');
       } else {
-        if (!checkoutCompleted) await markUnsuccessfulRegistration(state, 'failed');
         setPaymentStatus('error', checkoutCompleted ? 'Payment verification incomplete' : 'Payment failed', (error && error.message) || 'The webinar registration was not confirmed.');
       }
       toast(error && error.cancelled ? 'Payment cancelled. Registration was not confirmed.' : ((error && error.message) || 'Unable to complete webinar payment.'), error && error.cancelled ? 'blue' : 'red');

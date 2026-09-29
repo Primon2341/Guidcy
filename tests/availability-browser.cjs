@@ -14,6 +14,7 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
  for(const width of [390,1280]){
   const context=await browser.newContext({viewport:{width,height:900}});
   await context.addInitScript(()=>{
+   if(!localStorage.getItem('__availability'))localStorage.setItem('__availability',JSON.stringify({recurring_availability:{enabled:false,days:[1,2,3,4,5],start:'18:00',end:'21:00',interval:60}}));
    window.__guidcyTestAuthUser={id:'expert-profile',email:'expert@example.com',user_metadata:{full_name:'Test Expert',role:'consultant'}};
    window.__guidcyTestProfile={id:'expert-profile',email:'expert@example.com',full_name:'Test Expert',role:'consultant'};
    localStorage.setItem('guidcy_cookie_consent_v1',JSON.stringify({version:1,analytics:false,savedAt:Date.now()}));
@@ -43,11 +44,34 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   assert.deepEqual(saved.availability_map[blocked],[]);assert.deepEqual(saved.availability_map[custom],['7:00 PM','8:00 PM']);assert.equal(saved.recurring_availability.enabled,true);assert.equal(saved.video_price,1250);assert.deepEqual(saved.session_types,['video']);
   await page.reload();await page.locator('#recurring-enabled').waitFor();assert.equal(await page.locator('#recurring-enabled').isChecked(),true);
   assert.equal(await page.locator('#price-video').inputValue(),'1250');
-  await page.locator('#recurring-end').fill('17:00');await page.locator('#recurring-end').dispatchEvent('change');await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();
+  await page.locator('#recurring-end-1').fill('17:00');await page.locator('#recurring-end-1').dispatchEvent('change');await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();
   await page.locator('#availability-status').filter({hasText:'end time after'}).waitFor();assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('__availability'))),saved);
-  await page.locator('#recurring-end').fill('22:00');await page.locator('#recurring-end').dispatchEvent('change');
-  await page.evaluate(()=>{window.__denyAvailability=true});await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();await page.locator('#availability-status').filter({hasText:'Save denied'}).waitFor();assert.equal(await page.locator('#recurring-end').inputValue(),'22:00');
+  await page.locator('#recurring-end-1').fill('22:00');await page.locator('#recurring-end-1').dispatchEvent('change');
+  await page.evaluate(()=>{window.__denyAvailability=true});await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();await page.locator('#availability-status').filter({hasText:'Save denied'}).waitFor();assert.equal(await page.locator('#recurring-end-1').inputValue(),'22:00');
   await page.evaluate(()=>{window.__denyAvailability=false});
+  await page.locator('#recurring-start-1').fill('19:00');
+  await page.locator('.recurring-copy summary').click();
+  async function copyHours(source,targets){
+    await page.locator('#recurring-copy-source').selectOption(String(source));
+    for(let i=0;i<7;i++)await page.locator('[name="recurring-copy-day"][value="'+i+'"]').setChecked(targets.includes(i));
+    await page.getByRole('button',{name:'Apply to selected days',exact:true}).click();
+  }
+  await copyHours(1,[1,2,3,4,5]);
+  await page.locator('#recurring-day-6').check();await page.locator('#recurring-start-6').fill('10:00');await page.locator('#recurring-end-6').fill('18:00');
+  await copyHours(6,[0,6]);
+  await page.locator('#recurring-day-3').uncheck();await copyHours(3,[2]);
+  assert.equal(await page.locator('#recurring-start-2').isDisabled(),true,'copying unavailable status disables the target');
+  await copyHours(1,[2]);
+  assert.equal(await page.locator('#recurring-start-2').inputValue(),'19:00');
+  assert.equal(await page.locator('#recurring-start-6').inputValue(),'10:00','copying weekdays leaves weekends unchanged');
+  assert.equal(await page.locator('#recurring-end-0').inputValue(),'18:00');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'weekday editor has no horizontal overflow');
+  await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();await page.locator('#availability-status').filter({hasText:'Availability and pricing saved.'}).waitFor();
+  const weeklySaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('__availability')));
+  assert.deepEqual(weeklySaved.recurring_availability.weekly,[{start:'10:00',end:'18:00'},{start:'19:00',end:'22:00'},{start:'19:00',end:'22:00'},null,{start:'19:00',end:'22:00'},{start:'19:00',end:'22:00'},{start:'10:00',end:'18:00'}]);
+  assert.deepEqual(weeklySaved.availability_map,saved.availability_map,'changing weekly hours preserves every date override');
+  await page.reload();await page.locator('#recurring-day-3').waitFor();assert.equal(await page.locator('#recurring-day-3').isChecked(),false);assert.equal(await page.locator('#recurring-end-1').inputValue(),'22:00');assert.equal(await page.locator('#recurring-start-6').inputValue(),'10:00');
+  await page.locator('#recurring-availability').screenshot({path:'/private/tmp/guidcy-weekday-editor-'+width+'.png'});
   const manual=nextYear+'-01-10';
   await page.evaluate(manual=>{const row=JSON.parse(localStorage.getItem('__availability'));row.availability_map[manual]=Array.from({length:48},(_,i)=>GuidcyAvailability.label(i*30));row.session_types=['audio','chat','video'];localStorage.setItem('__availability',JSON.stringify(row));},manual);
   // Public profile resolves the persisted weekly rule into the existing date/slot UI.
@@ -64,6 +88,12 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
     assert.fail('Month navigation did not reach '+target);
   }
   await goToMonth(nextYear+'-01');
+  const weekDates=await page.locator('[data-booking-date]').evaluateAll(nodes=>Object.fromEntries([0,3,6].map(day=>[day,nodes.map(n=>n.dataset.bookingDate).find(key=>new Date(key+'T00:00:00Z').getUTCDay()===day)])));
+  assert.equal(await page.locator('[data-booking-date="'+weekDates[3]+'"]').isDisabled(),true,'unavailable Wednesday is not bookable');
+  for(const day of [0,6]){
+    await page.locator('[data-booking-date="'+weekDates[day]+'"]').click();
+    assert.deepEqual(await page.locator('#avail-slots-container .avail-slot').allTextContents(),['10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM']);
+  }
   assert.equal(await page.locator('[data-booking-date="'+blocked+'"]').isDisabled(),true);
   await page.locator('[data-booking-date="'+custom+'"]').click();
   assert.deepEqual(await page.locator('#avail-slots-container .avail-slot').allTextContents(),['7:00 PM','8:00 PM']);
@@ -76,12 +106,12 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   assert.ok(scroll.height<=210&&scroll.total>scroll.height&&scroll.top>0,'many slots remain inside a scrollable list');
   // Recurring months beyond the rolling year are generated as they are viewed.
   await goToMonth((nextYear+1)+'-01');
-  const farDate=await page.locator('#booking-calendar .date-btn:not(:disabled)').first().getAttribute('data-booking-date');
-  await page.locator('[data-booking-date="'+farDate+'"]').click();await page.getByRole('button',{name:'8:00 PM',exact:true}).click();
+  const farDate=await page.locator('#booking-calendar .date-btn:not(:disabled)').evaluateAll(nodes=>nodes.map(n=>n.dataset.bookingDate).find(key=>[1,2,4,5].includes(new Date(key+'T00:00:00Z').getUTCDay())));
+  await page.locator('[data-booking-date="'+farDate+'"]').click();await page.getByRole('button',{name:'9:00 PM',exact:true}).click();
   await page.locator('#profile-layout .dur-btn').filter({hasText:'90 min'}).click();
   assert.equal(await page.evaluate(()=>selSlot),null,'overrunning recurring slot is cleared for a longer session');
   assert.equal(await page.evaluate(()=>window.__guidcySelectedDateKey),farDate);
-  assert.deepEqual(await page.locator('#avail-slots-container .avail-slot').allTextContents(),['6:00 PM','7:00 PM']);
+  assert.deepEqual(await page.locator('#avail-slots-container .avail-slot').allTextContents(),['7:00 PM','8:00 PM']);
   await page.getByRole('button',{name:'7:00 PM',exact:true}).click();
   await page.evaluate(()=>guidcyRefreshVisibleAvailability());
   assert.equal(await page.evaluate(()=>buildDates()[selDate].key),farDate);
@@ -101,6 +131,6 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   assert.equal(booking.session_type,'video');assert.equal(booking.date_label,snapshot.dateLabel);assert.equal(booking.time_slot,'7:00 PM');assert.equal(booking.duration,90);assert.equal(booking.amount,1750);assert.equal(booking.total_amount,1837.5);
   await page.evaluate(()=>window.__availabilityCheckout.modal.ondismiss());await page.waitForFunction(()=>!window.__guidcyRazorpayBookingBusy);
   assert.equal(errors.length,0,errors.join('\n'));
-  console.log('PASS '+width+'px: 12 months, recurring hours, block/custom/reset, save/reload, failed-save retention, video-only monthly booking, scrolling, duration boundaries and payment reload');await context.close();
+  console.log('PASS '+width+'px: weekday/weekend hours, bulk copy, unavailable weekdays, 12 months, block/custom/reset, save/reload, failed-save retention, video-only monthly booking, scrolling, duration boundaries and payment reload');await context.close();
  }
 }finally{await browser?.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,6 +1,20 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const A=require('../assets/js/availability');
 const rule={enabled:true,days:[1,2,3,4,5],start:'18:00',end:'21:00',interval:60};
+test('weekday hours, unavailable days, copy semantics and legacy conversion',()=>{
+ const weekly={enabled:true,interval:60,weekly:Array.from({length:7},(_,i)=>i===0||i===6?{start:'10:00',end:'18:00'}:{start:'19:00',end:'22:00'})};
+ assert.deepEqual(A.slots('2026-10-05',{},weekly),['7:00 PM','8:00 PM','9:00 PM']);
+ assert.deepEqual(A.slots('2026-10-10',{},weekly),['10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM']);
+ assert.deepEqual(A.slots('2026-10-11',{},weekly,90),['10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM']);
+ weekly.weekly[3]=null;assert.deepEqual(A.slots('2026-10-07',{},weekly),[]);
+ assert.deepEqual(A.slots('2026-10-07',{'2026-10-07':['9:00 AM']},weekly),['9:00 AM']);
+ assert.deepEqual(A.slots('2026-10-10',{'2026-10-10':[]},weekly),[]);
+ assert.deepEqual(A.slots('2029-01-06',{},weekly),['10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM']);
+ const converted=A.weeklyRule(rule);assert.deepEqual(converted.weekly,[null,...Array.from({length:5},()=>({start:'18:00',end:'21:00'})),null]);
+ converted.weekly[1].start='19:00';assert.equal(converted.weekly[2].start,'18:00');assert.equal(rule.start,'18:00');
+ assert.deepEqual(A.resolve({}, {enabled:true,interval:60,weekly:Array(7).fill(null)}),{});
+ for(const bad of [{...weekly,weekly:[]},{...weekly,weekly:null},{...weekly,interval:0},{...weekly,weekly:Array(7).fill({start:'22:00',end:'19:00'})},{...weekly,weekly:Array(7).fill({start:'10:00',end:'10:15'})},{...weekly,weekly:Array(7).fill({})}])assert.throws(()=>A.validate(bad));
+});
 test('recurrence, custom date, blocked date and reset are independent',()=>{
  const map={'2026-10-05':[],'2026-10-06':['10:00 AM']};
  assert.deepEqual(A.slots('2026-10-07',map,rule),['6:00 PM','7:00 PM','8:00 PM']);

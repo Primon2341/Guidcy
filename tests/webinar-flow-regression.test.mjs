@@ -1,11 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 
 const webinarFlow = fs.readFileSync(new URL('../assets/js/webinar-flow.js', import.meta.url), 'utf8');
 const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const createOrder = fs.readFileSync(new URL('../api/create-order.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260901023013_webinar_registration_uniqueness.sql', import.meta.url), 'utf8');
+
+test('unpaid webinar retries preserve server-owned payment fields and reuse the registration', async () => {
+  const start = webinarFlow.indexOf('  async function prepareRegistration(');
+  const end = webinarFlow.indexOf('  async function postJson(', start);
+  for (const paid of [true, false]) {
+    for (const payment_status of ['pending', 'failed', 'cancelled']) {
+      const existing = {id:'registration-1', user_id:'attendee', payment_status,
+        registration_status:'payment_pending', payment_verified:false,
+        amount_paid:0, payment_amount:paid ? 99 : 0, razorpay_order_id:'order_EXISTING'};
+      let updates = 0;
+      const context = vm.createContext({
+        findActiveRegistration:async()=>existing,
+        isConfirmedRegistration:row=>row.payment_verified === true,
+        accountId:()=>existing.user_id, webinarTitle:w=>w.title, lower:v=>v.toLowerCase(),
+        updateRegistration:async(id, patch)=>{
+          updates++;
+          assert.equal(id, existing.id);
+          assert.deepEqual(Object.keys(patch).sort(), ['goal','name','phone','role']);
+          return {...existing,...patch};
+        },
+        client:()=>{throw new Error('A retry must not create another registration');}
+      });
+      vm.runInContext(webinarFlow.slice(start,end),context);
+      const result = await context.prepareRegistration({id:'webinar-1',title:'Test',price_amount:paid?99:0},
+        {name:'Updated attendee',email:'attendee@example.com',phone:'9999999999',role:'Student',goal:''},paid);
+      assert.equal(updates,1);
+      assert.equal(result.razorpay_order_id,existing.razorpay_order_id);
+      assert.equal(result.payment_status,payment_status);
+      assert.equal(result.payment_verified,false);
+      assert.equal(result.payment_amount,existing.payment_amount);
+      assert.equal(result.name,'Updated attendee');
+    }
+  }
+});
 
 test('webinar flow override loads after existing application controllers', () => {
   const controllersAt = index.indexOf('/assets/js/controllers.js');

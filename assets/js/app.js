@@ -4125,17 +4125,43 @@ async function viewMyPublicProfile(){
 }
 
 function guidcyRenderRecurringAvailability(){
-  const r=window._recurringAvailability,e=guidcyEscapeHtml;
+  const r=window.GuidcyAvailability.weeklyRule(window._recurringAvailability),e=guidcyEscapeHtml;
+  const names=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   document.getElementById('recurring-availability').innerHTML=`<h2>Recurring Daily Availability</h2>
     <label class="availability-enable"><input id="recurring-enabled" type="checkbox" ${r.enabled?'checked':''} onchange="guidcyChangeRecurringAvailability()"> Repeat my regular working hours every week</label>
-    <fieldset class="availability-days"><legend>Working days</legend>${window.GuidcyAvailability.days.map((d,i)=>`<label><input type="checkbox" name="recurring-day" value="${i}" ${r.days.includes(i)?'checked':''} onchange="guidcyChangeRecurringAvailability()"> ${d}</label>`).join('')}</fieldset>
-    <div class="availability-hours"><label>From (IST)<input id="recurring-start" type="time" value="${e(r.start)}" oninput="guidcyChangeRecurringAvailability()"></label><label>Until (IST)<input id="recurring-end" type="time" value="${e(r.end)}" oninput="guidcyChangeRecurringAvailability()"></label><label>Start times every<select id="recurring-interval" onchange="guidcyChangeRecurringAvailability()"><option value="30" ${r.interval===30?'selected':''}>30 minutes</option><option value="60" ${r.interval===60?'selected':''}>60 minutes</option></select></label></div>
-    <p class="availability-hint">Repeats automatically throughout the year and into future years. Sessions must finish within these hours. Existing custom dates keep their own slots.</p>`;
+    <p class="availability-hint">Set each day's working hours in IST. Uncheck a day to mark it unavailable.</p>
+    <div class="recurring-week">${names.map((name,i)=>{const hours=r.weekly[i];return `<div class="recurring-day-row"><div><label class="availability-enable"><input id="recurring-day-${i}" type="checkbox" ${hours?'checked':''} onchange="guidcyChangeRecurringAvailability()"> ${name}</label><span id="recurring-state-${i}" class="availability-hint">${hours?'Available':'Unavailable'}</span></div><label>From<input id="recurring-start-${i}" type="time" aria-label="${name} start time (IST)" value="${e(hours?.start||'18:00')}" ${hours?'':'disabled'} oninput="guidcyChangeRecurringAvailability()"></label><label>Until<input id="recurring-end-${i}" type="time" aria-label="${name} end time (IST)" value="${e(hours?.end||'21:00')}" ${hours?'':'disabled'} oninput="guidcyChangeRecurringAvailability()"></label></div>`}).join('')}</div>
+    <details class="recurring-copy"><summary>Apply the same hours to multiple days</summary>
+      <label>Copy hours from<select id="recurring-copy-source">${names.map((name,i)=>`<option value="${i}" ${i===1?'selected':''}>${name}</option>`).join('')}</select></label>
+      <fieldset class="availability-days"><legend>Apply to selected days</legend>${window.GuidcyAvailability.days.map((day,i)=>`<label><input type="checkbox" name="recurring-copy-day" value="${i}"> ${day}</label>`).join('')}</fieldset>
+      <button type="button" class="btn" onclick="guidcyCopyRecurringHours()">Apply to selected days</button>
+      <p class="availability-hint">Copies the chosen day's hours or unavailable status. Save below to publish your changes.</p>
+    </details>
+    <div class="availability-hours"><label>Start times every<select id="recurring-interval" onchange="guidcyChangeRecurringAvailability()"><option value="30" ${r.interval===30?'selected':''}>30 minutes</option><option value="60" ${r.interval===60?'selected':''}>60 minutes</option></select></label></div>
+    <p class="availability-hint">Repeats throughout the year and into future years. Sessions must finish within each day's hours. Custom dates and blocked dates keep their overrides; existing bookings stay unchanged.</p>`;
 }
 function guidcyReadRecurringAvailability(){
-  return window.GuidcyAvailability.validate({enabled:document.getElementById('recurring-enabled').checked,days:Array.from(document.querySelectorAll('[name="recurring-day"]:checked'),n=>Number(n.value)),start:document.getElementById('recurring-start').value,end:document.getElementById('recurring-end').value,interval:Number(document.getElementById('recurring-interval').value)});
+  return window.GuidcyAvailability.validate({enabled:document.getElementById('recurring-enabled').checked,interval:Number(document.getElementById('recurring-interval').value),weekly:window.GuidcyAvailability.days.map((_,i)=>document.getElementById('recurring-day-'+i).checked?{start:document.getElementById('recurring-start-'+i).value,end:document.getElementById('recurring-end-'+i).value}:null)});
+}
+function guidcyCopyRecurringHours(){
+  try{
+    const source=document.getElementById('recurring-copy-source').value,available=document.getElementById('recurring-day-'+source).checked;
+    const hours=available?window.GuidcyAvailability.validateHours({start:document.getElementById('recurring-start-'+source).value,end:document.getElementById('recurring-end-'+source).value}):null;
+    const targets=Array.from(document.querySelectorAll('[name="recurring-copy-day"]:checked'),el=>el.value);
+    if(!targets.length)throw new Error('Select at least one day to apply these hours to.');
+    for(const i of targets){
+      document.getElementById('recurring-day-'+i).checked=available;
+      if(hours){document.getElementById('recurring-start-'+i).value=hours.start;document.getElementById('recurring-end-'+i).value=hours.end;}
+    }
+    guidcyChangeRecurringAvailability();
+  }catch(error){document.getElementById('availability-status').textContent=error.message;}
 }
 function guidcyChangeRecurringAvailability(){
+  window.GuidcyAvailability.days.forEach((_,i)=>{
+    const available=document.getElementById('recurring-day-'+i).checked;
+    document.getElementById('recurring-start-'+i).disabled=!available;document.getElementById('recurring-end-'+i).disabled=!available;
+    document.getElementById('recurring-state-'+i).textContent=available?'Available':'Unavailable';
+  });
   try{
     window._recurringAvailability=guidcyReadRecurringAvailability();
     document.getElementById('availability-status').textContent='Unsaved availability changes.';

@@ -64,9 +64,12 @@ const title='Advanced career planning and professional development: a comprehens
     await page.setViewportSize({width:viewport,height:844});
     const geometry=await page.locator('.pay-webinar-summary').evaluate(el=>{
       const labels=[...el.querySelectorAll('.pay-webinar-label')];
-      return {labels:labels.map(e=>({height:e.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(e).lineHeight),width:e.getBoundingClientRect().width,scroll:e.scrollWidth})),overflow:document.documentElement.scrollWidth>innerWidth+1,title:el.querySelector('.pay-webinar-value').textContent};
+      const wrap=el.closest('.pay-wrap').getBoundingClientRect();
+      return {wrap:wrap.toJSON(),labels:labels.map(e=>({height:e.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(e).lineHeight),width:e.getBoundingClientRect().width,scroll:e.scrollWidth})),overflow:document.documentElement.scrollWidth>innerWidth+1,title:el.querySelector('.pay-webinar-value').textContent};
     });
     assert.equal(geometry.title,title);assert.equal(geometry.overflow,false);
+    assert.ok(geometry.wrap.width<=560,'webinar checkout stays compact');
+    assert.ok(Math.abs(geometry.wrap.left-(viewport-geometry.wrap.right))<=2,'webinar checkout stays centered');
     assert.ok(geometry.labels.every(l=>l.height<=l.line+1&&l.scroll<=l.width+1),'checkout labels remain single-line at '+viewport);
     await page.locator('#page-payment .pay-wrap').screenshot({path:'/private/tmp/guidcy-webinar-title-'+viewport+'.png'});
   }
