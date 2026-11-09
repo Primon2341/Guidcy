@@ -62,8 +62,20 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   assert.equal(requests.length,3,'job search and both AI modes reach their existing API');
   for(const url of ['/','/browse','/find-jobs','/career-ai-finder','/marketplace','/webinars','/funds-grants','/categories','/blog','/careers','/about','/contact','/faq','/help-center','/terms','/privacy','/refund','/disclaimer','/dispute-resolution','/login','/signup']){
    await page.goto(origin+url);await page.waitForFunction(()=>window.__guidcyAuthReadyFired);
+   if(url==='/browse'){
+    const titles=await page.locator('#page-browse .filter-title').allTextContents();
+    assert.deepEqual(titles,['Category','Price range (per session)','Minimum rating','Experience','Language']);
+    await page.waitForFunction(()=>document.querySelectorAll('#browse-grid .ccard').length>0);
+    const results=await page.evaluate(async()=>({all:(await fetchConsultants({})).map(c=>c.id),legacy:(await fetchConsultants({sessionTypes:['chat']})).map(c=>c.id)}));
+    assert.deepEqual(results.legacy,results.all,'obsolete session type state cannot hide video experts');
+   }
    if(width<600){await page.evaluate(()=>window.openMobDrawer());await page.evaluate(()=>window.closeMobDrawer())}
    await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
+   if(url==='/'){
+    const mark=page.locator('.footer-brand .guidcy-footer-mark');
+    await mark.evaluate(img=>img.decode());assert.equal(await mark.isVisible(),true,'footer logo loads and is visible');
+    assert.equal(await page.locator('.guidcy-footer-tagline').textContent(),'Guidance Made Simple');
+   }
    const measure=await page.evaluate(()=>({gap:document.documentElement.scrollHeight-(document.querySelector('.footer').getBoundingClientRect().bottom+scrollY),width:document.documentElement.scrollWidth,viewport:innerWidth}));
    assert.ok(measure.gap<=2,url+' whitespace below footer at '+width+': '+measure.gap);
   }

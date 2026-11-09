@@ -28,8 +28,9 @@
     if(!page.querySelector('#blog-list')?.textContent.trim())page.innerHTML='<div class="guidcy-blog-wrap"><p role="status">Loading articles…</p></div>';
     const promise=(async()=>{
       try{
-        const pageNumber=new URLSearchParams(location.search).get('page')||'1';
-        const response=await fetch('/api/jobs?service=seo&format=json&path='+encodeURIComponent(location.pathname)+'&page='+encodeURIComponent(pageNumber),{cache:'no-store'});
+        const query=new URLSearchParams(location.search),params=new URLSearchParams({service:'seo',format:'json',path:location.pathname});
+        for(const name of ['page','q','category'])if(query.has(name))params.set(name,query.get(name));
+        const response=await fetch('/api/jobs?'+params,{cache:'no-store'});
         if(!response.ok&&response.status!==404)throw new Error('Unavailable');
         const result=await response.json();
         if(location.pathname+location.search!==key||!publicPath())return;
@@ -193,10 +194,15 @@
     dirty=false;
   },true);
   window.addEventListener('beforeunload',event=>{if((dirty||saving)&&$('blog-editor')){event.preventDefault();event.returnValue='';}});
-  window.addEventListener('pageshow',()=>{if(publicPath()){lastPublic='';renderPublic();}});
+  window.addEventListener('pageshow',event=>{if(publicPath()&&event.persisted){lastPublic='';renderPublic();}});
   window.GuidcyBlog={renderPublic,renderAdmin};
   window.renderGuidcyBlog=window.renderBlog=renderPublic;
   // Disable obsolete browser-local publishing entry points retained by legacy code.
   ['guidcyAddBlogPost','guidcyEditBlogPost','guidcySaveBlogEdit','guidcyDeleteBlogPost','guidcyRemoveBlogImage','guidcySaveBlogPosts','guidcyAddComment','guidcyDeleteBlogComment'].forEach(name=>{window[name]=()=>{};});
+  // The server already read published posts for this navigation. Replacing that
+  // fresh HTML on startup can erase a search the reader has just started typing.
+  if(publicPath()&&$('blog-list')?.querySelector('.blog-landing,.blog-article')){
+    lastPublic=location.pathname+location.search;lastPublicAt=Date.now();
+  }
   if(publicPath())renderPublic();
 })();

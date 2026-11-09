@@ -5,6 +5,8 @@
   window.__guidcySharedSearchInstalled=true;
 
   var CACHE_MS=60000,FETCH_LIMIT=200,SUGGESTION_LIMIT=7;
+  const CONSULTANT_FIELDS='id,profile_id,name,avatar_initials,avatar_bg,avatar_color,specialty,category,bio,experience,rate,session_types,available_days,slots,tags,certs,badge,is_active,rating,review_count,video_price,audio_price,chat_price,availability_map,recurring_availability,price,avatar_url,highest_education,college,current_work,education,current_company_college,approval_status,is_approved,current_position,current_company,company_experience,updated_at';
+  const PROFILE_FIELDS='id,full_name,avatar_url,avatar_initials,role,city,highest_education,college,current_work,education,current_company_college,current_position,current_company,company_experience,bio,skills';
   var GENERIC_WORDS={a:1,an:1,and:1,for:1,in:1,of:1,on:1,the:1,to:1,with:1,consultant:1,consultants:1,expert:1,experts:1,help:1,mentor:1};
   var FIELD_GROUPS=[
     {name:'name',weight:12,keys:['name','full_name']},
@@ -86,11 +88,11 @@
     if(!changed)return null;var confidence=confidences.reduce(function(sum,value){return sum+value},0)/confidences.length;if(confidence<.78)return null;
     return {query:corrected.join(' '),display:corrected.map(function(token){var item=(vocabulary||[]).find(function(entry){return entry.term===token});return item?item.display:displayValue(token)}).join(' '),confidence:confidence};
   }
-  function scoreConsultant(consultant,query,correctionUsed){
+  function scoreConsultant(consultant,query,correctionUsed,similarities){
     var normalizedQuery=normalize(query),queryTokens=tokenize(query),fields=consultantFields(consultant);if(!normalizedQuery||!queryTokens.length)return null;
     var tokenMatches=queryTokens.map(function(queryToken){
       var best={value:0,mode:'none',weight:0,field:''};
-      fields.forEach(function(field){field.values.forEach(function(value){value.split(' ').forEach(function(candidateToken){var match=tokenSimilarity(queryToken,candidateToken),weighted=match.value*field.weight;if(weighted>best.value*best.weight)best={value:match.value,mode:match.mode,weight:field.weight,field:field.name}})})});return best;
+      fields.forEach(function(field){field.values.forEach(function(value){value.split(' ').forEach(function(candidateToken){var key=queryToken+'\0'+candidateToken,match=similarities&&similarities.get(key);if(!match){match=tokenSimilarity(queryToken,candidateToken);if(similarities)similarities.set(key,match)}var weighted=match.value*field.weight;if(weighted>best.value*best.weight)best={value:match.value,mode:match.mode,weight:field.weight,field:field.name}})})});return best;
     });
     if(tokenMatches.filter(function(match,index){return match.value>=(queryTokens[index].length<=2?.86:.72)}).length!==queryTokens.length)return null;
     var phraseBonus=0,phraseField='';
@@ -117,7 +119,9 @@
   function categoryMatches(consultant,categories){categories=(categories||[]).map(normalize).filter(Boolean);if(!categories.length)return true;var text=normalize(flatValues([consultant.category,consultant.categories,consultant.consultation_category,consultant.consultation_categories,consultant.primary_category,consultant.specialty,consultant.role]).join(' '));return categories.some(function(category){return (' '+text+' ').indexOf(' '+category+' ')>-1||text.indexOf(category)>-1})}
   function search(rows,query,options){
     options=options||{};rows=Array.isArray(rows)?rows:[];var vocabulary=options.vocabulary||buildVocabulary(rows),correction=correctionFor(query,vocabulary),effectiveQuery=correction?correction.query:query,categories=options.categories||(options.category?[options.category]:[]);
-    var results=rows.filter(function(c){return categoryMatches(c,categories)}).map(function(c){return scoreConsultant(c,effectiveQuery,!!correction)}).filter(Boolean),tierOrder={exact:3,strong:2,fuzzy:1};
+    // Repeated skill/title words share the same fuzzy-distance work for this search only.
+    var similarities=new Map();
+    var results=rows.filter(function(c){return categoryMatches(c,categories)}).map(function(c){return scoreConsultant(c,effectiveQuery,!!correction,similarities)}).filter(Boolean),tierOrder={exact:3,strong:2,fuzzy:1};
     results.sort(function(a,b){return (tierOrder[b.tier]-tierOrder[a.tier])||(b.score-a.score)||(b.confidence-a.confidence)||(Number(b.consultant.rating||0)-Number(a.consultant.rating||0))});
     var seen={};results=results.filter(function(result){var c=result.consultant,key=String(c.id||c.dbId||c.profile_id||c.name||'');if(!key||seen[key])return false;seen[key]=1;return true});if(options.limit)results=results.slice(0,options.limit);
     return {query:String(query||''),effectiveQuery:effectiveQuery,correction:correction,category:categoryForQuery(effectiveQuery,vocabulary),results:results};
@@ -127,19 +131,20 @@
   function abortError(){var error=new Error('Search request cancelled');error.name='AbortError';return error}
   async function directCandidates(signal){
     var client=null;try{client=window.guidcyGetSupabaseClient&&window.guidcyGetSupabaseClient()}catch(_){}if(!client||!client.from)return [];
-    var query=client.from('consultants').select('*').limit(FETCH_LIMIT);if(query&&typeof query.abortSignal==='function'&&signal)query=query.abortSignal(signal);var response=await query;
+    var query=client.from('consultants').select(CONSULTANT_FIELDS).eq('is_active',true).limit(FETCH_LIMIT);if(query&&typeof query.abortSignal==='function'&&signal)query=query.abortSignal(signal);var response=await query;
     if(signal&&signal.aborted)throw abortError();if(response&&response.error)throw response.error;var rows=(response&&response.data||[]).filter(approved);
     var profileIds=Array.from(new Set(rows.map(function(row){return row.profile_id||row.user_id||row.auth_user_id}).filter(Boolean).map(String)));
     if(profileIds.length){try{
-      var profileQuery=client.from('profiles').select('*').in('id',profileIds).limit(FETCH_LIMIT);if(profileQuery&&typeof profileQuery.abortSignal==='function'&&signal)profileQuery=profileQuery.abortSignal(signal);var profileResponse=await profileQuery;
+      var profileQuery=client.from('profiles').select(PROFILE_FIELDS).in('id',profileIds).limit(FETCH_LIMIT);if(profileQuery&&typeof profileQuery.abortSignal==='function'&&signal)profileQuery=profileQuery.abortSignal(signal);var profileResponse=await profileQuery;
       if(signal&&signal.aborted)throw abortError();if(!profileResponse.error){var profiles=new Map((profileResponse.data||[]).map(function(profile){return [String(profile.id),profile]}));rows=rows.map(function(row){var profile=profiles.get(String(row.profile_id||row.user_id||row.auth_user_id||''))||{};return Object.assign({},profile,row,{name:row.name||row.full_name||profile.full_name||profile.name,full_name:row.full_name||row.name||profile.full_name||profile.name,avatar_url:row.avatar_url||row.profile_image_url||profile.avatar_url||profile.profile_image_url||profile.photo_url||'',title:row.title||profile.title||profile.designation||profile.current_work,headline:row.headline||profile.headline,profile_keywords:row.profile_keywords||profile.profile_keywords||profile.keywords})})}
     }catch(error){if(error&&error.name==='AbortError')throw error}}
     return rows.map(normalizeConsultant);
   }
   async function loadCandidates(options){
-    options=options||{};var signal=options.signal;if(state.rows&&Date.now()-state.loadedAt<CACHE_MS)return state.rows;var rows=[];
+    options=options||{};var readState=state,signal=options.signal;if(state.rows&&Date.now()-state.loadedAt<CACHE_MS)return state.rows;var rows=[];
     try{rows=await directCandidates(signal)}catch(error){if((signal&&signal.aborted)||(error&&error.name==='AbortError'))throw abortError();console.warn('Guidcy shared search direct query failed; using the existing consultant source.',error)}
     if(!rows.length&&priorFetch){if(signal&&signal.aborted)throw abortError();rows=await priorFetch({maxPrice:99999,search:''});if(signal&&signal.aborted)throw abortError();rows=(rows||[]).filter(approved).map(normalizeConsultant)}
+    if(readState!==state)return loadCandidates(options);
     state.rows=rows||[];state.loadedAt=Date.now();state.vocabulary=buildVocabulary(state.rows);return state.rows;
   }
   function setRows(rows){if(!Array.isArray(rows)||!rows.length)return;state.rows=rows.map(normalizeConsultant);state.loadedAt=Date.now();state.vocabulary=buildVocabulary(state.rows)}
@@ -171,7 +176,7 @@
   function rememberQuery(query,category){try{sessionStorage.setItem('guidcy_shared_search',JSON.stringify({q:String(query||''),category:String(category||''),at:Date.now()}))}catch(_){}}
   function replaceBrowseUrl(query,category){if(!/^\/(browse|find-experts|experts|consultants)\/?$/.test(location.pathname))return;try{var params=new URLSearchParams();if(query)params.set('q',query);if(category)params.set('category',category);history.replaceState({page:'browse',q:query,category:category},'',location.pathname+(params.toString()?'?'+params.toString():''))}catch(_){}}
   function navigateBrowse(query,category){
-    query=String(query||'').trim();category=String(category||'').trim();rememberQuery(query,category);window.browseFilters={categories:category?[category]:[],sessionTypes:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:query,sort:''};
+    query=String(query||'').trim();category=String(category||'').trim();rememberQuery(query,category);window.browseFilters={categories:category?[category]:[],languages:[],experience:[],minRating:0,minPrice:0,maxPrice:99999,search:query,sort:''};
     if(typeof window.go==='function')window.go('browse');else location.href='/browse';
     setTimeout(function(){var input=surfaceInput('browse');if(input)input.value=query;document.querySelectorAll('#page-browse .filter-section input[type="checkbox"]').forEach(function(checkbox){var section=checkbox.closest('.filter-section');if(section&&/categor/i.test(section.textContent||''))checkbox.checked=!!category&&normalize(checkbox.value)===normalize(category)});if(typeof window.guidcyToggleSearchClear==='function')window.guidcyToggleSearchClear();if(typeof window.applyFilters==='function')window.applyFilters();replaceBrowseUrl(query,category)},260);
   }

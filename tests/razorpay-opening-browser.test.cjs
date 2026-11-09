@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 
 // Reuse the existing offline role/session fixture; no production data is accessed.
 const fixtureSource = fs.readFileSync(path.join(__dirname, 'browser-flow.test.cjs'), 'utf8');
@@ -26,7 +26,9 @@ const title='Advanced career planning and professional development: a comprehens
  let browser;
  try{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ browser=process.env.GUIDCY_BROWSER==='webkit'
+  ?await webkit.launch({headless:true})
+  :await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  for(const width of [390,1280]){
   let sdkRequests=0;
   const ctx=await browser.newContext({viewport:{width,height:844}});
@@ -65,11 +67,11 @@ const title='Advanced career planning and professional development: a comprehens
     const geometry=await page.locator('.pay-webinar-summary').evaluate(el=>{
       const labels=[...el.querySelectorAll('.pay-webinar-label')];
       const wrap=el.closest('.pay-wrap').getBoundingClientRect();
-      return {wrap:wrap.toJSON(),labels:labels.map(e=>({height:e.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(e).lineHeight),width:e.getBoundingClientRect().width,scroll:e.scrollWidth})),overflow:document.documentElement.scrollWidth>innerWidth+1,title:el.querySelector('.pay-webinar-value').textContent};
+      return {viewport:document.documentElement.clientWidth,wrap:wrap.toJSON(),labels:labels.map(e=>({height:e.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(e).lineHeight),width:e.getBoundingClientRect().width,scroll:e.scrollWidth})),overflow:document.documentElement.scrollWidth>innerWidth+1,title:el.querySelector('.pay-webinar-value').textContent};
     });
     assert.equal(geometry.title,title);assert.equal(geometry.overflow,false);
     assert.ok(geometry.wrap.width<=560,'webinar checkout stays compact');
-    assert.ok(Math.abs(geometry.wrap.left-(viewport-geometry.wrap.right))<=2,'webinar checkout stays centered');
+    assert.ok(Math.abs(geometry.wrap.left-(geometry.viewport-geometry.wrap.right))<=2,'webinar checkout stays centered: '+JSON.stringify(geometry.wrap)+' viewport '+geometry.viewport);
     assert.ok(geometry.labels.every(l=>l.height<=l.line+1&&l.scroll<=l.width+1),'checkout labels remain single-line at '+viewport);
     await page.locator('#page-payment .pay-wrap').screenshot({path:'/private/tmp/guidcy-webinar-title-'+viewport+'.png'});
   }
@@ -87,15 +89,26 @@ const title='Advanced career planning and professional development: a comprehens
   await page.evaluate(()=>window.__razorpayOptions.handler({razorpay_order_id:'order_TIMING123',razorpay_payment_id:'pay_FIXTURE',razorpay_signature:'fixture'}));
   await page.waitForFunction(()=>window.__paymentTimes.some(e=>e.stage==='verified'));
   await page.waitForFunction(()=>!document.body.classList.contains('guidcy-razorpay-checkout-open'));
+  await page.locator('#booking-confirm-popup[data-payment-flow="webinar"]').waitFor();
+  await page.getByRole('button',{name:'View webinars',exact:true}).click();
   // The native Marketplace buy path shares the same already-warm opener.
-  await page.evaluate(()=>{sessionStorage.removeItem('guidcy_webinar_payment_v1');window.__guidcyPaymentFlowLock=false;document.querySelector('#booking-confirm-popup')?.remove();window.GuidcyMarketplace.secureDownload=async function(){};window.guidcyStartRazorpayMarketplace('note-legacy-1')});
+  await page.evaluate(()=>{window.GuidcyMarketplace.secureDownload=async function(){};window.guidcyStartRazorpayMarketplace('note-legacy-1')});
   await page.waitForFunction(()=>window.__openCount===2);
   assert.equal(sdkRequests,1,'Marketplace reuses the same SDK');
   await page.evaluate(()=>window.__razorpayOptions.modal.ondismiss());
   await page.waitForFunction(()=>!window.__guidcyRazorpayMarketplaceBusy);
   assert.equal(await page.evaluate(()=>document.body.classList.contains('guidcy-razorpay-checkout-open')),false);
+  await page.evaluate(()=>window.guidcyNavigate('/consultant/test-expert'));
+  await page.locator('#page-profile.on .avail-slot').first().click();
+  await page.getByRole('button',{name:'Book this session',exact:true}).click();
+  await page.locator('#page-payment.on .green-btn').click();
+  await page.waitForFunction(()=>window.__openCount===3);
+  assert.equal(await page.evaluate(()=>window.__razorpayOptions.notes.flow),'booking');
+  await page.evaluate(()=>window.__razorpayOptions.modal.ondismiss());
+  await page.waitForFunction(()=>!window.__guidcyRazorpayBookingBusy);
+  await page.locator('#guidcy-payment-status.cancelled').waitFor();
   assert.deepEqual(errors,[]);
-  console.log(width+': SDK preloaded before Pay; order-ready → open '+Math.round(at('opened')-at('order-ready'))+'ms; webinar verification, Marketplace cancel and long-title layout passed');
+  console.log(width+': SDK preloaded before Pay; order-ready → open '+Math.round(at('opened')-at('order-ready'))+'ms; webinar verification, marketplace/consultant checkout cancellation and long-title layout passed');
   await ctx.close();
  }
 

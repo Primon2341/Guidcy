@@ -1,4 +1,4 @@
-const { paymentOwner } = require('../lib/api-security');
+const { paymentOwner, assertNotSelfPurchase } = require('../lib/api-security');
 const {
   clean,
   json,
@@ -128,6 +128,7 @@ module.exports = async function handler(req, res) {
         if (isFulfilled(flow, row)) {
           return json(res, 200, { ok: true, verified: true, flow, order: row, idempotent: true });
         }
+        await assertNotSelfPurchase(flow, row, actor);
         if (!row.razorpay_order_id) {
           return json(res, 200, { ok: true, verified: false, pending: true, flow, order: row });
         }
@@ -168,6 +169,7 @@ module.exports = async function handler(req, res) {
         return json(res, 200, { ok: true, verified: true, flow, booking: flow === 'booking' ? row : null, registration: flow === 'webinar' ? settled : null, order: flow === 'marketplace' ? row : null, idempotent: true });
       }
 
+      await assertNotSelfPurchase(flow, row, actor);
       if (!verifyPaymentSignature({ orderId: row.razorpay_order_id, paymentId, signature })) {
         return json(res, 400, { error: 'Invalid Razorpay payment signature' });
       }

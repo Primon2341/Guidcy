@@ -407,9 +407,7 @@ body.guidcy-footer-ready .footer{visibility:visible!important;opacity:1!importan
 .profile-main{padding:36px 32px;border-right:1px solid var(--border)}
 .profile-sidebar{padding:28px 24px;background:var(--surface3)}
 .profile-hero{display:flex;gap:20px;align-items:flex-start;margin-bottom:28px;padding-bottom:28px;border-bottom:1px solid var(--border)}
-.profile-avatar{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:var(--font-weight-semibold,600);flex-shrink:0;border:3px solid transparent}
 .profile-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:var(--font-weight-medium,500);margin-bottom:4px}
-.profile-role{font-size:13px;color:var(--muted);margin-bottom:10px;font-weight:var(--font-weight-medium,500)}
 .profile-meta{display:flex;gap:14px;flex-wrap:wrap}
 .meta-item{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:4px}
 .sec-block{margin-bottom:28px}
@@ -942,7 +940,6 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
   .footer-grid{grid-template-columns:1fr!important}
   .pay-method-row,.price-inputs-grid,.stype-grid{grid-template-columns:1fr!important;display:grid!important}
   .slot-grid,.slot-pick-grid,.sched-time-grid{grid-template-columns:1fr 1fr!important}
-  .profile-avatar{width:72px!important;height:72px!important}
   .profile-name{font-size:24px!important}
   .info-page h1{font-size:36px!important;line-height:1.1!important}
 }

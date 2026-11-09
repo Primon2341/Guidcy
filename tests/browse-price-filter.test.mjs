@@ -47,3 +47,12 @@ test('the drag slider is gone from the markup', () => {
   assert.ok(!html.includes('id="price-range"'), 'price-range slider still in index.html');
   assert.ok(html.includes('id="price-min"') && html.includes('id="price-max"'));
 });
+
+test('session type is removed from discovery filters and search navigation', () => {
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const panel=html.slice(html.indexOf('<div class="filter-panel">'),html.indexOf('<div class="browse-main">'));
+  assert.doesNotMatch(panel,/Session type|value="(?:video|audio|chat)"/);
+  assert.doesNotMatch(source,/filters\.sessionTypes|f\.sessionTypes|sessionTypes:\s*\[\]|\bstypes\b/);
+  const search=fs.readFileSync(new URL('../assets/js/shared-search.js',import.meta.url),'utf8');
+  assert.doesNotMatch(search,/sessionTypes:\s*\[\]/);
+});

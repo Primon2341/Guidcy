@@ -14,6 +14,7 @@ const root = path.resolve(process.argv[3] || 'public');
 const runs = Number(process.argv[4] || 3);
 const chrome = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const lighthouseCLI = require.resolve('lighthouse/cli/index.js');
+const readRPCs=['community_feed','community_people','community_profile','community_profile_activity','community_featured','community_organization_matches'];
 const mime = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.woff2':'font/woff2', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp', '.svg':'image/svg+xml', '.ico':'image/x-icon'};
 const fixture = `<script>
 window.__auditReads=[];
@@ -21,7 +22,7 @@ const auditFetch=window.fetch.bind(window);
 window.fetch=function(input,init){
  const u=new URL(typeof input==='string'?input:input.url,location.href);
  if(u.hostname.endsWith('.supabase.co')){
-  if(((init&&init.method)||input.method||'GET').toUpperCase()==='GET')window.__auditReads.push(u.pathname+u.search);
+  if(((init&&init.method)||input.method||'GET').toUpperCase()==='GET'||${JSON.stringify(readRPCs)}.includes(u.pathname.split('/').pop()))window.__auditReads.push(u.pathname+u.search);
   return auditFetch('/__fixture'+u.pathname+u.search,init);
  }
  if(u.origin!==location.origin)return auditFetch('/__external');
@@ -31,7 +32,7 @@ window.fetch=function(input,init){
 const server = http.createServer((req,res)=>{
  const url=new URL(req.url,'http://localhost');
  if(url.pathname.startsWith('/__fixture')||url.pathname.startsWith('/api/')||url.pathname==='/__external'){
-  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);res.end();return;}
+  if(!['GET','HEAD'].includes(req.method)&&!(req.method==='POST'&&url.pathname.startsWith('/__fixture/rest/v1/rpc/')&&readRPCs.includes(url.pathname.split('/').pop()))){res.writeHead(405);res.end();return;}
   setTimeout(()=>{res.writeHead(200,{'Content-Type':'application/json','Content-Range':'*/0'});res.end(url.pathname.startsWith('/__fixture')?'[]':JSON.stringify({results:[],jobs:[],data:[],opportunities:[]}));},100);
   return;
  }

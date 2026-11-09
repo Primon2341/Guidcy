@@ -1,5 +1,5 @@
 const { getAuthenticatedUser } = require('../lib/razorpay-utils');
-const { paymentOwner } = require('../lib/api-security');
+const { paymentOwner, assertNotSelfPurchase } = require('../lib/api-security');
 const {
   clean,
   json,
@@ -31,6 +31,7 @@ async function createGuidcyFlowOrder(body, req, user) {
     return { ok: true, alreadyPaid: true, keyId: cfg.keyId, flow, referenceId, row };
   }
 
+  await assertNotSelfPurchase(flow, row, user);
   const amount = await authoritativeAmount(flow, row);
   const amountPaise = moneyToPaise(amount);
   if (amountPaise <= 0) {

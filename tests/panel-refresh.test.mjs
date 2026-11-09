@@ -61,10 +61,10 @@ test('a panel showing only its own placeholder is not treated as content', () =>
 test('it stays an allowlist and cannot strand a panel', () => {
   const ids = (src.slice(src.indexOf('var PANEL_IDS = ['), src.indexOf('];', src.indexOf('var PANEL_IDS = [')))
     .match(/'[\w-]+'/g) || []).map(s => s.slice(1, -1));
-  for (const required of ['adash-main', 'cdash-main', 'udash-main', 'browse-grid', 'wbn-cards', 'gmkt-grid', 'gc-list']) {
+  for (const required of ['adash-main', 'cdash-main', 'udash-main', 'browse-grid', 'wbn-cards', 'gmkt-grid', 'gc-list', 'gnet-profile-posts']) {
     assert.ok(ids.includes(required), 'missing content region: ' + required);
   }
-  assert.ok(ids.length <= 20, 'this is an allowlist, not a free-for-all - it must stay reviewable');
+  assert.ok(ids.length <= 21, 'this is an allowlist, not a free-for-all - it must stay reviewable');
   assert.doesNotMatch(src, /Element\.prototype,\s*'innerHTML',\s*\{/,
     'the override must be per element, never on the prototype');
   assert.doesNotMatch(src, /pendingTimer|STALE_MS|offsetWidth/, 'slow requests must not erase content or force a repaint');

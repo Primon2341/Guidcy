@@ -1,7 +1,7 @@
 /* Public profiles read the Marketplace catalog; checkout remains owned by Marketplace. */
 (function () {
   'use strict';
-  const FIELDS = 'id,uploader_id,title,category,description,price,is_free,thumbnail_url,preview_file_path,preview_pdf_path,preview_bucket,downloads_count,status,removed_at,created_at';
+  const FIELDS = 'id,uploader_id,profile_consultant_id,title,category,description,price,is_free,thumbnail_url,preview_file_path,preview_pdf_path,preview_bucket,downloads_count,status,removed_at,created_at';
   const INITIAL = 4;
   let state = null, channel = null, channelClient = null, poll = null, debounce = null;
   const client = () => window.guidcyGetSupabaseClient?.();
@@ -114,6 +114,7 @@
     } catch (_) { return ''; }
   }
   function card(n, owned) {
+    const own = n.uploader_id===viewer();
     const paid = Number(n.price) > 0 && !n.is_free;
     const price = paid ? window.guidcyFormatINR(Number(n.price)) : 'Free';
     const cover = imageUrl(n.thumbnail_url);
@@ -125,20 +126,24 @@
       '<div class="gpr-meta"><strong>'+esc(price)+'</strong>' +
       (n.downloads_count != null ? '<span>'+esc(Number(n.downloads_count) || 0)+' downloads</span>' : '') + '</div>' +
       '<div class="gpr-actions"><button type="button" class="btn" data-resource-action="details" data-resource-id="'+esc(n.id)+'">View Details</button>' +
-      '<button type="button" class="btn btn-blue" data-resource-action="buy" data-resource-id="'+esc(n.id)+'">'+(owned ? 'Download' : paid ? 'Buy Now' : 'Download Free')+'</button></div></div></article>';
+      '<button type="button" class="btn btn-blue" data-resource-action="buy" data-resource-id="'+esc(n.id)+'" '+(own?'disabled':'')+'>'+ (own ? 'Your resource' : owned ? 'Download' : paid ? 'Buy Now' : 'Download Free')+'</button></div></div></article>';
   }
   function paint(s) {
     if (state !== s || !s.el.isConnected) return;
-    const html = '<h3>Resources by '+esc(s.name)+'</h3><div class="gpr-list">'+s.rows.map(n => card(n, s.owned.has(String(n.id)))).join('')+'</div>' +
+    const html = '<h3>Resources by '+esc(s.name)+'</h3><div class="gpr-list" tabindex="0" role="region" aria-label="Resources — scroll horizontally to browse">'+s.rows.map(n => card(n, s.owned.has(String(n.id)))).join('')+'</div>' +
       (s.more ? '<button type="button" class="btn gpr-more" data-resource-action="more">'+(s.limit === INITIAL ? 'View all resources' : 'Show more resources')+'</button>' : '') +
       '<p class="gpr-status" role="status" hidden></p>';
     // Revalidation must not replace identical cards or reset keyboard focus.
     if (s.html !== html) { s.el.innerHTML = html; s.html = html; }
+    window.guidcyFinishPanelRefresh?.(s.el);
     const status = s.el.querySelector('.gpr-status');
     if (status) status.hidden = true;
     s.el.hidden = s.rows.length === 0;
     observeCovers(s.el);
     observeDescriptions(s.el);
+  }
+  function forProfile(query,s) {
+    return s.consultantId ? query.or('uploader_id.eq.'+s.owner+',profile_consultant_id.eq.'+s.consultantId) : query.eq('uploader_id',s.owner);
   }
   async function refresh() {
     const s = state;
@@ -151,12 +156,12 @@
       s.el.setAttribute('aria-busy', 'true');
       try {
         // profile_id is the auth user ID; consultant.id is a different primary key.
-        const result = await c.from('marketplace_notes').select(FIELDS)
-          .eq('uploader_id', s.owner).eq('status', 'active').is('removed_at', null)
+        const result = await forProfile(c.from('marketplace_notes').select(FIELDS),s)
+          .eq('status', 'active').is('removed_at', null)
           .order('created_at', {ascending:false}).order('id', {ascending:false}).limit(s.limit + 1);
         if (result.error) throw result.error;
         if (!active(s)) return;
-        const rows = (result.data || []).filter(n => String(n.uploader_id) === s.owner && n.status === 'active' && !n.removed_at);
+        const rows = (result.data || []).filter(n => (String(n.uploader_id) === s.owner || (s.consultantId && n.profile_consultant_id === s.consultantId)) && n.status === 'active' && !n.removed_at);
         s.more = rows.length > s.limit;
         s.rows = rows.slice(0, s.limit);
         const ids = s.rows.map(n => n.id);
@@ -176,6 +181,7 @@
         if (!s.html) {
           s.el.innerHTML = '<h3>Resources by '+esc(s.name)+'</h3><p class="gpr-status" role="status">Resources could not be loaded.</p><button type="button" class="btn" data-resource-action="retry">Retry</button>';
           s.el.hidden = false;
+          window.guidcyFinishPanelRefresh?.(s.el);
         } else {
           const status = s.el.querySelector('.gpr-status');
           if (status) { status.textContent = 'Could not refresh resources. Please try again shortly.'; status.hidden = false; }
@@ -209,7 +215,13 @@
     if (!c || poll) return;
     // Public RLS can suppress an UPDATE after a listing becomes private.
     // A visible-page refresh also covers that case and disconnected Realtime.
-    poll = setInterval(refresh, 60000);
+    poll = setInterval(() => {
+      if (!active()) return;
+      refresh();
+      // Public webinar reads use a safe directory view; base-table Realtime
+      // notifications may be withheld by owner-only RLS. Revalidate both lists.
+      window.wbnLoad?.();
+    }, 60000);
     if (c.channel) {
       channelClient = c;
       channel = c.channel('guidcy-profile-resources-'+state.owner)
@@ -218,18 +230,20 @@
         // DELETE events cannot be filtered by uploader; the old primary key is available.
         .on('postgres_changes', {event:'DELETE', schema:'public', table:'marketplace_notes'}, payload => {
           if (!payload?.old?.id || state?.rows.some(n => String(n.id) === String(payload.old.id))) schedule();
-        })
-        .subscribe();
+        });
+      if(state.consultantId)channel.on('postgres_changes', {event:'*', schema:'public', table:'marketplace_notes', filter:'profile_consultant_id=eq.'+state.consultantId}, schedule);
+      channel.subscribe();
     }
     refresh();
   }
   function mount(consultant) {
     const el = document.getElementById('profile-resources');
     const owner = String(consultant?.profile_id || '');
+    const consultantId = String(consultant?.dbId || consultant?.id || '');
     if (!el || !owner) { stop(); state = null; if (el) el.hidden = true; return; }
-    if (state?.el === el && state.owner === owner) { sync(); return; }
+    if (state?.el === el && state.owner === owner && state.consultantId === consultantId) { sync(); return; }
     stop();
-    state = {el, owner, name:consultant.name || 'Consultant', rows:[], owned:new Set(), expanded:new Set(), limit:INITIAL, more:false, html:'', pending:null, again:false};
+    state = {el, owner, consultantId, name:consultant.name || 'Consultant', rows:[], owned:new Set(), expanded:new Set(), limit:INITIAL, more:false, html:'', pending:null, again:false};
     sync();
   }
   document.addEventListener('click', async event => {
@@ -250,8 +264,8 @@
     try {
       // Check current publication state before acting on a card left open in a tab.
       const id = button.dataset.resourceId;
-      const result = await client().from('marketplace_notes').select('id')
-        .eq('id', id).eq('uploader_id', s.owner).eq('status', 'active').is('removed_at', null).maybeSingle();
+      const result = await forProfile(client().from('marketplace_notes').select('id').eq('id', id),s)
+        .eq('status', 'active').is('removed_at', null).maybeSingle();
       if (result.error) throw result.error;
       if (!active(s)) return;
       if (!result.data) { window.toast?.('This resource is no longer available.', 'blue'); await refresh(); return; }

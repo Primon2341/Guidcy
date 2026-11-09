@@ -39,9 +39,13 @@ const upcoming={id:'load-webinar',title:'Webinar loading verification',category:
    await ctx.route('**/*',async route=>{
     const url=route.request().url();
     if(url.includes('/assets/vendor/supabase.js'))return route.fulfill({contentType:'text/javascript',body:sdk});
-    if(url.includes('/rest/v1/webinars?')){
+    if(/\/rest\/v1\/(?:guidcy_)?webinars\?/.test(url)){
      listRequests++;
      return route.fulfill({status:failList?503:200,contentType:'application/json',body:JSON.stringify(failList?{message:'offline'}:rows)});
+    }
+    if(url.includes('/rest/v1/guidcy_webinar_counts?')){
+     await countsGate;
+     return route.fulfill({contentType:'application/json',body:JSON.stringify([{webinar_id:upcoming.id,count:1}])});
     }
     if(url.includes('/rest/v1/webinar_registrations?')){
      await countsGate;

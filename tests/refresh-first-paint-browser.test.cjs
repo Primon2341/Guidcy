@@ -124,6 +124,14 @@ const shots = process.env.SHOT_DIR || '';
  assert.equal(done.boot, null); assert.equal(done.bootStyle, false);
  assert.deepEqual(done.on, ['page-webinar']);
 
+ fp = await firstPaint(page, '/find-experts', 'find-experts');
+ assert.equal(fp.appLoaded, false);
+ assert.equal(await page.locator('#gm-browse-panel').count(), 1, 'guidance form reserves its final layout before app.js');
+ assert.equal(await page.locator('#gm-browse-panel .guidcy-match-btn').isDisabled(), true);
+ await settled(page, 'find-experts');
+ assert.equal(await page.locator('#gm-browse-panel .guidcy-match-btn').isDisabled(), false);
+ assert.equal(await page.locator('#gm-browse-panel').count(), 1);
+
  fp = await firstPaint(page, '/marketplace', 'marketplace');
  assert.equal(fp.home, false, 'Home must not paint on /marketplace');
  assert.deepEqual(fp.shown, ['page-marketplace']);
@@ -143,6 +151,16 @@ const shots = process.env.SHOT_DIR || '';
  /* Home itself is untouched by the bootstrap. */
  fp = await firstPaint(page, '/', 'home');
  assert.equal(fp.home, true); assert.equal(fp.boot, null);
+ const logo = page.locator('#main-nav .guidcy-header-brand img');
+ await logo.evaluate(img => img.decode());
+ assert.equal(await logo.isVisible(), true, 'header logo appears before app.js');
+ await settled(page, 'home');
+ for (const width of [320, 390, 1280]) {
+ await page.setViewportSize({width, height:850});
+ const mark = await logo.evaluate(img => ({loaded:img.naturalWidth > 0, width:img.getBoundingClientRect().width, height:img.getBoundingClientRect().height}));
+ assert.equal(mark.loaded, true, 'header logo asset loads');
+ assert.ok(mark.width >= 40 && mark.height >= 40, 'header logo stays visible on mobile and desktop');
+ }
 
  setHold(false);
  assert.deepEqual(errors, []);

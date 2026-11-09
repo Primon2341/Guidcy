@@ -46,6 +46,27 @@ test('an explicit zero still ticks free, and a price unticks it', () => {
   assert.equal(box.checked, false);
 });
 
+test('negative prices are not silently converted to free sessions', () => {
+  const { rate, box } = wire();
+  rate.value = '-1'; rate.oninput();
+  assert.equal(box.checked, false);
+});
+
+test('expert card normalization uses the same video rate as booking, preserving zero', () => {
+  const end = source.indexOf('  window.guidcyNormalizeConsultant=');
+  const start = source.lastIndexOf('  function normalizeConsultant(c){', end);
+  const priceStart = source.indexOf('function getSessionTypePrice(c,type){');
+  const priceEnd = source.indexOf('function getSTypePrice(c)', priceStart);
+  const ctx = vm.createContext({ arr: v => v || [], mkInit: () => 'T' });
+  vm.runInContext(source.slice(priceStart, priceEnd) + source.slice(start, end), ctx);
+  for (const video of [0, 1, 499]) {
+    const c = ctx.normalizeConsultant({rate: 999, price: 2, video_price: video});
+    assert.equal(c.price, video);
+    assert.equal(c.video_price, ctx.getSessionTypePrice(c, 'video'));
+  }
+  assert.equal(ctx.normalizeConsultant({rate:499}).price,499);
+});
+
 test('unticking free clears the box instead of prefilling 2000', () => {
   const { rate, box } = wire();
   box.checked = true;

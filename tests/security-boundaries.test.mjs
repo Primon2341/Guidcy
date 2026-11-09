@@ -58,6 +58,30 @@ test('SPA transport preserves requests, masks directory reads and authenticates 
  assert.equal(window.guidcyEscapeHtml('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;');
 });
 
+test('mobile transport buffers API uploads and preserves auth, payload and request options',async()=>{
+ class MobileRequest extends Request {
+  constructor(input,init){
+   if(init?.body?.getReader)throw new TypeError('ReadableStream uploading is not supported');
+   super(input,init);
+  }
+ }
+ let sent;
+ const window={fetch:async request=>{sent=request;return new Response('{}')},sb:{auth:{getSession:async()=>({data:{session:{access_token:'mobile-token'}}})}}};
+ vm.runInNewContext(readFileSync(new URL('../assets/js/security-client.js',import.meta.url),'utf8'),{window,location:{href:'https://www.guidcy.com/payment',origin:'https://www.guidcy.com'},URL,Request:MobileRequest,Headers,Promise});
+ for(const flow of ['booking','webinar','marketplace']){
+  const body=JSON.stringify({flow,referenceId:'fixture'}),controller=new AbortController();
+  await window.fetch('/api/create-order',{method:'POST',body,headers:{'Content-Type':'application/json',apikey:'remove-me'},credentials:'include',cache:'no-store',signal:controller.signal});
+  assert.equal(await sent.text(),body);
+  assert.equal(sent.headers.get('Authorization'),'Bearer mobile-token');
+  assert.equal(sent.headers.has('apikey'),false);
+  assert.equal(sent.credentials,'include');assert.equal(sent.cache,'no-store');
+  controller.abort();assert.equal(sent.signal.aborted,true);
+ }
+ await window.fetch(new MobileRequest('https://lsthngfxehayeqyctkla.supabase.co/functions/v1/send-guidcy-email',{method:'POST',body:'{"bookingId":"fixture"}',headers:{'Content-Type':'application/json'}}));
+ assert.equal(sent.url,'https://www.guidcy.com/api/send-guidcy-email');
+ assert.equal(await sent.text(),'{"bookingId":"fixture"}');
+});
+
 test('consultant support mailbox never grants admin access through email fallbacks',async()=>{
  const previous=global.fetch,previousAdminEmail=process.env.ADMIN_EMAIL;
  process.env.ADMIN_EMAIL='guidcytechnologies@gmail.com';

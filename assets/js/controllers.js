@@ -366,6 +366,19 @@ function finishPointer(event){
  try{logOut=window.logOut}catch(_){}
 })();
 
+// Page Back controls share browser history; modal and form-step controls stay local.
+window.guidcyBack=function(fallback){
+ if(window.__guidcyPaymentFlowLock||window.__guidcyRazorpayBookingBusy)return false;
+ if(history.state?.guidcyCanGoBack){history.back();return true;}
+ return window.guidcyNavigate(fallback||'/');
+};
+document.addEventListener('click',function(event){
+ var link=event.target.closest&&event.target.closest('[data-guidcy-back]');
+ if(!link||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey||event.button>0)return;
+ event.preventDefault();event.stopImmediatePropagation();
+ window.guidcyBack(link.getAttribute('href')||'/');
+},true);
+
 /* === guidcy-dashboard-button-toggle ===
    The header Dashboard button was a one-way door: it opened the reader's
    dashboard and left no way back to whatever they were looking at. It is now a

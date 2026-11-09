@@ -2,6 +2,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const {chromium}=require('playwright');
 const source=fs.readFileSync(path.join(__dirname,'browser-flow.test.cjs'),'utf8'),start=source.indexOf('const fakeSupabase =');
 const fixture=vm.runInNewContext(source.slice(start,source.indexOf('\n(async',start))+'\nfakeSupabase')
+ .replace("rpc:function(){return Promise.resolve({data:[],error:null})}", "rpc:function(name,args){return Promise.resolve({data:name==='community_profile'?{id:consultant.profile_id,name:consultant.name,headline:consultant.specialty,consultant_id:consultant.id,expertise:[],followers:0,following:0}:[],error:null})}")
  .replace("if(table==='consultants')return [consultant,", "if(table==='consultants'){Object.assign(consultant,JSON.parse(localStorage.getItem('__availability')||'{}'));} if(table==='consultants')return [consultant,")
  .replace("q.eq=function(field,value){filters.push(function(row){return String(row&&row[field])===String(value)});return q};", "q.eq=function(field,value){filters.push(function(row){return (typeof row?.[field]==='object'&&row?.[field]!==null?JSON.stringify(row[field]):String(row?.[field]))===String(value)});return q};q.is=function(field,value){filters.push(row=>row[field]==null&&value===null);return q};")
  .replace("if(mutation==='update')out.forEach(function(row){Object.assign(row,mutationValue)});", "if(mutation==='update')out.forEach(function(row){Object.assign(row,mutationValue);if(table==='consultants')localStorage.setItem('__availability',JSON.stringify(row))});");
@@ -15,8 +16,8 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   const context=await browser.newContext({viewport:{width,height:900}});
   await context.addInitScript(()=>{
    if(!localStorage.getItem('__availability'))localStorage.setItem('__availability',JSON.stringify({recurring_availability:{enabled:false,days:[1,2,3,4,5],start:'18:00',end:'21:00',interval:60}}));
-   window.__guidcyTestAuthUser={id:'expert-profile',email:'expert@example.com',user_metadata:{full_name:'Test Expert',role:'consultant'}};
-   window.__guidcyTestProfile={id:'expert-profile',email:'expert@example.com',full_name:'Test Expert',role:'consultant'};
+   if(localStorage.getItem('__availabilityViewer')!=='customer'){window.__guidcyTestAuthUser={id:'expert-profile',email:'expert@example.com',user_metadata:{full_name:'Test Expert',role:'consultant'}};
+   window.__guidcyTestProfile={id:'expert-profile',email:'expert@example.com',full_name:'Test Expert',role:'consultant'};}
    localStorage.setItem('guidcy_cookie_consent_v1',JSON.stringify({version:1,analytics:false,savedAt:Date.now()}));
   });
   await context.route('**/*',route=>{const url=route.request().url();if(url.includes('/assets/vendor/supabase.js'))return route.fulfill({contentType:'text/javascript',body:fixtureWithErrors});if(url==='https://checkout.razorpay.com/v1/checkout.js')return route.fulfill({contentType:'text/javascript',body:"window.Razorpay=function(options){this.on=function(){};this.open=function(){window.__availabilityCheckout=options}};"});if(url.includes('/api/create-order'))return route.fulfill({json:{keyId:'rzp_test_fixture',order:{id:'order_AVAILABILITY',amount:183750,currency:'INR'}}});if(!url.startsWith(origin)||url.includes('/api/'))return route.abort();return route.continue()});
@@ -41,6 +42,7 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   await page.getByRole('button',{name:'Save Availability & Pricing',exact:true}).click();
   await page.locator('#availability-status').filter({hasText:'Availability and pricing saved.'}).waitFor();
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('__availability')));
+  assert.equal(saved.rate,1250);assert.equal(saved.price,1250,'availability saves the same rate for expert cards and booking');
   assert.deepEqual(saved.availability_map[blocked],[]);assert.deepEqual(saved.availability_map[custom],['7:00 PM','8:00 PM']);assert.equal(saved.recurring_availability.enabled,true);assert.equal(saved.video_price,1250);assert.deepEqual(saved.session_types,['video']);
   await page.reload();await page.locator('#recurring-enabled').waitFor();assert.equal(await page.locator('#recurring-enabled').isChecked(),true);
   assert.equal(await page.locator('#price-video').inputValue(),'1250');
@@ -74,8 +76,20 @@ const server=http.createServer((req,res)=>{let file=path.join(root,new URL(req.u
   await page.locator('#recurring-availability').screenshot({path:'/private/tmp/guidcy-weekday-editor-'+width+'.png'});
   const manual=nextYear+'-01-10';
   await page.evaluate(manual=>{const row=JSON.parse(localStorage.getItem('__availability'));row.availability_map[manual]=Array.from({length:48},(_,i)=>GuidcyAvailability.label(i*30));row.session_types=['audio','chat','video'];localStorage.setItem('__availability',JSON.stringify(row));},manual);
+  // Consultants can inspect their own booking card and availability, including after reload.
+  await page.goto(origin+'/consultant/test-expert');
+  await page.locator('.gnet-profile-actions [data-action=edit-profile]').waitFor();
+  await page.locator('.gnet-consultation .book-box').waitFor({state:'visible'});
+  assert.equal(await page.locator('#gnet-booking-options').evaluate(el=>el.open),true);
+  await page.reload();await page.locator('.gnet-consultation .book-box').waitFor({state:'visible'});
+  assert.equal(await page.locator('.gnet-consultation').evaluate(el=>el.hidden),false);
+  assert.equal(await page.locator('.gnet-consultation [data-action=book]').isDisabled(),true);
+  assert.equal(await page.locator('.book-footer .green-btn').isDisabled(),true);
+  assert.equal(await page.evaluate(()=>window.startBooking()),'own_session');
+  assert.equal(await page.evaluate(()=>!!window.__availabilityBooking||!!window.__availabilityCheckout),false);
+  assert.match(page.url(),/consultant\/test-expert/);
   // Public profile resolves the persisted weekly rule into the existing date/slot UI.
-  await page.evaluate(()=>window.openProfile('test-expert',null));await page.locator('#profile-layout .date-btn').first().waitFor();
+  await page.evaluate(()=>localStorage.setItem('__availabilityViewer','customer'));await page.goto(origin+'/consultant/test-expert');await page.locator('.gnet-profile-actions [data-action=book]').click();await page.locator('#profile-layout .date-btn').first().waitFor();
   const availability=await page.evaluate(({blocked,custom})=>({dates:buildDates(),map:curCons.availabilityMap,blocked:window.GuidcyAvailability.slots(blocked,curCons.availability_map,curCons.recurring_availability),custom:window.GuidcyAvailability.slots(custom,curCons.availability_map,curCons.recurring_availability)}),{blocked,custom});
   assert.ok(availability.dates.length>250);assert.deepEqual(availability.blocked,[]);assert.deepEqual(availability.custom,['7:00 PM','8:00 PM']);
   assert.ok(Object.keys(availability.map).some(k=>k.startsWith(String(nextYear))),'booking model contains next-year availability');

@@ -9,6 +9,29 @@
  'use strict';
 
  var nativeReplace=History.prototype.replaceState;
+ var nativePush=History.prototype.pushState;
+
+ // Preserve whether this entry has a predecessor through refreshes and route rewrites.
+ function backState(state,canGoBack){
+ return Object.assign({},state||{},{guidcyCanGoBack:canGoBack});
+ }
+ var previousPage=window.navigation?.canGoBack;
+ if(previousPage==null){
+ try{previousPage=history.length>1&&new URL(document.referrer).origin===location.origin}catch(_){previousPage=false}
+ }
+ nativeReplace.call(history,backState(history.state,history.state?.guidcyCanGoBack??previousPage),'');
+ History.prototype.pushState=function(state,title,url){
+ var before=currentUrl();
+ var result=nativePush.call(this,backState(state,true),title,url);
+ if(before!==currentUrl())window.dispatchEvent(new Event('guidcy:routechange'));
+ return result;
+ };
+ History.prototype.replaceState=function(state,title,url){
+ var before=currentUrl();
+ var result=nativeReplace.call(this,backState(state,this.state?.guidcyCanGoBack===true),title,url);
+ if(before!==currentUrl())window.dispatchEvent(new Event('guidcy:routechange'));
+ return result;
+ };
 
  function currentUrl(){
  return (location.pathname||'/')+(location.search||'')+(location.hash||'');

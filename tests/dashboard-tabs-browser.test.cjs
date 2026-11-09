@@ -15,6 +15,7 @@ const fakeSupabase = vm.runInNewContext(fixtureSource.slice(fixtureStart, fixtur
 const dashboardSupabase=fakeSupabase
  .replace("rpc:function(){return Promise.resolve({data:[],error:null})}","rpc:function(name){return Promise.resolve({data:name==='guidcy_is_admin'?window.__guidcyTestProfile?.role==='admin':[],error:null})}")
  .replace("uploader_name:'Test Seller',status:","uploader_id:'expert-profile',uploader_name:'Test Seller',status:")
+ .replace("if(table==='marketplace_notes')return [purchasedNote];","if(table==='marketplace_notes')return [purchasedNote,Object.assign({},purchasedNote,{id:'removed-note',title:'Removed Solutions',status:'removed',removed_at:'2026-09-25'})];")
  .replace("buyer_email:'user@example.com'","seller_id:'expert-profile',buyer_email:(window.__guidcyTestAuthUser?.email||'user@example.com')");
 const root = path.resolve(__dirname, '..', 'public');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg' };
@@ -65,7 +66,7 @@ const server = http.createServer((req, res) => {
     assert.doesNotMatch(text,/Unable to load|Could not load|temporarily unavailable|Please sign in/i,role+' '+tab+' must load successfully');
     if(tab==='blog')assert.match(text,/Create article/);
     if(tab==='marketplace')assert.match(text,role==='consultant'?/My Marketplace[\s\S]*Sales & Payouts/:role==='user'?/My Purchased Notes[\s\S]*Purchased Test Notes/:/Marketplace/);
-    if(tab==='marketplace'&&role==='consultant')assert.match(text,/Purchased Test Notes/);
+    if(tab==='marketplace'&&role==='consultant'){assert.match(text,/Purchased Test Notes/);assert.doesNotMatch(text,/Removed Solutions/);}
     if(tab==='marketplace-purchases')assert.match(text,/My Purchased Notes[\s\S]*Purchased Test Notes/);
     const url=new URL(page.url());assert.equal(url.pathname==='/admin/webinar-registrations'?'webinar-registrations':url.searchParams.get('tab'),tab);
     assert.equal(await page.locator(dash+' .side-btn.on').first().evaluate(b=>b.dataset.dashSection||b.dataset.adminSection),tab);

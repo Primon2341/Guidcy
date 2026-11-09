@@ -1,0 +1,840 @@
+{
+  "date": "2026-10-20",
+  "deployment": "local only",
+  "databaseChanges": false,
+  "methodology": {
+    "lighthouse": "Median of 3 cold mobile runs, gzip, real SDK, valid empty read-only fixtures,100ms API latency",
+    "routes": "One run per route, mock SDK/accounts,390x844,4x CPU,1.6Mbps/150ms; SDK invocations are not wire requests",
+    "fieldINP": "not measured"
+  },
+  "home": {
+    "before": {
+      "performance": 75,
+      "lcpMs": 6307.280000000001,
+      "fcpMs": 1507.1761000000001,
+      "cls": 0.08361855598468897,
+      "tbtMs": 44.5,
+      "requests": 34,
+      "transferBytes": 1011450,
+      "jsDecodedBytes": 2204861,
+      "mainThreadMs": 1001.932000000007,
+      "jsExecutionMs": 476.1040000000042,
+      "runs": [
+        {
+          "performance": 75,
+          "lcpMs": 6325.352199999999,
+          "cls": 0.08361855598468897,
+          "tbtMs": 55.5,
+          "ttfbMs": 4.884,
+          "mainThreadMs": 1112.1559999999963,
+          "jsExecutionMs": 540.760000000003,
+          "requests": 34,
+          "jsDecodedBytes": 2204861,
+          "transferBytes": 1011450,
+          "warnings": []
+        },
+        {
+          "performance": 75,
+          "lcpMs": 6307.280000000001,
+          "cls": 0.08361855598468897,
+          "tbtMs": 44.5,
+          "ttfbMs": 2.871,
+          "mainThreadMs": 1001.932000000007,
+          "jsExecutionMs": 476.1040000000042,
+          "requests": 34,
+          "jsDecodedBytes": 2204861,
+          "transferBytes": 1011450,
+          "warnings": []
+        },
+        {
+          "performance": 75,
+          "lcpMs": 6295.9182,
+          "cls": 0.08361855598468897,
+          "tbtMs": 43.5,
+          "ttfbMs": 2.537,
+          "mainThreadMs": 949.9880000000071,
+          "jsExecutionMs": 446.3320000000032,
+          "requests": 34,
+          "jsDecodedBytes": 2204861,
+          "transferBytes": 1011450,
+          "warnings": []
+        }
+      ]
+    },
+    "after": {
+      "performance": 79,
+      "lcpMs": 5051.048,
+      "fcpMs": 1514.59,
+      "cls": 0.07063566926403822,
+      "tbtMs": 95.55949999999984,
+      "requests": 30,
+      "transferBytes": 798389,
+      "jsDecodedBytes": 2173124,
+      "mainThreadMs": 1169.6639999999916,
+      "jsExecutionMs": 529.536000000002,
+      "runs": [
+        {
+          "performance": 75,
+          "lcpMs": 5864.974599999999,
+          "cls": 0.07063566926403822,
+          "tbtMs": 162,
+          "ttfbMs": 4.351,
+          "mainThreadMs": 1283.4719999999895,
+          "jsExecutionMs": 564.2639999999984,
+          "requests": 30,
+          "jsDecodedBytes": 2173124,
+          "transferBytes": 798389,
+          "warnings": []
+        },
+        {
+          "performance": 80,
+          "lcpMs": 5006.360000000001,
+          "cls": 0.07063566926403822,
+          "tbtMs": 49,
+          "ttfbMs": 6.6129999999999995,
+          "mainThreadMs": 1019.880000000002,
+          "jsExecutionMs": 499.452000000005,
+          "requests": 30,
+          "jsDecodedBytes": 2173124,
+          "transferBytes": 798389,
+          "warnings": []
+        },
+        {
+          "performance": 79,
+          "lcpMs": 5051.048,
+          "cls": 0.07063566926403822,
+          "tbtMs": 95.55949999999984,
+          "ttfbMs": 4.283,
+          "mainThreadMs": 1169.6639999999916,
+          "jsExecutionMs": 529.536000000002,
+          "requests": 30,
+          "jsDecodedBytes": 2173124,
+          "transferBytes": 798389,
+          "warnings": []
+        }
+      ]
+    }
+  },
+  "publicRouteProfiles": {
+    "before": [
+      {
+        "route": "/",
+        "scriptMs": 178.528,
+        "apiReads": 4,
+        "duplicateWireReads": 1,
+        "labMenuInteractionMaxMs": 40,
+        "errors": []
+      },
+      {
+        "route": "/find-experts",
+        "scriptMs": 192.76399999999998,
+        "apiReads": 3,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 40,
+        "errors": []
+      },
+      {
+        "route": "/marketplace",
+        "scriptMs": 286.46500000000003,
+        "apiReads": 2,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 40,
+        "errors": []
+      },
+      {
+        "route": "/webinars",
+        "scriptMs": 263.352,
+        "apiReads": 3,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 48,
+        "errors": []
+      },
+      {
+        "route": "/find-jobs",
+        "scriptMs": 201.268,
+        "apiReads": 1,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 40,
+        "errors": []
+      },
+      {
+        "route": "/careers",
+        "scriptMs": 197.347,
+        "apiReads": 2,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 48,
+        "errors": []
+      }
+    ],
+    "after": [
+      {
+        "route": "/",
+        "scriptMs": 192.676,
+        "apiReads": 4,
+        "duplicateWireReads": 1,
+        "labMenuInteractionMaxMs": 32,
+        "errors": []
+      },
+      {
+        "route": "/find-experts",
+        "scriptMs": 205.847,
+        "apiReads": 3,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 24,
+        "errors": []
+      },
+      {
+        "route": "/marketplace",
+        "scriptMs": 342.327,
+        "apiReads": 2,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 24,
+        "errors": []
+      },
+      {
+        "route": "/webinars",
+        "scriptMs": 293.556,
+        "apiReads": 3,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 24,
+        "errors": []
+      },
+      {
+        "route": "/find-jobs",
+        "scriptMs": 204.119,
+        "apiReads": 1,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 32,
+        "errors": []
+      },
+      {
+        "route": "/careers",
+        "scriptMs": 229.152,
+        "apiReads": 2,
+        "duplicateWireReads": 0,
+        "labMenuInteractionMaxMs": 32,
+        "errors": []
+      }
+    ]
+  },
+  "routeLab": [
+    {
+      "route": "/",
+      "role": "user",
+      "before": {
+        "lcpMs": 1748,
+        "cls": 0.1909716004716731,
+        "networkRequests": 30,
+        "transferBytes": 880281,
+        "jsScriptMs": 201.16400000000002,
+        "sdkQueryInvocations": 10,
+        "menuInteractionMs": 24,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1296,
+        "cls": 0.0005811360124493253,
+        "networkRequests": 26,
+        "transferBytes": 666627,
+        "jsScriptMs": 263.049,
+        "sdkQueryInvocations": 10,
+        "menuInteractionMs": 64,
+        "errors": []
+      }
+    },
+    {
+      "route": "/find-experts",
+      "role": "user",
+      "before": {
+        "lcpMs": 1408,
+        "cls": 0.6383016564064553,
+        "networkRequests": 30,
+        "transferBytes": 744755,
+        "jsScriptMs": 217.846,
+        "sdkQueryInvocations": 6,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1304,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 25,
+        "transferBytes": 643165,
+        "jsScriptMs": 245.495,
+        "sdkQueryInvocations": 6,
+        "menuInteractionMs": 72,
+        "errors": []
+      }
+    },
+    {
+      "route": "/consultant/test-expert",
+      "role": "user",
+      "before": {
+        "lcpMs": 1732,
+        "cls": 0.0029201507794650644,
+        "networkRequests": 34,
+        "transferBytes": 882268,
+        "jsScriptMs": 237.90200000000002,
+        "sdkQueryInvocations": 84,
+        "menuInteractionMs": 24,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1248,
+        "cls": 0.0029201507794650644,
+        "networkRequests": 31,
+        "transferBytes": 672913,
+        "jsScriptMs": 267.062,
+        "sdkQueryInvocations": 84,
+        "menuInteractionMs": 24,
+        "errors": []
+      }
+    },
+    {
+      "route": "/dashboard",
+      "role": "user",
+      "before": {
+        "lcpMs": 1408,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 29,
+        "transferBytes": 742768,
+        "jsScriptMs": 220.267,
+        "sdkQueryInvocations": 10,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1260,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 26,
+        "transferBytes": 662785,
+        "jsScriptMs": 255.718,
+        "sdkQueryInvocations": 10,
+        "menuInteractionMs": 32,
+        "errors": []
+      }
+    },
+    {
+      "route": "/consultant-dashboard",
+      "role": "consultant",
+      "before": {
+        "lcpMs": 1408,
+        "cls": 0.004002768392501609,
+        "networkRequests": 30,
+        "transferBytes": 744515,
+        "jsScriptMs": 229.878,
+        "sdkQueryInvocations": 19,
+        "menuInteractionMs": 24,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1272,
+        "cls": 0.004002768392501609,
+        "networkRequests": 27,
+        "transferBytes": 664532,
+        "jsScriptMs": 241.087,
+        "sdkQueryInvocations": 19,
+        "menuInteractionMs": 40,
+        "errors": []
+      }
+    },
+    {
+      "route": "/admin-dashboard",
+      "role": "admin",
+      "before": {
+        "lcpMs": 1424,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 30,
+        "transferBytes": 744755,
+        "jsScriptMs": 354.09499999999997,
+        "sdkQueryInvocations": 518,
+        "menuInteractionMs": 24,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1256,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 26,
+        "transferBytes": 645152,
+        "jsScriptMs": 341.698,
+        "sdkQueryInvocations": 34,
+        "menuInteractionMs": 48,
+        "errors": []
+      }
+    },
+    {
+      "route": "/login",
+      "role": "guest",
+      "before": {
+        "lcpMs": 1404,
+        "cls": 0,
+        "networkRequests": 29,
+        "transferBytes": 743869,
+        "jsScriptMs": 199.483,
+        "sdkQueryInvocations": 0,
+        "menuInteractionMs": 40,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1284,
+        "cls": 0,
+        "networkRequests": 26,
+        "transferBytes": 698633,
+        "jsScriptMs": 236.321,
+        "sdkQueryInvocations": 0,
+        "menuInteractionMs": 40,
+        "errors": []
+      }
+    },
+    {
+      "route": "/signup",
+      "role": "guest",
+      "before": {
+        "lcpMs": 1408,
+        "cls": 0,
+        "networkRequests": 28,
+        "transferBytes": 744838,
+        "jsScriptMs": 194.29,
+        "sdkQueryInvocations": 0,
+        "menuInteractionMs": 48,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1304,
+        "cls": 0,
+        "networkRequests": 25,
+        "transferBytes": 699602,
+        "jsScriptMs": 234.66799999999998,
+        "sdkQueryInvocations": 0,
+        "menuInteractionMs": 32,
+        "errors": []
+      }
+    },
+    {
+      "route": "/webinars",
+      "role": "user",
+      "before": {
+        "lcpMs": 1416,
+        "cls": 0.05688201591988569,
+        "networkRequests": 32,
+        "transferBytes": 742768,
+        "jsScriptMs": 230.387,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1292,
+        "cls": 0.05625508979052812,
+        "networkRequests": 29,
+        "transferBytes": 667153,
+        "jsScriptMs": 434.424,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 56,
+        "errors": []
+      }
+    },
+    {
+      "route": "/marketplace",
+      "role": "user",
+      "before": {
+        "lcpMs": 1368,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 36,
+        "transferBytes": 744755,
+        "jsScriptMs": 241.528,
+        "sdkQueryInvocations": 16,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1264,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 32,
+        "transferBytes": 645152,
+        "jsScriptMs": 267.809,
+        "sdkQueryInvocations": 16,
+        "menuInteractionMs": 48,
+        "errors": []
+      }
+    },
+    {
+      "route": "/blog",
+      "role": "user",
+      "before": {
+        "lcpMs": 1424,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 30,
+        "transferBytes": 743618,
+        "jsScriptMs": 201.85500000000002,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 40,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1356,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 28,
+        "transferBytes": 652599,
+        "jsScriptMs": 262.381,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 56,
+        "errors": []
+      }
+    },
+    {
+      "route": "/find-jobs",
+      "role": "user",
+      "before": {
+        "lcpMs": 1408,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 31,
+        "transferBytes": 926061,
+        "jsScriptMs": 222.96699999999998,
+        "sdkQueryInvocations": 8,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1268,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 27,
+        "transferBytes": 826458,
+        "jsScriptMs": 286.94599999999997,
+        "sdkQueryInvocations": 8,
+        "menuInteractionMs": 32,
+        "errors": []
+      }
+    },
+    {
+      "route": "/career-ai-finder",
+      "role": "user",
+      "before": {
+        "lcpMs": 1424,
+        "cls": 0.13577312838251496,
+        "networkRequests": 30,
+        "transferBytes": 744755,
+        "jsScriptMs": 228.22799999999998,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 32,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 1284,
+        "cls": 0.0007634150356299735,
+        "networkRequests": 27,
+        "transferBytes": 669140,
+        "jsScriptMs": 288.80699999999996,
+        "sdkQueryInvocations": 3,
+        "menuInteractionMs": 64,
+        "errors": []
+      }
+    },
+    {
+      "route": "/careers",
+      "role": "user",
+      "before": {
+        "lcpMs": 3256,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 31,
+        "transferBytes": 897800,
+        "jsScriptMs": 223.58700000000002,
+        "sdkQueryInvocations": 4,
+        "menuInteractionMs": 24,
+        "errors": []
+      },
+      "after": {
+        "lcpMs": 2796,
+        "cls": 0.00040141313318577983,
+        "networkRequests": 27,
+        "transferBytes": 798197,
+        "jsScriptMs": 247.638,
+        "sdkQueryInvocations": 4,
+        "menuInteractionMs": 32,
+        "errors": []
+      }
+    }
+  ],
+  "build": {
+    "before": {
+      "initialFinderGzipJs": 553123,
+      "scriptCount": 19,
+      "assets": [
+        {
+          "file": "app.js",
+          "bytes": 1738260,
+          "gzipBytes": 418864,
+          "sha256": "9ae255f6e60ce37d291f8501da4ba0f81cf43d8ffe82ca66832f4097e5f5c0d0"
+        },
+        {
+          "file": "auth-lifecycle.js",
+          "bytes": 2695,
+          "gzipBytes": 983,
+          "sha256": "dec9ea64d037c5bfbe6fff218dda7d93be87d676cecad66f5214ad010c4f923a"
+        },
+        {
+          "file": "availability.js",
+          "bytes": 3651,
+          "gzipBytes": 1572,
+          "sha256": "ab726da1c440241e44a5c42f101cae15369940e9b8643a526ecbfa2c5779e041"
+        },
+        {
+          "file": "blog-content.js",
+          "bytes": 7057,
+          "gzipBytes": 2971,
+          "sha256": "3df5e71318f1f2940b77c048c2597f52abfeed4e931042f8fdd41b9dcf773a9d"
+        },
+        {
+          "file": "blog.js",
+          "bytes": 14521,
+          "gzipBytes": 5096,
+          "sha256": "bd136b37fab18cc22ac6a61f340dfd5bee46e26b40cda945e4c1d60346b4c55b"
+        },
+        {
+          "file": "community.js",
+          "bytes": 81220,
+          "gzipBytes": 23153,
+          "sha256": "4fd45317762bfa98d1558e9a916be97b76bbb58e604161525e81fbd0f6b41733"
+        },
+        {
+          "file": "controllers.js",
+          "bytes": 12346,
+          "gzipBytes": 3553,
+          "sha256": "fcee9d45b3bc7606881d7583976d416cde8779ad4b2912e7152f258ddee6e6b8"
+        },
+        {
+          "file": "cookie-consent.js",
+          "bytes": 3642,
+          "gzipBytes": 1518,
+          "sha256": "dbe48f891b2e359d7e01cc6f9d599a1137411e8b3f718cc80a90ec5a8063ef3c"
+        },
+        {
+          "file": "core.js",
+          "bytes": 1649,
+          "gzipBytes": 691,
+          "sha256": "b91fcd300ae888f463e39af52d4833c37812dc2f1fba266b745dea40854046f8"
+        },
+        {
+          "file": "jobs-search.js",
+          "bytes": 3329,
+          "gzipBytes": 1413,
+          "sha256": "093b0181909f1c193024a656eb75832320f71947d957db9232202cb5d1835310"
+        },
+        {
+          "file": "page-shell.js",
+          "bytes": 10751,
+          "gzipBytes": 3709,
+          "sha256": "9ce37aea8a27ab56184a8e1557b63eea2b307f647027aee875d2a2b2270386e0"
+        },
+        {
+          "file": "profile-resources.js",
+          "bytes": 10743,
+          "gzipBytes": 3999,
+          "sha256": "a60f09028ead45e994441723d0c1256e01b41bc98452f9520d3105dfba905642"
+        },
+        {
+          "file": "razorpay-checkout.js",
+          "bytes": 1965,
+          "gzipBytes": 848,
+          "sha256": "6d9c57dc88af51c06ba0f46b733576110b376774332ff7dff62ffeec47e315b0"
+        },
+        {
+          "file": "security-client.js",
+          "bytes": 1750,
+          "gzipBytes": 918,
+          "sha256": "d1a06dcc3218f4c58c02488f1aa54481ac127513ca950d2e29c49fe10289021f"
+        },
+        {
+          "file": "seo-client.js",
+          "bytes": 3903,
+          "gzipBytes": 1706,
+          "sha256": "a3cdfbf3a70e8b79ef22a8037b671e888be2627f0c5a42c9839edfb9aa979e2d"
+        },
+        {
+          "file": "seo.js",
+          "bytes": 14478,
+          "gzipBytes": 5599,
+          "sha256": "65888b3cc1377a9dc53fbb504b74cc9496d0f99359c8264fe9f2683241bf9d2e"
+        },
+        {
+          "file": "shared-search.js",
+          "bytes": 25936,
+          "gzipBytes": 7524,
+          "sha256": "6c88d5c396440f7cb88398b0e3c1564a42f157da91d087803ca4fea576459c2f"
+        },
+        {
+          "file": "ui-refresh.js",
+          "bytes": 2636,
+          "gzipBytes": 1171,
+          "sha256": "984eccd6d5254f906e63f7713df174b1ca60d2a1b39b386c7d1f4c66459f941e"
+        },
+        {
+          "file": "webinar-flow.js",
+          "bytes": 63173,
+          "gzipBytes": 17119,
+          "sha256": "61ba1c85931984d13f5633a1c7a5d64aab5bcc7611b24d90b47541487734b1f8"
+        }
+      ]
+    },
+    "after": {
+      "initialFinderGzipJs": 518558,
+      "scriptCount": 16,
+      "assets": [
+        {
+          "file": "app.js",
+          "bytes": 1735478,
+          "gzipBytes": 418216,
+          "sha256": "594f02575a69dfc67ceef756e2334b13bf4fba4bb5fff605549b423fcd928bfb"
+        },
+        {
+          "file": "auth-lifecycle.js",
+          "bytes": 2695,
+          "gzipBytes": 983,
+          "sha256": "dec9ea64d037c5bfbe6fff218dda7d93be87d676cecad66f5214ad010c4f923a"
+        },
+        {
+          "file": "availability.js",
+          "bytes": 3651,
+          "gzipBytes": 1572,
+          "sha256": "ab726da1c440241e44a5c42f101cae15369940e9b8643a526ecbfa2c5779e041"
+        },
+        {
+          "file": "blog-content.js",
+          "bytes": 7057,
+          "gzipBytes": 2971,
+          "sha256": "3df5e71318f1f2940b77c048c2597f52abfeed4e931042f8fdd41b9dcf773a9d"
+        },
+        {
+          "file": "blog.js",
+          "bytes": 14521,
+          "gzipBytes": 5096,
+          "sha256": "bd136b37fab18cc22ac6a61f340dfd5bee46e26b40cda945e4c1d60346b4c55b"
+        },
+        {
+          "file": "community.js",
+          "bytes": 81254,
+          "gzipBytes": 23162,
+          "sha256": "7aa0474c8c014b4f7e6d5df4775ead8e51866c0a901113ebebede302c6f66fe5"
+        },
+        {
+          "file": "controllers.js",
+          "bytes": 12346,
+          "gzipBytes": 3553,
+          "sha256": "fcee9d45b3bc7606881d7583976d416cde8779ad4b2912e7152f258ddee6e6b8"
+        },
+        {
+          "file": "cookie-consent.js",
+          "bytes": 3642,
+          "gzipBytes": 1518,
+          "sha256": "dbe48f891b2e359d7e01cc6f9d599a1137411e8b3f718cc80a90ec5a8063ef3c"
+        },
+        {
+          "file": "core.js",
+          "bytes": 1851,
+          "gzipBytes": 741,
+          "sha256": "2c7d183ac35994fec67810e862b4fe51a9e54b7f7cd1933bebb1be095555f59d"
+        },
+        {
+          "file": "feature-loader.js",
+          "bytes": 2402,
+          "gzipBytes": 990,
+          "sha256": "fc9ad48cfb5728e91bc1ed857f70efa20bf803706cb9a5acfd50d73bdf9c0112"
+        },
+        {
+          "file": "jobs-search.js",
+          "bytes": 3329,
+          "gzipBytes": 1413,
+          "sha256": "093b0181909f1c193024a656eb75832320f71947d957db9232202cb5d1835310"
+        },
+        {
+          "file": "page-shell.js",
+          "bytes": 10751,
+          "gzipBytes": 3709,
+          "sha256": "9ce37aea8a27ab56184a8e1557b63eea2b307f647027aee875d2a2b2270386e0"
+        },
+        {
+          "file": "profile-resources.js",
+          "bytes": 10743,
+          "gzipBytes": 3999,
+          "sha256": "a60f09028ead45e994441723d0c1256e01b41bc98452f9520d3105dfba905642"
+        },
+        {
+          "file": "razorpay-checkout.js",
+          "bytes": 1965,
+          "gzipBytes": 848,
+          "sha256": "6d9c57dc88af51c06ba0f46b733576110b376774332ff7dff62ffeec47e315b0"
+        },
+        {
+          "file": "security-client.js",
+          "bytes": 1750,
+          "gzipBytes": 918,
+          "sha256": "d1a06dcc3218f4c58c02488f1aa54481ac127513ca950d2e29c49fe10289021f"
+        },
+        {
+          "file": "seo-client.js",
+          "bytes": 3903,
+          "gzipBytes": 1706,
+          "sha256": "a3cdfbf3a70e8b79ef22a8037b671e888be2627f0c5a42c9839edfb9aa979e2d"
+        },
+        {
+          "file": "seo.js",
+          "bytes": 14478,
+          "gzipBytes": 5599,
+          "sha256": "65888b3cc1377a9dc53fbb504b74cc9496d0f99359c8264fe9f2683241bf9d2e"
+        },
+        {
+          "file": "shared-search.js",
+          "bytes": 26664,
+          "gzipBytes": 7786,
+          "sha256": "cd1900f79dd07938c7d0cb528bb45cfe862748aca6a9156c95b7e5fdcc3ddd87"
+        },
+        {
+          "file": "ui-refresh.js",
+          "bytes": 2636,
+          "gzipBytes": 1171,
+          "sha256": "984eccd6d5254f906e63f7713df174b1ca60d2a1b39b386c7d1f4c66459f941e"
+        },
+        {
+          "file": "webinar-flow.js",
+          "bytes": 63173,
+          "gzipBytes": 17119,
+          "sha256": "61ba1c85931984d13f5633a1c7a5d64aab5bcc7611b24d90b47541487734b1f8"
+        }
+      ]
+    }
+  },
+  "searchBenchmark": {
+    "candidates": 200,
+    "beforeMs": 11.293097233333333,
+    "afterMs": 2.1749653000000007,
+    "identicalResults": true
+  },
+  "database": {
+    "anonymousConsultants": 20,
+    "beforeJsonBytes": 325250,
+    "afterJsonBytes": 310665,
+    "avatarFieldBytes": 281396,
+    "advisors": {
+      "unindexedForeignKeys": 27,
+      "authRlsInitplan": 129,
+      "multiplePermissivePolicies": 60,
+      "duplicateIndex": 2,
+      "unusedIndex": 69
+    },
+    "schemaOrDataModified": false
+  },
+  "logo": {
+    "beforeBytes": 54443,
+    "afterBytes": 13882
+  },
+  "verification": {
+    "node": {
+      "total": 297,
+      "passed": 292,
+      "unrelatedFailures": 5
+    },
+    "realCharges": false,
+    "liveOAuthConsent": false,
+    "realEmailDelivery": false
+  }
+}

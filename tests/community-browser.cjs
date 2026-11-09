@@ -1,0 +1,342 @@
+// Fixture-only browser verification; no posts or engagement are written to Supabase.
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const http=require('node:http');
+const path=require('node:path');
+const vm=require('node:vm');
+const {chromium}=require('playwright');
+const source=fs.readFileSync(path.join(__dirname,'browser-flow.test.cjs'),'utf8');
+const start=source.indexOf('const fakeSupabase =');
+let sdk=vm.runInNewContext(source.slice(start,source.indexOf('\n(async',start))+'\nfakeSupabase');
+const OWNER='11111111-1111-4111-8111-111111111111',EXPERT='22222222-2222-4222-8222-222222222222',MEMBER='33333333-3333-4333-8333-333333333333';
+sdk=sdk.replaceAll('test-user',OWNER).replaceAll('expert-profile',EXPERT);
+function socialFixture(){
+ const owner='11111111-1111-4111-8111-111111111111',expert='22222222-2222-4222-8222-222222222222',member='33333333-3333-4333-8333-333333333333';
+ const makeID=n=>'aaaaaaaa-aaaa-4aaa-8aaa-'+String(n).padStart(12,'0');
+ const people=[{id:owner,name:'Test User',headline:'Product Designer',professional_status:'open_to_work',professional_status_note:'Retired status fixture',public_contact_email:'private-fixture@example.com',website_url:'https://example.com/private',linkedin_url:'https://linkedin.com/in/private-fixture',company:'Guidcy',cover_path:owner+'/'+makeID(900)+'.webp',followers:0,following:0},{id:expert,name:'Test Expert',headline:'Career Coach',company:'Guidcy Technologies',consultant_id:'test-expert',expertise:['Career growth','Technology'],followers:0,following:0},{id:member,name:'Community Member',headline:'Software Engineer',company:'Example',college:'Test College',followers:0,following:0}];
+ const tables=window.__social={community_posts:Array.from({length:15},(_,i)=>({id:makeID(i+1),author_id:i%2?member:expert,body:i===0?'A practical lesson from mentoring: ask better questions. <img src=x onerror=alert(1)>':'Community perspective '+(i+1),kind:'Insight',image_path:null,image_alt:'',created_at:new Date(Date.now()-i*3600000-1000).toISOString(),updated_at:new Date(Date.now()-i*3600000-1000).toISOString()})),saved_consultants:[],community_likes:[],community_saves:[],community_follows:[],community_comments:[],community_connections:[],community_skill_endorsements:[],profile_entries:[],profile_featured:[],community_organizations:[{id:makeID(901),kind:'company',name:'Guidcy',name_key:'guidcy',logo_url:'/assets/images/guidcy-mark.png',is_approved:true},{id:makeID(902),kind:'company',name:'Optical Research',name_key:'optical research',logo_url:'/assets/images/guidcy-mark.png',is_approved:true},{id:makeID(903),kind:'college',name:'IIT Roorkee',name_key:'iit roorkee',logo_url:'/assets/images/guidcy-mark.png',is_approved:true}]};
+ let sequence=20;window.__socialQueries=[];window.__authListeners=[];window.__uploads=[];window.__removedImages=[];
+ const native=window.supabase.createClient;
+ window.supabase.createClient=function(){const c=native();const oldFrom=c.from;c.auth.getSession=async()=>({data:{session:window.__guest?null:{user:{id:owner,email:'user@example.com',user_metadata:{full_name:'Test User',role:'user'}},access_token:'fixture'}}});c.auth.onAuthStateChange=fn=>{window.__authListeners.push(fn);return {data:{subscription:{unsubscribe(){}}}}};
+ c.from=table=>{
+  if(table==='blog_posts'){const q={};for(const key of ['select','eq','ilike','order','limit'])q[key]=()=>q;q.then=resolve=>Promise.resolve({data:[],error:null}).then(resolve);return q;}if(!tables[table])return oldFrom(table);const q={};let filters=[],limit=Infinity,op='',values=null;
+  q.in=(k,v)=>{filters.push(r=>v.includes(r[k]));return q};q.ilike=(k,v)=>{const query=v.replace(/^%|%$/g,'').toLowerCase();filters.push(r=>String(r[k]||'').toLowerCase().includes(query));return q};q.select=()=>q;q.neq=(k,v)=>{filters.push(r=>r[k]!==v);return q};q.is=(k,v)=>{filters.push(r=>r[k]==v);return q};q.eq=(k,v)=>{filters.push(r=>r[k]===v);return q};q.gt=(k,v)=>{filters.push(r=>r[k]>v);return q};q.order=()=>q;q.limit=n=>{limit=n;return q};q.or=()=>q;
+  q.insert=q.upsert=v=>{op='insert';values=v;return q};q.update=v=>{op='update';values=v;return q};q.delete=()=>{op='delete';return q};
+  const run=()=>{window.__socialQueries.push({table,op});if(window.__failSocial){window.__failSocial=false;return {data:null,error:{message:'Fixture failure'}};}let rows=tables[table].filter(r=>filters.every(f=>f(r)));
+   if(op==='insert'){rows=[{id:makeID(sequence++),created_at:new Date().toISOString(),updated_at:new Date().toISOString(),...values}];tables[table].push(...rows);}
+   if(op==='update')rows.forEach(r=>Object.assign(r,values,{updated_at:new Date().toISOString()}));
+   if(op==='delete')tables[table]=tables[table].filter(r=>!rows.includes(r));
+   if(table==='profile_entries'&&op){for(const id of new Set(rows.filter(r=>r.kind==='education').map(r=>r.profile_id))){const entry=tables.profile_entries.filter(r=>r.profile_id===id&&r.kind==='education').sort((a,b)=>String(b.start_date||'').localeCompare(String(a.start_date||'')))[0];Object.assign(people.find(p=>p.id===id),{college:entry?.organization||'',education:entry?.title||''});}}
+   return {data:rows.slice(0,limit),error:null};};
+  q.then=(resolve,reject)=>Promise.resolve(run()).then(resolve,reject);q.single=()=>{const r=run();return Promise.resolve({...r,data:r.data?.[0]||null})};return q;
+ };
+ c.rpc=async(name,args={})=>{
+  window.__socialQueries.push({rpc:name,args});if(window.__failFeed&&name==='community_feed')return {data:null,error:{message:'Fixture offline'}};
+  const uid=window.__guest?null:owner;
+  if(name==='community_organization_matches'){
+   const norm=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase(),term=norm(args.p_query);
+   const registered={id:makeID(904),kind:args.p_kind,name:'Guidcy Technologies',name_key:'guidcy technologies',logo_url:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jc1sAAAAASUVORK5CYII=',source:'consultant',consultant_id:'test-expert'};
+   const rows=tables.community_organizations.filter(r=>r.kind===args.p_kind&&r.is_approved).map(r=>({...r,name_key:norm(r.name),source:'directory'}));if(!tables.community_organizations.some(r=>r.kind===args.p_kind&&norm(r.name)===registered.name_key))rows.push(registered);rows.push({...registered,id:makeID(905),name:'Guidcy Institute',name_key:'guidcy institute'});
+   return {data:rows.filter(r=>args.p_names?args.p_names.map(norm).includes(r.name_key):term.length>=2&&r.name_key.includes(term)).sort((a,b)=>Number(b.name_key===term)-Number(a.name_key===term)||a.name_key.localeCompare(b.name_key)).slice(0,args.p_names?150:8),error:null};
+  }
+  if(name==='community_update_photo'){
+   if(window.__failProfile){window.__failProfile=false;return {data:null,error:{message:'Fixture photo failure'}};}
+   const p=people.find(p=>p.id===owner);if(args.p_kind==='cover')p.cover_path=args.p_value;else p.avatar_url=args.p_value||'';return {data:{id:owner,full_name:p.name,avatar_url:p.avatar_url||'',cover_path:p.cover_path||null},error:null};
+  }
+  if(name==='community_update_identity'){
+   if(window.__failProfile){window.__failProfile=false;return {data:null,error:{message:'Fixture profile failure'}};}
+   Object.assign(people.find(p=>p.id===owner),args.p_data,{cover_path:args.p_data.cover});return {data:null,error:null};
+  }
+  if(name==='community_connection'){
+   const edges=tables.community_connections,edge=edges.find(e=>[e.member_a,e.member_b].includes(owner)&&[e.member_a,e.member_b].includes(args.p_id));
+   if(args.p_action==='request'&&!edge)edges.push({id:makeID(sequence++),member_a:owner,member_b:args.p_id,requested_by:owner,status:'pending'});
+   if(args.p_action==='accept'&&edge&&edge.requested_by!==owner)edge.status='accepted';
+   if(args.p_action==='remove')tables.community_connections=edges.filter(e=>e!==edge);return {data:null,error:null};
+  }
+  if(name==='community_network')return {data:tables.community_connections.filter(e=>[e.member_a,e.member_b].includes(args.p_id)&&e.status===(args.p_requests?'pending':'accepted')&&(!args.p_before||e.id>args.p_before)).slice(0,21).map(e=>({...e,person:people.find(p=>p.id===(e.member_a===args.p_id?e.member_b:e.member_a))})),error:null};
+  if(name==='community_endorse_skill'){
+   tables.community_skill_endorsements=tables.community_skill_endorsements.filter(e=>!(e.profile_id===args.p_id&&e.skill===args.p_skill&&e.endorser_id===owner));
+   if(args.p_endorsed)tables.community_skill_endorsements.push({profile_id:args.p_id,skill:args.p_skill,endorser_id:owner});return {data:null,error:null};
+  }
+  if(name==='community_skill_endorsements')return {data:[...new Set(tables.community_skill_endorsements.filter(e=>e.profile_id===args.p_id).map(e=>e.skill))].map(skill=>({skill,endorsements:tables.community_skill_endorsements.filter(e=>e.profile_id===args.p_id&&e.skill===skill).length,endorsed:tables.community_skill_endorsements.some(e=>e.profile_id===args.p_id&&e.skill===skill&&e.endorser_id===owner)})),error:null};
+  if(name==='community_update_professional'){
+   if(window.__failProfile){window.__failProfile=false;return {data:null,error:{message:'Fixture profile failure'}};}
+   const p=people.find(p=>p.id===owner);if(args.p_section==='intro')Object.assign(p,{name:args.p_data.name,headline:args.p_data.headline,bio:args.p_data.bio,cover_path:args.p_data.cover,company:args.p_data.company,city:args.p_data.city});
+   if(args.p_section==='experience'){const old=p.company_experience||[];p.company_experience=args.p_data;const current=args.p_data.find(e=>e.currently_working);if(current)p.company=current.company_name;else if(old.some(e=>e.company_name===p.company))p.company='';}if(args.p_section==='skills'){p.skills=args.p_data;p.expertise=args.p_data;}return {data:null,error:null};
+  }
+  if(name==='community_featureable_webinars')return {data:[],error:null};
+  if(name==='community_featured')return {data:tables.profile_featured.filter(f=>f.profile_id===args.p_id).map(f=>{const e=tables.profile_entries.find(e=>e.id===f.entry_id),p=tables.community_posts.find(p=>p.id===f.post_id);return {...f,kind:e?.kind||'Post',title:e?.title||p?.body||'Featured resource'};}),error:null};
+  if(name==='community_profile'){await new Promise(r=>setTimeout(r,150));const p=people.find(p=>p.id===args.p_id),edges=tables.community_connections.filter(e=>[e.member_a,e.member_b].includes(args.p_id)),edge=edges.find(e=>[e.member_a,e.member_b].includes(owner));return {data:p?{...p,connections:edges.filter(e=>e.status==='accepted').length,connection_requests:args.p_id===owner?edges.filter(e=>e.status==='pending'&&e.requested_by!==owner).length:0,connection_status:!edge||args.p_id===owner?'none':edge.status==='accepted'?'connected':edge.requested_by===owner?'outgoing':'incoming',bio:p.bio||'A short professional introduction.',city:p.city||'Delhi',education:p.education??'M.Tech Polymer Science',cover_path:p.cover_path||null}:null,error:null};}
+  if(name==='community_update_profile'){Object.assign(people.find(p=>p.id===owner),{name:args.p_name,headline:args.p_headline,bio:args.p_bio,cover_path:args.p_cover});return {data:null,error:null};}
+  if(name==='community_people')return {data:people.filter(p=>args.p_ids?args.p_ids.includes(p.id):p.consultant_id).map(p=>({...p,followers:tables.community_follows.filter(f=>f.following_id===p.id).length,following:tables.community_follows.filter(f=>f.follower_id===p.id).length,is_following:tables.community_follows.some(f=>f.following_id===p.id&&f.follower_id===uid)})),error:null};
+  if(name==='community_profile_activity'){const r=await c.rpc('community_feed',{p_mode:'latest',p_author:args.p_id,p_before:args.p_before,p_before_id:args.p_before_id,p_kind:args.p_kind});return {...r,data:r.data.slice(0,6)}}
+  if(name==='community_feed'){
+   if(window.__holdFeed)await new Promise(resolve=>window.__releaseFeed=resolve);
+   const followed=id=>tables.community_follows.some(f=>f.follower_id===uid&&f.following_id===id);
+   let rows=tables.community_posts.filter(p=>(!args.p_post||p.id===args.p_post)&&(!args.p_kind||p.kind===args.p_kind)&&(!args.p_author||p.author_id===args.p_author)&&(args.p_mode!=='mine'||p.author_id===uid)&&(args.p_mode!=='saved'||tables.community_saves.some(s=>s.post_id===p.id&&s.user_id===uid))&&(args.p_mode!=='following'||followed(p.author_id))).map(p=>({...p,rank_at:new Date(Date.parse(p.created_at)+(args.p_mode==='community'&&followed(p.author_id)&&!args.p_post&&!args.p_author?43200000:0)).toISOString(),likes:tables.community_likes.filter(l=>l.post_id===p.id).length,comments:tables.community_comments.filter(l=>l.post_id===p.id).length,liked:tables.community_likes.some(l=>l.post_id===p.id&&l.user_id===uid),saved:tables.community_saves.some(l=>l.post_id===p.id&&l.user_id===uid)}));
+   rows.sort((a,b)=>b.rank_at.localeCompare(a.rank_at)||b.id.localeCompare(a.id));if(args.p_before)rows=rows.filter(p=>p.rank_at<args.p_before||(p.rank_at===args.p_before&&p.id<args.p_before_id));return {data:rows.slice(0,13),error:null};
+  }return {data:[],error:null};
+ };
+ c.storage={from:()=>({getPublicUrl:()=>({data:{publicUrl:'/assets/images/footer-logo.webp'}}),upload:async(path,blob)=>{window.__uploads.push({path,size:blob.size,type:blob.type});return {data:{path},error:null}},remove:async paths=>{window.__removedImages.push(...paths);return {data:[],error:null}}})};return c;
+ };
+ const realFetch=window.fetch.bind(window);window.fetch=async(url,options)=>String(url).startsWith('data:')||String(url).includes('/assets/images/')?realFetch(url,options):new Response('[]',{headers:{'Content-Type':'application/json'}});
+}
+const fixture=sdk+'\n('+socialFixture.toString()+')();';
+const root=path.resolve(process.env.GUIDCY_TEST_ROOT||path.join(__dirname,'../public'));
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2'};
+const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');let file=path.join(root,url.pathname);if(!fs.existsSync(file)||fs.statSync(file).isDirectory())file=path.join(root,'index.html');res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'});fs.createReadStream(file).pipe(res);});
+let browser;
+(async()=>{
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
+ browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const context=await browser.newContext({viewport:{width:1365,height:1000}});
+ await context.route('**/*',route=>{const url=route.request().url();if(url.includes('/assets/vendor/supabase.js'))return route.fulfill({contentType:'text/javascript',body:fixture});return url.startsWith(origin)?route.continue():route.abort();});
+ await context.addInitScript(()=>{
+  if(location.pathname.startsWith('/consultant/')||location.pathname==='/profile'){
+   let uid='';try{uid=JSON.parse(localStorage.getItem('sb-lsthngfxehayeqyctkla-auth-token')||'null')?.user?.id||''}catch(_){}
+   if(!JSON.parse(sessionStorage.getItem('guidcy:refresh:v1')||'{}')[location.pathname+location.search]?.regions?.['profile-layout']?.profileVersion)sessionStorage.setItem('guidcy:refresh:v1',JSON.stringify({[location.pathname+location.search]:{at:Date.now(),uid,page:'profile',regions:{'profile-layout':{html:'<div class="profile-hero"><div class="profile-avatar">OLD CACHED PROFILE</div></div>',height:1000,at:Date.now()}}}}));
+  }
+  window.__profileWidths=[];
+  function captureWidth(){const hero=document.querySelector('#page-profile.on .gnet-profile-header');if(hero&&hero.getBoundingClientRect().width)window.__profileWidths.push(hero.getBoundingClientRect().width);requestAnimationFrame(captureWidth)}requestAnimationFrame(captureWidth);
+  window.__legacyProfilePaints=[];
+  new MutationObserver(()=>{if(document.querySelector('#page-profile.on .profile-avatar,#page-profile.on .profile-role,#page-profile.on .guidcy-profile-experience'))window.__legacyProfilePaints.push('legacy');}).observe(document,{childList:true,subtree:true});
+ });
+ const identityPage=await context.newPage();await identityPage.addInitScript(()=>window.__guest=true);
+ await identityPage.goto(origin);
+ await identityPage.locator('#gnet-compose-avatar img.gnet-brand').waitFor();
+ await identityPage.locator('#gnet-compose-avatar img').evaluate(img=>img.decode());
+ await identityPage.locator('#gnet-me .gnet-me-guest img.gnet-brand').waitFor();
+ const loginPhoto='data:image/png;base64,'+fs.readFileSync(path.resolve(__dirname,'../favicon-96x96.png')).toString('base64');
+ await identityPage.evaluate(async({owner,photo})=>{
+  await window.guidcyGetSupabaseClient().rpc('community_update_photo',{p_kind:'avatar',p_value:photo});
+  window.__guest=false;
+  window.__authListeners.forEach(fn=>fn('SIGNED_IN',{user:{id:owner,email:'user@example.com',user_metadata:{full_name:'Test User',role:'user'}},access_token:'fixture'}));
+ },{owner:OWNER,photo:loginPhoto});
+ await identityPage.waitForFunction(photo=>document.querySelector('#gnet-compose-avatar img:not(.gnet-brand)')?.getAttribute('src')===photo,loginPhoto);
+ assert.equal(await identityPage.locator('#gnet-me .gnet-me-photo img').getAttribute('src'),loginPhoto,'login replaces the guest logo with the account photo');
+ await identityPage.close();
+ console.log('Guest logo loads; signing in replaces it with the account photo without reloading');
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(origin);await page.waitForSelector('.gnet-post');await page.waitForFunction(()=>document.querySelector('#gnet-me').textContent.includes('Test User'));
+ await page.waitForSelector('#gnet-me .gnet-mini-cover img');assert.equal(await page.locator('#gnet-me .gnet-mini-cover').evaluate(el=>Math.abs(el.clientWidth/el.clientHeight-4)<.1),true,'cover reserves a 4:1 area even when source image has another ratio');
+ assert.equal(await page.locator('link[rel=icon]').count(),5);assert.equal(await page.locator('link[rel=icon]').evaluateAll(links=>links.every(el=>el.href.includes('guidcy-mark-20261007'))),true);
+ await page.locator('[data-cookie-choice=reject]').first().click();assert.equal(await page.locator('.gnet-post').count(),12);assert.equal(await page.locator('.gnet-post-body img').count(),0);assert.equal(await page.locator('#gnet-more').isVisible(),true);
+ // Hard refresh restores the existing community regions before app.js starts.
+ const inlineAvatar='data:image/png;base64,'+fs.readFileSync(path.resolve(__dirname,'../favicon-512x512.png')).toString('base64');
+ await page.evaluate(src=>{document.querySelectorAll('#gnet-feed .gnet-person .gnet-avatar').forEach(el=>{const img=document.createElement('img');img.className='gnet-avatar';img.width=44;img.height=44;img.src=src;el.replaceWith(img);});},inlineAvatar);
+ await page.evaluate(owner=>{localStorage.setItem('sb-lsthngfxehayeqyctkla-auth-token',JSON.stringify({user:{id:owner}}));window.guidcySavePageShell();},OWNER);
+ assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('guidcy:refresh:v1'))['/'].images.length),1,'repeated inline photos are stored once');
+ let releaseApp;
+ await context.route('**/assets/js/app.js*',async route=>{await new Promise(resolve=>releaseApp=resolve);await route.continue();});
+ await page.reload({waitUntil:'commit'});
+ await page.waitForSelector('#gnet-feed[data-guidcy-restored] .gnet-post');
+ assert.equal(await page.locator('#gnet-feed .gnet-post').count(),12);
+ assert.equal(await page.locator('#gnet-feed .gnet-person img').first().getAttribute('src'),inlineAvatar,'cached photos restore without blank placeholders');
+ assert.match(await page.locator('#gnet-me').innerText(),/Test User/);
+ await page.evaluate(()=>{window.__emptyFeedPaints=0;new MutationObserver(()=>{if(!document.querySelector('#gnet-feed .gnet-post'))window.__emptyFeedPaints++;}).observe(document.querySelector('#gnet-feed'),{childList:true});});
+ releaseApp();await context.unroute('**/assets/js/app.js*');
+ await page.waitForFunction(()=>document.querySelector('#gnet-feed')?.getAttribute('aria-busy')==='false'&&!document.querySelector('#gnet-feed').hasAttribute('inert'));
+ assert.equal(await page.evaluate(()=>window.__emptyFeedPaints),0,'cached feed must not flash empty while revalidating');
+ // In-page refresh retains mounted posts and the static composer until data arrives.
+ await page.evaluate(()=>{window.__holdFeed=true;window.__firstFeedCard=document.querySelector('.gnet-post');window.__composer=document.querySelector('.gnet-composer');});
+ await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>!!window.__releaseFeed);
+ assert.equal(await page.evaluate(()=>window.__firstFeedCard===document.querySelector('.gnet-post')&&window.__composer===document.querySelector('.gnet-composer')),true);
+ await page.evaluate(()=>{window.__holdFeed=false;window.__releaseFeed();});
+ await page.waitForFunction(()=>document.querySelector('#gnet-feed').getAttribute('aria-busy')==='false');
+ // Returning Home must not wait for a read started before leaving the page.
+ await page.evaluate(()=>{window.__releaseFeed=null;window.__holdFeed=true;});
+ await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>!!window.__releaseFeed);
+ await page.evaluate(()=>window.guidcyNavigate('/about'));await page.locator('#page-about.on').waitFor();
+ await page.evaluate(()=>{window.__holdFeed=false;window.guidcyNavigate('/');});
+ await page.waitForFunction(()=>document.querySelector('#gnet-feed').getAttribute('aria-busy')==='false',null,{timeout:2500});
+ assert.equal(await page.locator('.gnet-post').count(),12,'returning Home starts a fresh read without the stalled response');
+ await page.evaluate(()=>{window.__feedCardAfterReturn=document.querySelector('.gnet-post');window.__releaseFeed();});
+ await page.waitForTimeout(100);
+ assert.equal(await page.evaluate(()=>window.__feedCardAfterReturn===document.querySelector('.gnet-post')),true,'late previous-page reads cannot repaint the current feed');
+ // Universal search stays separate from the consultant-only search and supports keyboard navigation.
+ await page.locator('#gnet-site-search').focus();await page.waitForSelector('#gnet-site-results button');assert.match(await page.locator('#gnet-site-results').innerText(),/Marketplace Notes[\s\S]*Webinars[\s\S]*Find Jobs/);
+ await page.locator('#gnet-site-search').fill('privacy');await page.waitForFunction(()=>document.querySelector('#gnet-site-results')?.textContent.includes('Privacy Policy'));
+ await page.locator('#gnet-site-search').press('ArrowDown');await page.keyboard.press('Enter');await page.waitForSelector('#page-privacy.on');
+ await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('.gnet-post');
+ await page.locator('#gnet-site-search').fill('expert');await page.waitForFunction(()=>!!document.querySelector('#gnet-site-results [data-guidcy-search-kind=consultant]'));await page.locator('#gnet-site-results [data-guidcy-search-kind=consultant]').first().click();await page.waitForSelector('.gnet-profile-header');
+ await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('.gnet-post');
+ await page.locator('#gnet-site-search').fill('mentoring');await page.waitForSelector('#gnet-site-results [data-guidcy-search-kind=post]');await page.locator('#gnet-site-results [data-guidcy-search-kind=post]').first().click();await page.waitForFunction(()=>new URLSearchParams(location.search).has('post')&&document.querySelectorAll('#gnet-feed .gnet-post').length===1);await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('.gnet-post');
+ await page.locator('#gnet-site-search').fill('notes');await page.locator('#gnet-site-search').press('Escape');await page.waitForTimeout(300);assert.equal(await page.locator('#gnet-site-results').isVisible(),false);
+ await page.locator('.gnet-compose-trigger').click();assert.equal(await page.locator('#gnet-kind,#gnet-alt').count(),0);await page.locator('#gnet-dialog [data-close]').click();
+ await page.goto(origin);await page.waitForSelector('.gnet-post');await page.waitForFunction(()=>document.querySelector('#gnet-me').textContent.includes('Test User'));
+ await page.locator('#gnet-more').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===15);assert.equal(await page.locator('#gnet-more').isVisible(),false);
+ const first=page.locator('.gnet-post').first();await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelectorAll('[data-follow="'+id+'"][aria-pressed="true"]').length>1,EXPERT);
+ await page.evaluate(()=>window.__failSocial=true);await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelector('[data-follow="'+id+'"]').getAttribute('aria-pressed')==='true'&&!document.querySelector('[data-follow="'+id+'"]').disabled,EXPERT);
+ await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
+ assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)');
+ await page.evaluate(()=>window.__failSocial=true);await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-action=like]').getAttribute('aria-pressed')==='true'&&!document.querySelector('[data-action=like]').disabled);
+ assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)','failed unlike restores the filled heart');
+ await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='0 likes');
+ assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'none');
+ await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
+ await first.locator('[data-action=save]').click();await page.waitForFunction(()=>document.querySelector('[data-save-label]').textContent==='Saved');
+ await first.locator('[data-action=comments]').last().click();await first.locator('.gnet-comment-form textarea').fill('A useful professional discussion.');await first.locator('.gnet-comment-form button').click();await page.waitForSelector('.gnet-comment');assert.match(await first.locator('.gnet-comments').innerText(),/useful professional/);
+ await first.locator('[data-action=share]').click();assert.match(await page.locator('#gnet-share-url').inputValue(),/\?post=aaaaaaaa/);assert.equal(await page.locator('#gnet-dialog a[target=_blank]').count(),3);await page.locator('#gnet-dialog [data-close]').click();
+ await page.locator('.gnet-compose-trigger').click();await page.locator('#gnet-body').fill('My achievement from the browser test');
+ await page.locator('#gnet-file').setInputFiles({name:'test.png',mimeType:'image/png',buffer:fs.readFileSync(path.resolve(__dirname,'../favicon-192x192.png'))});
+ await page.waitForFunction(()=>document.querySelector('#gnet-preview img')&&!document.querySelector('#gnet-post-form [type=submit]').disabled);assert.equal(await page.locator('#gnet-alt').count(),0);await page.locator('#gnet-post-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});
+ await page.locator('[data-mode=mine]').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===1);let own=page.locator('.gnet-post').first();assert.match(await own.innerText(),/My achievement/);assert.equal((await page.evaluate(()=>window.__uploads))[0].type,'image/webp');
+ await page.evaluate(owner=>{window.__social.community_posts.find(p=>p.author_id===owner).image_alt='Existing accessible description';},OWNER);await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>document.querySelector('.gnet-post-image')?.alt==='Existing accessible description');
+ await own.locator('summary').click();await own.locator('[data-action=edit]').click();await page.locator('#gnet-body').fill('Edited achievement');await page.evaluate(()=>window.__failSocial=true);await page.locator('#gnet-post-form [type=submit]').click();await page.waitForFunction(()=>document.querySelector('.gnet-form-error').textContent.includes('could not'));assert.equal(await page.locator('#gnet-body').inputValue(),'Edited achievement');await page.locator('#gnet-post-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForFunction(()=>document.querySelector('.gnet-post-body')?.textContent==='Edited achievement');
+ assert.equal(await page.locator('.gnet-post-image').getAttribute('alt'),'Existing accessible description');assert.doesNotMatch(await page.locator('.gnet-post-meta').innerText(),/Insight|Achievement|Career update|Learning|Opportunity|Project/);
+ own=page.locator('.gnet-post').first();await own.locator('summary').click();await own.locator('[data-action=delete]').click();await page.locator('#gnet-delete-confirm').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===0);assert.equal((await page.evaluate(()=>window.__removedImages)).length,1);
+ await page.evaluate(id=>window.guidcyNavigate('/?author='+id),MEMBER);await page.waitForSelector('.gnet-post');assert.match(await page.locator('.gnet-post .gnet-person').first().innerText(),/Community Member/);
+ await page.locator('[data-mode=community]').click();await page.waitForSelector('.gnet-post');await page.screenshot({path:'/private/tmp/guidcy-community-desktop.png',fullPage:false});
+ // Existing consultant route, availability and booking UI are reused.
+ await page.locator('.gnet-post .gnet-person').first().click();await page.waitForSelector('#page-profile.on .profile-name');await page.waitForSelector('.gnet-profile-header');assert.equal(await page.locator('.book-box').count(),1);
+ await page.reload();await page.waitForSelector('.gnet-profile-header');await page.waitForSelector('#gnet-profile-posts .gnet-post');await page.waitForTimeout(200);const widths=await page.evaluate(()=>window.__profileWidths);assert.ok(widths.length>1);assert.ok(Math.max(...widths)-Math.min(...widths)<1,'header keeps its initial width through reload/hydration');assert.equal(await page.locator('[data-guidcy-restored]#profile-layout').count(),0,'old profile cache is ignored');
+ assert.deepEqual(await page.evaluate(()=>window.__legacyProfilePaints),[],'no old profile during the delayed public-profile read');
+ async function checkProfileReload(member=false){
+  await page.waitForFunction(()=>!document.querySelector('#gnet-portfolio-loading')&&document.querySelector('#gnet-profile-posts')?.getAttribute('aria-busy')==='false');
+  await page.evaluate(()=>window.guidcySavePageShell());
+  assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('guidcy:refresh:v1'))[location.pathname+location.search].regions['profile-layout'].profileVersion),1);
+  let resume;const hold=new Promise(resolve=>resume=resolve);
+  await context.route('**/assets/js/app.js',async route=>{await hold;await route.continue()});
+  await page.reload({waitUntil:'commit'});
+  await page.waitForSelector('#profile-layout[data-guidcy-restored] .gnet-profile-header');
+  assert.equal(await page.locator('#profile-layout').evaluate(el=>el.inert),true,'snapshot cannot book or edit before live data');
+  assert.equal(await page.locator('#profile-layout').evaluate(el=>el.classList.contains('gnet-member-layout')),member);
+  await page.evaluate(()=>{window.__missingProfile=[];new MutationObserver(()=>{if(!document.querySelector('.gnet-profile-header .profile-name'))window.__missingProfile.push('blank')}).observe(document.querySelector('#profile-layout'),{childList:true,subtree:true})});
+  resume();await context.unroute('**/assets/js/app.js');
+  await page.waitForFunction(()=>!document.querySelector('#profile-layout').hasAttribute('inert')&&!document.querySelector('#gnet-portfolio-loading')&&document.querySelector('#gnet-profile-posts')?.getAttribute('aria-busy')==='false');
+  assert.deepEqual(await page.evaluate(()=>window.__missingProfile),[],'profile stays visible throughout revalidation');
+  assert.equal(await page.locator('#profile-layout [data-guidcy-restored]:not([hidden])').count(),0,'visible sections finish rehydrating');
+  if(!member)assert.match(await page.locator('.book-box .green-btn').getAttribute('onclick'),/startBooking/);
+ }
+ await checkProfileReload();
+ const profileLike=page.locator('#gnet-profile-posts [data-action=like]').first();await profileLike.click();assert.equal(await profileLike.getAttribute('aria-pressed'),'true');assert.equal(await profileLike.locator('svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)');await profileLike.click();
+ // Refresh activity without removing the existing card or profile header.
+ await page.evaluate(()=>{window.__holdFeed=true;window.__profileCard=document.querySelector('#gnet-profile-posts .gnet-post');window.__profileHeader=document.querySelector('.gnet-profile-header')});
+ await page.locator('[data-action=activity-tab][data-tab=posts]').click();
+ assert.equal(await page.evaluate(()=>document.querySelector('#gnet-profile-posts .gnet-post')===window.__profileCard&&document.querySelector('.gnet-profile-header')===window.__profileHeader),true);
+ await page.evaluate(()=>{window.__holdFeed=false;window.__releaseFeed()});
+ await page.waitForFunction(()=>document.querySelector('#gnet-profile-posts').getAttribute('aria-busy')==='false');
+
+ assert.equal(await page.locator('#gnet-profile-extras').evaluate(el=>el.open),true);assert.equal(await page.locator('#gnet-booking-options').evaluate(el=>el.open),true);await page.locator('.gnet-profile-actions [data-action=book]').click();assert.equal(await page.locator('#gnet-booking-options').evaluate(el=>el.open),true);assert.equal(await page.evaluate(()=>window.selDur),30);
+ await page.waitForSelector('#gnet-profile-posts .gnet-post');assert.ok(await page.locator('#gnet-profile-posts .gnet-post').count()<=5);
+ await page.locator('.gnet-profile-actions [data-action=share-profile]').scrollIntoViewIfNeeded();const beforeDialog=await page.evaluate(()=>window.scrollY);await page.locator('.gnet-profile-actions [data-action=share-profile]').click();await page.waitForFunction(()=>document.body.classList.contains('guidcy-modal-scroll-lock'));const lockedTop=await page.locator('.gnet-profile-header').evaluate(el=>el.getBoundingClientRect().top);await page.mouse.move(2,450);await page.mouse.wheel(0,500);await page.waitForTimeout(100);assert.equal(await page.locator('.gnet-profile-header').evaluate(el=>el.getBoundingClientRect().top),lockedTop);await page.keyboard.press('Escape');await page.waitForFunction(y=>!document.body.classList.contains('guidcy-modal-scroll-lock')&&Math.abs(window.scrollY-y)<2,beforeDialog);
+ await page.locator('[data-action=connection]').click();await page.waitForFunction(()=>document.querySelector('[data-action=connection]')?.textContent==='Request sent');await page.locator('[data-action=connection]').click();await page.locator('#gnet-confirm-connection').click();await page.waitForFunction(()=>document.querySelector('[data-action=connection]')?.textContent==='Connect');
+ await page.waitForSelector('[data-action=endorse]');await page.locator('[data-action=endorse]').first().click();await page.waitForSelector('[data-action=endorse][aria-pressed=true]');await page.locator('[data-action=endorse][aria-pressed=true]').click();await page.waitForFunction(()=>!document.querySelector('[data-action=endorse][aria-pressed=true]'));
+ assert.equal(await page.locator('[data-action=message],[data-action=inbox]').count(),0,'community messaging is removed from profiles and the homepage');
+ await page.waitForSelector('#guidcy-save-cons-btn');
+ assert.equal(await page.locator('.gnet-profile-actions #guidcy-save-cons-btn').count(),1);assert.ok(await page.evaluate(()=>document.querySelector('#guidcy-save-cons-btn').getBoundingClientRect().top>=document.querySelector('.gnet-cover').getBoundingClientRect().bottom),'Save is below the cover');await page.locator('#guidcy-save-cons-btn').click();await page.waitForFunction(()=>document.querySelector('#guidcy-save-cons-btn').getAttribute('aria-pressed')==='true'&&window.__social.saved_consultants.length===1);await page.locator('#guidcy-save-cons-btn').click();await page.waitForFunction(()=>document.querySelector('#guidcy-save-cons-btn').getAttribute('aria-pressed')==='false'&&window.__social.saved_consultants.length===0);
+ assert.equal(await page.locator('.guidcy-profile-education-row').isVisible(),false,'education is shown once');
+ await page.evaluate(()=>{document.querySelector('#gnet-booking-options').open=false;window.scrollTo({top:0,behavior:'instant'})});
+ await page.screenshot({path:'/private/tmp/guidcy-compact-profile-desktop.png',fullPage:false});
+ await page.goto(origin+'/profile?member='+MEMBER);await page.waitForSelector('#gnet-member');await page.waitForTimeout(1800);assert.match(page.url(),/profile\?member=/);assert.match(await page.locator('#gnet-member').innerText(),/Test College/);await checkProfileReload(true);
+ await page.goto(origin+'/profile?member='+OWNER);await page.waitForSelector('#gnet-member');assert.equal(await page.locator('.gnet-profile-actions [data-follow]').count(),0);await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-headline').fill('Polymer researcher | HFCL | Manager | NPD | IIT Roorkee | NTU | Coating | Adhesive | Sustainability | Recycling');await page.locator('#gnet-edit-pronouns').fill('He/Him');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).position),'fixed');assert.equal(await page.locator('#gnet-edit-status,#gnet-edit-status-note,#gnet-edit-contact,#gnet-edit-linkedin').count(),0);await page.locator('#gnet-edit-city').fill('Hyderabad, Telangana, India');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});assert.match(await page.locator('#gnet-member').innerText(),/Polymer researcher/);
+ assert.match(await page.locator('.gnet-profile-headline').innerText(),/HFCL \| Manager/);assert.match(await page.locator('.gnet-pronouns').innerText(),/He\/Him/);assert.equal(await page.locator('.gnet-status-frame,.gnet-professional-status,[data-action=contact-info]').count(),0);assert.equal(await page.locator('.gnet-profile-header a[href^="mailto:"],.gnet-profile-header a[href*="linkedin.com/in"]').count(),0);
+ await page.waitForSelector('.gnet-current-location');await page.waitForSelector('.gnet-organizations [data-organization="guidcy"] img');
+ // Registered company suggestions do not require a manually seeded organization directory.
+ await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-company').fill('Guidcy');await page.waitForSelector('#gnet-edit-company-organizations option[value="Guidcy Technologies"]',{state:'attached'});await page.locator('#gnet-edit-company').fill('Guidcy Technologies');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-organizations [data-organization="guidcy technologies"] img');assert.match(await page.locator('.gnet-organizations [data-organization="guidcy technologies"] img').getAttribute('src'),/^data:image\/png;base64,/);await page.waitForSelector('#gnet-me [data-organization="guidcy technologies"] img',{state:'attached'});
+
+ for(const visible of [false,true]){
+  await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();assert.equal(await page.locator('#gnet-edit-city').inputValue(),'Hyderabad, Telangana, India');await page.locator('#gnet-show-location').setChecked(visible);await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-member');await page.waitForFunction(show=>!!document.querySelector('.gnet-current-location')===show,visible);
+ }
+ // Website stays private until explicitly enabled, can be removed, and never restores contact details.
+ assert.equal(await page.locator('.gnet-profile-website').count(),0);
+ for(const show of [true,false,true]){await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-website').fill('https://example.com/my-work');await page.locator('#gnet-website-public').setChecked(show);await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-member');await page.waitForFunction(visible=>!!document.querySelector('.gnet-profile-website')===visible,show);}
+ assert.equal(await page.locator('.gnet-profile-website').getAttribute('href'),'https://example.com/my-work');assert.equal(await page.locator('.gnet-profile-website').getAttribute('rel'),'noopener noreferrer');
+ await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-website').fill('');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-profile-website',{state:'detached'});
+ // Homepage card uses the same saved identity without retired frames, including on mobile.
+ await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#gnet-me .gnet-me-photo');await page.waitForSelector('#gnet-me .gnet-me-location');await page.waitForSelector('#gnet-me .gnet-me-organization img');
+ await page.locator('#gnet-me a[data-organization-name="guidcy technologies"]').click();await page.waitForFunction(()=>location.pathname==='/consultant/test-expert'&&document.querySelector('#page-profile.on .gnet-profile-header'));await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#gnet-me .gnet-me-profile');assert.equal(await page.locator('#gnet-me a a').count(),0,'organization links are not nested inside the owner profile link');
+ assert.match(await page.locator('#gnet-me .gnet-me-headline').innerText(),/Polymer researcher/);assert.match(await page.locator('#gnet-me .gnet-me-location').innerText(),/Hyderabad/);
+ assert.equal(await page.locator('.footer-brand .guidcy-footer-text').count(),0);assert.equal(await page.locator('.guidcy-footer-mark + .guidcy-footer-tagline').innerText(),'Guidance Made Simple');
+ assert.equal(await page.locator('.gnet-status-frame,.gnet-professional-status,[data-action=contact-info]').count(),0);
+ for(const width of [1365,390,320]){await page.setViewportSize({width,height:1000});assert.equal(await page.locator('#gnet-me').isVisible(),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.locator('#gnet-me').screenshot({path:'/private/tmp/guidcy-home-identity-'+width+'.png'});await page.locator('#gnet-me [data-action=hide-me]').click();assert.equal(await page.locator('#gnet-me').isVisible(),false);await page.locator('[data-action=show-me]').click();await page.waitForSelector('#gnet-me .gnet-me-photo');}
+ await page.setViewportSize({width:1365,height:1000});await page.locator('#gnet-me .gnet-me-profile').click();await page.waitForSelector('#gnet-member');
+ // Photo-only popups: no settings redirect, crop/update/delete, failure recovery, keyboard/mobile access.
+ assert.equal(await page.locator('.gnet-cover-edit').count(),0);assert.doesNotMatch(await page.locator('.gnet-profile-photo-row').innerText(),/Edit photo/);
+ assert.equal(await page.locator('.gnet-organizations .gnet-education').count(),0,'a profile without a college must not show a degree as an institution');assert.equal(await page.locator('.guidcy-profile-work-company').first().evaluate(el=>getComputedStyle(el).fontWeight),'700');
+ for(const kind of ['cover','avatar']){
+  const url=page.url(),target=page.locator('[data-photo-kind="'+kind+'"]');await target.click();assert.match(await page.locator('#gnet-dialog h2').innerText(),kind==='cover'?/Cover photo/:/Profile photo/);assert.equal(await page.locator('#gnet-profile-form').count(),0);
+  const chooser=page.waitForEvent('filechooser');await page.locator('#gnet-photo-update').click();await (await chooser).setFiles({name:'photo.png',mimeType:'image/png',buffer:fs.readFileSync(path.resolve(__dirname,'../favicon-192x192.png'))});await page.waitForSelector('#gnet-photo-canvas');await page.waitForFunction(()=>!document.querySelector('#gnet-photo-save').disabled);
+  await page.locator('#gnet-photo-zoom').fill('1.25');await page.locator('#gnet-photo-x').fill('35');
+  if(kind==='cover'){await page.evaluate(()=>window.__failProfile=true);await page.locator('#gnet-photo-save').click();await page.waitForFunction(()=>document.querySelector('.gnet-form-error')?.textContent.includes('not saved'));assert.equal(await page.locator('#gnet-photo-canvas').isVisible(),true);}
+  await page.locator('#gnet-photo-save').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector(kind==='cover'?'.gnet-cover>img':'.gnet-photo-target>img');assert.equal(page.url(),url);await page.waitForSelector(kind==='cover'?'#gnet-me .gnet-mini-cover img':'#gnet-me .gnet-me-photo>img',{state:'attached'});
+  await target.click();await page.locator('#gnet-photo-edit').click();await page.waitForSelector('#gnet-photo-crop',{state:'visible'});await page.locator('#gnet-photo-zoom').fill('1.5');await page.locator('#gnet-photo-save').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});
+  await target.click();await page.locator('#gnet-photo-delete').click();assert.equal(await page.locator('#gnet-photo-delete').innerText(),'Confirm delete');await page.locator('#gnet-photo-delete').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector(kind==='cover'?'.gnet-cover>img':'.gnet-photo-target>img',{state:'detached'});assert.equal(page.url(),url);
+ }
+ for(const width of [320,390]){await page.setViewportSize({width,height:900});for(const kind of ['cover','avatar']){await page.locator('[data-photo-kind="'+kind+'"]').click();await page.waitForSelector('#gnet-photo-update');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).position),'fixed');await page.locator('#gnet-dialog [data-close]').click();}assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}await page.setViewportSize({width:1365,height:1000});
+ await page.locator('[data-photo-kind=cover]').focus();await page.keyboard.press('Enter');await page.waitForSelector('#gnet-photo-update');await page.keyboard.press('Escape');await page.waitForSelector('#gnet-dialog',{state:'detached'});
+ await page.locator('[data-action=close-profile]').click();await page.waitForSelector('#page-home.on');await page.locator('[data-action=hide-me]').click();assert.equal(await page.locator('#gnet-me').isVisible(),false);await page.locator('[data-action=show-me]').click();assert.equal(await page.locator('#gnet-me').isVisible(),true);
+ await page.goto(origin+'/?post=aaaaaaaa-aaaa-4aaa-8aaa-000000000002');await page.waitForSelector('.gnet-post');assert.equal(await page.locator('.gnet-post').count(),1);await page.waitForTimeout(1000);assert.match(page.url(),/\?post=/);
+ for(const width of [390,320]){await page.setViewportSize({width,height:900});await page.goto(origin);await page.waitForSelector('.gnet-post');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No horizontal overflow at '+width);await page.screenshot({path:'/private/tmp/guidcy-community-mobile-'+width+'.png',fullPage:false});await page.goto(origin+'/consultant/test-expert');await page.waitForSelector('.gnet-profile-header');await page.waitForSelector('#gnet-profile-posts .gnet-post');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Profile overflow at '+width);await page.screenshot({path:'/private/tmp/guidcy-compact-profile-mobile-'+width+'.png',fullPage:false});await page.goto(origin);await page.waitForSelector('.gnet-post');}
+ // Professional portfolio: owner edits, public presentation, same posts and commerce entry points.
+ await page.setViewportSize({width:1365,height:1000});await page.goto(origin+'/profile?member='+OWNER);await page.waitForSelector('#gnet-section-strength');
+
+ await page.evaluate(({owner,expert})=>window.__social.community_connections.push({id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',member_a:owner,member_b:expert,requested_by:expert,status:'pending'}),{owner:OWNER,expert:EXPERT});await page.locator('[data-action=connections]').click();await page.locator('[data-network-tab=invitations]').click();await page.locator('[data-network-action=accept]').click();await page.waitForFunction(()=>document.querySelector('#gnet-connections-list')?.textContent.includes('No pending'));await page.locator('[data-network-tab=connections]').click();await page.waitForSelector('.gnet-network-row');await page.locator('#gnet-dialog [data-close]').click();assert.match(await page.locator('[data-action=connections]').innerText(),/1 connections/);
+ await page.locator('[data-action=add-section]').click();await page.locator('#gnet-dialog [data-section=experience]').click();
+ await page.locator('#gp-designation').fill('R&D Engineer');await page.locator('#gp-company_name').fill('Optical');await page.waitForSelector('#gp-company_name-organizations option',{state:'attached'});assert.equal(await page.locator('#gp-company_name-organizations option').first().getAttribute('value'),'Optical Research');await page.locator('#gp-company_name').fill('Optical Research');await page.locator('#gp-employment_type').fill('Full-time');await page.locator('#gp-start_date').fill('2022-06');await page.locator('[name=currently_working]').check();await page.locator('#gp-location').fill('Roorkee');await page.locator('#gp-description').fill('Developed optical fiber materials.');await page.locator('#gp-skills').fill('Polymer Science, Optical Fiber');await page.locator('.gnet-prof-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-section-experience');assert.match(await page.locator('#gnet-section-experience').innerText(),/R&D Engineer[\s\S]*Full-time[\s\S]*Present/);
+ await page.waitForSelector('#gnet-section-experience [data-organization] img');
+ await page.locator('#gnet-section-experience [data-action=edit-experience]').click();await page.locator('#gp-company_name').fill('Technologies');await page.waitForSelector('#gp-company_name-organizations option[value="Guidcy Technologies"]',{state:'attached'});await page.locator('#gp-company_name').fill('Guidcy Technologies');await page.locator('#gp-description').fill('Led materials research and product development.');await page.locator('.gnet-prof-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForFunction(()=>document.querySelector('#gnet-section-experience')?.textContent.includes('Led materials'));await page.waitForSelector('#gnet-section-experience [data-organization="guidcy technologies"] img');await page.waitForSelector('.gnet-organizations [data-organization="guidcy technologies"] img');
+ await page.locator('#gnet-section-skills [data-section=skills]').click();await page.locator('#gp-skills').fill('Polymer Science, Optical Fiber, Career Guidance');await page.locator('.gnet-prof-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForFunction(()=>document.querySelector('#gnet-section-skills')?.textContent.includes('Polymer Science'));
+ for(const kind of ['education','certification','award','publication','project','patent','achievement']){
+  await page.locator('[data-action=add-section]').click();await page.locator('#gnet-dialog [data-section="'+kind+'"]').click();await page.locator('#gp-title').fill(kind==='education'?'M.Tech Polymer Science':'My '+kind);if(kind==='education'){await page.locator('#gp-organization').fill('Guidcy Inst');await page.waitForSelector('#gp-organization-organizations option[value="Guidcy Institute"]',{state:'attached'});await page.locator('#gp-organization').fill('Guidcy Institute');}else await page.locator('#gp-organization').fill('IIT Roorkee');await page.locator('#gp-description').fill('Professional '+kind+' details.');
+  if(kind==='education'){await page.locator('#gp-field').fill('Polymer Science');await page.locator('#gp-start_date').fill('2020');await page.locator('#gp-end_date').fill('2022');await page.locator('#gp-grade').fill('9.0');}
+  await page.locator('.gnet-prof-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-section-'+kind);
+ }
+ await page.waitForSelector('#gnet-section-education [data-organization] img');
+ for(const selector of ['.gnet-organizations a[data-organization="guidcy institute"]','.gnet-education a[data-organization-name="guidcy institute"]','#gnet-section-education a[data-organization-name="guidcy institute"]','#gnet-section-experience a[data-organization-name="guidcy technologies"]']){await page.waitForSelector(selector);assert.equal(await page.locator(selector).getAttribute('href'),'/consultant/test-expert');}
+ for(const selector of ['#gnet-section-education a[data-organization-name="guidcy institute"]','#gnet-section-experience a[data-organization="guidcy technologies"]']){await page.locator(selector).click();await page.waitForFunction(()=>location.pathname==='/consultant/test-expert'&&document.querySelector('#page-profile.on .gnet-profile-header'));await page.evaluate(id=>window.guidcyNavigate('/profile?member='+id),OWNER);await page.waitForSelector('#gnet-section-education');}
+
+ await page.locator('#gnet-section-project [data-action=edit-entry]').click();await page.locator('#gp-title').fill('Optical fiber project');await page.locator('.gnet-prof-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForFunction(()=>document.querySelector('#gnet-section-project')?.textContent.includes('Optical fiber project'));
+ await page.locator('#gnet-section-award [data-action=edit-entry]').click();assert.equal(await page.locator('#gnet-remove-entry').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');await page.locator('#gnet-remove-entry').click();await page.locator('#gnet-remove-entry').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-section-award',{state:'detached'});
+ await page.locator('#gnet-section-featured [data-section=featured]').click();await page.locator('#gnet-feature-source').selectOption('entry');await page.locator('.gnet-feature-choice').filter({hasText:'Optical fiber project'}).click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-featured-item');assert.match(await page.locator('.gnet-featured-item').innerText(),/Optical fiber project/);
+ // Deleting a current role/college removes the header and homepage summaries too.
+ await page.locator('#gnet-section-education [data-action=edit-entry]').click();assert.equal(await page.locator('#gnet-remove-entry').innerText(),'Delete');await page.locator('#gnet-remove-entry').click();await page.locator('#gnet-remove-entry').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-organizations .gnet-education',{state:'detached'});
+ await page.locator('#gnet-section-experience [data-action=edit-experience]').click();assert.equal(await page.locator('#gnet-remove-entry').innerText(),'Delete');await page.locator('#gnet-remove-entry').click();await page.locator('#gnet-remove-entry').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-organizations .guidcy-profile-work-company',{state:'detached'});await page.waitForSelector('#gnet-me .gnet-me-organization',{state:'detached'});
+ await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-company').fill('Temporary company');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.guidcy-profile-work-company');await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-company').fill('');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-organizations .guidcy-profile-work-company',{state:'detached'});
+ await page.locator('.gnet-featured-item a').first().click();assert.match(await page.locator('#gnet-section-project').innerText(),/Optical fiber project/);
+ assert.equal(await page.locator('.gnet-profile-more').count(),0);await page.locator('[data-action=share-profile]').click();assert.match(await page.locator('#gnet-share-url').inputValue(),/profile\?member=/);assert.equal(await page.locator('#gnet-dialog a[target=_blank]').count(),3);await page.locator('#gnet-dialog [data-close]').click();
+ await page.locator('[data-action=profile-network][data-direction=following]').click();assert.match(await page.locator('#gnet-dialog h2').innerText(),/Following/);await page.locator('#gnet-dialog [data-close]').click();
+ await page.locator('[data-tab=posts]').click();await page.locator('.gnet-activity [data-action=compose]').first().click();await page.locator('#gnet-body').fill('A real achievement post from the profile editor fixture.');await page.locator('#gnet-post-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-profile-posts .gnet-post');
+ await page.locator('[data-tab=posts]').click();await page.waitForFunction(()=>document.querySelector('#gnet-profile-posts')?.textContent.includes('real achievement post'));
+ await page.locator('#gnet-profile-posts .gnet-post [data-action=comments]').last().click();await page.locator('.gnet-comment-form textarea').fill('A useful professional conversation on my profile.');await page.locator('.gnet-comment-form button').click();await page.waitForSelector('.gnet-comment');
+ await page.locator('[data-tab=comments]').click();await page.waitForSelector('.gnet-activity-comment');assert.match(await page.locator('.gnet-activity-comment').innerText(),/useful professional/);
+ await page.locator('[data-tab=posts]').click();await page.waitForSelector('#gnet-profile-posts .gnet-post');await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.screenshot({path:'/private/tmp/guidcy-professional-owner.png',fullPage:true});
+ for(const width of [390,320]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Professional portfolio fits '+width);await page.screenshot({path:'/private/tmp/guidcy-professional-owner-'+width+'.png',fullPage:true});}
+ await page.goto(origin+'/consultant/test-expert');await page.waitForSelector('.gnet-profile-header');await page.waitForSelector('#gnet-profile-posts .gnet-post');assert.equal(await page.locator('#gnet-section-strength').count(),0,'strength is never public');await page.locator('#gnet-activity-more').click();await page.waitForFunction(()=>document.querySelectorAll('#gnet-profile-posts .gnet-post').length>5);assert.equal(new Set(await page.locator('#gnet-profile-posts .gnet-post').evaluateAll(els=>els.map(el=>el.dataset.post))).size,await page.locator('#gnet-profile-posts .gnet-post').count(),'activity pagination has no duplicates');
+ await page.goto(origin);await page.waitForSelector('.gnet-post');
+ await page.evaluate(()=>{window.__guest=true;window.__authListeners.forEach(fn=>fn('SIGNED_OUT',null));});await page.waitForFunction(()=>!document.querySelector('.gnet-post [data-action=edit]'));await page.locator('.gnet-post [data-action=like]').first().click();await page.waitForSelector('#gnet-dialog');assert.match(await page.locator('#gnet-dialog').innerText(),/Sign in/);await page.locator('#gnet-dialog a[href="/login"]').click();await page.waitForSelector('#page-login.on');assert.equal(await page.locator('#gnet-dialog').count(),0);await page.goto(origin);await page.waitForSelector('.gnet-post');
+ await page.evaluate(()=>window.__failFeed=true);await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>document.querySelector('#gnet-feed').textContent.includes('couldn’t load'));await page.evaluate(()=>window.__failFeed=false);await page.locator('#gnet-feed [data-action=refresh]').click();await page.waitForSelector('.gnet-post');
+ assert.deepEqual(await page.evaluate(()=>window.__legacyProfilePaints),[],'the old profile is never rendered');
+ await page.evaluate(()=>document.querySelector('[data-action=organization-directory]').click());await page.waitForSelector('#gnet-org-list .gnet-org-row');await page.locator('#gnet-org-add').click();await page.locator('#gnet-org-name').fill('Directory browser fixture');await page.locator('#gnet-org-logo').fill('https://example.com/logo.png');await page.locator('#gnet-org-approved').check();await page.locator('#gnet-org-form [type=submit]').click();await page.waitForSelector('#gnet-org-search');assert.match(await page.locator('#gnet-org-list').innerText(),/Directory browser fixture/);await page.locator('.gnet-org-row').filter({hasText:'Directory browser fixture'}).click();await page.locator('#gnet-org-approved').uncheck();await page.locator('#gnet-org-form [type=submit]').click();await page.waitForSelector('#gnet-org-search');assert.match(await page.locator('#gnet-org-list').innerText(),/Directory browser fixture · Company · Hidden/);await page.locator('#gnet-dialog [data-close]').click();
+ // Expert cards must honor company deletion immediately, including warm caches.
+ await page.evaluate(async()=>{const c=window.guidcyGetSupabaseClient();await c.from('consultants').update({current_company:'HFCL',current_company_college:'HFCL'}).eq('id','test-expert');window.guidcyBroadcastDataChange('consultants');await window.fetchConsultants({});await window.GuidcyConsultantSearch.loadCandidates();});
+ const cleared=await page.evaluate(async()=>{const c=window.guidcyGetSupabaseClient();await c.from('consultants').update({current_company:'',current_company_college:'HFCL'}).eq('id','test-expert');window.guidcyBroadcastDataChange('consultants');const rows=await window.fetchConsultants({}),suggestions=await window.GuidcyConsultantSearch.loadCandidates();window.renderGrid(rows,'browse-grid');return {company:rows.find(c=>c.id==='test-expert').current_company_college,searchCompany:suggestions.find(c=>c.id==='test-expert').current_company_college,card:document.querySelector('#browse-grid [data-consultant-id="test-expert"]').textContent};});
+ assert.equal(cleared.company,'');assert.equal(cleared.searchCompany,'');assert.doesNotMatch(cleared.card,/HFCL/);
+ await page.evaluate(async()=>{const c=window.guidcyGetSupabaseClient();await c.from('consultants').update({highest_education:'M.Tech',education:'M.Tech',college:'IIT Roorkee'}).eq('id','test-expert');window.guidcyBroadcastDataChange('consultants');await window.fetchConsultants({});await window.GuidcyConsultantSearch.loadCandidates();});
+ const educationCleared=await page.evaluate(async()=>{const c=window.guidcyGetSupabaseClient();await c.from('consultants').update({highest_education:'',college:''}).eq('id','test-expert');window.guidcyBroadcastDataChange('consultants');const rows=await window.fetchConsultants({}),suggestions=await window.GuidcyConsultantSearch.loadCandidates();window.renderGrid(rows,'browse-grid');return {degree:rows.find(c=>c.id==='test-expert').highest_education,college:rows.find(c=>c.id==='test-expert').college,searchDegree:suggestions.find(c=>c.id==='test-expert').highest_education,card:document.querySelector('#browse-grid [data-consultant-id="test-expert"]').textContent};});
+ assert.equal(educationCleared.degree,'');assert.equal(educationCleared.college,'');assert.equal(educationCleared.searchDegree,'');assert.doesNotMatch(educationCleared.card,/M.Tech|IIT Roorkee/);
+
+ assert.deepEqual(errors,[]);
+ // Read-only smoke test against the configured public database. No fixture/auth writes.
+ if(process.env.COMMUNITY_LIVE==='1'){
+  const live=await browser.newContext({viewport:{width:1365,height:1000}});
+  await live.route('**/*',r=>{const url=r.request().url();return url.startsWith(origin)||url.startsWith('https://lsthngfxehayeqyctkla.supabase.co/')?r.continue():r.abort();});
+  const actual=await live.newPage(),requests=[];actual.on('request',r=>requests.push(r.url()));
+  await actual.goto(origin);await actual.waitForSelector('#gnet-experts .gnet-person');await actual.waitForFunction(()=>document.querySelector('#gnet-feed').getAttribute('aria-busy')==='false');
+  assert.doesNotMatch(await actual.locator('#gnet-feed').innerText(),/couldn’t load/);
+  await actual.locator('[data-cookie-choice=reject]').first().click();
+  await actual.screenshot({path:'/private/tmp/guidcy-community-public-desktop.png',fullPage:false});
+  assert.equal(requests.some(url=>/home_opportunities_cache/.test(url)),false);
+  await actual.locator('#gnet-experts .gnet-person').first().click();await actual.waitForSelector('#page-profile.on .profile-name');await actual.waitForSelector('.gnet-profile-header');assert.equal(await actual.locator('.book-box').count(),1);
+  await actual.goto(origin+'/consultant/88eebb17-27b4-4116-a6ea-2104f00751cf');await actual.locator('.gnet-profile-actions [data-action=book]').waitFor();await actual.locator('.gnet-consultation .book-box').waitFor();
+  assert.doesNotMatch(await actual.locator('.gnet-organizations').allTextContents().then(x=>x.join(' ')),/M.Tech|IIT Roorkee/);
+  const realCard=await actual.evaluate(async()=>{const rows=await window.fetchConsultants({search:'Guidcy'});window.renderGrid(rows,'browse-grid');return document.querySelector('#browse-grid [data-consultant-id="88eebb17-27b4-4116-a6ea-2104f00751cf"]')?.textContent});
+  assert.match(realCard,/Guidcy Technologies/);assert.doesNotMatch(realCard,/M.Tech|IIT Roorkee/);
+  await actual.goto(origin+'/?post=aaaaaaaa-aaaa-4aaa-8aaa-000000000001');await actual.waitForFunction(()=>document.querySelector('#gnet-feed').textContent.includes('no longer available'));
+  await actual.setViewportSize({width:390,height:900});await actual.goto(origin);await actual.waitForSelector('#gnet-experts .gnet-person');await actual.waitForFunction(()=>document.querySelector('#gnet-feed').getAttribute('aria-busy')==='false');
+  assert.equal(await actual.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await actual.screenshot({path:'/private/tmp/guidcy-community-public-mobile.png',fullPage:false});await live.close();
+  console.log('Public Supabase smoke check passed: real experts, empty feed, missing post, existing booking profile, no obsolete homepage cache reads.');
+ }
+ console.log('Identity, connections, endorsements, modal scroll lock, cold/warm profile layout and community + professional profile checks passed: CRUD, skills, career/education/portfolio editors, featured items, activity tabs/pagination, followers, sharing, guest gates, single renderer, 320/390/1365px.');
+})().catch(async e=>{console.error(e);const page=browser?.contexts()[0]?.pages()[0];if(page){console.error(await page.evaluate(()=>({url:location.href,feed:document.querySelector('#gnet-feed')?.textContent.slice(0,200),queries:window.__socialQueries?.slice(-8)})));await page.screenshot({path:'/private/tmp/guidcy-community-failure.png'});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.close();});

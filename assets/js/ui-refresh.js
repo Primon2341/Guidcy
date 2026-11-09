@@ -13,12 +13,12 @@
     /* dashboards */
     'adash-main', 'cdash-main', 'udash-main',
     /* browse, categories and the home rails */
-    'browse-grid', 'cats-full-grid', 'cons-grid', 'cons-rec-grid',
-    'sf-supabase-consultants-grid', 'reviews-grid',
+    'browse-grid', 'cats-full-grid', 'cons-rec-grid',
+    'sf-supabase-consultants-grid', 'gnet-me', 'gnet-compose-avatar', 'gnet-experts', 'gnet-feed', 'gnet-profile-posts',
     /* webinars */
     'wbn-cards', 'wbn-regs-list',
     /* marketplace and careers */
-    'gmkt-grid', 'gc-list', 'jobs-main-area', 'sf-results', 'opp-results', 'profile-layout'
+    'gmkt-grid', 'gc-list', 'jobs-main-area', 'sf-results', 'opp-results'
   ];
   /* The wording the existing renderers use for their placeholders. */
   var PLACEHOLDER_WORDS = /(loading|searching|filtering|please wait|fetching)/i;
@@ -55,6 +55,12 @@
     try { el.classList.toggle('guidcy-panel-busy', !!busy); } catch (_) {}
   }
 
+  window.guidcyFinishPanelRefresh = function(target) {
+    if(target.__guidcyRestoreMinHeight!==undefined){target.style.minHeight=target.__guidcyRestoreMinHeight;delete target.__guidcyRestoreMinHeight}
+    target.removeAttribute('inert');
+    target.removeAttribute('data-guidcy-restored');
+  };
+
   function attach(el) {
     if (!el || el.__guidcyPanelRefresh) return;
     el.__guidcyPanelRefresh = true;
@@ -86,9 +92,7 @@
             setBusy(target, false);
             // Preserve focused controls and mounted descendants for identical data.
             if(previous!==html)native.set.call(target, value);
-            if(target.__guidcyRestoreMinHeight!==undefined){target.style.minHeight=target.__guidcyRestoreMinHeight;delete target.__guidcyRestoreMinHeight}
-            target.removeAttribute('inert');
-            target.removeAttribute('data-guidcy-restored');
+            window.guidcyFinishPanelRefresh(target);
             /* An empty panel keeps its placeholder, but drawn as a quiet skeleton
                rather than a bare "Loading..." line; the real markup clears it. */
             target.classList.toggle('guidcy-panel-skeleton', skeleton);

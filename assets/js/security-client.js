@@ -28,7 +28,14 @@
       const headers=new Headers(request.headers);
       headers.delete('apikey');
       if(token)headers.set('Authorization','Bearer '+token);
-      return nativeFetch(new Request(url,new Request(request,{headers})));
+      // A Request used as RequestInit exposes its body as a ReadableStream.
+      // Mobile Safari cannot upload that stream; retain a buffered body instead.
+      return nativeFetch(new Request(url,{
+        method:request.method,headers,body:await request.blob(),
+        signal:request.signal,credentials:request.credentials,mode:request.mode,
+        cache:request.cache,redirect:request.redirect,referrer:request.referrer,
+        referrerPolicy:request.referrerPolicy,integrity:request.integrity,keepalive:request.keepalive
+      }));
     }
     return nativeFetch(request);
   };

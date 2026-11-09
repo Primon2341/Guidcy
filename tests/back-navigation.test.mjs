@@ -30,3 +30,31 @@ test('no popstate handler falls back to a hardcoded home', () => {
     assert.ok(!/\|\|\s*'home'\s*\)?;/.test(m[0]) || /getPageFromPath/.test(m[0]),
       `popstate handler hardcodes home: ${m[0].slice(0, 120)}`);
 });
+
+test('Back follows history through rewrites, refresh, Forward and a new navigation branch', () => {
+  const entries=[{state:null,url:'/find-experts?q=career'}];let index=0;
+  class History {
+    get state(){return entries[index].state}
+    get length(){return entries.length}
+    pushState(state,title,url){entries.splice(++index);entries.push({state,url})}
+    replaceState(state,title,url){entries[index]={state,url:url||entries[index].url}}
+    back(){if(index)index--}
+  }
+  const history=new History(),location=new URL('https://guidcy.test/find-experts?q=career');
+  const window={addEventListener(){},guidcyNavigate(url){history.pushState({},'',url)}};
+  const context=vm.createContext({History,history,location,window,URL,document:{addEventListener(){}}});
+  const core=fs.readFileSync(new URL('../assets/js/core.js',import.meta.url),'utf8');
+  vm.runInContext(core,context);
+  const controllers=fs.readFileSync(new URL('../assets/js/controllers.js',import.meta.url),'utf8');
+  vm.runInContext(controllers.slice(controllers.indexOf('window.guidcyBack=function'),controllers.indexOf('/* === guidcy-dashboard-button-toggle')),context);
+  history.pushState({page:'profile'},'','/consultant/expert');
+  history.replaceState(null,'','/consultant/expert');
+  vm.runInContext(core,context); // refresh preserves this entry's predecessor
+  window.guidcyBack();assert.equal(entries[index].url,'/find-experts?q=career');
+  assert.equal(history.state.guidcyCanGoBack,false);
+  index++;window.guidcyBack();assert.equal(index,0); // Forward, then Back
+  window.guidcyBack('/marketplace');assert.equal(entries[index].url,'/marketplace');
+  assert.equal(entries.length,2,'fallback replaces the forward branch');
+  window.__guidcyPaymentFlowLock=true;window.guidcyBack();assert.equal(index,1);
+  window.__guidcyPaymentFlowLock=false;window.guidcyBack();assert.equal(index,0);
+});

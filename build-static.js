@@ -134,7 +134,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js","assets/js/security-client.js","assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/profile-resources.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js","assets/js/controllers.js"].forEach(minifyDeployableJavaScript);
+["assets/js/feature-loader.js","assets/js/community.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js","assets/js/security-client.js","assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/profile-resources.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js","assets/js/controllers.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -145,7 +145,7 @@ function minifyDeployableCss(relPath){
   fs.writeFileSync(full, output.styles, "utf8");
   console.log(`Optimized: ${relPath} (${(source.length-output.styles.length).toLocaleString()} bytes removed)`);
 }
-["assets/css/blog.css","assets/css/cookie-consent.css","assets/css/jobs-search.css","assets/css/base.css","assets/css/patches.css","assets/css/fonts.css","assets/css/login.css","assets/css/mobile.css"].forEach(minifyDeployableCss);
+["assets/css/community.css","assets/css/blog.css","assets/css/cookie-consent.css","assets/css/jobs-search.css","assets/css/base.css","assets/css/patches.css","assets/css/fonts.css","assets/css/login.css","assets/css/mobile.css"].forEach(minifyDeployableCss);
 
 // Cache-bust core.js/app.js/base.css/patches.css with a hash of their own
 // content. Without this, browsers and CDN edges can keep serving a stale
@@ -170,7 +170,7 @@ function cacheBustAssets(html){
   const shellScript = fs.readFileSync(path.join(publicDir, 'assets/js/page-shell.js'), 'utf8');
   html = html.replace('<script src="/assets/js/page-shell.js"></script>', () => '<script>'+shellScript+'</script>');
   [
- "assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js",
+ "assets/js/feature-loader.js","assets/js/community.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js",
  "assets/css/cookie-consent.css",
  "assets/js/security-client.js",
  "assets/js/jobs-search.js",

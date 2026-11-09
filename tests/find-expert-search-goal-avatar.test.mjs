@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const source = fs.readFileSync(new URL('../assets/js/app.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../assets/css/base.css', import.meta.url), 'utf8');
+const index = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 test('expert dropdown renders the profile image with an initials fallback', () => {
   const helperStart = source.indexOf('function guidcySuggestAvatar(c){');
@@ -23,6 +24,6 @@ test('Goal stays independent from search unless the explicit action is used', ()
   assert.doesNotMatch(source, /hGoal\.value\s*=\s*srch\.value/);
   assert.doesNotMatch(source, /bGoal\.value\s*=\s*bs\.value/);
   assert.doesNotMatch(source, /guidcyMatchBound/);
-  assert.match(source, /id="'\+prefix\+'-goal" type="text" autocomplete="off"/);
-  assert.match(source, />Use current search<\/button>/);
+  assert.match(index, /id="gm-browse-goal" type="text" autocomplete="off"/);
+  assert.match(index, />Use current search<\/button>/);
 });

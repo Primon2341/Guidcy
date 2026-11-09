@@ -9,22 +9,22 @@
   "theme_color": "#1E72BE",
   "icons": [
     {
-      "src": "/favicon-48x48.png",
+      "src": "/favicon-48x48.png?v=guidcy-mark-20261007",
       "sizes": "48x48",
       "type": "image/png"
     },
     {
-      "src": "/favicon-96x96.png",
+      "src": "/favicon-96x96.png?v=guidcy-mark-20261007",
       "sizes": "96x96",
       "type": "image/png"
     },
     {
-      "src": "/favicon-192x192.png",
+      "src": "/favicon-192x192.png?v=guidcy-mark-20261007",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/favicon-512x512.png",
+      "src": "/favicon-512x512.png?v=guidcy-mark-20261007",
       "sizes": "512x512",
       "type": "image/png"
     }

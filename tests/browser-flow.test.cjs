@@ -76,6 +76,7 @@ const fakeSupabase = `
     q.select=function(){return q};
     q.eq=function(field,value){filters.push(function(row){return String(row&&row[field])===String(value)});return q};
     q.neq=function(field,value){filters.push(function(row){return String(row&&row[field])!==String(value)});return q};
+    q.is=function(field,value){filters.push(function(row){return value===null?row[field]==null:row[field]===value});return q};
     q.in=function(field,values){filters.push(function(row){return (values||[]).map(String).includes(String(row&&row[field]))});return q};
     q.ilike=function(field,value){var wanted=String(value||'').replace(/%/g,'').toLowerCase();filters.push(function(row){return String(row&&row[field]||'').toLowerCase().includes(wanted)});return q};
     q.not=function(field,operator,value){if(operator==='is'&&value===null)filters.push(function(row){return row&&row[field]!=null});return q};

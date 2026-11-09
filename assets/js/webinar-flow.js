@@ -1007,7 +1007,7 @@
     var state = paymentState();
     if (!state) {
       if (typeof originalPaymentBack === 'function') return originalPaymentBack.apply(this, arguments);
-      return history.back();
+      return window.guidcyBack('/webinars');
     }
     if (webinarPaymentBusy) {
       ensurePaymentPage();
@@ -1015,8 +1015,7 @@
     }
     clearPaymentState();
     window.__guidcyPaymentFlowLock = false;
-    if (typeof originalGo === 'function') return originalGo.call(window, 'webinar');
-    window.guidcyNavigate('/webinars');
+    return window.guidcyBack('/webinars');
   };
 
   /* The whole payment state was persisted to sessionStorage with nothing to

@@ -143,5 +143,5 @@ test('the goal box and the browse search bar do not write into each other', () =
   assert.doesNotMatch(run, /browseFilters\.search=d\.goal/, 'nor filter the grid behind the results');
   assert.doesNotMatch(run, /getElementById\('srch'\)/, 'and the search bar must not seed the goal');
   // the explicit button is the one sanctioned way across, because the reader asked
-  assert.match(app, /Use current search/);
+  assert.match(fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /Use current search/);
 });

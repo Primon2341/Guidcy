@@ -9,7 +9,8 @@ const root = path.resolve(__dirname, '..', 'public');
 const harnessSource = fs.readFileSync(path.join(__dirname, 'browser-flow.test.cjs'), 'utf8');
 const fakeMatch = harnessSource.match(/const fakeSupabase = `([\s\S]*?)`;\n\n\(async \(\) => \{/);
 if (!fakeMatch) throw new Error('Could not load the shared browser Supabase harness.');
-const fakeSupabase = fakeMatch[1];
+const fakeSupabase = fakeMatch[1]
+ .replace("rpc:function(){return Promise.resolve({data:[],error:null})}", "rpc:function(name,args){return Promise.resolve({data:name==='community_profile'?{id:consultant.profile_id,name:consultant.name,headline:consultant.specialty,consultant_id:consultant.id,expertise:[],followers:0,following:0}:[],error:null})}");
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -211,16 +212,16 @@ async function waitForUrlTab(page, tab) {
       await page.waitForURL(/\/consultant\/test-expert$/);
       await page.waitForSelector('#page-profile.on .profile-name');
       assert.ok(await page.evaluate(()=>window.__sameCheckoutDocument),'profile return stays in the SPA');
-      await page.goBack();await page.waitForSelector('#page-payment.on .pay-consultant');
-      await page.goForward();await page.waitForSelector('#page-profile.on .profile-name');
-      await page.goBack();await page.waitForSelector('#page-payment.on .pay-consultant');
+      await page.goForward();await page.waitForSelector('#page-payment.on .pay-consultant');
+      await page.goBack();await page.waitForSelector('#page-profile.on .profile-name');
+      await page.goForward();await page.waitForSelector('#page-payment.on .pay-consultant');
     }
-    // The prior document is unrelated: the stored booking owns the target.
+    // Back returns to the actual prior document, even after a direct checkout visit.
     await page.evaluate(()=>window.guidcyNavigate('/browse'));
     await page.goto(origin+'/payment');await page.waitForSelector('#page-payment.on .pay-consultant');
     await page.locator('#page-payment .pay-back').click();
-    await page.waitForURL(/\/consultant\/test-expert$/);
-    await page.goBack();await page.waitForSelector('#page-payment.on .pay-consultant');
+    await page.waitForURL(/\/browse$/);
+    await page.goForward();await page.waitForSelector('#page-payment.on .pay-consultant');
     await page.setViewportSize({width:1365,height:900});
     const before=await page.evaluate(()=>window.renderPaymentSummaryWithLatest());
     assert.equal(await page.locator('.pay-sum-row.final span').last().innerText(),'₹'+before.totalAmount.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}));

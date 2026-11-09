@@ -6,7 +6,7 @@
  var pathTabs={"/dashboard/webinars":"my-webinars","/dashboard/my-webinars":"my-webinars","/dashboard/payments":"payments","/dashboard/history":"history","/dashboard/profile":"settings","/dashboard/settings":"settings","/dashboard/upcoming":"upcoming","/dashboard/saved":"saved","/dashboard/marketplace":"marketplace","/consultant-dashboard/webinars":"my-webinars","/consultant-dashboard/my-webinars":"my-webinars","/consultant-dashboard/profile":"settings","/consultant-dashboard/settings":"settings","/consultant-dashboard/earnings":"earnings","/consultant-dashboard/history":"webinar-history","/consultant-dashboard/schedule":"schedule","/consultant-dashboard/requests":"requests","/consultant-dashboard/marketplace":"marketplace","/admin-dashboard/webinars":"webinars","/admin-dashboard/users":"users","/admin-dashboard/payments":"payments","/admin-dashboard/bookings":"bookings","/admin-dashboard/analytics":"overview","/admin-dashboard/marketplace":"marketplace","/admin-dashboard/webinar-registrations":"webinar-registrations"};
  window.guidcyDashboardPathTab=function(path){return pathTabs[String(path||'').replace(/\/$/,'')]||''};
  var KEY='guidcy:refresh:v1',TTL=10*60*1000,LIMIT=900000;
- var regions=['adash-main','cdash-main','udash-main','browse-grid','cats-full-grid','cons-grid','cons-rec-grid','reviews-grid','wbn-regs-list','gmkt-grid','gc-list','jobs-main-area','sf-results','opp-results','profile-layout','home-trust-strip'];
+ var regions=['adash-main','cdash-main','udash-main','browse-grid','cats-full-grid','cons-rec-grid','gnet-me','gnet-compose-avatar','gnet-experts','gnet-feed','profile-layout','wbn-regs-list','gmkt-grid','gc-list','jobs-main-area','sf-results','opp-results'];
  var controls=['job-q','job-loc','job-source','job-salary','job-exp','job-filter-loc','job-sector','gmkt-search','gmkt-cat','gmkt-price','gmkt-sort'];
  var identity=['udash-name','cdash-name','udash-av','cdash-av','adash-av'];
  var route=function(){return location.pathname+location.search};
@@ -27,6 +27,9 @@
   return '';
  }
  function read(){try{return JSON.parse(sessionStorage.getItem(KEY)||'{}')}catch(_){return {}}}
+ function expandImages(html,images){
+  return html.replace(/src="guidcy-refresh-image:(\d+)"/g,function(_,i){var src=images&&images[i]||'';return 'src="'+(/^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(src)?src:'')+'"'});
+ }
  function cleanHtml(el){
   var copy=el.cloneNode(true);
   copy.querySelectorAll('script,iframe,object,embed,[data-auth-retry]').forEach(function(n){n.remove()});
@@ -110,13 +113,22 @@
    regions.forEach(function(key){
     var el=document.getElementById(key);
     if(!el||!page.contains(el))return;
+    if(key==='profile-layout'&&(!el.dataset.profileTarget||el.hasAttribute('data-profile-loading')))return;
     if(el.getAttribute('aria-busy')==='true'||el.hasAttribute('data-guidcy-restored')){
      // Reloading during revalidation must not overwrite the last good region.
      var saved=previous&&previous.regions[key];
-     if(saved&&Date.now()-(saved.at||previous.at)<=TTL)entry.regions[key]=Object.assign({},saved,{at:saved.at||previous.at});
+     if(saved&&Date.now()-(saved.at||previous.at)<=TTL)entry.regions[key]=Object.assign({},saved,{html:expandImages(saved.html,previous.images),at:saved.at||previous.at});
     }else if(el.firstChild&&!el.classList.contains('guidcy-panel-skeleton')){
-     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now()};
+     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now(),profileTarget:key==='profile-layout'?el.dataset.profileTarget:undefined,profileVersion:key==='profile-layout'?1:undefined};
     }
+   });
+   // Repeated inline author photos otherwise exceed the bounded cache in a short feed.
+   entry.images=[];var imageIds=new Map();
+   Object.keys(entry.regions).filter(function(key){return key.indexOf('gnet-')===0||key==='profile-layout'}).forEach(function(key){
+    entry.regions[key].html=entry.regions[key].html.replace(/src="(data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+)"/g,function(_,src){
+     if(!imageIds.has(src)){imageIds.set(src,entry.images.length);entry.images.push(src)}
+     return 'src="guidcy-refresh-image:'+imageIds.get(src)+'"';
+    });
    });
    entry.identity={};
    if(uid)identity.forEach(function(key){var n=document.getElementById(key);if(n&&page.contains(n))entry.identity[key]={html:cleanHtml(n),style:n.getAttribute('style')||'',className:n.className}});
@@ -146,7 +158,14 @@
    if(regions.indexOf(key)<0)return;
    var el=document.getElementById(key),saved=entry.regions[key];
    if(!el||!page.contains(el)||Date.now()-(saved.at||entry.at)>TTL)return;
-   el.innerHTML=saved.html;
+   if(key==='profile-layout'&&(!saved.profileTarget||saved.profileVersion!==1))return;
+   el.innerHTML=expandImages(saved.html,entry.images);
+   if(key==='profile-layout'){
+    el.dataset.profileTarget=saved.profileTarget;
+    el.classList.toggle('gnet-member-layout',saved.profileTarget.indexOf('member:')===0);
+    el.querySelectorAll('[data-community-profile]').forEach(function(n){n.removeAttribute('data-community-profile')});
+    el.querySelectorAll('.gnet-prof-section,#gnet-profile-posts,#profile-resources,#profile-webinars').forEach(function(n){n.setAttribute('inert','');n.setAttribute('data-guidcy-restored','')});
+   }
    el.classList.remove('guidcy-panel-skeleton','guidcy-panel-busy','guidcy-panel-swap');
    el.removeAttribute('aria-busy');
    el.setAttribute('data-guidcy-restored','');

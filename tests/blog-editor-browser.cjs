@@ -14,6 +14,11 @@ global.fetch=async raw=>{
  if(url.pathname.endsWith('/blog_posts')){
   data=posts.filter(p=>p.status==='published'&&Date.parse(p.published_at)<=Date.now());
   if(url.searchParams.has('slug'))data=data.filter(p=>p.slug===url.searchParams.get('slug').slice(3));
+  if(url.searchParams.has('category'))data=data.filter(p=>p.category===url.searchParams.get('category').slice(3));
+  if(url.searchParams.has('or')){
+   const term=url.searchParams.get('or').match(/title\.ilike\."%(.*?)%"/)[1].toLowerCase();
+   data=data.filter(p=>[p.title,p.excerpt,p.author].some(v=>v.toLowerCase().includes(term)));
+  }
   const offset=Number(url.searchParams.get('offset')||0);data=data.slice(offset,offset+Number(url.searchParams.get('limit')||1000));
  }
  return {ok:true,json:async()=>data};
@@ -107,6 +112,28 @@ const server=http.createServer(async(req,res)=>{
   assert.equal((await context.request.get(origin+'/blog/'+slug)).status(),404);
   await row.getByRole('button',{name:'Delete',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.blog-admin-row').length===1);assert.equal(posts.length,1);
   await page.evaluate(()=>{window.__blogAllowed=false;return window.GuidcyBlog.renderAdmin()});await page.getByRole('alert').filter({hasText:'Administrator access is required'}).waitFor();
+  posts=Array.from({length:16},(_,i)=>({...seed(),id:'article-'+i,slug:'article-'+i,title:i===0?'How Guidance Can Change Your Life':i===1?'Top Skills Recruiters Look for in 2026':i===2?'How to Choose the Right University':i===3?'The Power of Mentorship':'Practical guidance '+i,category:i%2?'Career':'Education',cover_image:'https://fixture.test/cover.webp'}));
+  await context.route('https://fixture.test/cover.webp',route=>route.fulfill({contentType:'image/webp',body:fs.readFileSync(path.join(root,'assets/images/blog-hero.webp'))}));
+  await page.goto(origin+'/blog');await page.locator('.blog-featured').waitFor();
+  assert.equal(await page.locator('.blog-list-card').count(),12);
+  assert.equal(await page.locator('.blog-list-grid .blog-list-card').count(),11);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'blog fits viewport');
+  await page.screenshot({path:'/private/tmp/guidcy-blog-listing-'+width+'.png',fullPage:true});
+  await page.locator('.blog-filters').getByRole('link',{name:'Career',exact:true}).click();
+  await page.locator('.blog-filters a[aria-current]').filter({hasText:'Career'}).waitFor();
+  assert.equal(await page.locator('.blog-list-card').count(),8);
+  await page.getByRole('searchbox',{name:'Search articles'}).fill('Recruiters');
+  await page.getByRole('button',{name:'Search articles',exact:true}).click();
+  await page.getByRole('heading',{name:'Search results',exact:true}).waitFor();
+  assert.equal(await page.locator('.blog-list-card').count(),1);
+  await page.getByRole('searchbox',{name:'Search articles'}).fill('no-matching-article');
+  await page.getByRole('button',{name:'Search articles',exact:true}).click();
+  await page.getByRole('heading',{name:'No matching articles'}).waitFor();
+  await page.getByRole('link',{name:'See all articles'}).click();await page.locator('.blog-featured').waitFor();
+  await page.locator('.blog-pagination a[rel=next]').click();
+  await page.waitForURL('**/blog?page=2');await page.locator('.blog-list-card').first().waitFor();
+  assert.equal(await page.locator('.blog-list-card').count(),4);
+  await page.locator('.blog-list-card h2 a').first().click();await page.locator('.blog-prose').waitFor();
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('PASS '+width+'px: draft, preview, edit, denied save, publish, SSR route/refresh, unpublish, delete and admin guard');
   await context.close();

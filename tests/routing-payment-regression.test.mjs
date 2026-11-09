@@ -19,7 +19,7 @@ function section(source, start, end) {
 test('route bootstrap delegates instead of rendering or inferring clicks', () => {
   assert.match(core, /__GUIDCY_HANDLE_POPSTATE_V7__/);
   assert.doesNotMatch(core, /MutationObserver|setInterval|pointerdown|mousedown|addEventListener\('click'/);
-  assert.doesNotMatch(core, /pushState\s*=|replaceState\s*=/);
+  assert.doesNotMatch(core, /renderPage|guidcyNavigate/);
 });
 
 test('dashboard navigation has one click owner and rejects scroll gestures', () => {

@@ -39,28 +39,6 @@ test('featured expert ranks and limits never display or persist the legacy 9999 
   assert.doesNotMatch(section, /Number\(inp\.value\|\|9999\)/);
 });
 
-test('homepage route always calls the final featured-aware initHome renderer', () => {
-  const renderStart = app.indexOf('function renderPage(page)');
-  const renderEnd = app.indexOf('function go(page)', renderStart);
-  const renderSection = app.slice(renderStart, renderEnd);
-
-  assert.match(renderSection, /home:\(\)=>\{const fn=typeof window\.initHome==='function'\?window\.initHome:initHome;return fn\(\)\}/);
-  assert.doesNotMatch(renderSection, /home:initHome/);
-  assert.match(app, /guidcySaveFeaturedLimit=function\(\)[\s\S]*?try\{window\.initHome\(\)\}/);
-});
-
-test('homepage card render boundary cannot be repainted with every consultant', () => {
-  const start = app.indexOf('/* === guidcy-featured-experts-final-render-boundary ===');
-  const section = app.slice(start);
-
-  assert.ok(start >= 0);
-  assert.match(section, /String\(containerId\|\|''\)==='cons-grid'/);
-  assert.match(section, /window\.guidcyOrderFeaturedExperts\(rows\)/);
-  assert.match(section, /stored>=1&&stored<9999/);
-  assert.match(section, /rows=rows\.slice\(0,limit\)/);
-  assert.match(section, /renderGrid=window\.renderGrid/);
-});
-
 test('featured expert controls render only on their own admin tab', () => {
   const start = app.indexOf('let featuredAdminRenderEpoch=0;');
   const end = app.indexOf('const helpTopics=', start);

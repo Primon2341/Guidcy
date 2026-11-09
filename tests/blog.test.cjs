@@ -44,3 +44,29 @@ test('SEO titles preserve dollar replacement tokens as literal text',()=>{
  assert.ok(html.includes('<title>A $&amp; guide</title>'));
  assert.equal((html.match(/<\/head>/g)||[]).length,1);
 });
+
+test('blog listing features one real post, preserves filter pagination and escapes user content',async()=>{
+ const posts=Array.from({length:4},(_,i)=>({...post,id:String(i),slug:'article-'+i,title:'Article '+i}));
+ const html=B.listing(posts,{hasNext:true});
+ assert.equal((html.match(/class="blog-card blog-list-card/g)||[]).length,4);
+ assert.equal((html.match(/blog-list-card blog-featured/g)||[]).length,1);
+ assert.match(html,/Latest Articles/);assert.match(html,/href="\/blog\?page=2" rel="next"/);
+ const filtered=B.listing(posts,{search:'<script> & advice',category:'Career',page:2,hasNext:true});
+ assert.ok(!filtered.includes('<script>'));assert.ok(!filtered.includes('blog-list-card blog-featured'));
+ assert.match(filtered,/q=%3Cscript%3E\+%26\+advice&amp;category=Career&amp;page=3/);
+ assert.match(B.listing([],{search:'missing'}),/No matching articles/);
+ const original=global.fetch;
+ try{
+  global.fetch=async raw=>{
+   const url=new URL(raw);
+   assert.equal(url.searchParams.get('category'),'eq.Career');
+   assert.equal(url.searchParams.get('offset'),'12');
+   assert.equal(url.searchParams.get('status'),'eq.published');
+   assert.equal(url.searchParams.get('or'),'(title.ilike."%mentoring%",excerpt.ilike."%mentoring%",author.ilike."%mentoring%")');
+   return {ok:true,json:async()=>posts};
+  };
+  const response=capture();await handler({method:'GET',query:{path:'/blog',format:'json',q:'mentoring',category:'Career',page:'2'}},response);
+  assert.equal(response.statusCode,200);const data=JSON.parse(response.body);
+  assert.equal(data.meta.index,false);assert.equal(data.meta.canonicalPath,'/blog');
+ }finally{global.fetch=original}
+});
