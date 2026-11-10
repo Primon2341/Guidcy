@@ -45,6 +45,8 @@ const server = http.createServer((req, res) => {
  const button = page.locator('#nav-right #guidcy-dashboard-btn');
  await button.waitFor();
  await page.waitForTimeout(1600);
+ const profileId = role === 'consultant' ? 'expert-profile' : role === 'admin' ? 'test-admin' : 'test-user';
+ assert.equal(await page.locator('#nav-right a.avatar-chip').getAttribute('href'), '/profile?member='+profileId, role+': avatar targets the signed-in profile');
  const owner = role === 'consultant' ? 'cons' : role;
  const dash = '#page-' + owner + '-dash';
  assert.equal(await button.getAttribute('data-dashboard-route'), owner + '-dash');

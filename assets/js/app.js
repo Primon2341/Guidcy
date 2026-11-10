@@ -19016,12 +19016,10 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     }catch(_){ }
     return '';
   }
-  function avatarChipHtml(url,initialsText,style,route,name){
+  function avatarChipHtml(url,initialsText,style,profileUrl,name){
     const base=style+';background-size:cover;background-position:center;background-repeat:no-repeat;overflow:hidden';
-    if(url){
-      return '<div class="avatar-chip" onclick="go(\''+route+'\')" style="'+base+';background-image:url(&quot;'+esc(url)+'&quot;);background-color:transparent;color:transparent" title="'+esc(name)+'" aria-label="'+esc(name)+'"></div>';
-    }
-    return '<div class="avatar-chip" onclick="go(\''+route+'\')" style="'+style+'" title="'+esc(name)+'">'+esc(initialsText)+'</div>';
+    const photoStyle=url?base+';background-image:url(&quot;'+esc(url)+'&quot;);background-color:transparent;color:transparent':style;
+    return '<a class="avatar-chip" href="'+esc(profileUrl)+'" style="'+photoStyle+'" title="'+esc(name)+'" aria-label="View your profile">'+(url?'':esc(initialsText))+'</a>';
   }
   function isLoggedSync(){
     const u=getGlobalUser(), p=getGlobalProfile();
@@ -19048,7 +19046,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     const next=Array.from(template.content.children),old=Array.from(area.children);
     function appearance(el){
       return JSON.stringify([el.tagName,el.id,el.className,el.textContent.trim(),
-        el.getAttribute('style')||'',el.getAttribute('title')||'',el.getAttribute('aria-label')||'']);
+        el.getAttribute('style')||'',el.getAttribute('title')||'',el.getAttribute('aria-label')||'',el.getAttribute('href')||'']);
     }
     if(next.length!==old.length||next.some((el,i)=>appearance(el)!==appearance(old[i]))){
       area.replaceChildren(template.content);
@@ -19080,7 +19078,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     const ini=clean(p.avatar_initials || initials(name));
     const av=avatarUrlForProfile(p,u);
     const avatarStyle = role==='admin' ? 'background:#FFF0F0;color:#7f1d1d;border-color:#f87171' : role==='consultant' ? 'background:#F7F0E6;color:#8B6E3F;border-color:#C9A96E' : 'background:#EBF4FF;color:#1E72BE;border-color:#1E72BE33';
-    const navHtml = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button>'+avatarChipHtml(av,ini,avatarStyle,route,name);
+    const navHtml = '<button id="guidcy-dashboard-btn" class="btn btn-blue" type="button" onclick="go(\''+route+'\')">Dashboard</button>'+avatarChipHtml(av,ini,avatarStyle,'/profile?member='+encodeURIComponent(u.id||p.user_id||p.id||p.profile_id||''),name);
     syncNavContents(nr,navHtml);
     window.guidcyStoreNavShell&&window.guidcyStoreNavShell(navHtml);
     syncMobileAuthArea(navHtml);
@@ -26641,13 +26639,13 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     }
  return result;
   }
-  window.guidcyNavigate=function(raw){
+  window.guidcyNavigate=function(raw,options){
     var url;try{url=new URL(raw,location.origin)}catch(_){return false}
     if(url.origin!==location.origin)return false;
     if(window.guidcySavePageShell)window.guidcySavePageShell();
     var full=url.pathname+url.search+url.hash;
     if(window.__guidcyPaymentFlowLock&&url.pathname!=='/payment')return false;
-    writeUrl(full,{},true);
+    writeUrl(full,{},!(options&&options.replace));
     renderUrl(full);
     return true;
   };
@@ -26864,6 +26862,17 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     try{
       var element=event.target&&event.target.closest&&event.target.closest('button,a,[role="button"]');
       if(!element)return;
+      // Avatar links use delegation so newly rendered/cached headers work immediately.
+      if(element.matches('a.avatar-chip[href]')){
+        if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+        if(new URL(element.href,location.origin).origin!==location.origin)return;
+        event.preventDefault();event.stopImmediatePropagation();
+        desiredDashboard=null;
+        window.guidcyNavigate(element.getAttribute('href'));
+        try{if(typeof window.closeMobileMenu==='function')window.closeMobileMenu()}catch(e){}
+        try{if(typeof window.closeMobDrawer==='function')window.closeMobDrawer()}catch(e){}
+        return;
+      }
       var source=clean(element.getAttribute&&element.getAttribute('onclick'));
       var simple=source.match(/^\s*(?:window\.)?go\(\s*['"]([^'"]+)['"]\s*\)\s*;?(?:\s*(?:closeMobileMenu|closeMobDrawer)\(\)\s*;?)*\s*(?:return\s+false\s*;?)?\s*$/);
       if(!simple)return;

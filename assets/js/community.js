@@ -74,23 +74,20 @@
     paintPostPreviews(bodies);
   }
   document.fonts?.ready.then(syncPostPreviews);
-  function paintMe() {
+  function paintComposerAvatar() {
     const p=state.user?person(state.user.id):null;
-    const card=$('gnet-me'),cover=p?coverURL(p):'';
-    card.innerHTML=(p?`<a class="gnet-me-profile" href="${esc(href(p))}" aria-label="View ${esc(p.name)}’s profile"><div class="gnet-mini-cover">${cover?`<img src="${esc(cover)}" alt="" width="800" height="200" loading="lazy">`:''}</div><div class="gnet-me-details"><div class="gnet-me-photo">${avatar(p)}</div><h2>${esc(p.name)}</h2><div class="gnet-me-headline">${esc(headline(p))}</div>${p.city&&p.show_location!==false?`<div class="gnet-me-location">${esc(p.city)}</div>`:''}</div></a>${p.company?`<div class="gnet-me-organization">${organizationMark(p.company,'company')}<strong>${organizationName(p.company,'company')}</strong></div>`:p.college?`<div class="gnet-me-organization">${organizationMark(p.college,'college')}<strong>${organizationName(p.college,'college')}</strong></div>`:''}<div class="gnet-profile-counts"><span><b>${Number(p.followers||0)}</b> followers</span><button data-action="network"><b>${Number(p.following||0)}</b> following</button></div>`:`<div class="gnet-me-guest">${brand()}<h2>Your Guidcy community</h2><a class="gnet-button gnet-primary" href="/signup">Join Guidcy</a><a class="gnet-text-link" href="/login">Log in</a></div>`);
-    if(p)loadOrganizationLogos(card);
     $('gnet-compose-avatar').innerHTML=avatar(p);
   }
   async function sidebar() {
     const epoch=state.epoch;
     try {
       if(state.user)await profileInfo(state.user.id);
-      if(epoch!==state.epoch)return;paintMe();
+      if(epoch!==state.epoch)return;paintComposerAvatar();
       const experts=await result(client().rpc('community_people',{p_ids:null}));
       if(epoch!==state.epoch)return;
       experts.forEach(p=>state.people.set(p.id,{...state.people.get(p.id),...p}));
       $('gnet-experts').innerHTML=experts.length?experts.map(p=>`<div class="gnet-expert">${identity(p)}${p.expertise?.length?`<p class="gnet-expertise">${esc(p.expertise.slice(0,2).join(' · '))}</p>`:''}${follow(p)}</div>`).join(''):'<p class="gnet-muted">Explore the expert directory to find your next guide.</p>';
-    } catch (_) {if(epoch===state.epoch){paintMe();$('gnet-experts').innerHTML='<p class="gnet-muted">Suggestions are unavailable. You can still browse experts.</p>';}}
+    } catch (_) {if(epoch===state.epoch){paintComposerAvatar();$('gnet-experts').innerHTML='<p class="gnet-muted">Suggestions are unavailable. You can still browse experts.</p>';}}
   }
   function feedKey() {return [state.user?.id||'',state.mode,params().get('post')||'',params().get('author')||''].join('|');}
   async function load(reset=false) {
@@ -140,7 +137,7 @@
       const q=client().from('community_follows');
       const r=before?await q.delete().eq('follower_id',state.user.id).eq('following_id',id):await q.insert({follower_id:state.user.id,following_id:id});
       if(r.error&&r.error.code!=='23505')throw r.error;
-      if(me){me.following=Math.max(0,Number(me.following||0)+(before?-1:1));paintMe();syncFollow(me.id);}
+      if(me){me.following=Math.max(0,Number(me.following||0)+(before?-1:1));paintComposerAvatar();syncFollow(me.id);}
       state.at=0; // Apply the new ranking on the next refresh; keep reading position stable.
     } catch (_) {p.is_following=before;p.followers=oldCount;notice('Could not update follow. Please try again.');}
     finally {state.follows.delete(id);syncFollow(id);}
@@ -584,7 +581,7 @@
     if(!preserve)layout.innerHTML='<div class="gnet-card gnet-loading"><div class="gnet-skeleton"></div></div>';
     layout.dataset.profileTarget='member:'+id;
     try {const p=await profileInfo(id);if(epoch!==profileEpoch||params().get('member')!==id)return;
-      if(p.consultant_id){window.guidcyNavigate(href(p));return;}
+      if(p.consultant_id){window.guidcyNavigate(href(p),{replace:true});return;}
       profilePerson=p;
       if(preserve)$('gnet-member').innerHTML=profileHeader(p);
       else layout.innerHTML=`<div class="profile-main"><section id="gnet-member" class="gnet-card gnet-profile-header">${profileHeader(p)}</section>${activityShell(p)}</div>`;
