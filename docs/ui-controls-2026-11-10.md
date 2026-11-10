@@ -30,3 +30,12 @@ Post images preserve their intended full card width and equal gutters on the fee
 People-list popups initially focus their heading, leaving the cross unframed. The close control stays accessible with Tab, with a rounded keyboard focus indication instead of a rectangular outline.
 
 Profile company and college rows use equal-width grid rows with one fixed logo column, so short and long labels do not shift their icons. Mobile location, website and follower spacing is compact, with screenshot-based checks matching the supplied HFCL / IIT Roorkee profile at 320/390/430/768px.
+
+
+## Like and loading motion
+
+Likes animate the blue heart briefly; double-tapping post text or an image also shows a larger blue heart. Repeated double-taps on an already liked post replay feedback without writing a duplicate like. Unlike/failure cancels the effects; finished overlays remove themselves. Effects use the Web Animations API with transform/opacity, require no library, and are skipped for reduced motion. A visual-effect failure cannot prevent the existing like operation.
+
+Existing panel loading state drives one compact segmented loading card inspired by the supplied reference: a light Guidcy surface, blue monospace Loading label and frame, and green blocks. The cover moves in discrete steps to reveal the segments. The indicator stays outside cached content and is hidden when requests finish or their page is no longer visible. Comments use the same design inline. Reduced motion uses a static segmented bar. There are no invented percentages, extra requests, artificial request delays, or full-page overlays. Known content regions and their page visibility are observed; detached regions are released.
+
+Loading completion regression checks cover native DOM commits, explicit completion callbacks, rendered records containing loading-related words, and terminal errors. Automatically created loading flags are cleared when real root content is committed; explicit pending requests retain their own lifecycle. Optional identity and recommendation panels do not keep the global indicator visible after the main content is ready. `tests/loading-state-browser.test.cjs` exercises these paths without production data.

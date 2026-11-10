@@ -39,23 +39,80 @@
 
   function isPlaceholder(html) {
     var text = textOf(html);
-    return text.length > 0 && text.length <= PLACEHOLDER_MAX_TEXT && PLACEHOLDER_WORDS.test(text);
+    if(!text||text.length>PLACEHOLDER_MAX_TEXT||!PLACEHOLDER_WORDS.test(text))return false;
+    if(/\b(?:unable|failed|could not|couldn['’]t|error)\b/i.test(text))return false;
+    // Titles/posts can contain words such as "Loading" or "Searching" too.
+    // Real records, controls and error states must always reach the screen.
+    return !/<(?:article|table|form|input|button)\b|<a\b[^>]*href\s*=|\bdata-(?:post|consultant-id|wbn-id|gmkt-id)\s*=/i.test(String(html));
   }
 
   function hasContent(el, html) {
     /* A panel showing nothing but its own placeholder is not content worth
        keeping, so a slow first load still gets to show the spinner. */
     if (!el || !el.firstChild) return false;
-    var text = textOf(html === undefined ? native.get.call(el) : html);
+    var markup=html === undefined ? native.get.call(el) : html;
+    var text = textOf(markup);
     if (!text) return false;
-    return !(text.length <= PLACEHOLDER_MAX_TEXT && PLACEHOLDER_WORDS.test(text));
+    return !isPlaceholder(markup);
   }
 
   function setBusy(el, busy) {
     try { el.classList.toggle('guidcy-panel-busy', !!busy); } catch (_) {}
   }
 
+  // Observe only registered content regions and their page visibility. The
+  // status lives outside those regions so it never enters their cached markup.
+  var automaticLoading=new WeakSet();
+  var secondaryLoading=new Set(['gnet-me','gnet-compose-avatar','gnet-experts','cons-rec-grid']);
+  var loadingNodes=new Set(), loadingPages=new Set(), loadingQueued=false;
+  function finishLoading(target){
+    automaticLoading.delete(target);setBusy(target,false);
+    target.classList.remove('guidcy-panel-skeleton');target.removeAttribute('aria-busy');
+  }
+  function loadingChanged(records){
+    records.forEach(function(record){
+      // Native replaceChildren/append paths bypass our innerHTML setter. Only
+      // finish flags we created, and only after root content is committed.
+      if(record.type==='childList'&&automaticLoading.has(record.target)&&hasContent(record.target))finishLoading(record.target);
+    });
+    scheduleLoading();
+  }
+  var loadingObserver=typeof MutationObserver==='function'?new MutationObserver(loadingChanged):null;
+  function scheduleLoading(){
+    if(loadingQueued)return;loadingQueued=true;
+    queueMicrotask(function(){loadingQueued=false;syncLoading()});
+  }
+  function watchLoading(el){
+    if(!el||!loadingObserver||loadingNodes.has(el))return;
+    loadingNodes.add(el);loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class'],childList:true});
+    var page=el.closest('.page');
+    if(page&&!loadingPages.has(page)){loadingPages.add(page);loadingObserver.observe(page,{attributes:true,attributeFilter:['class','hidden']})}
+    scheduleLoading();
+  }
+  function syncLoading(){
+    if(!document.body)return;
+    var active=false,removed=false;
+    loadingNodes.forEach(function(el){
+      if(!el.isConnected){loadingNodes.delete(el);removed=true;return}
+      if(!secondaryLoading.has(el.id)&&el.getAttribute('aria-busy')==='true'&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')active=true;
+    });
+    loadingPages.forEach(function(el){if(!el.isConnected){loadingPages.delete(el);removed=true}});
+    if(removed&&loadingObserver){
+      loadingObserver.disconnect();
+      loadingNodes.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class'],childList:true})});
+      loadingPages.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['class','hidden']})});
+    }
+    var status=document.getElementById('guidcy-loading-status');
+    if(!status&&active){
+      status=document.createElement('div');status.id='guidcy-loading-status';status.className='guidcy-retro-loader';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+      status.innerHTML='<span class="guidcy-loading-label">Loading...</span><span class="guidcy-loading-track" aria-hidden="true"><span class="guidcy-loading-fill"></span></span>';
+      document.body.appendChild(status);
+    }
+    if(status)status.hidden=!active;
+  }
+
   window.guidcyFinishPanelRefresh = function(target) {
+    finishLoading(target);
     if(target.__guidcyRestoreMinHeight!==undefined){target.style.minHeight=target.__guidcyRestoreMinHeight;delete target.__guidcyRestoreMinHeight}
     target.removeAttribute('inert');
     target.removeAttribute('data-guidcy-restored');
@@ -85,6 +142,7 @@
               sameSection=!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1];
             }
             if (sameSection && skeleton && hasContent(target,previous)) {
+              automaticLoading.add(target);
               setBusy(target, true);
               target.setAttribute('aria-busy', 'true');
               return;
@@ -97,6 +155,7 @@
                rather than a bare "Loading..." line; the real markup clears it. */
             target.classList.toggle('guidcy-panel-skeleton', skeleton);
             if (skeleton) target.setAttribute('aria-busy', 'true'); else target.removeAttribute('aria-busy');
+            if(skeleton)automaticLoading.add(target);
             if (skeleton) return;
           } catch (_) {
             native.set.call(target, value);
@@ -109,7 +168,10 @@
   }
 
   function attachAll() {
-    for (var i = 0; i < PANEL_IDS.length; i++) attach(document.getElementById(PANEL_IDS[i]));
+    for (var i = 0; i < PANEL_IDS.length; i++) {
+      var el=document.getElementById(PANEL_IDS[i]);attach(el);watchLoading(el);
+    }
+    scheduleLoading();
   }
 
   window.guidcyAttachPanelRefresh = attachAll;

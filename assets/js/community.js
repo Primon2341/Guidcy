@@ -145,14 +145,36 @@
     } catch (_) {p.is_following=before;p.followers=oldCount;notice('Could not update follow. Please try again.');}
     finally {state.follows.delete(id);syncFollow(id);}
   }
-  async function toggleReaction(button,p,save) {
+  function clearLikeMotion(button) {
+    try {
+      button.querySelector('svg')?.getAnimations?.().forEach(animation=>animation.cancel());
+      const burst=button.closest('[data-post]')?.querySelector('.gnet-like-burst');
+      burst?.getAnimations?.().forEach(animation=>animation.cancel());burst?.remove();
+    } catch (_) {/* Motion must never block the underlying like operation. */}
+  }
+  function animateLike(button,content) {
+    try {
+      clearLikeMotion(button);
+      if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+      const heart=button.querySelector('svg');if(!heart?.animate)return;
+      heart.animate([{transform:'scale(1)'},{transform:'scale(1.35)',offset:.4},{transform:'scale(.92)',offset:.75},{transform:'scale(1)'}],{duration:340,easing:'cubic-bezier(.2,.8,.2,1)'}).finished.catch(()=>{});
+      if(!content)return;
+      const card=button.closest('[data-post]'),area=content.getBoundingClientRect(),bounds=card.getBoundingClientRect();
+      const burst=document.createElement('span');burst.className='gnet-like-burst';burst.setAttribute('aria-hidden','true');burst.innerHTML=icon('like');
+      burst.style.left=(area.left-bounds.left-card.clientLeft+area.width/2)+'px';burst.style.top=(area.top-bounds.top-card.clientTop+area.height/2)+'px';card.append(burst);
+      const animation=burst.animate([{transform:'translate(-50%,-50%) scale(.35) rotate(-12deg)',opacity:0},{transform:'translate(-50%,-50%) scale(1.12)',opacity:1,offset:.25},{transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.6},{transform:'translate(-50%,-50%) scale(1.12)',opacity:0}],{duration:650,easing:'ease-out'});
+      animation.finished.then(()=>burst.remove(),()=>burst.remove());
+    } catch (_) {clearLikeMotion(button);}
+  }
+  async function toggleReaction(button,p,save,content=null) {
     if(!requireUser()||button.disabled)return;
     const key=save?'saved':'liked',before=p[key],old=p.likes;
     button.disabled=true;p[key]=!before;if(!save)p.likes=Math.max(0,Number(p.likes)+(before?-1:1));
     const card=button.closest('[data-post]');button.setAttribute('aria-pressed',String(p[key]));
     const paint=()=>{if(save)button.querySelector('[data-save-label]').textContent=p.saved?'Saved':'Save';else card.querySelector('[data-like-count]').textContent=p.likes+' likes';};paint();
+    if(!save){if(before)clearLikeMotion(button);else animateLike(button,content);}
     try {const q=client().from(save?'community_saves':'community_likes');const r=before?await q.delete().eq('post_id',p.id).eq('user_id',state.user.id):await q.insert({post_id:p.id,user_id:state.user.id});if(r.error&&r.error.code!=='23505')throw r.error;}
-    catch (_) {p[key]=before;p.likes=old;button.setAttribute('aria-pressed',String(before));paint();notice('Could not save your change. Please try again.');}
+    catch (_) {if(!save)clearLikeMotion(button);p[key]=before;p.likes=old;button.setAttribute('aria-pressed',String(before));paint();notice('Could not save your change. Please try again.');}
     finally {button.disabled=false;}
   }
   function postContent(target) {
@@ -161,7 +183,9 @@
   function likePostContent(content) {
     const card=content?.closest('[data-post]'),p=card&&(profilePosts.get(card.dataset.post)||state.rows.get(card.dataset.post));
     const button=card?.querySelector('[data-action=like]');
-    if(p&&!p.liked&&button&&!button.disabled)toggleReaction(button,p,false);
+    if(!p||!button||button.disabled)return;
+    if(!p.liked)toggleReaction(button,p,false,content);
+    else if(state.user)animateLike(button,content);
   }
   // Touch taps must stay on the same post and cannot be part of a swipe/scroll.
   let touchDown=null,lastTap=null;
@@ -223,7 +247,7 @@
     if(!append&&!section.hidden){section.hidden=true;section._request=(section._request||0)+1;return;}
     section.hidden=false;
     const request=section._request=(section._request||0)+1;
-    if(!append){section.innerHTML='<p role="status">Loading comments…</p>';section._cursor=null;}
+    if(!append){section.innerHTML='<div class="guidcy-retro-loader gnet-load-status" role="status"><span class="guidcy-loading-label">Loading comments...</span><span class="guidcy-loading-track" aria-hidden="true"><span class="guidcy-loading-fill"></span></span></div>';section._cursor=null;}
     try {
       let q=client().from('community_comments').select('id,author_id,body,created_at').eq('post_id',p.id).order('created_at').order('id').limit(11);
       const cursor=section._cursor;if(cursor)q=q.or(`created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`);

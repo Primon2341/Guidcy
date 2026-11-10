@@ -58,6 +58,22 @@ test('a panel showing only its own placeholder is not treated as content', () =>
   assert.equal(hasContent(PANEL), true, 'a rendered table is worth keeping on screen');
 });
 
+test('rendered records and loading failures are final content, not placeholders', () => {
+  const { isPlaceholder, hasContent, PANEL } = load();
+  PANEL.firstChild = {};
+  for (const html of [
+    '<article data-post="post-1">Loading lessons from my first job</article>',
+    '<div><a href="/consultant/expert">Searching for a new role</a><button>Book Session</button></div>',
+    '<table><tr><td>Loading specialist</td><td>Paid</td></tr></table>',
+    '<p>Loading failed. Please try again.</p>',
+    '<p>We could not finish searching. Try again.</p>',
+  ]) {
+    PANEL.html = html;
+    assert.equal(isPlaceholder(html), false, html);
+    assert.equal(hasContent(PANEL), true, html);
+  }
+});
+
 test('it stays an allowlist and cannot strand a panel', () => {
   const ids = (src.slice(src.indexOf('var PANEL_IDS = ['), src.indexOf('];', src.indexOf('var PANEL_IDS = [')))
     .match(/'[\w-]+'/g) || []).map(s => s.slice(1, -1));
