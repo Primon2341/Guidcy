@@ -141,7 +141,6 @@
 .gmob-close-btn:hover{background:rgba(255,255,255,.28)}
 /* Body */
 .gmob-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding:8px 0}
-.gmob-section-lbl{font-size:11px;font-weight:var(--font-weight-medium,500);letter-spacing:.1em;text-transform:uppercase;color:#8A9BB5;padding:16px 20px 8px}
 /* Nav items */
 .gmob-item{
   display:flex;align-items:center;gap:14px;
@@ -2092,7 +2091,6 @@ body.guidcy-razorpay-opening #page-payment .green-btn{opacity:.88;transform:tran
  #gmob-drawer .gmob-logo-text{line-height:1.1;letter-spacing:0}
  #gmob-drawer .gmob-tagline{font-size:12px;line-height:1.4;letter-spacing:0;color:#fff;overflow-wrap:anywhere}
  #gmob-drawer .gmob-head .gmob-close-btn{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;border-radius:50%!important;justify-content:center!important;text-align:center!important}
- #gmob-drawer .gmob-section-lbl{padding:10px 12px;letter-spacing:0}
  #gmob-drawer .gmob-body .gmob-item{min-height:48px;padding:8px 12px!important;gap:10px;font-size:14px!important;border-radius:0!important}
  #gmob-drawer .gmob-icon{width:30px;height:30px;border-radius:8px;font-size:16px}
  #gmob-drawer .gmob-label{min-width:0;overflow-wrap:anywhere}

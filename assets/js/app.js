@@ -3523,7 +3523,7 @@ async function saveUserProfile(){
   const phone=document.getElementById('us-phone')?.value||'';
   await sb.from('profiles').update({full_name:name,phone,avatar_initials:mkInitials(name)}).eq('id',currentUser.id);
   if(currentProfile){currentProfile.full_name=name;currentProfile.phone=phone;currentProfile.avatar_initials=mkInitials(name);}
-  updateNav();toast('Profile saved ✓','green');
+  updateNav();toast('Profile Saved','green');
 }
 
 /* ═══════════════════════════════════════════
@@ -3892,7 +3892,7 @@ async function saveConsProfile(consId){
   if(profileError){toast('Save failed: '+(profileError.message||'please try again'),'red');return;}
   if(currentProfile){currentProfile.full_name=name;currentProfile.avatar_initials=mkInitials(name);}
   updateNav();
-  toast('Profile saved ✓','green');
+  toast('Profile Saved','green');
 }
 async function savePayoutDetails(consId){
   if(!sb||!consId){toast('Payout info saved ✓','green');return;}
@@ -5431,7 +5431,7 @@ cancelBooking=async function(bookingId,role){
         if(window.currentProfile){ currentProfile.full_name=name; currentProfile.avatar_initials=mkInitials(name); }
       }catch(_){ }
       if(typeof updateNav==='function') updateNav();
-      toast('Profile updated successfully ✓','green');
+      toast('Profile Saved','green');
     }catch(e){ console.error('Profile update failed:',e); toast('Profile update failed: '+(e.message||e),'red'); }
   };
 
@@ -5701,7 +5701,7 @@ cancelBooking=async function(bookingId,role){
         }
       }catch(_){ }
       if(typeof updateNav === 'function') updateNav();
-      toast('Profile updated successfully ✓', 'green');
+      toast('Profile Saved', 'green');
       try{
         if(typeof renderHome === 'function') await renderHome();
         if(el('browse-grid') && typeof applyFilters === 'function') await applyFilters();
@@ -5955,7 +5955,7 @@ cancelBooking=async function(bookingId,role){
     try{
       const cp=currentProfileSafe()||{}; const name=val('us-name'); const avatar_url=await imageFromInput('us-avatar',cp.avatar_url||'');
       const updates={full_name:name,phone:val('us-phone'),avatar_initials:initials(name),avatar_url,highest_education:val('us-edu'),college:val('us-college'),current_work:val('us-work'),linkedin_url:val('us-linkedin'),updated_at:new Date().toISOString()};
-      const row=await patchProfile(u.id,updates); setCurrentProfile({...cp,...updates,...row}); updateNav(); toast('Profile saved ✓','green');
+      const row=await patchProfile(u.id,updates); setCurrentProfile({...cp,...updates,...row}); updateNav(); toast('Profile Saved','green');
     }catch(e){console.error(e);toast('Could not save profile: '+(e.message||e),'red');}
   };
 
@@ -5984,7 +5984,7 @@ cancelBooking=async function(bookingId,role){
       try{await patchProfile(u.id,{full_name:name,avatar_initials:initials(name),avatar_url,highest_education:val('cd-edu'),college:val('cd-college'),current_work:val('cd-work'),linkedin_url:val('cd-linkedin'),updated_at:new Date().toISOString()});}catch(_){ }
       setCurrentProfile({...cp,full_name:name,avatar_initials:initials(name),avatar_url,highest_education:val('cd-edu'),college:val('cd-college'),current_work:val('cd-work'),linkedin_url:val('cd-linkedin')});
       try{if(typeof curCons!=='undefined'&&curCons&&(String(curCons.id)===String(resolvedId)||String(curCons.dbId)===String(resolvedId)))curCons={...curCons,...row,...updates};}catch(_){ }
-      updateNav(); toast('Profile updated successfully ✓','green'); try{if(typeof renderHome==='function')await renderHome(); if(typeof applyFilters==='function')await applyFilters();}catch(_){ }
+      updateNav(); toast('Profile Saved','green'); try{if(typeof renderHome==='function')await renderHome(); if(typeof applyFilters==='function')await applyFilters();}catch(_){ }
     }catch(e){console.error(e);toast('Profile update failed: '+(e.message||e),'red');}
   };
 
@@ -21602,7 +21602,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       beforeFormSubmit('us');
       var out=await oldSaveUser.apply(this,arguments);
       try{
-        var u=currentUser(); if(u&&u.id){var p=window.__guidcyPendingExperience.patch; await patchTable('profiles','id',u.id,p); try{window.currentProfile=Object.assign({},currentProfile()||{},p)}catch(_){} safeToast('Experience saved','green');}
+        var u=currentUser(); if(u&&u.id){var p=window.__guidcyPendingExperience.patch; await patchTable('profiles','id',u.id,p); try{window.currentProfile=Object.assign({},currentProfile()||{},p)}catch(_){} safeToast('Profile Saved','green');}
       }catch(e){console.error('Experience save failed',e);safeToast('Profile saved, but your work experience could not be saved. Please try again.','blue')}
       return out;
     };
@@ -21618,7 +21618,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
         if(u&&u.id)await patchTable('profiles','id',u.id,p);
         if(consId)await patchTable('consultants','id',consId,p);
         try{window.currentProfile=Object.assign({},currentProfile()||{},p);window.curCons=Object.assign({},window.curCons||{},p)}catch(_){}
-        safeToast('Experience saved','green');
+        safeToast('Profile Saved','green');
       }catch(e){console.error('Consultant experience save failed',e);safeToast('Profile saved, but your work experience could not be saved. Please try again.','blue')}
       return out;
     };
@@ -22845,7 +22845,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       var row=await update('profiles','id',u.id,payload);
       setProfile(Object.assign({},profile()||{},payload,row||{}));
       try{window.updateNav&&window.updateNav()}catch(_){}
-      notify('Profile and company sequence saved ✓','green');
+      notify('Profile Saved','green');
       return true;
     }catch(e){console.error('User profile save failed',e);notify('Could not save profile: '+(e.message||e),'red');return false}
     finally{busy(button,false);requestAnimationFrame(function(){window.scrollTo(0,scrollY);if(focused)el(focused)?.focus({preventScroll:true})})}
@@ -22933,7 +22933,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
           if(still)notify('Saved. Your profile stays hidden until you change: '+still,'blue');
         }
       }catch(e){console.warn('Guidcy: profile visibility restore skipped',e)}
-      notify('Profile and company sequence saved ✓','green');
+      notify('Profile Saved','green');
       return true;
     }catch(e){console.error('Consultant profile save failed',e);notify('Could not save profile: '+(e.message||e),'red');return false}
     finally{busy(button,false);requestAnimationFrame(function(){window.scrollTo(0,scrollY);if(focused)el(focused)?.focus({preventScroll:true})})}

@@ -22,8 +22,9 @@
   function follow(p) {
     return p.id===state.user?.id?'':`<button class="gnet-follow" data-follow="${esc(p.id)}" aria-pressed="${!!p.is_following}">${p.is_following?'Following':'＋ Follow'}</button>`;
   }
-  function identity(p) {
-    return `<a class="gnet-person" href="${esc(href(p))}">${avatar(p)}<span><strong>${esc(p.name)}</strong><span class="gnet-headline">${esc([p.headline,p.company].filter(Boolean).join(' · ')||'Guidcy community member')}</span></span></a>`;
+  function identity(p,showCompany=true) {
+    const headline=[p.headline,showCompany?p.company:''].filter(Boolean).join(' · ')||'Guidcy community member';
+    return `<a class="gnet-person" href="${esc(href(p))}">${avatar(p)}<span><strong>${esc(p.name)}</strong><span class="gnet-headline">${esc(headline)}</span></span></a>`;
   }
   function notice(message) {window.toast?.(message);}
   async function result(query) {const r=await query;if(r.error)throw r.error;return r.data || [];}
@@ -57,15 +58,26 @@
     const author=person(p.author_id), mine=p.author_id===state.user?.id;
     const image=p.image_path?client().storage.from('community-images').getPublicUrl(p.image_path).data.publicUrl:'';
     const date=new Date(p.created_at);
-    return `<article class="gnet-card gnet-post" data-post="${esc(p.id)}" aria-label="Post by ${esc(author.name)}"><header>${identity(author)}${follow(author)}${mine?`<details class="gnet-menu"><summary aria-label="Post options">•••</summary><div><button data-action="edit">Edit post</button><button data-action="delete">Delete post</button></div></details>`:''}</header><div class="gnet-post-meta"><a href="/?post=${esc(p.id)}"><time datetime="${esc(p.created_at)}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</time></a>${p.updated_at!==p.created_at?' · Edited':''} · Public</div><div class="gnet-post-body${p.body.length>650?' gnet-collapsed':''}">${esc(p.body)}</div>${p.body.length>650?'<button class="gnet-read-more" data-action="expand">Read more</button>':''}${image?`<img class="gnet-post-image" src="${esc(image)}" alt="${esc(p.image_alt||'Image shared by '+author.name)}" loading="lazy" decoding="async" width="960" height="640">`:''}<div class="gnet-post-counts"><span data-like-count>${Number(p.likes)} likes</span><button data-action="comments"><span data-comment-count>${Number(p.comments)}</span> comments</button>${author.consultant_id?`<a href="${esc(href(author))}" class="gnet-text-link">View expert ↗</a>`:''}</div><div class="gnet-post-actions"><button data-action="like" aria-pressed="${!!p.liked}">${icon('like')} Like</button><button data-action="comments">${icon('comment')} Comment</button><button data-action="share">${icon('share')} Share</button><button data-action="save" aria-pressed="${!!p.saved}">${icon('save')} <span data-save-label>${p.saved?'Saved':'Save'}</span></button></div><section class="gnet-comments" aria-label="Comments" hidden></section></article>`;
+    return `<article class="gnet-card gnet-post" data-post="${esc(p.id)}" aria-label="Post by ${esc(author.name)}"><header>${identity(author,false)}${follow(author)}${mine?`<details class="gnet-menu"><summary aria-label="Post options">•••</summary><div><button data-action="edit">Edit post</button><button data-action="delete">Delete post</button></div></details>`:''}</header><div class="gnet-post-meta"><a href="/?post=${esc(p.id)}"><time datetime="${esc(p.created_at)}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</time></a> · Public</div><div class="gnet-post-copy"><div class="gnet-post-body gnet-collapsed">${esc(p.body)}</div><button class="gnet-read-more" data-action="expand" aria-expanded="false" hidden>… more</button></div>${image?`<img class="gnet-post-image" src="${esc(image)}" alt="${esc(p.image_alt||'Image shared by '+author.name)}" loading="lazy" decoding="async" width="960" height="640">`:''}<div class="gnet-post-counts"><span data-like-count>${Number(p.likes)} likes</span><button data-action="comments"><span data-comment-count>${Number(p.comments)}</span> comments</button>${author.consultant_id?`<a href="${esc(href(author))}" class="gnet-text-link">View expert ↗</a>`:''}</div><div class="gnet-post-actions"><button data-action="like" aria-pressed="${!!p.liked}">${icon('like')} Like</button><button data-action="comments">${icon('comment')} Comment</button><button data-action="share">${icon('share')} Share</button><button data-action="save" aria-pressed="${!!p.saved}">${icon('save')} <span data-save-label>${p.saved?'Saved':'Save'}</span></button></div><section class="gnet-comments" aria-label="Comments" hidden></section></article>`;
   }
+  const previewBodies=new Set();
+  function paintPostPreviews(bodies){
+    const updates=bodies.filter(body=>body.isConnected).map(body=>({button:body.nextElementSibling,show:!body.classList.contains('gnet-collapsed')||body.scrollHeight>body.clientHeight+1}));
+    updates.forEach(({button,show})=>{if(button?.matches('[data-action=expand]'))button.hidden=!show;});
+  }
+  const previewObserver=new ResizeObserver(entries=>paintPostPreviews(entries.map(e=>e.target)));
+  function syncPostPreviews(){
+    for(const body of previewBodies)if(!body.isConnected){previewObserver.unobserve(body);previewBodies.delete(body);}
+    const bodies=[...document.querySelectorAll('.gnet-post-body')];
+    for(const body of bodies)if(!previewBodies.has(body)){previewBodies.add(body);previewObserver.observe(body);}
+    paintPostPreviews(bodies);
+  }
+  document.fonts?.ready.then(syncPostPreviews);
   function paintMe() {
     const p=state.user?person(state.user.id):null;
     const card=$('gnet-me'),cover=p?coverURL(p):'';
-    card.innerHTML=`<button class="gnet-card-close" data-action="hide-me" aria-label="Hide profile card">×</button>`+(p?`<a class="gnet-me-profile" href="${esc(href(p))}" aria-label="View ${esc(p.name)}’s profile"><div class="gnet-mini-cover">${cover?`<img src="${esc(cover)}" alt="" width="800" height="200" loading="lazy">`:''}</div><div class="gnet-me-details"><div class="gnet-me-photo">${avatar(p)}</div><h2>${esc(p.name)}</h2><div class="gnet-me-headline">${esc(headline(p))}</div>${p.city&&p.show_location!==false?`<div class="gnet-me-location">${esc(p.city)}</div>`:''}</div></a>${p.company?`<div class="gnet-me-organization">${organizationMark(p.company,'company')}<strong>${organizationName(p.company,'company')}</strong></div>`:p.college?`<div class="gnet-me-organization">${organizationMark(p.college,'college')}<strong>${organizationName(p.college,'college')}</strong></div>`:''}<div class="gnet-profile-counts"><span><b>${Number(p.followers||0)}</b> followers</span><button data-action="network"><b>${Number(p.following||0)}</b> following</button></div>`:`<div class="gnet-me-guest">${brand()}<h2>Your Guidcy community</h2><a class="gnet-button gnet-primary" href="/signup">Join Guidcy</a><a class="gnet-text-link" href="/login">Log in</a></div>`);
+    card.innerHTML=(p?`<a class="gnet-me-profile" href="${esc(href(p))}" aria-label="View ${esc(p.name)}’s profile"><div class="gnet-mini-cover">${cover?`<img src="${esc(cover)}" alt="" width="800" height="200" loading="lazy">`:''}</div><div class="gnet-me-details"><div class="gnet-me-photo">${avatar(p)}</div><h2>${esc(p.name)}</h2><div class="gnet-me-headline">${esc(headline(p))}</div>${p.city&&p.show_location!==false?`<div class="gnet-me-location">${esc(p.city)}</div>`:''}</div></a>${p.company?`<div class="gnet-me-organization">${organizationMark(p.company,'company')}<strong>${organizationName(p.company,'company')}</strong></div>`:p.college?`<div class="gnet-me-organization">${organizationMark(p.college,'college')}<strong>${organizationName(p.college,'college')}</strong></div>`:''}<div class="gnet-profile-counts"><span><b>${Number(p.followers||0)}</b> followers</span><button data-action="network"><b>${Number(p.following||0)}</b> following</button></div>`:`<div class="gnet-me-guest">${brand()}<h2>Your Guidcy community</h2><a class="gnet-button gnet-primary" href="/signup">Join Guidcy</a><a class="gnet-text-link" href="/login">Log in</a></div>`);
     if(p)loadOrganizationLogos(card);
-    $('gnet-me').hidden=sessionStorage.getItem('guidcy_hide_profile_card')==='1';
-    let restore=$('gnet-show-profile');if(!restore){restore=document.createElement('button');restore.id='gnet-show-profile';restore.dataset.action='show-me';restore.textContent='Show profile';document.querySelector('.gnet-shortcuts').prepend(restore);}restore.hidden=!$('gnet-me').hidden;
     $('gnet-compose-avatar').innerHTML=avatar(p);
   }
   async function sidebar() {
@@ -105,7 +117,7 @@
       if(reset)$('gnet-feed').innerHTML=`<div class="gnet-card gnet-empty" role="status"><h2>${e.message==='invalid-link'?'This post link is invalid.':'The feed couldn’t load.'}</h2><p>Please try again. Your profile and bookings are still available.</p><button class="gnet-button" data-action="refresh">Try again</button></div>`;
       else notice('Could not load more posts. Please try again.');
       $('gnet-more').hidden=reset;
-    } finally {if(epoch===state.epoch){state.busy=false;$('gnet-feed').setAttribute('aria-busy','false');$('gnet-more').disabled=false;}}
+    } finally {if(epoch===state.epoch){state.busy=false;$('gnet-feed').setAttribute('aria-busy','false');$('gnet-more').disabled=false;syncPostPreviews();}}
   }
   async function mount() {
     if(!home())return;
@@ -201,7 +213,7 @@
   }
   function shareLink(url,title) {
     const encoded=encodeURIComponent(url);
-    const d=dialog(title,`<p>Share a useful connection with your network.</p><div class="gnet-share-options"><button class="gnet-button" id="gnet-copy">Copy Link</button><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${encoded}">WhatsApp</a><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://www.linkedin.com/sharing/share-offsite/?url=${encoded}">LinkedIn</a><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://twitter.com/intent/tweet?url=${encoded}">X / Twitter</a>${navigator.share?'<button class="gnet-button" id="gnet-native">More options</button>':''}</div><label for="gnet-share-url">Post link</label><input id="gnet-share-url" value="${esc(url)}" readonly><p role="status" id="gnet-copy-status"></p>`);
+    const d=dialog(title,`<p>Share this with the Guidcy community.</p><div class="gnet-share-options"><button class="gnet-button" id="gnet-copy">Copy Link</button><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${encoded}">WhatsApp</a><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://www.linkedin.com/sharing/share-offsite/?url=${encoded}">LinkedIn</a><a class="gnet-button" target="_blank" rel="noopener noreferrer" href="https://twitter.com/intent/tweet?url=${encoded}">X / Twitter</a>${navigator.share?'<button class="gnet-button" id="gnet-native">More options</button>':''}</div><label for="gnet-share-url">Post link</label><input id="gnet-share-url" value="${esc(url)}" readonly><p role="status" id="gnet-copy-status"></p>`);
     d.querySelector('#gnet-copy').onclick=async()=>{try{await navigator.clipboard.writeText(url);d.querySelector('#gnet-copy-status').textContent='Link copied.';}catch(_){d.querySelector('input').select();d.querySelector('#gnet-copy-status').textContent='Select and copy the link above.';}};
     const native=d.querySelector('#gnet-native');if(native)native.onclick=async()=>{try{await navigator.share({title,url});}catch(e){if(e.name!=='AbortError')d.querySelector('#gnet-copy-status').textContent='Sharing is unavailable. You can copy the link instead.';}};
   }
@@ -227,15 +239,10 @@
     state.people.set(id,data);return data;
   }
   const entryLabels={education:'Education',certification:'Certifications',award:'Awards',publication:'Publications',project:'Projects',patent:'Patents',achievement:'Achievements'};
-  let portfolio={owner:null,entries:[],featured:[]}, activityTab='posts',activityCursor=null,activityEpoch=0;
+  let portfolio={owner:null,entries:[],featured:[]}, activityCursor=null,activityEpoch=0;
   const ownProfile=()=>profilePerson?.id===state.user?.id;
   const tags=p=>[...new Set([...(p.skills||[]),...(p.expertise||[])])];
   const editButton=(section,label='Edit')=>ownProfile()?`<button class="gnet-text-link" data-action="profile-section" data-section="${section}">${label}</button>`:'';
-  function connectionButton(p){
-    if(p.id===state.user?.id)return '';
-    const status=p.connection_status||'none',label={none:'Connect',outgoing:'Request sent',incoming:'Accept connection',connected:'Connected'}[status];
-    return `<button class="gnet-button" data-action="connection" data-person="${esc(p.id)}" data-status="${esc(status)}">${label}</button>`;
-  }
   const organizationKey=name=>String(name||'').trim().replace(/\s+/g,' ').toLowerCase();
   const organizationSelect='id,kind,name,name_key,logo_url,is_approved';
   function organizationMark(name,kind,entry=false){return `<span class="${entry?'gnet-entry-mark':'gnet-org-mark'}" data-organization="${esc(organizationKey(name))}" data-organization-kind="${kind}" aria-hidden="true">${kind==='company'?'▤':'◇'}</span>`;}
@@ -285,17 +292,65 @@
   function profileHeader(p) {
     const own=p.id===state.user?.id,cover=coverURL(p);
     const organizations=`${p.company?`<div>${organizationMark(p.company,'company')}<strong class="guidcy-profile-work-company">${organizationName(p.company,'company')}</strong></div>`:''}${p.college?`<div>${organizationMark(p.college,'college')}<strong class="gnet-education">${organizationName(p.college,'college')}</strong></div>`:''}`;
-    return `<div class="gnet-cover${cover?' has-image':''}">${cover?`<img src="${esc(cover)}" alt="${esc(p.name)}’s cover" width="1200" height="300">`:''}<button class="gnet-profile-close" data-action="close-profile" aria-label="Close profile">×</button>${own?'<button class="gnet-cover-target" data-action="photo-options" data-photo-kind="cover" aria-label="Cover photo options"></button>':''}</div><div class="gnet-profile-info"><div class="gnet-profile-photo-row">${own?`<button class="gnet-photo-target" data-action="photo-options" data-photo-kind="avatar" aria-label="Profile photo options">${avatar(p,true)}</button>`:`${avatar(p,true)}`}</div><div class="gnet-profile-intro"><div class="gnet-profile-heading"><div class="gnet-name-line"><h1 class="profile-name">${esc(p.name)}</h1>${p.pronouns?`<span class="gnet-pronouns">${esc(p.pronouns)}</span>`:''}</div><p class="gnet-profile-headline">${esc(headline(p))}</p><div class="gnet-intro-meta">${p.city&&p.show_location!==false?`<span class="gnet-current-location">${esc(p.city)}</span>`:''}${p.website_public&&safeURL(p.website_url)?`<a class="gnet-text-link gnet-profile-website" href="${esc(safeURL(p.website_url))}" target="_blank" rel="noopener noreferrer">${icon('link')}<span>${esc(safeURL(p.website_url).replace(/^https?:\/\//,'').replace(/\/$/,''))}</span></a>`:''}</div></div>${organizations?`<div class="gnet-organizations">${organizations}</div>`:''}</div><div class="gnet-profile-count-line" data-follow-count="${esc(p.id)}">${followCounts(p)}</div><div class="gnet-profile-actions">${own?'<button class="gnet-button gnet-primary" data-action="edit-profile">Edit Profile</button><button class="gnet-button" data-action="add-section">Add Profile Section</button><button class="gnet-button" data-action="view-posts">View Posts</button>':`${follow(p)}${connectionButton(p)}${p.consultant_id?'<button class="gnet-button gnet-primary" data-action="book">Book Session</button>':''}`}<button class="gnet-button" data-action="share-profile">${icon('share')} Share</button></div></div>`;
+    return `<div class="gnet-cover${cover?' has-image':''}">${cover?`<img src="${esc(cover)}" alt="${esc(p.name)}’s cover" width="1200" height="300">`:''}<button class="gnet-profile-close" data-action="close-profile" aria-label="Close profile">×</button>${own?'<button class="gnet-cover-target" data-action="photo-options" data-photo-kind="cover" aria-label="Cover photo options"></button>':''}</div><div class="gnet-profile-info"><div class="gnet-profile-photo-row">${own?`<button class="gnet-photo-target" data-action="photo-options" data-photo-kind="avatar" aria-label="Profile photo options">${avatar(p,true)}</button>`:`${avatar(p,true)}`}</div><div class="gnet-profile-intro"><div class="gnet-profile-heading"><div class="gnet-name-line"><h1 class="profile-name">${esc(p.name)}</h1>${p.pronouns?`<span class="gnet-pronouns">${esc(p.pronouns)}</span>`:''}</div><p class="gnet-profile-headline">${esc(headline(p))}</p><div class="gnet-intro-meta">${p.city&&p.show_location!==false?`<span class="gnet-current-location">${esc(p.city)}</span>`:''}${p.website_public&&safeURL(p.website_url)?`<a class="gnet-text-link gnet-profile-website" href="${esc(safeURL(p.website_url))}" target="_blank" rel="noopener noreferrer">${icon('link')}<span>${esc(safeURL(p.website_url).replace(/^https?:\/\//,'').replace(/\/$/,''))}</span></a>`:''}</div></div>${organizations?`<div class="gnet-organizations">${organizations}</div>`:''}</div><div class="gnet-profile-count-line" data-follow-count="${esc(p.id)}">${followCounts(p)}</div><div class="gnet-profile-actions">${own?'<button class="gnet-button gnet-primary" data-action="edit-profile">Edit Profile</button><button class="gnet-button" data-action="add-section">Add Profile Section</button><button class="gnet-button" data-action="view-posts">View Posts</button>':`${follow(p)}${p.consultant_id?'<button class="gnet-button gnet-primary" data-action="book">Book Session</button>':''}`}<button class="gnet-button" data-action="share-profile">${icon('share')} Share</button></div></div>`;
   }
-  function followCounts(p){return `<button data-action="profile-network" data-person="${esc(p.id)}" data-direction="followers"><b>${Number(p.followers||0)}</b> followers</button><span>·</span><button data-action="profile-network" data-person="${esc(p.id)}" data-direction="following"><b>${Number(p.following||0)}</b> following</button><span>·</span><button data-action="connections" data-person="${esc(p.id)}"><b>${Number(p.connections||0)}</b> connections</button>${p.id===state.user?.id&&p.connection_requests?`<button data-action="connections" data-person="${esc(p.id)}" data-requests="true">${Number(p.connection_requests)} invitations</button>`:''}`;}
+  function followCounts(p){return `<button data-action="profile-network" data-person="${esc(p.id)}" data-direction="followers"><b>${Number(p.followers||0)}</b> followers</button><span>·</span><button data-action="profile-network" data-person="${esc(p.id)}" data-direction="following"><b>${Number(p.following||0)}</b> following</button>`;}
   function section(id,title,body,action='') {return `<section id="gnet-section-${id}" class="gnet-card gnet-prof-section"><header><h2>${title}</h2>${action}</header>${body}</section>`;}
   function longText(text){return `<div class="gnet-long-text${text.length>400?' is-collapsed':''}">${esc(text)}</div>${text.length>400?'<button class="gnet-text-link" data-action="expand-about" aria-expanded="false">See more</button>':''}`;}
   function dateRank(value){const s=String(value||'');const local=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);return local?`${local[3]}-${local[2].padStart(2,'0')}-${local[1].padStart(2,'0')}`:s;}
   function experienceRows(p){return (p.company_experience||[]).map((e,index)=>({...e,index})).sort((a,b)=>Number(!!b.currently_working)-Number(!!a.currently_working)||dateRank(b.end_date||b.start_date).localeCompare(dateRank(a.end_date||a.start_date)));}
-  function entryHTML(e,index=null){
-    const exp=index!==null,title=exp?(e.designation||e.job_title||'Professional'):e.title,org=exp?e.company_name:e.organization;
-    const dates=[exp?e.start_date:e.start_date?.slice(0,e.kind==='education'?4:7),exp&&e.currently_working?'Present':exp?e.end_date:e.end_date?.slice(0,e.kind==='education'?4:7)].filter(Boolean).join(' – ');
-    return `<article class="gnet-career-entry" ${e.id?`id="gnet-entry-${esc(e.id)}"`:''}>${exp||e.kind==='education'?organizationMark(org,exp?'company':'college',true):'<div class="gnet-entry-mark" aria-hidden="true">◇</div>'}<div class="gnet-entry-content"><h3>${esc(title)}</h3><p>${exp||e.kind==='education'?organizationName(org,exp?'company':'college'):esc(org||'')}${org&&(exp?e.employment_type:e.field)?' · ':''}${esc((exp?e.employment_type:e.field)||'')}</p>${dates||e.location?`<p class="gnet-muted">${esc([dates,e.location].filter(Boolean).join(' · '))}</p>`:''}${e.grade?`<p>Grade: ${esc(e.grade)}</p>`:''}${e.activities?`<p>Activities: ${esc(e.activities)}</p>`:''}${e.description?longText(e.description):''}${e.skills?.length?`<p class="gnet-entry-skills">Skills: ${esc(e.skills.join(' · '))}</p>`:''}${safeURL(e.url)?`<a class="gnet-text-link" href="${esc(safeURL(e.url))}" target="_blank" rel="noopener noreferrer">View ${esc(e.kind||'details')} ↗</a>`:''}</div>${ownProfile()?`<button class="gnet-entry-edit" data-action="${exp?'edit-experience':'edit-entry'}" data-entry="${esc(exp?index:e.id)}" aria-label="Edit ${esc(title)}">✎</button>`:''}</article>`;
+  const experienceMonths=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function experienceDateParts(value){
+    const match=dateRank(value).match(/^(\d{4})(?:-(0[1-9]|1[0-2])(?:-\d{2}(?:T.*)?)?)?$/);
+    return {year:match?.[1]||'',month:match?.[2]||''};
+  }
+  function experienceDateLabel(value){
+    const {year,month}=experienceDateParts(value);
+    return year?(month?experienceMonths[Number(month)-1].slice(0,3)+' ':'')+year:String(value||'');
+  }
+  function experienceDuration(rows,now=new Date()){
+    const ranges=rows.flatMap(e=>{
+      const start=experienceDateParts(e.start_date),end=e.currently_working?{year:now.getFullYear(),month:now.getMonth()+1}:experienceDateParts(e.end_date);
+      if(!start.year||!start.month||!end.year||!end.month)return [];
+      const a=Number(start.year)*12+Number(start.month)-1,b=Number(end.year)*12+Number(end.month)-1;
+      return b>=a?[[a,b]]:[];
+    }).sort((a,b)=>a[0]-b[0]);
+    if(ranges.length!==rows.length)return '';
+    let months=0,end=-1;
+    for(const [a,b] of ranges){months+=Math.max(0,b-Math.max(a,end+1)+1);end=Math.max(end,b);}
+    const years=Math.floor(months/12),rest=months%12;
+    return [years?years+' '+(years===1?'yr':'yrs'):'',rest?rest+' '+(rest===1?'mo':'mos'):''].filter(Boolean).join(' ');
+  }
+  function experienceHTML(rows){
+    const groups=[];
+    for(const row of rows){
+      let group=groups.at(-1);
+      if(!group||organizationKey(group[0].company_name)!==organizationKey(row.company_name)){group=[];groups.push(group);}
+      group.push(row);
+    }
+    return groups.map(group=>{
+      const company=group[0].company_name,types=[...new Set(group.map(e=>e.employment_type).filter(Boolean))];
+      const locationType=group.every(e=>e.location_type===group[0].location_type)?group[0].location_type:'';
+      const meta=[types.length===1?types[0]:'',experienceDuration(group)].filter(Boolean).join(' · ');
+      return `<div class="gnet-experience-group"><div class="gnet-experience-company">${organizationMark(company,'company',true)}<div><h3>${organizationName(company,'company')}</h3>${meta?`<p>${esc(meta)}</p>`:''}${locationType?`<p class="gnet-muted">${esc(locationType)}</p>`:''}</div></div><div class="gnet-experience-roles">${group.map(e=>{
+        const title=e.designation||e.job_title||'Professional',duration=experienceDuration([e]);
+        const dates=[experienceDateLabel(e.start_date),e.currently_working?'Present':experienceDateLabel(e.end_date)].filter(Boolean).join(' – ');
+        const location=[e.location,!locationType?e.location_type:''].filter(Boolean).join(' · '),skills=e.skills||[];
+        return `<article class="gnet-career-entry gnet-experience-role"><div class="gnet-entry-content"><h3>${esc(title)}</h3>${types.length>1&&e.employment_type?`<p class="gnet-muted">${esc(e.employment_type)}</p>`:''}${dates||duration?`<p class="gnet-muted">${esc([dates,duration].filter(Boolean).join(' · '))}</p>`:''}${location?`<p class="gnet-muted">${esc(location)}</p>`:''}${e.description?longText(e.description):''}${skills.length>2?`<details class="gnet-experience-skills"><summary>◇ ${esc(skills.slice(0,2).join(', '))} and +${skills.length-2} skills</summary><p>${esc(skills.join(', '))}</p></details>`:skills.length?`<p class="gnet-entry-skills">◇ ${esc(skills.join(', '))}</p>`:''}</div>${ownProfile()?`<button class="gnet-entry-edit" data-action="edit-experience" data-entry="${e.index}" aria-label="Edit ${esc(title)}">✎</button>`:''}</article>`;
+      }).join('')}</div></div>`;
+    }).join('');
+  }
+  function experienceDateValue(data,prefix,previous){
+    const year=String(data.get(prefix+'_year')||''),month=String(data.get(prefix+'_month')||'');
+    if(month&&!year)throw new Error('Select a year for each month.');
+    if(year&&!/^(19\d\d|20\d\d|2100)$/.test(year))throw new Error('Use a year between 1900 and 2100.');
+    if(month&&!/^(0[1-9]|1[0-2])$/.test(month))throw new Error('Select a valid month.');
+    const before=experienceDateParts(previous);
+    return before.year===year&&before.month===month?previous||'':year+(year&&month?'-'+month:'');
+  }
+  function entryHTML(e){
+    const education=e.kind==='education',dates=[e.start_date?.slice(0,education?4:7),e.end_date?.slice(0,education?4:7)].filter(Boolean).join(' – ');
+    return `<article class="gnet-career-entry" id="gnet-entry-${esc(e.id)}">${education?organizationMark(e.organization,'college',true):'<div class="gnet-entry-mark" aria-hidden="true">◇</div>'}<div class="gnet-entry-content"><h3>${esc(e.title)}</h3><p>${education?organizationName(e.organization,'college'):esc(e.organization||'')}${e.organization&&e.field?' · ':''}${esc(e.field||'')}</p>${dates?`<p class="gnet-muted">${esc(dates)}</p>`:''}${e.grade?`<p>Grade: ${esc(e.grade)}</p>`:''}${e.activities?`<p>Activities: ${esc(e.activities)}</p>`:''}${e.description?longText(e.description):''}${safeURL(e.url)?`<a class="gnet-text-link" href="${esc(safeURL(e.url))}" target="_blank" rel="noopener noreferrer">View ${esc(e.kind||'details')} ↗</a>`:''}</div>${ownProfile()?`<button class="gnet-entry-edit" data-action="edit-entry" data-entry="${esc(e.id)}" aria-label="Edit ${esc(e.title)}">✎</button>`:''}</article>`;
   }
   function strength(p,entries){
     const checks=[['Profile photo',!!p.avatar_url,'photo'],['Headline',!!p.headline&&!/^(student|user|consultant)$/i.test(p.headline),'intro'],['About',!!p.bio?.trim(),'about'],['Experience',!!p.company_experience?.length,'experience'],['Education',!!p.college||!!p.education||entries.some(e=>e.kind==='education'),'education'],['Expertise & skills',!!tags(p).length,'skills']];
@@ -321,7 +376,7 @@
       if(skills.length)loadEndorsements(p);
       const experiences=experienceRows(p);
       const activityEl=main.querySelector('.gnet-activity');
-      if(experiences.length)activityEl.insertAdjacentHTML('afterend',section('experience','Experience',experiences.map(e=>entryHTML(e,e.index)).join(''),editButton('experience','＋ Add')));
+      if(experiences.length||ownProfile())activityEl.insertAdjacentHTML('afterend',section('experience','Experience',experiences.length?experienceHTML(experiences):'<p class="gnet-muted">Add your roles, companies and career history.</p>',editButton('experience','＋ Add experience')));
       const marker=main.querySelector('#gnet-section-experience')||activityEl;marker.after(loading);
       const education=entries.filter(e=>e.kind==='education');
       let html=education.length?section('education','Education',education.map(e=>entryHTML(e)).join(''),editButton('education','＋ Add')):'';
@@ -354,11 +409,19 @@
   }
   function inputField(name,label,value='',type='text',limit=160,required=false){return `<label for="gp-${name}">${label}</label><input id="gp-${name}" name="${name}" type="${type}" value="${esc(value||'')}" maxlength="${limit}" ${required?'required':''}>`;}
   function textareaField(name,label,value='',limit=3000){return `<label for="gp-${name}">${label}</label><textarea id="gp-${name}" name="${name}" rows="4" maxlength="${limit}">${esc(value||'')}</textarea>`;}
+  function experienceSelect(name,label,value,options){
+    const choices=value&&!options.includes(value)?[value,...options]:options;
+    return `<label for="gp-${name}">${label}</label><select id="gp-${name}" name="${name}"><option value="">Select ${label.toLowerCase()}</option>${choices.map(v=>`<option${v===value?' selected':''}>${esc(v)}</option>`).join('')}</select>`;
+  }
+  function experienceDateFields(prefix,label,value,required){
+    const {year,month}=experienceDateParts(value);
+    return `<div><label for="gp-${prefix}_month">${label} month</label><select id="gp-${prefix}_month" name="${prefix}_month"><option value="">Month</option>${experienceMonths.map((name,i)=>{const v=String(i+1).padStart(2,'0');return `<option value="${v}"${v===month?' selected':''}>${name}</option>`;}).join('')}</select></div><div>${inputField(prefix+'_year',label+' year'+(required?' *':''),year,'number',4,required)}</div>`;
+  }
   function editor(title,body,save,remove){
     const d=dialog(title,`<form class="gnet-prof-form">${body}<p class="gnet-form-error" role="alert"></p><div class="gnet-dialog-actions">${remove?'<button class="gnet-button gnet-danger" type="button" id="gnet-remove-entry">Delete</button>':''}<button class="gnet-button gnet-primary" type="submit">Save</button></div></form>`);
     const form=d.querySelector('form'),error=d.querySelector('.gnet-form-error');
     async function submit(work){if(form.dataset.busy)return;form.dataset.busy='1';error.textContent='';d.querySelectorAll('button').forEach(b=>b.disabled=true);d.oncancel=e=>e.preventDefault();
-      try{await work();d.close();await refreshProfessional();notice('Profile updated.');}catch(e){error.textContent=e.message||'Your changes could not be saved. Please try again.';}finally{delete form.dataset.busy;d.querySelectorAll('button').forEach(b=>b.disabled=false);d.oncancel=null;}}
+      try{await work();d.close();await refreshProfessional();notice('Profile Saved');}catch(e){error.textContent=e.message||'Your changes could not be saved. Please try again.';}finally{delete form.dataset.busy;d.querySelectorAll('button').forEach(b=>b.disabled=false);d.oncancel=null;}}
     form.onsubmit=e=>{e.preventDefault();submit(()=>save(new FormData(form)));};
     d.querySelector('#gnet-remove-entry')?.addEventListener('click',()=>{const button=d.querySelector('#gnet-remove-entry');if(button.dataset.confirm)submit(remove);else{button.dataset.confirm='1';button.textContent='Confirm delete';}});
     return d;
@@ -366,16 +429,23 @@
   function editExperience(index=null){
     if(!ownProfile())return;
     const current=structuredClone(profilePerson.company_experience||[]),entry=index!==null?current[index]:{};if(!entry)return;
-    const d=editor(index===null?'Add experience':'Edit experience',inputField('designation','Job title',entry.designation,'text',160,true)+inputField('company_name','Company',entry.company_name,'text',160,true)+inputField('employment_type','Employment type',entry.employment_type,'text',80)+`<div class="gnet-form-grid">${inputField('start_date','Start date (YYYY-MM)',entry.start_date,'text',30)}${inputField('end_date','End date (YYYY-MM)',entry.end_date,'text',30)}</div><label class="gnet-checkbox"><input name="currently_working" type="checkbox" ${entry.currently_working?'checked':''}> Currently working here</label>`+inputField('location','Location',entry.location)+textareaField('description','Description',entry.description)+inputField('skills','Skills (comma separated)',(entry.skills||[]).join(', '),'text',1200),async data=>{
-      const patch=Object.fromEntries(data);patch.currently_working=data.has('currently_working');patch.skills=patch.skills.split(',').map(s=>s.trim()).filter(Boolean);
-      if(patch.currently_working)patch.end_date='';
-      for(const key of ['start_date','end_date'])if(patch[key]&&patch[key]!==entry[key]&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(patch[key]))throw new Error('Use YYYY-MM for new dates, for example 2024-06.');
-      if(patch.start_date&&patch.end_date&&dateRank(patch.end_date)<dateRank(patch.start_date))throw new Error('End date must follow the start date.');
+    const d=editor(index===null?'Add role':'Edit role',`<div class="gnet-role-fields"><h3>Role details</h3><div class="gnet-role-grid"><div>${inputField('designation','Job title *',entry.designation||entry.job_title,'text',160,true)}</div><div>${inputField('company_name','Organization *',entry.company_name,'text',160,true)}</div><div>${inputField('location','Location',entry.location)}</div><div>${experienceSelect('location_type','Location type',entry.location_type,['On-site','Hybrid','Remote'])}</div></div>${experienceSelect('employment_type','Employment type',entry.employment_type,['Full-time','Part-time','Self-employed','Freelance','Contract','Internship','Apprenticeship','Seasonal','Volunteer'])}<label class="gnet-checkbox"><input name="currently_working" type="checkbox" ${entry.currently_working?'checked':''}> I am currently working in this role</label><div class="gnet-role-dates">${experienceDateFields('start','Start',entry.start_date,index===null)}${experienceDateFields('end','End',entry.end_date,index===null&&!entry.currently_working)}</div>${textareaField('description','Description',entry.description)}${inputField('skills','Skills (comma separated)',(entry.skills||[]).join(', '),'text',1200)}<p class="gnet-muted">Add up to 20 skills used in this role.</p></div>`,async data=>{
+      const patch={};for(const key of ['designation','company_name','location','location_type','employment_type','description'])patch[key]=String(data.get(key)||'').trim();
+      patch.currently_working=data.has('currently_working');patch.skills=[...new Set(String(data.get('skills')||'').split(',').map(s=>s.trim()).filter(Boolean))];
+      if(!patch.designation||!patch.company_name)throw new Error('Add a job title and organization.');
+      if(patch.skills.length>20||patch.skills.some(s=>s.length>60))throw new Error('Use up to 20 skills, each 60 characters or fewer.');
+      patch.start_date=experienceDateValue(data,'start',entry.start_date);
+      patch.end_date=patch.currently_working?'':experienceDateValue(data,'end',entry.end_date);
+      if(index===null&&(!patch.start_date||(!patch.currently_working&&!patch.end_date)))throw new Error('Select the start and end years, or mark this as your current role.');
+      const start=experienceDateParts(patch.start_date),end=experienceDateParts(patch.end_date);
+      if(start.year&&end.year&&(end.year<start.year||(end.year===start.year&&start.month&&end.month&&end.month<start.month)))throw new Error('End date must follow the start date.');
       const list=current.slice();if(index===null)list.push(patch);else list[index]={...entry,...patch};
       await result(client().rpc('community_update_professional',{p_section:'experience',p_data:list,p_expected:current}));
     },index===null?null:()=>result(client().rpc('community_update_professional',{p_section:'experience',p_data:current.filter((_,i)=>i!==index),p_expected:current})));
+    d.classList.add('gnet-role-dialog');
+    d.querySelectorAll('input[type=number]').forEach(input=>{input.min='1900';input.max='2100';input.step='1';input.placeholder='Year';});
     organizationSuggestions(d.querySelector('#gp-company_name'),'company');
-    const check=d.querySelector('[name=currently_working]'),end=d.querySelector('[name=end_date]');const sync=()=>end.disabled=check.checked;check.onchange=sync;sync();
+    const check=d.querySelector('[name=currently_working]');const sync=()=>{for(const field of ['end_month','end_year'])d.querySelector('[name='+field+']').disabled=check.checked;d.querySelector('#gp-end_year').required=index===null&&!check.checked;d.querySelector('label[for=gp-end_year]').textContent='End year'+(index===null&&!check.checked?' *':'');};check.onchange=sync;sync();
   }
   function editSkills(){editor('Expertise & Skills',textareaField('skills','Up to 40 skills, separated by commas',tags(profilePerson).join(', '),2400),data=>result(client().rpc('community_update_professional',{p_section:'skills',p_data:[...new Set(data.get('skills').split(',').map(x=>x.trim()).filter(Boolean))]})));}
   function editEntry(id,kind){
@@ -412,33 +482,26 @@
   }
   async function activity(p,append=false) {
     const host=$('gnet-profile-posts');if(!host)return;
-    const epoch=++activityEpoch,owner=p.id,tab=activityTab;
-    if(host.dataset.owner!==owner||host.dataset.activityTab!==tab)host.replaceChildren();
-    host.dataset.owner=owner;host.dataset.activityTab=tab;host.setAttribute('aria-busy','true');
+    const epoch=++activityEpoch,owner=p.id;
+    if(host.dataset.owner!==owner||host.dataset.activityTab!=='posts')host.replaceChildren();
+    host.dataset.owner=owner;host.dataset.activityTab='posts';host.setAttribute('aria-busy','true');
     if(!append){activityCursor=null;if(!host.firstChild)host.innerHTML='<div class="gnet-card gnet-loading"><div class="gnet-skeleton"></div><p>Loading activity…</p></div>';}
     const more=$('gnet-activity-more');if(more)more.disabled=true;
     try {
-      let rows;
-      if(tab==='comments'){
-        let q=client().from('community_comments').select('id,post_id,body,created_at').eq('author_id',owner).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(6);
-        if(activityCursor)q=q.or(`created_at.lt.${activityCursor.created_at},and(created_at.eq.${activityCursor.created_at},id.lt.${activityCursor.id})`);rows=await result(q);
-      }else{
-        rows=await result(client().rpc('community_profile_activity',{p_id:owner,p_kind:null,p_before:activityCursor?.created_at||null,p_before_id:activityCursor?.id||null}));
-      }
+      const rows=await result(client().rpc('community_profile_activity',{p_id:owner,p_kind:null,p_before:activityCursor?.created_at||null,p_before_id:activityCursor?.id||null}));
       if(epoch!==activityEpoch||!host.isConnected||profilePerson?.id!==owner)return;
-      const visible=rows.slice(0,5);if(tab!=='comments'){await people(visible.map(r=>r.author_id));if(epoch!==activityEpoch||!host.isConnected||profilePerson?.id!==owner)return;}
+      const visible=rows.slice(0,5);await people(visible.map(r=>r.author_id));if(epoch!==activityEpoch||!host.isConnected||profilePerson?.id!==owner)return;
       if(!append)profilePosts.clear();visible.forEach(post=>profilePosts.set(post.id,post));
-      const html=visible.map(row=>tab==='comments'?`<article class="gnet-card gnet-activity-comment"><p class="gnet-muted">Commented ${esc(new Date(row.created_at).toLocaleDateString())}</p><p>${esc(row.body)}</p><a class="gnet-text-link" href="/?post=${esc(row.post_id)}">View conversation →</a></article>`:postCard(row)).join('');
+      const html=visible.map(postCard).join('');
       if(append)host.insertAdjacentHTML('beforeend',html);else host.innerHTML=html;
       window.guidcyFinishPanelRefresh?.(host);
-      if(!rows.length&&!append)host.innerHTML=`<div class="gnet-card gnet-profile-empty"><p>No ${tab} yet.</p>${owner===state.user?.id&&tab!=='comments'?'<button class="gnet-button" data-action="compose">Share a post</button>':''}</div>`;
-      activityCursor=visible.at(-1)||activityCursor;if(more){more.hidden=rows.length<=5;more.textContent=append?'Show more activity →':'Show all activity →';}
+      if(!rows.length&&!append)host.innerHTML=`<div class="gnet-card gnet-profile-empty"><p>No posts yet.</p>${owner===state.user?.id?'<button class="gnet-button" data-action="compose">Share a post</button>':''}</div>`;
+      activityCursor=visible.at(-1)||activityCursor;if(more){more.hidden=rows.length<=5;more.textContent=append?'Show more posts →':'Show all posts →';}
     }catch(_){if(epoch===activityEpoch){if(!append)host.innerHTML='<button class="gnet-button" data-action="retry-posts">Activity couldn’t load. Try again</button>';else notice('Could not load more activity. Please try again.');}}
-    finally{if(epoch===activityEpoch){host.setAttribute('aria-busy','false');if(more)more.disabled=false;}}
+    finally{if(epoch===activityEpoch){host.setAttribute('aria-busy','false');if(more)more.disabled=false;syncPostPreviews();}}
   }
   function activityShell(p) {
-    activityTab='posts';
-    return `<section class="gnet-activity" aria-label="Activity"><header><h2>Activity</h2>${p.id===state.user?.id?'<button class="gnet-text-link" data-action="compose">Create a post</button>':''}</header><div class="gnet-activity-tabs" role="group" aria-label="Activity type">${['posts','comments'].map((t,i)=>`<button class="gnet-button" data-action="activity-tab" data-tab="${t}" aria-pressed="${!i}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div><div id="gnet-profile-posts"></div><button id="gnet-activity-more" class="gnet-view-all" data-action="more-activity" hidden>Show all activity →</button></section>`;
+    return `<section class="gnet-activity" aria-label="Activity"><header><h2>Activity</h2>${p.id===state.user?.id?'<button class="gnet-text-link" data-action="compose">Create a post</button>':''}</header><div class="gnet-activity-tabs"><button class="gnet-button" data-action="refresh-activity" data-tab="posts" aria-pressed="true">Posts</button></div><div id="gnet-profile-posts" tabindex="0" role="region" aria-label="Posts — scroll horizontally to browse"></div><button id="gnet-activity-more" class="gnet-view-all" data-action="more-activity" hidden>Show all posts →</button></section>`;
   }
   function refreshActivity(){if(profilePerson&&$('page-profile').classList.contains('on'))activity(profilePerson);}
   async function member(id) {
@@ -455,7 +518,6 @@
       profilePerson=p;
       if(preserve)$('gnet-member').innerHTML=profileHeader(p);
       else layout.innerHTML=`<div class="profile-main"><section id="gnet-member" class="gnet-card gnet-profile-header">${profileHeader(p)}</section>${activityShell(p)}</div>`;
-      if($('gnet-profile-posts')?.hasAttribute('data-guidcy-restored'))activityTab=$('gnet-profile-posts').dataset.activityTab||'posts';
       window.guidcyFinishPanelRefresh?.(layout);
       activity(p);profileDetails(p);
     }catch(_){if(epoch===profileEpoch){profileKey='';$('profile-layout').innerHTML='<div class="gnet-card gnet-empty"><h1>Profile unavailable</h1><a href="/" data-guidcy-back>Back</a></div>';window.guidcyFinishPanelRefresh?.(layout);}}
@@ -496,7 +558,6 @@
       }
       consultation?.querySelector('.gnet-consultation-details')?.remove();
       if(consultation&&!consultation.hidden)consultation.querySelector('h2').insertAdjacentHTML('afterend',consultationDetails(p,c));
-      if($('gnet-profile-posts')?.hasAttribute('data-guidcy-restored'))activityTab=$('gnet-profile-posts').dataset.activityTab||'posts';
       window.guidcyFinishPanelRefresh?.(layout);
       profileKey='';activity(p);profileDetails(p);
     }catch(_){profileKey='';if(hero.isConnected){hero.innerHTML='<div class="gnet-profile-info gnet-profile-loading"><p>Profile could not load.</p><button class="gnet-button" data-action="retry-profile-header">Try again</button></div>';hero.removeAttribute('aria-busy');$('profile-layout').removeAttribute('data-profile-loading');window.guidcyFinishPanelRefresh?.($('profile-layout'));}}
@@ -522,38 +583,6 @@
     if(profilePerson?.id!==id)return;
     profilePerson=p;
     const hero=document.querySelector('.gnet-profile-header');if(hero){hero.innerHTML=profileHeader(p);window.guidcyRefreshSavedConsultant?.();}
-  }
-  async function connect(button){
-    if(!requireUser())return;
-    const id=button.dataset.person,status=button.dataset.status;
-    const action=status==='none'?'request':status==='incoming'?'accept':'remove';
-    const save=async()=>{await result(client().rpc('community_connection',{p_id:id,p_action:action}));await refreshIdentity(id);};
-    if(action==='remove'){
-      const d=dialog(status==='connected'?'Remove connection?':'Cancel invitation?',`<p>${status==='connected'?'You can still follow this person and book their available sessions.':'This person will no longer have a pending invitation from you.'}</p><p class="gnet-form-error" role="alert"></p><div class="gnet-dialog-actions"><button class="gnet-button" data-close>Keep</button><button class="gnet-button gnet-danger" id="gnet-confirm-connection">${status==='connected'?'Remove connection':'Cancel invitation'}</button></div>`);
-      d.querySelector('#gnet-confirm-connection').onclick=async e=>{e.target.disabled=true;try{await save();d.close();}catch(_){d.querySelector('.gnet-form-error').textContent='Could not update this connection. Please try again.';e.target.disabled=false;}};
-    }else{button.disabled=true;try{await save();notice(action==='request'?'Connection invitation sent.':'Connection accepted.');}catch(_){notice('Could not update this connection. Please try again.');}finally{button.disabled=false;}}
-  }
-  function connections(id,requests=false){
-    if(requests&&!requireUser())return;
-    const mine=id===state.user?.id;
-    const d=dialog('Connections',`${mine?'<div class="gnet-activity-tabs"><button class="gnet-button" data-network-tab="connections">Connections</button><button class="gnet-button" data-network-tab="invitations">Invitations</button></div>':''}<div id="gnet-connections-list"></div><p class="gnet-form-error" role="alert"></p><button class="gnet-button" id="gnet-network-more" hidden>Load more</button>`);
-    let cursor=null,busy=false;
-    const list=d.querySelector('#gnet-connections-list'),more=d.querySelector('#gnet-network-more'),error=d.querySelector('.gnet-form-error');
-    async function load(reset=false){
-      if(busy)return;busy=true;more.disabled=true;error.textContent='';if(reset){cursor=null;list.innerHTML='<p role="status">Loading network…</p>';}
-      d.querySelectorAll('[data-network-tab]').forEach(b=>{b.disabled=true;b.setAttribute('aria-pressed',String((b.dataset.networkTab==='invitations')===requests));});
-      try{
-        const rows=await result(client().rpc('community_network',{p_id:id,p_requests:requests,p_before:cursor}));if(!d.isConnected)return;
-        if(reset)list.replaceChildren();
-        rows.slice(0,20).forEach(edge=>{const p=edge.person;state.people.set(p.id,p);list.insertAdjacentHTML('beforeend',`<div class="gnet-network-row">${identity(p)}${mine?`${requests&&edge.requested_by!==state.user.id?`<button class="gnet-button" data-network-person="${esc(p.id)}" data-network-action="accept">Accept</button>`:''}<button class="gnet-text-link" data-network-person="${esc(p.id)}" data-network-action="remove">${requests?(edge.requested_by===state.user.id?'Cancel':'Decline'):'Remove'}</button>`:''}</div>`);});
-        cursor=rows.slice(0,20).at(-1)?.id||cursor;more.hidden=rows.length<=20;
-        if(!list.children.length)list.innerHTML=`<p class="gnet-muted">${requests?'No pending invitations.':'No connections yet.'}</p>`;
-      }catch(_){error.textContent='Could not load connections. Try again.';more.hidden=false;}finally{busy=false;more.disabled=false;d.querySelectorAll('[data-network-tab]').forEach(b=>b.disabled=false);}
-    }
-    d.querySelectorAll('[data-network-tab]').forEach(b=>b.onclick=()=>{requests=b.dataset.networkTab==='invitations';load(true);});
-    more.onclick=()=>load(!cursor);
-    list.onclick=async e=>{const b=e.target.closest('[data-network-action]');if(!b||busy)return;b.disabled=true;try{await result(client().rpc('community_connection',{p_id:b.dataset.networkPerson,p_action:b.dataset.networkAction}));await refreshIdentity(id);await load(true);}catch(_){error.textContent='Could not update this connection. Please try again.';b.disabled=false;}};
-    load(true);
   }
   async function loadEndorsements(p){
     const section=$('gnet-section-skills');if(!section)return;
@@ -638,7 +667,7 @@
         profileKey='';document.querySelector('.profile-hero')?.removeAttribute('data-community-profile');
         if(params().has('member'))await member(p.id);else await mountConsultant();
         d.close();
-        state.at=0;sidebar();notice('Profile updated.');
+        state.at=0;sidebar();notice('Profile Saved');
       }catch(_){error.textContent='Profile not saved. Your edits are still here; please try again.';}
       finally{submit.disabled=false;d.oncancel=null;d.querySelector('[data-close]').disabled=false;}
     };
@@ -663,13 +692,9 @@
     if(action==='network')network();
     if(action==='organization-directory')organizationDirectory();
     if(action==='close-profile')window.guidcyBack('/find-experts');
-    if(action==='hide-me'){sessionStorage.setItem('guidcy_hide_profile_card','1');paintMe();}
-    if(action==='show-me'){sessionStorage.removeItem('guidcy_hide_profile_card');paintMe();}
     if(action==='book')openBooking();
     if(action==='photo-options')photoOptions(b.dataset.photoKind);
     if(action==='edit-profile')editProfile();
-    if(action==='connection')connect(b);
-    if(action==='connections')connections(b.dataset.person,b.dataset.requests==='true');
     if(action==='endorse')endorse(b);
     if(action==='retry-endorsements'&&profilePerson)loadEndorsements(profilePerson);
     if(action==='add-section'&&ownProfile())addSection();
@@ -681,8 +706,8 @@
     if(action==='expand-about'){const content=b.previousElementSibling,expanded=b.getAttribute('aria-expanded')==='true';content.classList.toggle('is-collapsed',expanded);b.setAttribute('aria-expanded',String(!expanded));b.textContent=expanded?'See more':'See less';}
     if(action==='share-profile'&&profilePerson){shareLink(location.origin+href(profilePerson),'Share Profile');}
     if(action==='profile-network')profileNetwork(b.dataset.person,b.dataset.direction);
-    if(action==='view-posts'){$('gnet-profile-posts')?.scrollIntoView({block:'start'});activityTab='posts';activity(profilePerson);document.querySelectorAll('[data-action=activity-tab]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.tab==='posts')));}
-    if(action==='activity-tab'){activityTab=b.dataset.tab;document.querySelectorAll('[data-action=activity-tab]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));activity(profilePerson);}
+    if(action==='view-posts'){$('gnet-profile-posts')?.scrollIntoView({block:'start'});activity(profilePerson);}
+    if(action==='refresh-activity')activity(profilePerson);
     if(action==='more-activity')activity(profilePerson,true);
     if(action==='unfeature'&&ownProfile()){b.disabled=true;result(client().from('profile_featured').delete().eq('id',b.dataset.entry).eq('profile_id',state.user.id)).then(()=>refreshProfessional()).catch(()=>{notice('Could not remove featured item.');b.disabled=false;});}
     if(action==='featured-view'||action==='featured-buy'){b.disabled=true;const work=action==='featured-view'?window.GuidcyMarketplace.openDetails:window.GuidcyMarketplace.buyOrDownload;Promise.resolve().then(()=>work(b.dataset.resource)).catch(()=>notice('This resource could not open. Please try again.')).finally(()=>b.disabled=false);}

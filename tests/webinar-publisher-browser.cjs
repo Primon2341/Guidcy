@@ -8,7 +8,7 @@ module.exports = async function verifyWebinarPublisherPhotos(page) {
  { ...base, id: 'legacy-photo', publisher_email: 'expert@example.com' },
  { ...base, id: 'missing-photo', created_by: 'missing-profile', speaker: 'No Photo' }
  ];
- await page.route('**/rest/v1/webinars?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(rows) }));
+ await page.route(/\/rest\/v1\/(?:guidcy_)?webinars\?/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(rows) }));
  await page.evaluate(() => window.go('webinar'));
  await page.evaluate(() => window.wbnLoad());
  for (const width of [390,1280]) {

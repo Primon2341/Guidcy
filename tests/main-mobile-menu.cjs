@@ -7,6 +7,7 @@ module.exports = async function checkMainMobileMenu(page, role) {
     await page.locator('#mobile-burger').click();
     const drawer = page.locator('#gmob-drawer.open');
     await drawer.waitFor({ state: 'visible' });
+    assert.equal(await drawer.getByText('Navigation',{exact:true}).count(),0,'main menu has no Navigation heading');
     await page.waitForFunction(() => document.querySelector('#gmob-drawer').getBoundingClientRect().left === 0);
     assert.equal(await drawer.locator('.gmob-tagline').innerText(), 'Guidance made simple');
     const layout = await drawer.evaluate(el => {

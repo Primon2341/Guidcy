@@ -52,12 +52,13 @@ const server = http.createServer((req, res) => {
  await page.goto(origin + (route === 'home' ? '/' : '/' + route));
  await button.waitFor();
  await page.waitForTimeout(1600);
- if (route === 'home' && role === 'user') await require('./home-motion-loading.cjs')(page);
+ if (route === 'home' && role === 'user') await page.locator('#page-home .gnet-composer').waitFor();
  for (const width of [320, 375, 390, 430]) {
  await page.setViewportSize({ width, height: 812 });
  const before = page.url();
  await button.click();
  await page.locator(dash + ' .dash-side.on').waitFor({ state: 'visible' });
+ assert.equal(await page.locator('.dash-role-badge').count(),0,'dashboard menus have no redundant account-role badge');
  const layers = await page.evaluate(() => ({
  sidebar: !!document.elementFromPoint(40, 200)?.closest('.dash-side.on'),
  backdrop: !!document.elementFromPoint(innerWidth - 10, 200)?.closest('.dash-overlay.on'),

@@ -83,7 +83,7 @@ Profiles no longer participate in the legacy HTML replay cache or generic panel 
 
 `20261007010000_professional_network.sql` adds optional pronouns, public website/email and professional status to existing profiles; it reuses the existing LinkedIn field and existing headline updates. Contact details are opt-in and independent of private account email. Offering services does not approve a consultant or enable booking.
 
-Connections use one ordered pair of existing profile IDs. Only the invitee can accept; either participant can cancel/decline/remove. Pending requests are private; accepted connection counts/lists are public. The list uses 20-row keyset pagination. Skill endorsements require a real listed skill, reject self-endorsement and have a unique profile/skill/endorser key. All writes use authenticated RPCs; tables enforce foreign keys, checks, indexes and RLS. No engagement or connections are seeded. `tests/professional-network-rls.sql` verifies permissions and atomic identity updates in a rolled-back transaction.
+Guidcy uses Follow/Unfollow rather than connection requests. The profile shows followers and following only. The retirement migration `20261110033542_retire_profile_connections.sql` removes the former connection RPCs and public connection metadata, and revokes application access to historical connection rows without deleting them. Follow records, skill endorsements, posts, consultant profiles and booking keep their existing data and APIs. `tests/retired-connections.sql` verifies the retirement; `tests/professional-network-rls.sql` continues to verify identity and endorsement permissions in a rolled-back transaction.
 
 ## Photo popups (2026-10-07)
 

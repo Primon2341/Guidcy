@@ -119,7 +119,7 @@
      var saved=previous&&previous.regions[key];
      if(saved&&Date.now()-(saved.at||previous.at)<=TTL)entry.regions[key]=Object.assign({},saved,{html:expandImages(saved.html,previous.images),at:saved.at||previous.at});
     }else if(el.firstChild&&!el.classList.contains('guidcy-panel-skeleton')){
-     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now(),profileTarget:key==='profile-layout'?el.dataset.profileTarget:undefined,profileVersion:key==='profile-layout'?1:undefined};
+     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now(),profileTarget:key==='profile-layout'?el.dataset.profileTarget:undefined,profileVersion:key==='profile-layout'?3:undefined};
     }
    });
    // Repeated inline author photos otherwise exceed the bounded cache in a short feed.
@@ -158,7 +158,7 @@
    if(regions.indexOf(key)<0)return;
    var el=document.getElementById(key),saved=entry.regions[key];
    if(!el||!page.contains(el)||Date.now()-(saved.at||entry.at)>TTL)return;
-   if(key==='profile-layout'&&(!saved.profileTarget||saved.profileVersion!==1))return;
+   if(key==='profile-layout'&&(!saved.profileTarget||saved.profileVersion!==3))return;
    el.innerHTML=expandImages(saved.html,entry.images);
    if(key==='profile-layout'){
     el.dataset.profileTarget=saved.profileTarget;
