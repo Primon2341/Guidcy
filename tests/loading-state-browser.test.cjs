@@ -25,8 +25,8 @@ let browser;
  const stopped=async()=>{await loader.waitFor({state:'hidden'});assert.equal(await page.locator('#browse-grid').getAttribute('aria-busy'),null);};
 
  await start();assert.equal(await page.locator('#browse-grid').innerText(),'Existing expert results','refresh preserves mounted results');
- const theme=await loader.evaluate(el=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,fill:getComputedStyle(el.querySelector('.guidcy-loading-fill')).backgroundImage}));
- assert.equal(theme.background,'rgb(255, 255, 255)');assert.equal(theme.color,'rgb(30, 114, 190)');assert.match(theme.fill,/rgb\(61, 184, 74\)/);
+ const theme=await loader.evaluate(el=>({background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderWidth,shadow:getComputedStyle(el).boxShadow,center:{x:(el.getBoundingClientRect().left+el.getBoundingClientRect().right)/2,y:(el.getBoundingClientRect().top+el.getBoundingClientRect().bottom)/2},viewport:{width:innerWidth,height:innerHeight},color:getComputedStyle(el).color,fill:getComputedStyle(el.querySelector('.guidcy-loading-fill')).backgroundImage}));
+ assert.equal(theme.background,'rgba(0, 0, 0, 0)');assert.equal(theme.border,'0px');assert.equal(theme.shadow,'none');assert.ok(Math.abs(theme.center.x-theme.viewport.width/2)<1);assert.ok(Math.abs(theme.center.y-theme.viewport.height/2)<1);assert.equal(theme.color,'rgb(30, 114, 190)');assert.match(theme.fill,/rgb\(61, 184, 74\)/);
  await page.evaluate(()=>{const result=document.createElement('article');result.textContent='Updated expert results';document.querySelector('#browse-grid').replaceChildren(result);});
  await stopped();assert.equal(await page.locator('#browse-grid').innerText(),'Updated expert results','native DOM completion clears loading');
 

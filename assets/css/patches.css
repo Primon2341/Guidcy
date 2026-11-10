@@ -2675,13 +2675,13 @@ body.gmob-open .dash-mobile-toggle{visibility:hidden!important;pointer-events:no
 
 /* Stable revalidation: content stays opaque, only empty regions reserve space. */
 /* Segmented loading feedback, independent of the preserved content region. */
-.guidcy-retro-loader{--loader-accent:var(--blue,#1e72be);--loader-surface:var(--blue-l,#ebf4ff);display:flex;flex-direction:column;align-items:center;gap:11px;width:min(250px,calc(100vw - 32px));max-width:100%;padding:14px 16px;background:var(--surface,#fff);border:1px solid var(--border2,#b8d4ec);border-radius:8px;color:var(--loader-accent);box-shadow:0 4px 18px #0c182529;pointer-events:none}
+.guidcy-retro-loader{--loader-accent:var(--blue,#1e72be);--loader-surface:var(--blue-l,#ebf4ff);display:flex;flex-direction:column;align-items:center;gap:11px;width:min(250px,calc(100vw - 32px));max-width:100%;padding:0;background:transparent;border:0;color:var(--loader-accent);box-shadow:none;pointer-events:none}
 .guidcy-retro-loader[hidden]{display:none!important}
 .guidcy-loading-label{font:700 12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.15em;text-transform:uppercase}
 .guidcy-loading-track{position:relative;display:block;width:100%;height:18px;padding:2px;border:2px solid var(--loader-accent);border-radius:1px;background:var(--loader-surface);overflow:hidden}
 .guidcy-loading-fill{position:absolute;inset:2px;background:repeating-linear-gradient(90deg,var(--green,#3db84a) 0 8px,transparent 8px 11px)}
 .guidcy-loading-track::after{content:"";position:absolute;inset:2px;background:var(--loader-surface);animation:guidcy-segment-load 1.8s steps(19,end) infinite}
-#guidcy-loading-status{position:fixed;bottom:76px;left:50%;z-index:9000;transform:translateX(-50%);animation:guidcy-loader-appear .12s ease-out .16s backwards}
+#guidcy-loading-status{position:fixed;top:50%;left:50%;z-index:9000;transform:translate(-50%,-50%);animation:guidcy-loader-appear .12s ease-out .16s backwards}
 @keyframes guidcy-segment-load{0%{transform:translateX(0)}85%,100%{transform:translateX(100%)}}
 @keyframes guidcy-loader-appear{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.guidcy-loading-track::after{animation:none;transform:translateX(55%)}#guidcy-loading-status{animation:none}}
