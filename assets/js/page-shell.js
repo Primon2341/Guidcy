@@ -119,7 +119,7 @@
      var saved=previous&&previous.regions[key];
      if(saved&&Date.now()-(saved.at||previous.at)<=TTL)entry.regions[key]=Object.assign({},saved,{html:expandImages(saved.html,previous.images),at:saved.at||previous.at});
     }else if(el.firstChild&&!el.classList.contains('guidcy-panel-skeleton')){
-     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now(),profileTarget:key==='profile-layout'?el.dataset.profileTarget:undefined,profileVersion:key==='profile-layout'?3:undefined};
+     entry.regions[key]={html:cleanHtml(el),height:el.getBoundingClientRect().height,at:Date.now(),profileTarget:key==='profile-layout'?el.dataset.profileTarget:undefined,profileVersion:key==='profile-layout'?3:undefined,browseReady:key==='browse-grid'?el.dataset.guidcyResultsReady==='true':undefined,browseFilterKey:key==='browse-grid'?el.dataset.guidcyFilterKey:undefined};
     }
    });
    // Repeated inline author photos otherwise exceed the bounded cache in a short feed.
@@ -160,6 +160,11 @@
    if(!el||!page.contains(el)||Date.now()-(saved.at||entry.at)>TTL)return;
    if(key==='profile-layout'&&(!saved.profileTarget||saved.profileVersion!==3))return;
    el.innerHTML=expandImages(saved.html,entry.images);
+   if(key==='browse-grid'){
+    var cards=el.querySelectorAll('.ccard').length;
+    if(saved.browseReady||cards){el.dataset.guidcyResultsReady='true';var count=document.getElementById('browse-count');if(count)count.textContent='Showing '+cards+' expert'+(cards===1?'':'s');}
+    if(saved.browseFilterKey)el.dataset.guidcyFilterKey=saved.browseFilterKey;
+   }
    if(key==='profile-layout'){
     el.dataset.profileTarget=saved.profileTarget;
     el.classList.toggle('gnet-member-layout',saved.profileTarget.indexOf('member:')===0);

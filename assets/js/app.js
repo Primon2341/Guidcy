@@ -4985,10 +4985,18 @@ async function applyFilters(){
      landed on top of the correct one. Only the newest run may touch the DOM. */
   const run=++window.__guidcyFilterRun;
   const f=guidcyReadBrowseFilters(); browseFilters=f;
-  const g=document.getElementById('browse-grid'); if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">⏳</div>Searching experts...</div>';
-  /* Blank the count too, or the previous category's number stays on screen
-     next to a loading grid. */
-  const loadingCount=document.getElementById('browse-count'); if(loadingCount)loadingCount.textContent='Loading experts...';
+  const g=document.getElementById('browse-grid'),visible=g?g.querySelectorAll('.ccard').length:0;
+  const ready=!!g&&(visible>0||g.dataset.guidcyResultsReady==='true'),filterKey=JSON.stringify(f);
+  const changing=ready&&g.dataset.guidcyFilterKey&&g.dataset.guidcyFilterKey!==filterKey;
+  if(g){
+    g.toggleAttribute('data-guidcy-background-refresh',ready);
+    if(ready)g.setAttribute('aria-busy','true');
+    else g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">⏳</div>Searching experts...</div>';
+  }
+  // Restored cards are already usable results. Only the first load is blank;
+  // background checks keep their count, while changed filters say updating.
+  const loadingCount=document.getElementById('browse-count');
+  if(loadingCount)loadingCount.textContent=ready?`Showing ${visible} expert${visible===1?'':'s'}${changing?' · Updating results…':''}`:'Loading experts...';
   let list=[]; try{list=await fetchConsultants(f);}catch(e){console.error('Filter failed',e);list=[];}
   if(run!==window.__guidcyFilterRun)return;
   if(f.experience?.length){ list=list.filter(c=>{ const txt=String(c.experience||c.exp||'').toLowerCase(); const num=parseFloat(txt.match(/\d+/)?.[0]||'0'); return f.experience.some(e=>e==='10+'?num>=10:e==='5+'?num>=5:true); }); }
@@ -4998,6 +5006,7 @@ async function applyFilters(){
   const shown=renderGrid(list,'browse-grid');
   const n=Array.isArray(shown)?shown.length:list.length;
   const count=document.getElementById('browse-count'); if(count)count.textContent=`Showing ${n} expert${n===1?'':'s'}`;
+  if(g){g.dataset.guidcyResultsReady='true';g.dataset.guidcyFilterKey=filterKey;g.removeAttribute('data-guidcy-background-refresh');g.setAttribute('aria-busy','false');}
   const active=document.getElementById('active-filters'); if(active){ const pills=[...f.categories,...f.languages,...f.experience,f.minRating?`${f.minRating}+ rating`:null,f.search?`Search: ${guidcyEscHtml(f.search)}`:null].filter(Boolean); active.innerHTML=pills.map(p=>`<span class="filter-pill">${p}<button onclick="clearFilters()">×</button></span>`).join(''); }
 }
 let guidcyBrowseSearchTimer=null;

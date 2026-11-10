@@ -42,6 +42,8 @@ let browser;
 
  await page.evaluate(()=>{const jobs=document.querySelector('#jobs-main-area');jobs.setAttribute('aria-busy','true');jobs.append(document.createTextNode(' More jobs'));});
  await loader.waitFor();assert.equal(await page.locator('#jobs-main-area').getAttribute('aria-busy'),'true','explicit pending requests retain their own lifecycle');
+ await page.evaluate(()=>document.querySelector('#jobs-main-area').setAttribute('data-guidcy-background-refresh',''));await loader.waitFor({state:'hidden'});
+ await page.evaluate(()=>document.querySelector('#jobs-main-area').removeAttribute('data-guidcy-background-refresh'));await loader.waitFor();
  await page.evaluate(()=>document.querySelector('#jobs-main-area').setAttribute('aria-busy','false'));await loader.waitFor({state:'hidden'});
 
  await start();await page.evaluate(()=>document.querySelector('.page').classList.remove('on'));await loader.waitFor({state:'hidden'});

@@ -67,7 +67,7 @@
   var loadingNodes=new Set(), loadingPages=new Set(), loadingQueued=false;
   function finishLoading(target){
     automaticLoading.delete(target);setBusy(target,false);
-    target.classList.remove('guidcy-panel-skeleton');target.removeAttribute('aria-busy');
+    target.classList.remove('guidcy-panel-skeleton');target.removeAttribute('aria-busy');target.removeAttribute('data-guidcy-background-refresh');
   }
   function loadingChanged(records){
     records.forEach(function(record){
@@ -84,7 +84,7 @@
   }
   function watchLoading(el){
     if(!el||!loadingObserver||loadingNodes.has(el))return;
-    loadingNodes.add(el);loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class'],childList:true});
+    loadingNodes.add(el);loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true});
     var page=el.closest('.page');
     if(page&&!loadingPages.has(page)){loadingPages.add(page);loadingObserver.observe(page,{attributes:true,attributeFilter:['class','hidden']})}
     scheduleLoading();
@@ -94,12 +94,12 @@
     var active=false,removed=false;
     loadingNodes.forEach(function(el){
       if(!el.isConnected){loadingNodes.delete(el);removed=true;return}
-      if(!secondaryLoading.has(el.id)&&el.getAttribute('aria-busy')==='true'&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')active=true;
+      if(!secondaryLoading.has(el.id)&&!el.hasAttribute('data-guidcy-background-refresh')&&el.getAttribute('aria-busy')==='true'&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden')active=true;
     });
     loadingPages.forEach(function(el){if(!el.isConnected){loadingPages.delete(el);removed=true}});
     if(removed&&loadingObserver){
       loadingObserver.disconnect();
-      loadingNodes.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class'],childList:true})});
+      loadingNodes.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true})});
       loadingPages.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['class','hidden']})});
     }
     var status=document.getElementById('guidcy-loading-status');
