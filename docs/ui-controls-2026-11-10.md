@@ -23,8 +23,10 @@ The older `tests/browser-flow.test.cjs` still targets the retired `.profile-name
 
 All browser mutations and checkout operations above use local fixtures. No real payments, production database changes, or deployments were performed. Changes are built locally for review.
 
-Company and college rows align to the far-right content edge of the introduction at every breakpoint, and both names are explicitly right-aligned. Shrinking text containers and normal wrapping preserve full names without cropping. Long names are checked at 320/390/768/1365px.
+The company/college block sits at the far-right edge at every breakpoint. Both logos share one column and both names start at the same left-aligned text column. Shrinking text containers and normal wrapping preserve full names without cropping. Long names are checked at 320/390/768/1365px.
 
 Post images preserve their intended full card width and equal gutters on the feed and profile activity rails. A scoped max-width override prevents the global mobile media cap from shrinking the image while leaving its negative margin in place.
 
 People-list popups initially focus their heading, leaving the cross unframed. The close control stays accessible with Tab, with a rounded keyboard focus indication instead of a rectangular outline.
+
+Profile company and college rows use equal-width grid rows with one fixed logo column, so short and long labels do not shift their icons. Mobile location, website and follower spacing is compact, with screenshot-based checks matching the supplied HFCL / IIT Roorkee profile at 320/390/430/768px.
