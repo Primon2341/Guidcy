@@ -2863,3 +2863,7 @@ a.nav-link{display:inline-flex;align-items:center;justify-content:center;text-al
 .recurring-copy{margin:16px 0;border:1px solid var(--border);border-radius:var(--rs);padding:12px}
 .recurring-copy summary{font-size:13px;cursor:pointer}.recurring-copy[open] summary{margin-bottom:12px}
 @media(max-width:430px){.recurring-day-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.recurring-day-row>div{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}.recurring-day-row .availability-hint{margin:0}}
+
+/* A slightly slimmer header action, preserving its label, width and rounded ends. */
+#main-nav #nav-right #guidcy-dashboard-btn{min-height:36px;padding-block:6px!important}
+@media(pointer:coarse){#main-nav #nav-right #guidcy-dashboard-btn{min-height:40px}}

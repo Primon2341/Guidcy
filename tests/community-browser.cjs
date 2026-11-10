@@ -113,7 +113,7 @@ let browser;
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(origin);await page.waitForSelector('.gnet-post');await page.waitForFunction(()=>document.querySelector('#gnet-me').textContent.includes('Test User'));
  const dashboardAppearance=()=>page.locator('#nav-right #guidcy-dashboard-btn').evaluate(el=>({radius:getComputedStyle(el).borderRadius,height:el.getBoundingClientRect().height,background:getComputedStyle(el).backgroundColor}));
- const homeDashboard=await dashboardAppearance();assert.ok(homeDashboard.height>=40,'Dashboard retains its original full size');assert.equal(homeDashboard.background,'rgb(30, 114, 190)');assert.ok(parseFloat(homeDashboard.radius)>=homeDashboard.height/2);
+ const homeDashboard=await dashboardAppearance();assert.equal(homeDashboard.height,36,'Dashboard is only slightly shorter while retaining its width and text');assert.equal(homeDashboard.background,'rgb(30, 114, 190)');assert.ok(parseFloat(homeDashboard.radius)>=homeDashboard.height/2);
  await page.locator('#nav-right #guidcy-dashboard-btn').click();await page.waitForSelector('#page-user-dash.on');await page.mouse.move(2,700);await page.waitForTimeout(180);assert.deepEqual(await dashboardAppearance(),homeDashboard,'Dashboard keeps its original size and rounded design after navigation');await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#page-home.on');await page.waitForSelector('.gnet-post');
 
  await page.locator('#guidcy-cookie-banner [data-cookie-choice=reject]').click();
@@ -196,6 +196,8 @@ let browser;
  assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(30, 114, 190)','failed unlike restores the filled heart');
  await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='0 likes');
  assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'none');
+ await page.locator('.gnet-shortcuts [data-action=network]').click();await page.locator('#gnet-network-list .gnet-expert').waitFor();assert.equal(await page.locator('#gnet-dialog-title').evaluate(el=>el===document.activeElement),true,'people dialog opens without framing the cross with an autofocus outline');
+ const closeAppearance=await page.locator('#gnet-dialog header [data-close]').evaluate(el=>({border:getComputedStyle(el).borderWidth,shadow:getComputedStyle(el).boxShadow,outline:getComputedStyle(el).outlineStyle}));assert.equal(closeAppearance.border,'0px');assert.equal(closeAppearance.shadow,'none');assert.equal(closeAppearance.outline,'none');await page.locator('#gnet-dialog').screenshot({path:'/private/tmp/guidcy-people-follow-popup.png'});await page.keyboard.press('Tab');assert.equal(await page.locator('#gnet-dialog header [data-close]').evaluate(el=>el===document.activeElement),true,'close icon remains keyboard accessible');await page.locator('#gnet-dialog header [data-close]').click();
  await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
  await first.locator('.gnet-post-body').dblclick();assert.equal(await first.locator('[data-action=like]').getAttribute('aria-pressed'),'true','double-clicking an already liked post never unlikes it');
  assert.equal(await page.evaluate(()=>window.__social.community_likes.length),1,'no duplicate likes');
@@ -213,6 +215,21 @@ let browser;
  await page.waitForFunction(()=>document.querySelector('#gnet-preview img')&&!document.querySelector('#gnet-post-form [type=submit]').disabled);assert.equal(await page.locator('#gnet-alt').count(),0);await page.locator('#gnet-post-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});
  await page.locator('[data-mode=mine]').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===1);let own=page.locator('.gnet-post').first();assert.match(await own.innerText(),/My achievement/);assert.equal((await page.evaluate(()=>window.__uploads))[0].type,'image/webp');
  await page.evaluate(owner=>{window.__social.community_posts.find(p=>p.author_id===owner).image_alt='Existing accessible description';},OWNER);await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>document.querySelector('.gnet-post-image')?.alt==='Existing accessible description');
+ // Post media must keep equal gutters even under the mobile global max-width rule.
+ async function checkPostImage(selector,label,targetPage=page){
+  const media=targetPage.locator(selector).first();await media.waitFor();await media.evaluate(img=>img.decode());
+  for(const width of [1365,768,390,320]){
+   await targetPage.setViewportSize({width,height:1000});
+   const bounds=await media.evaluate(img=>{const image=img.getBoundingClientRect(),card=img.closest('.gnet-post').getBoundingClientRect();return {left:image.left-card.left,right:card.right-image.right,center:Math.abs((image.left+image.right-card.left-card.right)/2)};});
+   assert.ok(bounds.center<1,label+' image is centered at '+width);assert.ok(Math.abs(bounds.left-bounds.right)<1,label+' image has equal left and right gutters at '+width);assert.ok(bounds.left>=0&&bounds.right>=0,label+' image stays inside its card');
+   await media.screenshot({path:'/private/tmp/guidcy-post-image-'+label+'-'+width+'.png'});
+  }
+  await targetPage.setViewportSize({width:1365,height:1000});
+ }
+ await checkPostImage('#gnet-feed .gnet-post-image','home');
+ const mediaPage=await context.newPage();await mediaPage.goto(origin);await mediaPage.waitForSelector('.gnet-post');
+ await mediaPage.evaluate(async()=>{await window.guidcyGetSupabaseClient().from('community_posts').update({image_path:'22222222-2222-4222-8222-222222222222/test.webp'}).eq('id','aaaaaaaa-aaaa-4aaa-8aaa-000000000001');window.guidcyNavigate('/consultant/test-expert');});
+ await mediaPage.waitForSelector('#gnet-profile-posts .gnet-post-image');await checkPostImage('#gnet-profile-posts .gnet-post-image','profile',mediaPage);await mediaPage.close();
  await own.locator('summary').click();await own.locator('[data-action=edit]').click();await page.locator('#gnet-body').fill('Edited achievement');await page.evaluate(()=>window.__failSocial=true);await page.locator('#gnet-post-form [type=submit]').click();await page.waitForFunction(()=>document.querySelector('.gnet-form-error').textContent.includes('could not'));assert.equal(await page.locator('#gnet-body').inputValue(),'Edited achievement');await page.locator('#gnet-post-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForFunction(()=>document.querySelector('.gnet-post-body')?.textContent==='Edited achievement');
  assert.doesNotMatch(await page.locator('.gnet-post-meta').innerText(),/Edited/,'editing does not add a public Edited label');assert.equal(await page.locator('.gnet-post-image').getAttribute('alt'),'Existing accessible description');assert.doesNotMatch(await page.locator('.gnet-post-meta').innerText(),/Insight|Achievement|Career update|Learning|Opportunity|Project/);
  own=page.locator('.gnet-post').first();await own.locator('summary').click();await own.locator('[data-action=delete]').click();await page.locator('#gnet-delete-confirm').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===0);assert.equal((await page.evaluate(()=>window.__removedImages)).length,1);
@@ -411,8 +428,8 @@ let browser;
  await mobile.waitForSelector('.gnet-organizations .gnet-education');
  for(const width of [320,390,768]){
   await mobile.setViewportSize({width,height:900});await mobile.evaluate(()=>document.fonts.ready);
-  const organizations=await mobile.locator('.gnet-profile-intro').evaluate(el=>{const heading=el.querySelector('.gnet-profile-heading').getBoundingClientRect(),org=el.querySelector('.gnet-organizations').getBoundingClientRect();return {right:org.left>=heading.right,top:Math.abs(org.top-heading.top),names:[...el.querySelectorAll('.gnet-organizations strong')].map(n=>({text:n.textContent,wrap:getComputedStyle(n).whiteSpace,fits:n.scrollWidth<=n.clientWidth+1})),fits:document.documentElement.scrollWidth<=innerWidth};});
-  assert.ok(organizations.right,'organizations stay on the right at '+width);assert.ok(organizations.top<=4,'organizations share the introduction row');assert.ok(organizations.fits);assert.equal(organizations.names.length,2);assert.ok(organizations.names.every(n=>n.wrap==='normal'&&n.fits),'long organization names wrap without cropping');
+  const organizations=await mobile.locator('.gnet-profile-intro').evaluate(el=>{const heading=el.querySelector('.gnet-profile-heading').getBoundingClientRect(),org=el.querySelector('.gnet-organizations').getBoundingClientRect();return {right:org.left>=heading.right,top:Math.abs(org.top-heading.top),names:[...el.querySelectorAll('.gnet-organizations strong')].map(n=>({text:n.textContent,wrap:getComputedStyle(n).whiteSpace,align:getComputedStyle(n).textAlign,rightGap:Math.abs(n.parentElement.getBoundingClientRect().right-el.getBoundingClientRect().right),fits:n.scrollWidth<=n.clientWidth+1})),fits:document.documentElement.scrollWidth<=innerWidth};});
+  assert.ok(organizations.right,'organizations stay on the right at '+width);assert.ok(organizations.top<=4,'organizations share the introduction row');assert.ok(organizations.fits);assert.equal(organizations.names.length,2);assert.ok(organizations.names.every(n=>n.wrap==='normal'&&n.fits),'long organization names wrap without cropping');assert.ok(organizations.names.every(n=>n.align==='right'&&n.rightGap<1),'company and college names align to the far-right content edge');
   await mobile.locator('.gnet-profile-header').screenshot({path:'/private/tmp/guidcy-profile-organizations-'+width+'.png'});
  }
  await mobile.setViewportSize({width:390,height:844});

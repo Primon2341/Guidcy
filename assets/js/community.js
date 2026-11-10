@@ -41,11 +41,12 @@
     const d=dialog('Join the conversation',`<p>Sign in to post, follow people, like, comment or save. You can keep exploring public posts and expert profiles.</p><div class="gnet-dialog-actions"><button class="gnet-button" data-close>Keep exploring</button><a class="gnet-button gnet-primary" href="/login">Log in</a><a class="gnet-text-link" href="/signup">Create an account</a></div>`);
     d.querySelector('a').focus();return false;
   }
-  function dialog(title,body) {
+  function dialog(title,body,focusHeading=false) {
     $('gnet-dialog')?.close();$('gnet-dialog')?.remove();lastFocus=document.activeElement;
     const d=document.createElement('dialog');d.id='gnet-dialog';d.className='gnet-dialog';
     d.innerHTML=`<header><h2 id="gnet-dialog-title">${esc(title)}</h2><button data-close aria-label="Close dialog">×</button></header>${body}`;
     d.setAttribute('aria-labelledby','gnet-dialog-title');document.body.append(d);d.showModal();
+    if(focusHeading){const heading=d.querySelector('h2');heading.tabIndex=-1;heading.focus({preventScroll:true});}
     d.addEventListener('click',e=>{if(e.target.closest('[data-close]'))d.close();const a=e.target.closest('a[href]');if(a&&new URL(a.href).origin===location.origin)d.close();});
     d.addEventListener('close',()=>{d.remove();lastFocus?.isConnected&&lastFocus.focus({preventScroll:true});},{once:true});
     return d;
@@ -264,7 +265,7 @@
   }
   function network() {
     if(!requireUser())return;
-    const d=dialog('People you follow','<div id="gnet-network-list"></div><button class="gnet-button" id="gnet-network-more">Load people</button>');
+    const d=dialog('People you follow','<div id="gnet-network-list"></div><button class="gnet-button" id="gnet-network-more">Load people</button>',true);
     let cursor=null;const button=d.querySelector('#gnet-network-more');
     const fetchNext=async()=>{button.disabled=true;try{let q=client().from('community_follows').select('following_id').eq('follower_id',state.user.id).order('following_id').limit(21);if(cursor)q=q.gt('following_id',cursor);const rows=await result(q);await people(rows.slice(0,20).map(r=>r.following_id));d.querySelector('#gnet-network-list').insertAdjacentHTML('beforeend',rows.slice(0,20).map(r=>`<div class="gnet-expert">${identity(person(r.following_id))}${follow(person(r.following_id))}</div>`).join(''));if(!rows.length&&!cursor)d.querySelector('#gnet-network-list').textContent='Follow people from their posts or profiles to build your circle.';cursor=rows.slice(0,20).at(-1)?.following_id;button.hidden=rows.length<=20;button.textContent='Load more people';}catch(_){button.textContent='Could not load people. Retry';}finally{button.disabled=false;}};
     button.onclick=fetchNext;fetchNext();
@@ -517,7 +518,7 @@
     select.onchange=()=>loadChoices(true);next.onclick=()=>loadChoices(false);loadChoices(true);
   }
   async function profileNetwork(id,direction){
-    const d=dialog(direction==='followers'?'Followers':'Following','<div id="gnet-network-list"></div><button class="gnet-button" id="gnet-network-more">Load people</button>');
+    const d=dialog(direction==='followers'?'Followers':'Following','<div id="gnet-network-list"></div><button class="gnet-button" id="gnet-network-more">Load people</button>',true);
     const filter=direction==='followers'?'following_id':'follower_id',field=direction==='followers'?'follower_id':'following_id';let cursor=null;
     const button=d.querySelector('button#gnet-network-more'),list=d.querySelector('#gnet-network-list');
     async function read(){button.disabled=true;try{let q=client().from('community_follows').select(field).eq(filter,id).order(field).limit(21);if(cursor)q=q.gt(field,cursor);const rows=await result(q);await people(rows.slice(0,20).map(r=>r[field]));if(!d.isConnected)return;

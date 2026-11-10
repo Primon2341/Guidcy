@@ -2,7 +2,7 @@
 
 ## Changes
 
-- Shared action buttons use consistent spacing, semibold text, restrained rounded corners, visible keyboard focus, disabled states, and reduced-motion support. Blue remains the primary action color; green buttons use a darker brand green for readable white text. Scoped login, navigation, booking, and destructive action styles remain in place. The header Dashboard button retains its original size and filled blue style, with rounded ends on every route so clicking it does not revert its shape.
+- Shared action buttons use consistent spacing, semibold text, restrained rounded corners, visible keyboard focus, disabled states, and reduced-motion support. Blue remains the primary action color; green buttons use a darker brand green for readable white text. Scoped login, navigation, booking, and destructive action styles remain in place. The header Dashboard button keeps its original width, text size and filled blue style, with a slightly reduced height (36px desktop, 40px on touch devices). Its rounded ends remain consistent across routes.
 - Homepage search has fully rounded ends and no visible Search button. Suggestions and Enter-to-search remain available. The mobile field is 46px tall with a compact placeholder; typed input remains 16px to avoid iOS focus zoom.
 - Post text and images support touch double-tap and desktop double-click to like. Existing liked posts stay liked; scrolling and isolated taps do not like a post. The existing authenticated like operation, duplicate protection, and rollback are reused. Filled hearts use Guidcy blue.
 - Comments have a rounded composer above the list, linked author identity/headline, real timestamps, existing Follow controls, own-comment deletion, and existing pagination. Post uses a compact 28px-high blue pill, at least 56px wide, inside a 44px mobile touch target. It appears only when the draft contains non-whitespace text, hides when cleared or successfully submitted, and remains available after a failed submission. The heading is simply Comments, with no sorting label. No fabricated reply, comment-like, GIF, or image controls were introduced. Existing flat text comments and permissions are reused.
@@ -23,4 +23,8 @@ The older `tests/browser-flow.test.cjs` still targets the retired `.profile-name
 
 All browser mutations and checkout operations above use local fixtures. No real payments, production database changes, or deployments were performed. Changes are built locally for review.
 
-Mobile company and college names stay in the right-hand introduction column, with shrinking text containers and normal wrapping instead of cropping. Long names are checked at 320/390/768px.
+Mobile company and college rows align to the far-right content edge of the introduction, and their text is right-aligned. Shrinking text containers and normal wrapping preserve full names without cropping. Long names are checked at 320/390/768px.
+
+Post images preserve their intended full card width and equal gutters on the feed and profile activity rails. A scoped max-width override prevents the global mobile media cap from shrinking the image while leaving its negative margin in place.
+
+People-list popups initially focus their heading, leaving the cross unframed. The close control stays accessible with Tab, with a rounded keyboard focus indication instead of a rectangular outline.
