@@ -23,7 +23,7 @@ The older `tests/browser-flow.test.cjs` still targets the retired `.profile-name
 
 All browser mutations and checkout operations above use local fixtures. No real payments, production database changes, or deployments were performed. Changes are built locally for review.
 
-Mobile company and college rows align to the far-right content edge of the introduction, and their text is right-aligned. Shrinking text containers and normal wrapping preserve full names without cropping. Long names are checked at 320/390/768px.
+Company and college rows align to the far-right content edge of the introduction at every breakpoint, and both names are explicitly right-aligned. Shrinking text containers and normal wrapping preserve full names without cropping. Long names are checked at 320/390/768/1365px.
 
 Post images preserve their intended full card width and equal gutters on the feed and profile activity rails. A scoped max-width override prevents the global mobile media cap from shrinking the image while leaving its negative margin in place.
 
