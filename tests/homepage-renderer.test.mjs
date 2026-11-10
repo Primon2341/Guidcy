@@ -17,7 +17,7 @@ test('home routes only to the community renderer; obsolete startup jobs are remo
 test('community data uses the same refresh regions as the expert directory',()=>{
  const shell=fs.readFileSync(new URL('../assets/js/page-shell.js',import.meta.url),'utf8');
  const refresh=fs.readFileSync(new URL('../assets/js/ui-refresh.js',import.meta.url),'utf8');
- for(const id of ['gnet-feed','gnet-experts','gnet-compose-avatar']){
+ for(const id of ['gnet-feed','gnet-experts','gnet-me','gnet-mobile-avatar','gnet-compose-avatar']){
   assert.ok(shell.includes("'"+id+"'"));assert.ok(refresh.includes("'"+id+"'"));
  }
 });

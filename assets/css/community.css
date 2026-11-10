@@ -19,6 +19,30 @@
 .gnet-person:hover strong{color:var(--blue);text-decoration:underline}
 .gnet-avatar{display:inline-flex;flex:0 0 44px;width:44px;height:44px;border-radius:50%;object-fit:cover;align-items:center;justify-content:center;background:var(--blue-l);color:var(--blue-d);font-weight:600;font-size:15px;border:1px solid #e0e8ee}
 .gnet-headline{display:block;font-size:12px;color:var(--gnet-muted,#5c6d7b);overflow-wrap:anywhere;margin-top:3px}
+/* Homepage identity card shares profile data, photo frames and directory logos. */
+.gnet-me{position:relative;text-align:left;padding:0}
+.gnet-me[hidden]{display:none!important}
+.gnet-me:has(>.gnet-skeleton){min-height:330px}
+.gnet-me-profile{display:block;color:inherit}
+.gnet-mini-cover{position:relative;overflow:hidden;aspect-ratio:4/1;background:#e7eff2;border-bottom:1px solid #dce8e6}
+.gnet-mini-cover img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover}
+.gnet-me-details{padding:0 16px 16px}
+.gnet-me-photo{position:relative;width:88px;height:88px;margin:-28px 0 12px}
+.gnet-me-photo>.gnet-avatar{width:88px;height:88px;flex-basis:88px;border:3px solid #fff;font-size:25px}
+.gnet-me h2{font-size:20px;line-height:1.25;letter-spacing:-.4px;font-weight:700;margin:0 0 8px;overflow-wrap:anywhere}
+.gnet-me-profile:hover h2{color:var(--blue-d)}
+.gnet-me-headline{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.gnet-me-location{font-size:12px;line-height:1.5;color:var(--gnet-muted);margin-top:5px;overflow-wrap:anywhere}
+.gnet-me-organization{display:flex;align-items:center;gap:9px;margin:0 16px 16px;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.gnet-me-organization strong{font-weight:700;min-width:0}
+.gnet-me-organization .gnet-org-mark{flex-basis:30px;width:30px;height:30px}
+.gnet-profile-counts{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 16px;border-top:1px solid var(--gnet-line);font-size:11px;color:var(--gnet-muted)}
+.gnet-profile-counts b{color:var(--ink);font-weight:600}
+.gnet-profile-counts button{background:none;border:0;color:inherit;font-size:inherit;min-height:32px}
+.gnet-me-guest{padding:20px 16px}
+.gnet-me-guest h2{font-size:16px;margin:12px 0}
+.gnet-me-guest>.gnet-button{width:100%}
+.gnet-me-guest>.gnet-text-link{display:block;text-align:center;margin-top:14px}
 .gnet-shortcuts{padding:8px}.gnet-shortcuts button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:46px;background:none;border:0;text-align:left;padding:8px 12px;color:var(--ink2);font-size:13px;border-radius:6px}.gnet-shortcuts button:hover{background:var(--surface2)}.gnet-shortcuts span{color:var(--blue)}
 .gnet-explore{padding:19px}.gnet-explore a{display:block;font-size:12px;color:var(--gnet-muted);padding:7px 0}.gnet-explore a:hover{color:var(--blue);text-decoration:underline}
 .gnet-site-search{position:relative;margin:0 0 22px;z-index:12}
@@ -278,3 +302,20 @@
 .gnet-organization-link{color:inherit}
 .gnet-organization-link:hover{color:var(--blue-d);text-decoration:underline}
 .gnet-organization-link:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:3px}
+
+/* Desktop keeps the identity card/composer; mobile uses one compact discovery row. */
+.gnet-mobile-identity,.gnet-mobile-compose{display:none}
+@media(max-width:700px){
+ .gnet-me,.gnet-composer,.gnet-shortcuts,.gnet-feed-toolbar{display:none}
+ .gnet-home-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-width:0}
+ .gnet-mobile-identity{display:block;flex:0 0 44px}
+ .gnet-mobile-profile.avatar-chip{display:flex;width:44px!important;height:44px!important;border:0;background:transparent;padding:0;text-decoration:none}
+ .gnet-mobile-profile .gnet-avatar{width:40px;height:40px;flex-basis:40px}
+ .gnet-home-toolbar .gnet-site-search{flex:1;min-width:0;margin:0}
+ .gnet-home-toolbar .gnet-site-search-field{min-height:44px;padding:0 12px;gap:6px}
+ .gnet-home-toolbar .gnet-site-search input{min-height:42px}
+ .gnet-home-toolbar .gnet-site-results{width:min(340px,calc(100vw - 80px));max-width:none}
+ .gnet-network .gnet-mobile-compose{display:inline-flex;align-items:center;justify-content:center;gap:5px;flex:0 0 auto;min-height:44px;padding:0 12px;border:1px solid var(--blue);border-radius:24px;background:var(--blue);color:#fff;font-size:12px;font-weight:600;line-height:1}
+ .gnet-mobile-compose:hover{background:var(--blue-d);border-color:var(--blue-d)}
+ .gnet-mobile-compose svg{flex-shrink:0;width:17px;height:17px}
+}

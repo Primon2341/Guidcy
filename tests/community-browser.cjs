@@ -99,7 +99,8 @@ let browser;
  await identityPage.goto(origin);
  await identityPage.locator('#gnet-compose-avatar img.gnet-brand').waitFor();
  await identityPage.locator('#gnet-compose-avatar img').evaluate(img=>img.decode());
- assert.equal(await identityPage.locator('#gnet-me').count(),0,'guest homepage has no profile card');
+ await identityPage.locator('#gnet-me .gnet-me-guest').waitFor();
+ await identityPage.setViewportSize({width:390,height:900});assert.equal(await identityPage.locator('#gnet-me').isVisible(),false);assert.equal(await identityPage.locator('#gnet-mobile-avatar a').getAttribute('href'),'/login');await identityPage.locator('.gnet-mobile-compose').click();await identityPage.waitForSelector('#gnet-dialog');assert.match(await identityPage.locator('#gnet-dialog').innerText(),/Sign in to post/);await identityPage.locator('#gnet-dialog header [data-close]').click();await identityPage.setViewportSize({width:1365,height:1000});
  const loginPhoto='data:image/png;base64,'+fs.readFileSync(path.resolve(__dirname,'../favicon-96x96.png')).toString('base64');
  await identityPage.evaluate(async({owner,photo})=>{
   await window.guidcyGetSupabaseClient().rpc('community_update_photo',{p_kind:'avatar',p_value:photo});
@@ -164,7 +165,7 @@ let browser;
  await page.waitForSelector('#gnet-feed[data-guidcy-restored] .gnet-post');
  assert.equal(await page.locator('#gnet-feed .gnet-post').count(),12);
  assert.equal(await page.locator('#gnet-feed .gnet-person img').first().getAttribute('src'),inlineAvatar,'cached photos restore without blank placeholders');
- assert.equal(await page.locator('#gnet-me').count(),0,'refresh cannot restore the retired homepage card');
+ assert.equal(await page.locator('#gnet-me').isVisible(),true,'desktop refresh restores the profile card');
  assert.equal(await page.locator('#nav-right a.avatar-chip').getAttribute('href'),'/profile?member='+OWNER,'old cached dashboard avatars become profile links before app.js loads');
  assert.equal(await page.locator('#nav-right a.avatar-chip').getAttribute('onclick'),null);
  await page.evaluate(()=>{window.__emptyFeedPaints=0;new MutationObserver(()=>{if(!document.querySelector('#gnet-feed .gnet-post'))window.__emptyFeedPaints++;}).observe(document.querySelector('#gnet-feed'),{childList:true});});
@@ -332,16 +333,25 @@ let browser;
  for(const show of [true,false,true]){await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-website').fill('https://example.com/my-work');await page.locator('#gnet-website-public').setChecked(show);await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('#gnet-member');await page.waitForFunction(visible=>!!document.querySelector('.gnet-profile-website')===visible,show);}
  assert.equal(await page.locator('.gnet-profile-website').getAttribute('href'),'https://example.com/my-work');assert.equal(await page.locator('.gnet-profile-website').getAttribute('rel'),'noopener noreferrer');
  await page.locator('.gnet-profile-actions [data-action=edit-profile]').click();await page.locator('#gnet-edit-website').fill('');await page.locator('#gnet-profile-form [type=submit]').click();await page.waitForSelector('#gnet-dialog',{state:'detached'});await page.waitForSelector('.gnet-profile-website',{state:'detached'});
- // Feed-first home keeps community navigation and opens the owner via the header avatar.
- await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#page-home.on .gnet-composer');
+ // Desktop identity card; mobile avatar/search/post share one row without a composer card.
+ await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#page-home.on .gnet-home-toolbar');
+ await page.waitForFunction(()=>document.querySelector('#gnet-me')?.textContent.includes('Polymer researcher'));
  assert.equal(await page.locator('.footer-brand .guidcy-footer-text').count(),0);assert.equal(await page.locator('.guidcy-footer-mark + .guidcy-footer-tagline').innerText(),'Guidance Made Simple');
- for(const width of [1365,390,320]){
-  await page.setViewportSize({width,height:1000});assert.equal(await page.locator('#gnet-me').count(),0);
-  assert.equal(await page.locator('.gnet-shortcuts').isVisible(),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ for(const width of [1365,768,700,390,320]){
+  await page.setViewportSize({width,height:1000});const mobile=width<=700;
+  assert.equal(await page.locator('#gnet-me').isVisible(),!mobile);assert.equal(await page.locator('.gnet-composer').isVisible(),!mobile);
+  assert.equal(await page.locator('.gnet-mobile-compose').isVisible(),mobile);assert.equal(await page.locator('#gnet-mobile-avatar').isVisible(),mobile);
+  assert.equal(await page.locator('.gnet-shortcuts').isVisible(),!mobile);assert.equal(await page.locator('.gnet-feed-toolbar').isVisible(),!mobile);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  if(mobile){
+   assert.ok(await page.evaluate(()=>document.querySelector('#gnet-feed').getBoundingClientRect().top-document.querySelector('.gnet-home-toolbar').getBoundingClientRect().bottom<=12),'mobile feed follows the search row without shortcut/filter gaps');
+   const row=await page.evaluate(()=>['#gnet-mobile-avatar','#gnet-site-search-form','.gnet-mobile-compose'].map(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.x,y:r.y+r.height/2,right:r.right,height:r.height}}));
+   assert.ok(row[0].right<=row[1].x&&row[1].right<=row[2].x,'avatar, search and Post remain in that order');assert.ok(row.every(r=>Math.abs(r.y-row[0].y)<1&&r.height>=44),'same row with touch-sized controls');
+   await page.locator('.gnet-mobile-compose').click();await page.waitForSelector('#gnet-body');assert.equal(await page.locator('#gnet-file').count(),1,'compact Post opens the existing image/text editor');await page.locator('#gnet-dialog [data-close]').click();
+  }
   await page.evaluate(()=>window.__avatarNavigationToken='same-document');
-  await page.locator('#nav-right a.avatar-chip').click();await page.waitForSelector('#page-profile.on #gnet-member');
-  assert.equal(new URL(page.url()).searchParams.get('member'),OWNER);assert.equal(await page.evaluate(()=>window.__avatarNavigationToken),'same-document','avatar opens the profile without reloading');
-  await page.goBack();await page.waitForSelector('#page-home.on .gnet-composer');
+  await page.locator(mobile?'#gnet-mobile-avatar a':'#gnet-me .gnet-me-profile').click();await page.waitForSelector('#page-profile.on #gnet-member');
+  assert.equal(new URL(page.url()).searchParams.get('member'),OWNER);assert.equal(await page.evaluate(()=>window.__avatarNavigationToken),'same-document','profile opens without reloading');
+  await page.goBack();await page.waitForSelector('#page-home.on .gnet-home-toolbar');
  }
  await page.setViewportSize({width:1365,height:1000});await page.locator('#nav-right a.avatar-chip').click();await page.waitForSelector('#page-profile.on #gnet-member');
  // Photo-only popups: no settings redirect, crop/update/delete, failure recovery, keyboard/mobile access.
@@ -358,7 +368,7 @@ let browser;
  }
  for(const width of [320,390]){await page.setViewportSize({width,height:900});for(const kind of ['cover','avatar']){await page.locator('[data-photo-kind="'+kind+'"]').click();await page.waitForSelector('#gnet-photo-update');assert.equal(await page.evaluate(()=>getComputedStyle(document.body).position),'fixed');await page.locator('#gnet-dialog [data-close]').click();}assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}await page.setViewportSize({width:1365,height:1000});
  await page.locator('[data-photo-kind=cover]').focus();await page.keyboard.press('Enter');await page.waitForSelector('#gnet-photo-update');await page.keyboard.press('Escape');await page.waitForSelector('#gnet-dialog',{state:'detached'});
- await page.locator('[data-action=close-profile]').click();await page.waitForSelector('#page-home.on');assert.equal(await page.locator('#gnet-me').count(),0);assert.equal(await page.locator('[data-action=hide-me],[data-action=show-me]').count(),0);
+ await page.locator('[data-action=close-profile]').click();await page.waitForSelector('#page-home.on');assert.equal(await page.locator('#gnet-me').isVisible(),true);assert.equal(await page.locator('[data-action=hide-me],[data-action=show-me]').count(),0);
  await page.goto(origin+'/?post=aaaaaaaa-aaaa-4aaa-8aaa-000000000002');await page.waitForSelector('.gnet-post');assert.equal(await page.locator('.gnet-post').count(),1);await page.waitForTimeout(1000);assert.match(page.url(),/\?post=/);
  for(const width of [390,320]){await page.setViewportSize({width,height:900});await page.goto(origin);await page.waitForSelector('.gnet-post');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No horizontal overflow at '+width);await page.screenshot({path:'/private/tmp/guidcy-community-mobile-'+width+'.png',fullPage:false});await page.goto(origin+'/consultant/test-expert');await page.waitForSelector('.gnet-profile-header');await page.waitForSelector('#gnet-profile-posts .gnet-post');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Profile overflow at '+width);await page.screenshot({path:'/private/tmp/guidcy-compact-profile-mobile-'+width+'.png',fullPage:false});await page.goto(origin);await page.waitForSelector('.gnet-post');}
  // Professional portfolio: owner edits, public presentation, same posts and commerce entry points.
@@ -421,7 +431,7 @@ let browser;
  await page.goto(origin+'/consultant/test-expert');await page.waitForSelector('.gnet-profile-header');await page.waitForSelector('#gnet-profile-posts .gnet-post');assert.equal(await page.locator('#gnet-section-strength').count(),0,'strength is never public');await page.locator('#gnet-activity-more').click();await page.waitForFunction(()=>document.querySelectorAll('#gnet-profile-posts .gnet-post').length>5);assert.equal(new Set(await page.locator('#gnet-profile-posts .gnet-post').evaluateAll(els=>els.map(el=>el.dataset.post))).size,await page.locator('#gnet-profile-posts .gnet-post').count(),'activity pagination has no duplicates');
  await page.goto(origin);await page.waitForSelector('.gnet-post');
  await page.evaluate(()=>{window.__guest=true;window.__authListeners.forEach(fn=>fn('SIGNED_OUT',null));});await page.waitForFunction(()=>!document.querySelector('.gnet-post [data-action=edit]'));await page.locator('.gnet-post [data-action=like]').first().click();await page.waitForSelector('#gnet-dialog');assert.match(await page.locator('#gnet-dialog').innerText(),/Sign in/);await page.locator('#gnet-dialog a[href="/login"]').click();await page.waitForSelector('#page-login.on');assert.equal(await page.locator('#gnet-dialog').count(),0);await page.goto(origin);await page.waitForSelector('.gnet-post');
- await page.evaluate(()=>window.__failFeed=true);await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>document.querySelector('#gnet-feed').textContent.includes('couldn’t load'));await page.evaluate(()=>window.__failFeed=false);await page.locator('#gnet-feed [data-action=refresh]').click();await page.waitForSelector('.gnet-post');
+ await page.setViewportSize({width:1365,height:1000});await page.evaluate(()=>window.__failFeed=true);await page.locator('[data-action=refresh]').click();await page.waitForFunction(()=>document.querySelector('#gnet-feed').textContent.includes('couldn’t load'));await page.setViewportSize({width:320,height:900});await page.evaluate(()=>window.__failFeed=false);await page.locator('#gnet-feed [data-action=refresh]').click();await page.waitForSelector('.gnet-post');
  assert.deepEqual(await page.evaluate(()=>window.__legacyProfilePaints),[],'the old profile is never rendered');
  await page.evaluate(()=>document.querySelector('[data-action=organization-directory]').click());await page.waitForSelector('#gnet-org-list .gnet-org-row');await page.locator('#gnet-org-add').click();await page.locator('#gnet-org-name').fill('Directory browser fixture');await page.locator('#gnet-org-logo').fill('https://example.com/logo.png');await page.locator('#gnet-org-approved').check();await page.locator('#gnet-org-form [type=submit]').click();await page.waitForSelector('#gnet-org-search');assert.match(await page.locator('#gnet-org-list').innerText(),/Directory browser fixture/);await page.locator('.gnet-org-row').filter({hasText:'Directory browser fixture'}).click();await page.locator('#gnet-org-approved').uncheck();await page.locator('#gnet-org-form [type=submit]').click();await page.waitForSelector('#gnet-org-search');assert.match(await page.locator('#gnet-org-list').innerText(),/Directory browser fixture · Company · Hidden/);await page.locator('#gnet-dialog [data-close]').click();
  // Expert cards must honor company deletion immediately, including warm caches.

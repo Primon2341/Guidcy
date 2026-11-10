@@ -54,7 +54,7 @@ const server = http.createServer((req, res) => {
  await page.goto(origin + (route === 'home' ? '/' : '/' + route));
  await button.waitFor();
  await page.waitForTimeout(1600);
- if (route === 'home' && role === 'user') await page.locator('#page-home .gnet-composer').waitFor();
+ if (route === 'home' && role === 'user') await page.locator('#page-home .gnet-home-toolbar').waitFor();
  for (const width of [320, 375, 390, 430]) {
  await page.setViewportSize({ width, height: 812 });
  const before = page.url();

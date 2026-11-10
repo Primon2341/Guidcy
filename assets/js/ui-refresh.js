@@ -14,7 +14,7 @@
     'adash-main', 'cdash-main', 'udash-main',
     /* browse, categories and the home rails */
     'browse-grid', 'cats-full-grid', 'cons-rec-grid',
-    'sf-supabase-consultants-grid', 'gnet-compose-avatar', 'gnet-experts', 'gnet-feed', 'gnet-profile-posts',
+    'sf-supabase-consultants-grid', 'gnet-me','gnet-mobile-avatar','gnet-compose-avatar', 'gnet-experts', 'gnet-feed', 'gnet-profile-posts',
     /* webinars */
     'wbn-cards', 'wbn-regs-list',
     /* marketplace and careers */
@@ -63,7 +63,7 @@
   // Observe only registered content regions and their page visibility. The
   // status lives outside those regions so it never enters their cached markup.
   var automaticLoading=new WeakSet();
-  var secondaryLoading=new Set(['gnet-compose-avatar','gnet-experts','cons-rec-grid']);
+  var secondaryLoading=new Set(['gnet-me','gnet-mobile-avatar','gnet-compose-avatar','gnet-experts','cons-rec-grid']);
   var loadingNodes=new Set(), loadingPages=new Set(), loadingQueued=false;
   function finishLoading(target){
     automaticLoading.delete(target);setBusy(target,false);

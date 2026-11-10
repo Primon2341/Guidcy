@@ -257,12 +257,16 @@
 <div id="page-home" class="page on" role="main" data-community="true">
   <div class="gnet-network">
     <h1 class="sr-only">Guidcy community feed</h1>
+    <div class="gnet-home-toolbar">
+      <div id="gnet-mobile-avatar" class="gnet-mobile-identity"><a class="gnet-mobile-profile avatar-chip" href="/login" aria-label="Log in to view your profile"><img class="gnet-avatar gnet-brand" src="/favicon-96x96.png?v=guidcy-mark-20261007" alt="Guidcy" width="44" height="44"></a></div>
     <form id="gnet-site-search-form" class="gnet-site-search" role="search" aria-label="Search Guidcy">
       <div class="gnet-site-search-field"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><label class="sr-only" for="gnet-site-search">Search all of Guidcy</label><input id="gnet-site-search" type="search" placeholder="Search Guidcy…" autocomplete="off" aria-controls="gnet-site-results" aria-expanded="false"></div>
       <div id="gnet-site-results" class="gnet-site-results" aria-label="Search suggestions" hidden></div>
     </form>
+      <button type="button" class="gnet-mobile-compose" data-action="compose" aria-label="Create a post"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4H4v16h16v-9M10 14l1-4L19 2l3 3-8 8-4 1Z"/></svg><span>Post</span></button>
+    </div>
     <div class="gnet-columns">
-      <aside class="gnet-left" aria-label="Community navigation"><nav class="gnet-card gnet-shortcuts" aria-label="Community shortcuts"><button data-mode="mine">My Posts <span aria-hidden="true">↗</span></button><button data-mode="saved">Saved Posts <span aria-hidden="true">↗</span></button><button data-action="network">Following <span aria-hidden="true">↗</span></button></nav><div class="gnet-card gnet-explore"><p class="gnet-eyebrow">MORE ON GUIDCY</p><a href="/webinars">Webinars</a><a href="/jobs">Find Jobs</a><a href="/marketplace">Marketplace</a><a href="/categories">Explore categories</a><a href="/opportunities">Funds & Grants Finder</a><a href="/smart-finder">Career & College AI Finder</a><a href="/blog">Guidcy Blog</a></div></aside>
+      <aside class="gnet-left" aria-label="Your profile and community navigation"><div id="gnet-me" class="gnet-card gnet-me"><div class="gnet-skeleton"></div></div><nav class="gnet-card gnet-shortcuts" aria-label="Community shortcuts"><button data-mode="mine">My Posts <span aria-hidden="true">↗</span></button><button data-mode="saved">Saved Posts <span aria-hidden="true">↗</span></button><button data-action="network">Following <span aria-hidden="true">↗</span></button></nav><div class="gnet-card gnet-explore"><p class="gnet-eyebrow">MORE ON GUIDCY</p><a href="/webinars">Webinars</a><a href="/jobs">Find Jobs</a><a href="/marketplace">Marketplace</a><a href="/categories">Explore categories</a><a href="/opportunities">Funds & Grants Finder</a><a href="/smart-finder">Career & College AI Finder</a><a href="/blog">Guidcy Blog</a></div></aside>
       <section class="gnet-center" aria-label="Community feed">
         <div class="gnet-card gnet-composer">
           <button class="gnet-compose-trigger" data-action="compose"><span id="gnet-compose-avatar"><img class="gnet-avatar gnet-brand" src="/favicon-96x96.png?v=guidcy-mark-20261007" alt="Guidcy" width="44" height="44"></span><span>Start a post</span></button>

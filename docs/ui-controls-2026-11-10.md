@@ -43,8 +43,13 @@ Loading completion regression checks cover native DOM commits, explicit completi
 Find the Expert distinguishes a first load from background revalidation. Restored expert cards keep their actual visible count and do not trigger the global loading card. Changed filters say Updating results while the previous cards remain visible. A first load still shows Loading experts. The result count and filter identity are restored with the existing tab-local cache, including completed empty results; the old static sample count is removed. Latest-request ordering, filters, search and booking links are preserved. Regression checks cover cold loads, restored results, filter changes, out-of-order responses and reloads before app.js starts.
 
 
-## Homepage profile access
+## Homepage profile access and mobile posting
 
-Removed the homepage identity card, its renderer, card-only styles, and refresh-cache regions. Community shortcuts, the composer, feed, and suggested experts remain available. The top-right account photo/initials now link to the existing member profile, which resolves consultants to their existing consultant profile. Avatar navigation is delegated immediately, works with keyboard/native links, preserves SPA navigation, and closes mobile menus. Legacy cached dashboard avatars are upgraded before app startup. The separate Dashboard control retains its existing role-based behavior. Consultant member redirects replace their intermediate URL so Back returns directly to the previous page.
+Desktop retains the previous identity card (cover, photo, headline, organization, follower/following counts) and full post composer. At 700px and below, both cards are hidden and a compact row contains the user's profile picture, existing universal search, and a small Post button. The mobile profile picture and desktop card open the existing profile through SPA navigation; the header avatar also continues to open the profile. Guests see the Guidcy mark and the normal sign-in gate. The compact Post control uses the existing text/image editor and post records.
 
-Validation covers absence of the retired card for guests and members, old cached header migration before app startup, same-document avatar navigation and Back at 320/390/1365px, and existing user/consultant/admin Dashboard controls. All checks use local fixtures; no deployment or production data changes.
+Both responsive identity regions use the existing account-scoped refresh cache and shared profile data, with no new database queries or systems for mobile controls. The separate Dashboard control retains its role-based behavior. Legacy cached header avatars become profile links before app startup. Consultant member redirects replace their intermediate URL so Back returns directly to the previous page.
+
+Validation covers desktop/mobile visibility and switching at 320/390/700/768/1365px, touch targets and same-row alignment, existing composer functionality, guest gates, cached header migration, same-document profile navigation and Back. All checks use local fixtures; no deployment or production data changes.
+
+
+The mobile layout also hides the My Posts / Saved Posts / Following shortcuts and For you / Following / Latest toolbar. The feed begins directly under the compact search/post row with no reserved gap. Desktop retains those controls and the existing feed logic is unchanged.
