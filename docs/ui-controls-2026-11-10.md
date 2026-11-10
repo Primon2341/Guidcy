@@ -53,3 +53,6 @@ Validation covers desktop/mobile visibility and switching at 320/390/700/768/136
 
 
 The mobile layout also hides the My Posts / Saved Posts / Following shortcuts and For you / Following / Latest toolbar. The feed begins directly under the compact search/post row with no reserved gap. Desktop retains those controls and the existing feed logic is unchanged.
+
+
+Find Expert mobile controls: the search field is reduced from 58px to 46px high, and the Filters toggle grows from 44px to 56px, transferring 12px of vertical space. The input stays 16px to prevent iOS focus zoom and the placeholder uses a compact 13px size. Sort, search suggestions, filter behavior and desktop sizing remain unchanged. Local checks cover 320/390/430px mobile widths plus 768/1280px, with no horizontal overflow and working search/filter toggles.

@@ -1513,7 +1513,7 @@ body.gmob-open{overflow:hidden}
   #browse-search-suggestions .search-suggest-name,#browse-search-suggestions .search-suggest-role{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 }
 
-/* Mobile search inputs: match the roomy rounded field used in the approved reference. */
+/* Mobile finder controls: compact expert search and a roomier filter control. */
 @media(max-width:700px){
   #page-browse .browse-search-toolbar{
     padding:14px 20px!important;
@@ -1524,7 +1524,7 @@ body.gmob-open{overflow:hidden}
   #page-browse .browse-search-toolbar .search-suggest-wrap{
     box-sizing:border-box!important;
     width:100%!important;
-    min-height:58px!important;
+    min-height:46px!important;
     padding:0 16px!important;
     border:1px solid #D8E8F5!important;
     border-radius:20px!important;
@@ -1537,9 +1537,14 @@ body.gmob-open{overflow:hidden}
   #browse-search{
     width:100%!important;
     min-width:0!important;
-    min-height:56px!important;
+    min-height:44px!important;
     font-size:16px!important;
     line-height:1.35!important;
+  }
+  #browse-search::placeholder{font-size:13px!important}
+  #page-browse #browse-filter-toggle{
+    min-height:56px;
+    padding:16px;
   }
   #sort-select{
     box-sizing:border-box!important;
