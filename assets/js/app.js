@@ -19481,19 +19481,28 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       addMessage('bot',e.message || 'Guidcy AI could not answer right now.');
     }finally{
       setBusy(false);
-      if(input) input.focus();
+      if(input&&$('grag-panel')?.classList.contains('on')) input.focus({preventScroll:true});
     }
   }
   function openPanel(){
     var panel=$('grag-panel'); if(!panel) return;
+    if(!panel.classList.contains('on')) panel._returnFocus=document.activeElement;
     panel.classList.add('on');
     panel.setAttribute('aria-hidden','false');
-    setTimeout(function(){var input=$('grag-input'); if(input) input.focus();},60);
+    $('grag-backdrop').hidden=false;
+    document.querySelector('.grag-launcher').setAttribute('aria-expanded','true');
+    window.guidcySyncModalScrollLock?.();
+    setTimeout(function(){var input=$('grag-input'); if(input&&panel.classList.contains('on')) input.focus({preventScroll:true});},60);
   }
   function closePanel(){
     var panel=$('grag-panel'); if(!panel) return;
     panel.classList.remove('on');
     panel.setAttribute('aria-hidden','true');
+    $('grag-backdrop').hidden=true;
+    document.querySelector('.grag-launcher').setAttribute('aria-expanded','false');
+    window.guidcySyncModalScrollLock?.();
+    var focus=panel._returnFocus;
+    (focus?.isConnected?focus:document.querySelector('.grag-launcher'))?.focus({preventScroll:true});
   }
   function mount(){
     if($('grag-panel')) return;
@@ -19501,6 +19510,8 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     launcher.type='button';
     launcher.className='grag-launcher';
     launcher.setAttribute('aria-label','Open Guidcy AI assistant');
+    launcher.setAttribute('aria-controls','grag-panel');
+    launcher.setAttribute('aria-expanded','false');
     launcher.innerHTML='<span>AI</span><span>Guidcy AI</span>';
     launcher.onclick=openPanel;
 
@@ -19508,10 +19519,25 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     panel.id='grag-panel';
     panel.className='grag-panel';
     panel.setAttribute('aria-hidden','true');
-    panel.innerHTML='<div class="grag-head"><div class="grag-title"><span>AI</span><div>Guidcy AI</div></div><button class="grag-close" type="button" aria-label="Close Guidcy AI">x</button></div><div id="grag-body" class="grag-body"><div class="grag-msg bot">Ask me about consultants, bookings, webinars, marketplace notes, payouts, refunds, or how Guidcy works.</div><div class="grag-suggestions"><button class="grag-chip" type="button">How do marketplace notes work?</button><button class="grag-chip" type="button">Where do sellers see payouts?</button><button class="grag-chip" type="button">How can I book a consultant?</button></div></div><form id="grag-form" class="grag-foot"><input id="grag-input" class="grag-input" maxlength="1200" autocomplete="off" placeholder="Ask Guidcy AI"><button id="grag-send" class="grag-send" type="submit" aria-label="Send question">></button></form>';
+    panel.setAttribute('role','dialog');
+    panel.setAttribute('aria-modal','true');
+    panel.setAttribute('aria-label','Guidcy AI assistant');
+    panel.innerHTML='<div class="grag-head"><div class="grag-title"><span>AI</span><div>Guidcy AI</div></div><button class="grag-close" type="button" aria-label="Close Guidcy AI"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="grag-body" class="grag-body"><div class="grag-msg bot">Ask me about consultants, bookings, webinars, marketplace notes, payouts, refunds, or how Guidcy works.</div><div class="grag-suggestions"><button class="grag-chip" type="button">How do marketplace notes work?</button><button class="grag-chip" type="button">Where do sellers see payouts?</button><button class="grag-chip" type="button">How can I book a consultant?</button></div></div><form id="grag-form" class="grag-foot"><input id="grag-input" class="grag-input" maxlength="1200" autocomplete="off" placeholder="Ask Guidcy AI"><button id="grag-send" class="grag-send" type="submit" aria-label="Send question"><svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13"/></svg></button></form>';
+    var backdrop=document.createElement('div');
+    backdrop.id='grag-backdrop';backdrop.className='grag-backdrop';backdrop.hidden=true;
+    backdrop.onclick=closePanel;
+    document.body.appendChild(backdrop);
     document.body.appendChild(panel);
     document.body.appendChild(launcher);
     panel.querySelector('.grag-close').onclick=closePanel;
+    panel.addEventListener('keydown',function(event){
+      if(event.key==='Escape'){event.preventDefault();closePanel();return;}
+      if(event.key!=='Tab')return;
+      var items=Array.from(panel.querySelectorAll('button:not(:disabled),input:not(:disabled),a[href]')).filter(function(el){return el.getClientRects().length;});
+      var first=items[0],last=items[items.length-1];
+      if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+      else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+    });
     panel.querySelector('#grag-form').onsubmit=function(ev){ev.preventDefault();send();};
     panel.querySelectorAll('.grag-chip').forEach(function(chip){chip.onclick=function(){send(chip.textContent);};});
     try{
@@ -28772,8 +28798,8 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
      dialog. Watch for any open overlay instead and lock the background centrally.
      body{overflow:hidden} alone is ignored by iOS Safari, so the body is pinned with
      position:fixed and the offset restored on close. */
-  var MODALS='dialog,.guidcy-crop-backdrop,.gmkt-modal,.gmkt-modal-backdrop,.modal-overlay,.guidcy-modal-backdrop,.gc-modal,.gw-modal,.wbn-modal-overlay,.wbn-delete-modal,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay';
-  var OVERLAYS='dialog[open],.guidcy-crop-backdrop.on,.gmkt-modal.on,.gmkt-modal-backdrop,.modal-overlay.on,.guidcy-modal-backdrop.on,.gc-modal.on,.gw-modal.on,.wbn-modal-overlay.on,.wbn-delete-modal.on,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay.on';
+  var MODALS='dialog,.grag-panel,.guidcy-crop-backdrop,.gmkt-modal,.gmkt-modal-backdrop,.modal-overlay,.guidcy-modal-backdrop,.gc-modal,.gw-modal,.wbn-modal-overlay,.wbn-delete-modal,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay';
+  var OVERLAYS='dialog[open],.grag-panel.on,.guidcy-crop-backdrop.on,.gmkt-modal.on,.gmkt-modal-backdrop,.modal-overlay.on,.guidcy-modal-backdrop.on,.gc-modal.on,.gw-modal.on,.wbn-modal-overlay.on,.wbn-delete-modal.on,#guidcy-admin-modal,#guidcy-consultant-batch-modal,.guidcy-auth-choice-overlay.on';
   var modals=new Set(),syncQueued=false;
   var lockedY=0, locked=false;
 

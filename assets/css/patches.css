@@ -1461,9 +1461,10 @@ body.gmob-open{overflow:hidden}
   #wbn-reg-modal{z-index:2147482500!important}
 
 /* === guidcy-final-root-qa-fix-css === */
-  #nav-right #guidcy-dashboard-btn{white-space:nowrap;}
+  #nav-right #guidcy-dashboard-btn{white-space:nowrap;border-radius:var(--rx);}
 
 /* === guidcy-rag-assistant-css === */
+.grag-backdrop{position:fixed;inset:0;z-index:99979;background:#0c182529;touch-action:none;overscroll-behavior:contain}.grag-backdrop[hidden]{display:none}.grag-panel .grag-head,.grag-panel .grag-foot{flex-shrink:0}.grag-panel{font-family:inherit!important}.grag-panel .grag-input{font-size:16px}.grag-close:hover{background:rgba(255,255,255,.25)}.grag-send:hover:not(:disabled){filter:brightness(.94)}.grag-chip:hover:not(:disabled){background:var(--blue-l);border-color:var(--blue)}
 .grag-launcher{position:fixed;right:20px;bottom:20px;z-index:99980;border:0;border-radius:999px;background:#10243E;color:#fff;box-shadow:0 18px 44px rgba(15,23,42,.24);min-height:48px;padding:0 18px;display:flex;align-items:center;gap:9px;font-weight:var(--font-weight-semibold,600);font-family:Inter,Arial,sans-serif;cursor:pointer}
   .grag-launcher span:first-child{width:26px;height:26px;border-radius:999px;background:#F2B84B;color:#10243E;display:grid;place-items:center;font-size:13px;font-weight:var(--font-weight-semibold,600)}
   .grag-panel{position:fixed;right:20px;bottom:82px;width:min(390px,calc(100vw - 28px));height:min(620px,calc(100vh - 110px));z-index:99981;background:#fff;border:1px solid #D8E3EF;border-radius:18px;box-shadow:0 28px 80px rgba(15,23,42,.24);display:none;overflow:hidden;font-family:Inter,Arial,sans-serif;color:#132338}
@@ -1471,8 +1472,8 @@ body.gmob-open{overflow:hidden}
   .grag-head{height:62px;display:flex;align-items:center;justify-content:space-between;padding:0 14px 0 18px;background:linear-gradient(135deg,#10243E,#1C6A73);color:#fff}
   .grag-title{display:flex;align-items:center;gap:10px;font-weight:var(--font-weight-semibold,600)}
   .grag-title span{width:32px;height:32px;border-radius:10px;background:#F2B84B;color:#10243E;display:grid;place-items:center}
-  .grag-close{width:36px;height:36px;border:0;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font-size:20px;line-height:1;cursor:pointer}
-  .grag-body{flex:1;overflow:auto;padding:16px;background:#F7FAFD;display:flex;flex-direction:column;gap:12px}
+  .grag-close{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.14);color:#fff;font-size:24px;line-height:1;cursor:pointer}
+  .grag-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px;background:#F7FAFD;display:flex;flex-direction:column;gap:12px}
   .grag-msg{max-width:86%;padding:11px 13px;border-radius:14px;line-height:1.45;font-size:14px;box-shadow:0 8px 22px rgba(15,23,42,.06);white-space:pre-wrap}
   .grag-msg.bot{align-self:flex-start;background:#fff;border:1px solid #E2EAF2;color:#1E3147}
   .grag-msg.user{align-self:flex-end;background:#1E72BE;color:#fff;border:1px solid #1E72BE}
@@ -1489,7 +1490,7 @@ body.gmob-open{overflow:hidden}
   .grag-foot{display:flex;gap:8px;padding:12px;border-top:1px solid #E2EAF2;background:#fff}
   .grag-input{flex:1;min-width:0;border:1px solid #D7E3EF;border-radius:13px;padding:11px 12px;font:inherit;font-size:14px;outline:none}
   .grag-input:focus{border-color:#1E72BE;box-shadow:0 0 0 3px rgba(30,114,190,.13)}
-  .grag-send{width:46px;border:0;border-radius:13px;background:#16A36A;color:#fff;font-weight:var(--font-weight-semibold,600);cursor:pointer}
+  .grag-send{display:grid;place-items:center;min-height:44px;flex-shrink:0;width:46px;border:0;border-radius:13px;background:#16A36A;color:#fff;font-weight:var(--font-weight-semibold,600);cursor:pointer}
   .grag-send:disabled,.grag-chip:disabled{opacity:.6;cursor:not-allowed}
   @media (max-width:640px){
     .grag-launcher{right:14px;bottom:14px;min-height:46px;padding:0 15px}

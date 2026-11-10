@@ -112,9 +112,32 @@ let browser;
  console.log('Guest logo loads; signing in replaces it with the account photo without reloading');
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(origin);await page.waitForSelector('.gnet-post');await page.waitForFunction(()=>document.querySelector('#gnet-me').textContent.includes('Test User'));
+ const dashboardAppearance=()=>page.locator('#nav-right #guidcy-dashboard-btn').evaluate(el=>({radius:getComputedStyle(el).borderRadius,height:el.getBoundingClientRect().height,background:getComputedStyle(el).backgroundColor}));
+ const homeDashboard=await dashboardAppearance();assert.ok(homeDashboard.height>=40,'Dashboard retains its original full size');assert.equal(homeDashboard.background,'rgb(30, 114, 190)');assert.ok(parseFloat(homeDashboard.radius)>=homeDashboard.height/2);
+ await page.locator('#nav-right #guidcy-dashboard-btn').click();await page.waitForSelector('#page-user-dash.on');await page.mouse.move(2,700);await page.waitForTimeout(180);assert.deepEqual(await dashboardAppearance(),homeDashboard,'Dashboard keeps its original size and rounded design after navigation');await page.evaluate(()=>window.guidcyNavigate('/'));await page.waitForSelector('#page-home.on');await page.waitForSelector('.gnet-post');
+
+ await page.locator('#guidcy-cookie-banner [data-cookie-choice=reject]').click();
+ // Guidcy AI shares the global modal lock, restores the page offset, and keeps its own content scrollable.
+ await page.evaluate(()=>window.scrollTo({top:500,behavior:'instant'}));const aiScroll=await page.evaluate(()=>scrollY);
+ await page.locator('.grag-launcher').click();await page.waitForFunction(()=>document.body.classList.contains('guidcy-modal-scroll-lock'));
+ assert.equal(await page.locator('#grag-panel').getAttribute('aria-modal'),'true');
+ const aiTop=await page.locator('#gnet-feed').evaluate(el=>el.getBoundingClientRect().top);
+ await page.mouse.move(5,400);await page.mouse.wheel(0,600);await page.waitForTimeout(80);assert.equal(await page.locator('#gnet-feed').evaluate(el=>el.getBoundingClientRect().top),aiTop,'AI backdrop prevents background scrolling');
+ await page.locator('#grag-body').evaluate(el=>{const filler=document.createElement('div');filler.className='test-ai-scroll';filler.style.minHeight='1000px';filler.textContent='Long conversation fixture';el.append(filler);});await page.locator('#grag-body').hover();await page.mouse.wheel(0,400);await page.waitForFunction(()=>document.querySelector('#grag-body').scrollTop>0);assert.equal(await page.locator('#gnet-feed').evaluate(el=>el.getBoundingClientRect().top),aiTop,'AI conversation scrolls independently');await page.locator('#grag-panel').screenshot({path:'/private/tmp/guidcy-ai-controls.png'});
+ await page.locator('#grag-input').focus();await page.keyboard.press('Escape');await page.waitForFunction(y=>!document.body.classList.contains('guidcy-modal-scroll-lock')&&Math.abs(scrollY-y)<2,aiScroll);
+ assert.equal(await page.locator('.grag-launcher').evaluate(el=>el===document.activeElement),true,'closing restores focus');
+ await page.locator('.grag-launcher').click();await page.waitForFunction(()=>document.body.classList.contains('guidcy-modal-scroll-lock'));
+ await page.evaluate(()=>{const d=document.createElement('dialog');d.id='ai-test-dialog';d.innerHTML='<button>Another dialog</button>';document.body.append(d);d.showModal();document.querySelector('.grag-close').click();});
+ await page.waitForTimeout(50);assert.equal(await page.evaluate(()=>document.body.classList.contains('guidcy-modal-scroll-lock')),true,'closing AI does not unlock another dialog');
+ await page.evaluate(()=>{const d=document.querySelector('#ai-test-dialog');d.close();d.remove();});await page.waitForFunction(()=>!document.body.classList.contains('guidcy-modal-scroll-lock'));
+ await page.locator('.grag-launcher').click();await page.evaluate(()=>{window.__beforeRagFetch=window.fetch;window.fetch=(url,options)=>String(url)==='/api/rag-chat'?new Promise(resolve=>window.__resolveRag=()=>resolve(new Response(JSON.stringify({answer:'Fixture answer'}),{status:200}))):window.__beforeRagFetch(url,options);});
+ await page.locator('#grag-input').fill('How can I book?');await page.locator('#grag-send').click();await page.waitForFunction(()=>!!window.__resolveRag);
+ await page.locator('.grag-close').click();await page.evaluate(()=>{window.__resolveRag();window.fetch=window.__beforeRagFetch;});await page.waitForFunction(()=>!document.querySelector('#grag-send').disabled);
+ assert.equal(await page.locator('.grag-launcher').evaluate(el=>el===document.activeElement),true,'a late response does not focus the closed AI panel');
+ await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
  await page.waitForSelector('#gnet-me .gnet-mini-cover img');assert.equal(await page.locator('#gnet-me .gnet-mini-cover').evaluate(el=>Math.abs(el.clientWidth/el.clientHeight-4)<.1),true,'cover reserves a 4:1 area even when source image has another ratio');
  assert.equal(await page.locator('link[rel=icon]').count(),5);assert.equal(await page.locator('link[rel=icon]').evaluateAll(links=>links.every(el=>el.href.includes('guidcy-mark-20261007'))),true);
- await page.locator('[data-cookie-choice=reject]').first().click();assert.equal(await page.locator('.gnet-post').count(),12);assert.equal(await page.locator('.gnet-post-body img').count(),0);assert.equal(await page.locator('#gnet-more').isVisible(),true);
+ assert.equal(await page.locator('.gnet-post').count(),12);assert.equal(await page.locator('.gnet-post-body img').count(),0);assert.equal(await page.locator('#gnet-more').isVisible(),true);
  // Long text is measured by rendered lines, while short posts need no toggle.
  const longPost=page.locator('#gnet-feed [data-post="aaaaaaaa-aaaa-4aaa-8aaa-000000000003"]'),moreText=longPost.locator('[data-action=expand]');
  await moreText.waitFor({state:'visible'});const previewHeight=await longPost.locator('.gnet-post-body').evaluate(el=>el.clientHeight);
@@ -167,15 +190,23 @@ let browser;
  await page.locator('#gnet-more').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===15);assert.equal(await page.locator('#gnet-more').isVisible(),false);
  const first=page.locator('.gnet-post').first();await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelectorAll('[data-follow="'+id+'"][aria-pressed="true"]').length>1,EXPERT);
  await page.evaluate(()=>window.__failSocial=true);await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelector('[data-follow="'+id+'"]').getAttribute('aria-pressed')==='true'&&!document.querySelector('[data-follow="'+id+'"]').disabled,EXPERT);
- await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
- assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)');
+ await first.locator('.gnet-post-body').dblclick();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
+ assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(30, 114, 190)');
  await page.evaluate(()=>window.__failSocial=true);await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-action=like]').getAttribute('aria-pressed')==='true'&&!document.querySelector('[data-action=like]').disabled);
- assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)','failed unlike restores the filled heart');
+ assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(30, 114, 190)','failed unlike restores the filled heart');
  await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='0 likes');
  assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'none');
  await first.locator('[data-action=like]').click();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');
+ await first.locator('.gnet-post-body').dblclick();assert.equal(await first.locator('[data-action=like]').getAttribute('aria-pressed'),'true','double-clicking an already liked post never unlikes it');
+ assert.equal(await page.evaluate(()=>window.__social.community_likes.length),1,'no duplicate likes');
  await first.locator('[data-action=save]').click();await page.waitForFunction(()=>document.querySelector('[data-save-label]').textContent==='Saved');
- await first.locator('[data-action=comments]').last().click();await first.locator('.gnet-comment-form textarea').fill('A useful professional discussion.');await first.locator('.gnet-comment-form button').click();await page.waitForSelector('.gnet-comment');assert.match(await first.locator('.gnet-comments').innerText(),/useful professional/);
+ await first.locator('[data-action=comments]').last().click();await first.locator('.gnet-comment-form textarea').waitFor();assert.equal(await first.locator('.gnet-comment-form button').isVisible(),false,'Post starts hidden');assert.equal(await first.locator('.gnet-comments-heading').innerText(),'Comments');await first.locator('.gnet-comment-form textarea').fill('   ');assert.equal(await first.locator('.gnet-comment-form button').isVisible(),false,'whitespace keeps Post hidden');await first.locator('.gnet-comment-form textarea').fill('Draft');assert.equal(await first.locator('.gnet-comment-form button').isVisible(),true,'typing reveals Post');await first.locator('.gnet-comment-form textarea').fill('');assert.equal(await first.locator('.gnet-comment-form button').isVisible(),false,'clearing hides Post');await first.locator('.gnet-comment-form textarea').fill('A useful professional discussion.');await first.locator('.gnet-comment-form button').click();await page.waitForSelector('.gnet-comment');assert.match(await first.locator('.gnet-comments').innerText(),/useful professional/);assert.equal(await first.locator('.gnet-comment-form button').isVisible(),false,'successful posting resets Post visibility');
+ assert.equal(await first.locator('.gnet-comment-form').evaluate(el=>el.compareDocumentPosition(el.parentElement.querySelector('.gnet-comment-list'))&Node.DOCUMENT_POSITION_FOLLOWING),4,'composer appears above comments');
+ assert.equal(await first.locator('.gnet-comment time[datetime]').count(),1,'comments have real timestamps');
+ await first.locator('.gnet-comments').screenshot({path:'/private/tmp/guidcy-comments-desktop.png'});
+ await first.locator('[data-delete-comment]').click();await page.waitForFunction(()=>!document.querySelector('.gnet-comment'));
+ assert.equal(await page.evaluate(()=>window.__social.community_comments.length),0,'own comment deletion remains persisted');
+ await first.locator('.gnet-comment-form textarea').fill('Retain my comment draft on failure.');await page.evaluate(()=>window.__failSocial=true);await first.locator('.gnet-comment-form button').click();await first.locator('.gnet-comment-form .gnet-form-error').filter({hasText:'not sent'}).waitFor();assert.equal(await first.locator('.gnet-comment-form textarea').inputValue(),'Retain my comment draft on failure.');
  await first.locator('[data-action=share]').click();assert.match(await page.locator('#gnet-share-url').inputValue(),/\?post=aaaaaaaa/);assert.equal(await page.locator('#gnet-dialog a[target=_blank]').count(),3);await page.locator('#gnet-dialog [data-close]').click();
  await page.locator('.gnet-compose-trigger').click();await page.locator('#gnet-body').fill('My achievement from the browser test');
  await page.locator('#gnet-file').setInputFiles({name:'test.png',mimeType:'image/png',buffer:fs.readFileSync(path.resolve(__dirname,'../favicon-192x192.png'))});
@@ -227,7 +258,7 @@ let browser;
   await page.locator('.gnet-activity').screenshot({path:'/private/tmp/guidcy-profile-post-rail-'+width+'.png'});
  }
  await page.setViewportSize({width:1365,height:1000});
- const profileLike=page.locator('#gnet-profile-posts [data-action=like]').first();await profileLike.click();assert.equal(await profileLike.getAttribute('aria-pressed'),'true');assert.equal(await profileLike.locator('svg').evaluate(el=>getComputedStyle(el).fill),'rgb(229, 57, 53)');await profileLike.click();
+ const profileLike=page.locator('#gnet-profile-posts [data-action=like]').first();await profileLike.click();assert.equal(await profileLike.getAttribute('aria-pressed'),'true');assert.equal(await profileLike.locator('svg').evaluate(el=>getComputedStyle(el).fill),'rgb(30, 114, 190)');await profileLike.click();
  // Refresh activity without removing the existing card or profile header.
  await page.evaluate(()=>{window.__holdFeed=true;window.__profileCard=document.querySelector('#gnet-profile-posts .gnet-post');window.__profileHeader=document.querySelector('.gnet-profile-header')});
  await page.locator('[data-action=refresh-activity][data-tab=posts]').click();
@@ -357,6 +388,43 @@ let browser;
  assert.equal(educationCleared.degree,'');assert.equal(educationCleared.college,'');assert.equal(educationCleared.searchDegree,'');assert.doesNotMatch(educationCleared.card,/M.Tech|IIT Roorkee/);
 
  assert.equal(await page.evaluate(()=>window.__socialQueries.some(q=>['community_connection','community_network'].includes(q.rpc))),false,'no retired connection API requests');
+ // Real touch input on a mobile viewport exercises the gesture rather than dispatching a desktop double click.
+ const touch=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+ await touch.route('**/*',route=>{const url=route.request().url();if(url.includes('/assets/vendor/supabase.js'))return route.fulfill({contentType:'text/javascript',body:fixture});return url.startsWith(origin)?route.continue():route.abort();});
+ const mobile=await touch.newPage();mobile.on('pageerror',e=>errors.push(e.message));await mobile.goto(origin);await mobile.waitForSelector('.gnet-post');await mobile.waitForFunction(()=>document.querySelector('#gnet-me').textContent.includes('Test User'));await mobile.evaluate(()=>document.fonts.ready);
+ await mobile.locator('#guidcy-cookie-banner [data-cookie-choice=reject]').click();
+ const search=await mobile.locator('.gnet-site-search-field').evaluate(el=>({height:el.getBoundingClientRect().height,input:getComputedStyle(el.querySelector('input')).fontSize,placeholder:getComputedStyle(el.querySelector('input'),'::placeholder').fontSize,button:!!el.querySelector('button'),radius:getComputedStyle(el).borderRadius}));
+ assert.ok(search.height<=48,'mobile search stays compact');assert.equal(search.input,'16px','input avoids iOS focus zoom');assert.equal(search.placeholder,'13px');assert.equal(search.button,false,'search has no visible submit button');assert.equal(search.radius,'28px','search has rounded ends like the composer');
+ await mobile.locator('.gnet-site-search-field').screenshot({path:'/private/tmp/guidcy-rounded-search-mobile.png'});
+ const mobilePost=mobile.locator('.gnet-post').first(),body=mobilePost.locator('.gnet-post-body');await body.scrollIntoViewIfNeeded();const box=await body.boundingBox(),x=box.x+25,y=box.y+18;
+ await mobile.touchscreen.tap(x,y);assert.equal(await mobilePost.locator('[data-action=like]').getAttribute('aria-pressed'),'false','one tap does not like');await mobile.touchscreen.tap(x,y);await mobile.waitForFunction(()=>window.__social.community_likes.length===1);
+ await mobile.touchscreen.tap(x,y);await mobile.touchscreen.tap(x,y);assert.equal(await mobile.evaluate(()=>window.__social.community_likes.length),1,'repeated double-taps never unlike or duplicate');
+ await mobilePost.locator('[data-action=like]').click();await mobile.waitForFunction(()=>window.__social.community_likes.length===0);
+ await body.evaluate(el=>{el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true,pointerId:9,clientX:25,clientY:25}));el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerType:'touch',isPrimary:true,pointerId:9,clientX:25,clientY:70}));el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true,pointerId:9,clientX:25,clientY:25}));el.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerType:'touch',isPrimary:true,pointerId:9,clientX:25,clientY:25}));});assert.equal(await mobile.evaluate(()=>window.__social.community_likes.length),0,'a swipe followed by a tap does not like');
+ await mobilePost.locator('[data-action=comments]').last().click();await mobilePost.locator('.gnet-comment-form textarea').fill('A compact mobile comment.');const postButton=await mobilePost.locator('.gnet-comment-submit').evaluate(el=>({target:el.getBoundingClientRect().height,pill:el.querySelector('span').getBoundingClientRect().height,width:el.querySelector('span').getBoundingClientRect().width,bar:el.closest('.gnet-comment-input').getBoundingClientRect().height}));assert.ok(postButton.target>=44,'compact Post keeps a touch target');assert.equal(postButton.pill,28,'visible Post pill is compact');assert.ok(postButton.width>=56,'Post pill has room around its label');assert.ok(postButton.pill<postButton.bar*.7,'Post is inset within the comment bar');await mobilePost.locator('.gnet-comment-form').screenshot({path:'/private/tmp/guidcy-comment-post-button-mobile.png'});await mobilePost.locator('.gnet-comment-form button').click();await mobilePost.locator('.gnet-comment').waitFor();assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await mobilePost.locator('.gnet-comments').screenshot({path:'/private/tmp/guidcy-comments-mobile.png'});
+ await mobile.goto(origin+'/consultant/test-expert');await mobile.waitForSelector('#gnet-profile-posts .gnet-post');const activityPost=mobile.locator('#gnet-profile-posts .gnet-post').first();await activityPost.locator('[data-action=comments]').last().click();await activityPost.locator('.gnet-comment-form textarea').waitFor();assert.equal(await activityPost.locator('.gnet-comments-more').isVisible(),false,'empty comments have no pagination control');assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'comments fit narrow profile activity cards');
+ await activityPost.screenshot({path:'/private/tmp/guidcy-comments-profile-mobile.png'});
+ await mobile.evaluate(()=>window.guidcyNavigate('/'));await mobile.waitForSelector('.gnet-post');await mobile.locator('#gnet-site-search').fill('webinars');await mobile.locator('#gnet-site-search').press('Enter');await mobile.waitForSelector('#page-webinar.on');
+ // Long company and college names remain fully wrapped in the right-hand profile column.
+ await mobile.evaluate(async owner=>{await window.guidcyGetSupabaseClient().rpc('community_update_identity',{p_data:{company:'Guidcy Technologies Private Limited',college:'Lal Bahadur Shastri Institute of Management, New Delhi'}});window.guidcyNavigate('/profile?member='+owner);},OWNER);
+ await mobile.waitForSelector('.gnet-organizations .gnet-education');
+ for(const width of [320,390,768]){
+  await mobile.setViewportSize({width,height:900});await mobile.evaluate(()=>document.fonts.ready);
+  const organizations=await mobile.locator('.gnet-profile-intro').evaluate(el=>{const heading=el.querySelector('.gnet-profile-heading').getBoundingClientRect(),org=el.querySelector('.gnet-organizations').getBoundingClientRect();return {right:org.left>=heading.right,top:Math.abs(org.top-heading.top),names:[...el.querySelectorAll('.gnet-organizations strong')].map(n=>({text:n.textContent,wrap:getComputedStyle(n).whiteSpace,fits:n.scrollWidth<=n.clientWidth+1})),fits:document.documentElement.scrollWidth<=innerWidth};});
+  assert.ok(organizations.right,'organizations stay on the right at '+width);assert.ok(organizations.top<=4,'organizations share the introduction row');assert.ok(organizations.fits);assert.equal(organizations.names.length,2);assert.ok(organizations.names.every(n=>n.wrap==='normal'&&n.fits),'long organization names wrap without cropping');
+  await mobile.locator('.gnet-profile-header').screenshot({path:'/private/tmp/guidcy-profile-organizations-'+width+'.png'});
+ }
+ await mobile.setViewportSize({width:390,height:844});
+ // Check the shared controls on public routes as a signed-out mobile visitor.
+ await mobile.evaluate(()=>{window.__guest=true;window.__authListeners.forEach(fn=>fn('SIGNED_OUT',null));});
+ for(const route of ['/find-experts','/marketplace','/webinars','/find-jobs','/blog','/funds-grants','/career-ai-finder']){
+  await mobile.evaluate(route=>window.guidcyNavigate(route),route);await mobile.waitForFunction(()=>!!document.querySelector('.page.on'));await mobile.evaluate(()=>document.fonts.ready);
+  assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'public controls fit mobile '+route);
+  if(['/find-experts','/marketplace','/webinars'].includes(route))await mobile.screenshot({path:'/private/tmp/guidcy-controls-'+route.slice(1)+'.png'});
+ }
+ await touch.close();
+ console.log('AI scroll lock, touch likes, blue hearts, compact search and comment controls passed');
  assert.deepEqual(errors,[]);
  // Read-only smoke test against the configured public database. No fixture/auth writes.
  if(process.env.COMMUNITY_LIVE==='1'){
@@ -380,4 +448,4 @@ let browser;
   console.log('Public Supabase smoke check passed: real experts, empty feed, missing post, existing booking profile, no obsolete homepage cache reads.');
  }
  console.log('Identity, follows, endorsements, modal scroll lock, cold/warm profile layout and community + professional profile checks passed: CRUD, skills, career/education/portfolio editors, featured items, activity tabs/pagination, followers, sharing, guest gates, single renderer, 320/390/1365px.');
-})().catch(async e=>{console.error(e);const page=browser?.contexts()[0]?.pages()[0];if(page){console.error(await page.evaluate(()=>({url:location.href,feed:document.querySelector('#gnet-feed')?.textContent.slice(0,200),queries:window.__socialQueries?.slice(-8)})));await page.screenshot({path:'/private/tmp/guidcy-community-failure.png'});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.close();});
+})().catch(async e=>{console.error(e);const page=browser?.contexts()[0]?.pages()[0];for(const c of browser?.contexts()||[])for(const p of c.pages())console.error('Open page',await p.evaluate(()=>({url:location.href,fixture:!!window.__social})).catch(()=>({closed:true})));if(page){console.error(await page.evaluate(()=>({url:location.href,feed:document.querySelector('#gnet-feed')?.textContent.slice(0,200),queries:window.__socialQueries?.slice(-8)})));await page.screenshot({path:'/private/tmp/guidcy-community-failure.png'});}process.exitCode=1;}).finally(async()=>{await browser?.close();server.close();});

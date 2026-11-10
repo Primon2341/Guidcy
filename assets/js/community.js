@@ -154,6 +154,31 @@
     catch (_) {p[key]=before;p.likes=old;button.setAttribute('aria-pressed',String(before));paint();notice('Could not save your change. Please try again.');}
     finally {button.disabled=false;}
   }
+  function postContent(target) {
+    return target instanceof Element&&!target.closest('a,button,input,textarea,select')?target.closest('.gnet-post-body,.gnet-post-image'):null;
+  }
+  function likePostContent(content) {
+    const card=content?.closest('[data-post]'),p=card&&(profilePosts.get(card.dataset.post)||state.rows.get(card.dataset.post));
+    const button=card?.querySelector('[data-action=like]');
+    if(p&&!p.liked&&button&&!button.disabled)toggleReaction(button,p,false);
+  }
+  // Touch taps must stay on the same post and cannot be part of a swipe/scroll.
+  let touchDown=null,lastTap=null;
+  document.addEventListener('pointerdown',e=>{
+    if(e.pointerType!=='touch')return;
+    const content=postContent(e.target);
+    if(!e.isPrimary||!content){touchDown=null;lastTap=null;return;}
+    touchDown={content,id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp};
+  },{passive:true});
+  document.addEventListener('pointercancel',()=>{touchDown=null;lastTap=null;},{passive:true});
+  document.addEventListener('pointerup',e=>{
+    if(e.pointerType!=='touch')return;
+    const down=touchDown;touchDown=null;
+    if(!down||down.id!==e.pointerId||e.timeStamp-down.at>300||Math.hypot(e.clientX-down.x,e.clientY-down.y)>12){lastTap=null;return;}
+    if(lastTap&&lastTap.content===down.content&&e.timeStamp-lastTap.at<=320&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<=28){lastTap=null;likePostContent(down.content);}
+    else lastTap={content:down.content,x:e.clientX,y:e.clientY,at:e.timeStamp};
+  },{passive:true});
+  document.addEventListener('dblclick',e=>likePostContent(postContent(e.target)));
   async function compress(file) {
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw new Error('Choose a JPG, PNG or WebP image under 15 MB.');
     const bitmap=await createImageBitmap(file);
@@ -194,19 +219,39 @@
   }
   async function comments(card,p,append=false) {
     const section=card.querySelector('.gnet-comments');
-    if(!append&&!section.hidden){section.hidden=true;return;}
+    if(!append&&!section.hidden){section.hidden=true;section._request=(section._request||0)+1;return;}
     section.hidden=false;
+    const request=section._request=(section._request||0)+1;
     if(!append){section.innerHTML='<p role="status">Loading comments…</p>';section._cursor=null;}
     try {
       let q=client().from('community_comments').select('id,author_id,body,created_at').eq('post_id',p.id).order('created_at').order('id').limit(11);
       const cursor=section._cursor;if(cursor)q=q.or(`created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`);
-      const rows=await result(q);await people(rows.slice(0,10).map(r=>r.author_id));if(!card.isConnected)return;
-      if(!append){section.innerHTML='<div class="gnet-comment-list"></div><button class="gnet-text-link gnet-comments-more">More comments</button><form class="gnet-comment-form"><label class="sr-only" for="comment-'+p.id+'">Write a comment</label><textarea id="comment-'+p.id+'" maxlength="1500" rows="2" placeholder="Add to the conversation…" required></textarea><button class="gnet-button" type="submit">Comment</button><p class="gnet-form-error" role="alert"></p></form>';section.querySelector('.gnet-comments-more').onclick=e=>{e.target.disabled=true;comments(card,p,true);};section.querySelector('form').onsubmit=async e=>{e.preventDefault();if(!requireUser())return;const form=e.target,input=form.querySelector('textarea'),button=form.querySelector('button'),error=form.querySelector('.gnet-form-error');if(!input.value.trim())return;button.disabled=true;error.textContent='';try{await result(client().from('community_comments').insert({post_id:p.id,author_id:state.user.id,body:input.value.trim()}));input.value='';p.comments=Number(p.comments)+1;card.querySelector('[data-comment-count]').textContent=p.comments;section.hidden=true;comments(card,p);}catch(_){error.textContent='Comment not sent. Please try again.';}finally{button.disabled=false;}};}
-      section.querySelector('.gnet-comment-list').insertAdjacentHTML('beforeend',rows.slice(0,10).map(c=>`<div class="gnet-comment" data-comment="${esc(c.id)}">${identity(person(c.author_id))}<p>${esc(c.body)}</p>${c.author_id===state.user?.id?'<button class="gnet-text-link" data-delete-comment>Delete comment</button>':''}</div>`).join(''));
+      const rows=await result(q);await people([...rows.slice(0,10).map(r=>r.author_id),...(state.user?[state.user.id]:[])]);if(!card.isConnected||request!==section._request)return;
+      if(!append){
+        section.innerHTML=`<form class="gnet-comment-form">${avatar(state.user?person(state.user.id):null)}<div class="gnet-comment-input"><label class="sr-only" for="comment-${esc(p.id)}">Write a comment</label><textarea id="comment-${esc(p.id)}" maxlength="1500" rows="1" placeholder="Add a comment…" required></textarea><button class="gnet-button gnet-comment-submit" type="submit" hidden><span>Post</span></button></div><p class="gnet-form-error" role="alert"></p></form><div class="gnet-comments-heading">Comments</div><div class="gnet-comment-list"></div><button class="gnet-text-link gnet-comments-more">See more comments</button>`;
+        section.querySelector('.gnet-comments-more').onclick=e=>{e.target.disabled=true;comments(card,p,true);};
+        section.querySelector('form').oninput=e=>{const form=e.currentTarget;form.querySelector('[type=submit]').hidden=!form.querySelector('textarea').value.trim();};
+        section.querySelector('form').onsubmit=async e=>{
+          e.preventDefault();if(!requireUser())return;
+          const form=e.target,input=form.querySelector('textarea'),button=form.querySelector('button'),error=form.querySelector('.gnet-form-error');
+          if(button.disabled||!input.value.trim())return;
+          button.disabled=true;error.textContent='';
+          try{
+            await result(client().from('community_comments').insert({post_id:p.id,author_id:state.user.id,body:input.value.trim()}));
+            input.value='';button.hidden=true;p.comments=Number(p.comments)+1;card.querySelector('[data-comment-count]').textContent=p.comments;
+            section.hidden=true;comments(card,p);
+          }catch(_){error.textContent='Comment not sent. Please try again.';}
+          finally{button.disabled=false;}
+        };
+      }
+      section.querySelector('.gnet-comment-list').insertAdjacentHTML('beforeend',rows.slice(0,10).map(c=>{
+        const author=person(c.author_id),date=new Date(c.created_at);
+        return `<div class="gnet-comment" data-comment="${esc(c.id)}"><header>${identity(author,false)}</header><div class="gnet-comment-meta"><time datetime="${esc(c.created_at)}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}))}</time>${follow(author)}</div><p>${esc(c.body)}</p>${c.author_id===state.user?.id?'<button class="gnet-text-link" data-delete-comment>Delete comment</button>':''}</div>`;
+      }).join(''));
       section._cursor=rows.slice(0,10).at(-1)||cursor;
       const more=section.querySelector('.gnet-comments-more');more.hidden=rows.length<=10;more.disabled=false;
       section.querySelectorAll('[data-delete-comment]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await result(client().from('community_comments').delete().eq('id',b.closest('[data-comment]').dataset.comment).eq('author_id',state.user.id));b.closest('[data-comment]').remove();p.comments=Math.max(0,Number(p.comments)-1);card.querySelector('[data-comment-count]').textContent=p.comments;}catch(_){notice('Could not delete the comment.');b.disabled=false;}});
-    }catch(_){if(!append){section.innerHTML='<button class="gnet-button">Comments couldn’t load. Retry</button>';section.querySelector('button').onclick=()=>{section.hidden=true;comments(card,p);};}else{notice('Could not load more comments.');section.querySelector('.gnet-comments-more').disabled=false;}}
+    }catch(_){if(request!==section._request||!card.isConnected)return;if(!append){section.innerHTML='<button class="gnet-button">Comments couldn’t load. Retry</button>';section.querySelector('button').onclick=()=>{section.hidden=true;comments(card,p);};}else{notice('Could not load more comments.');section.querySelector('.gnet-comments-more').disabled=false;}}
   }
   function share(p) {
     shareLink(postURL(p.id),'Share this post');

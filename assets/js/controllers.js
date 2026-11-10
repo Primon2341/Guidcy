@@ -49,7 +49,10 @@ var TAP_TIME_LIMIT=850;
  }
 
  function unlockDashboardScroll(){
- var raw=document.body&&document.body.dataset?document.body.dataset.dashScrollY:'';
+ var raw=(document.body&&document.body.dataset?document.body.dataset.dashScrollY:'')||'';
+ // Escape and passive refreshes also call this with no drawer open. Do not
+ // clear another modal's body offset or scroll the document back to zero.
+ if(raw===''&&!document.body.classList.contains('guidcy-dash-drawer-locked')&&!document.body.classList.contains('dash-menu-open'))return;
  var restoreY=parseInt(raw||'0',10)||0;
  document.documentElement.classList.remove('guidcy-dash-drawer-locked');
  document.body.classList.remove('guidcy-dash-drawer-locked','guidcy-dash-drawer-open','dash-menu-open');
