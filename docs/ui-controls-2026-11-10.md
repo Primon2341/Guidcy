@@ -75,3 +75,5 @@ Follow/Following controls now use an outlined rounded button with a plus/check i
 Follow/Following controls retain the icon, text weight and interaction behavior with their outer border removed.
 
 Follow and Following now remain bold (700) and Guidcy blue in both states, including while the request is pending. Pending controls remain temporarily disabled to prevent duplicate requests and expose aria-busy; the previous gray Following label and faded saving state are removed. Existing borderless styling, hover feedback and follow/unfollow rollback remain.
+
+Mobile Follow controls keep a transparent background through touch interactions; hover feedback applies only to devices with a fine pointer and hover support. This prevents touch browsers retaining a pill-like hover background until another tap. Real mobile touch checks cover follow and unfollow on feed posts and consultant profiles without touching elsewhere to clear their state.
