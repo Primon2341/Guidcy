@@ -357,13 +357,21 @@
 /* Native modal top layer gives the same full-screen reader on desktop and mobile. */
 .gnet-document-dialog[open]{display:flex;flex-direction:column;position:fixed;inset:0;width:100dvw;height:100dvh;max-width:none!important;max-height:none!important;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:#fff;color:var(--ink);box-sizing:border-box}
 .gnet-document-dialog::backdrop{background:#15253580}
-.gnet-document-dialog>header{display:flex;justify-content:flex-end;align-items:center;flex-shrink:0;min-height:52px;padding:4px 12px;padding-top:max(4px,env(safe-area-inset-top));border-bottom:1px solid #e0e6e9;background:#fff}
+.gnet-document-dialog>header{display:flex;justify-content:space-between;align-items:center;flex-shrink:0;min-height:52px;padding:4px 12px;padding-top:max(4px,env(safe-area-inset-top));border-bottom:1px solid #e0e6e9;background:#fff}
+.gnet-document-zoom{display:flex;align-items:center;gap:4px}
+.gnet-document-zoom button{display:grid;place-items:center;min-width:44px;min-height:44px;padding:6px 10px;border:0;border-radius:8px;background:transparent;color:var(--blue);font-size:20px;font-weight:700;cursor:pointer}
+.gnet-document-zoom [data-pdf-zoom-reset]{min-width:68px;font-size:13px;font-variant-numeric:tabular-nums}
+.gnet-document-zoom button:disabled{opacity:.4;cursor:default}
+@media(hover:hover) and (pointer:fine){.gnet-document-zoom button:hover:not(:disabled){background:var(--blue-l)}}
 .gnet-document-dialog .gnet-document-close{display:grid;place-items:center;min-width:44px;min-height:44px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--ink2);font-size:28px;line-height:1;cursor:pointer}
 .gnet-document-dialog .gnet-document-close:hover{background:transparent;color:var(--blue-d)}
 .gnet-document-dialog:focus{outline:none}
 .gnet-document-dialog .gnet-document-close:focus-visible{outline:none;color:var(--blue-d);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 .gnet-document-dialog>.gnet-document{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;margin:0;border:0}
-.gnet-document-dialog .gnet-document-stage{flex:1;min-height:0;max-height:none;aspect-ratio:auto!important}
+.gnet-document-dialog .gnet-document-stage{display:block;flex:1;min-height:0;max-height:none;aspect-ratio:auto!important;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y pinch-zoom}
+.gnet-document-dialog .gnet-document-stage>button{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);margin:0}
+.gnet-document-page{display:grid;place-items:center;min-width:100%;min-height:100%}
+.gnet-document-dialog .gnet-document-page canvas{max-width:none!important;max-height:none}
 .gnet-document-dialog .gnet-document-footer{flex-shrink:0;padding-bottom:max(6px,env(safe-area-inset-bottom))}
 .gnet-document-dialog [data-pdf-expand]{visibility:hidden}
 

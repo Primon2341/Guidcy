@@ -52,3 +52,12 @@ The expand button opens a native modal covering the viewport on desktop and mobi
 Local browser checks cover 390/1365px full-screen dimensions, larger desktop rendering, page preservation, close/Escape, focus/scroll restoration, no duplicate document download, heart feedback in the modal, normalized snapshots and profile-navigation cleanup. The updated frontend remains local and requires deployment.
 
 The full-screen close control is a plain cross with no circular background/border. Opening focuses the dialog rather than drawing a ring around the cross; keyboard users retain an underline focus indicator and a 44px touch target.
+
+
+## Full-screen keyboard paging and zoom
+
+Left/right arrow keys now change pages from anywhere within the full-screen reader, including immediately after opening and after using toolbar buttons. Rendering keeps focus inside the reader when a focused button is temporarily disabled. Inline keyboard paging remains scoped to its page area.
+
+The reader toolbar adds zoom out, a percentage/Fit page button and zoom in (50–300% in 25% steps). The +/− keys zoom, and 0 restores fit-to-page; browser Ctrl/Cmd shortcuts are preserved. Enlarged pages scroll in both directions with background scrolling still locked. Zoom persists across page changes, each new page starts at the top, and mobile panning at enlarged sizes does not trigger page swipes. Rendering uses the existing PDF document/worker and caps raster resolution to bound memory on large displays. Closing restores the centered inline reader; cache snapshots remove transient zoom wrappers and controls.
+
+Build and real PDF.js browser checks passed at 390/1365px for keyboard focus, page boundaries, zoom buttons/shortcuts, 300% scrollability, raster limits, fit reset, close/Escape, page/scroll restoration and no extra PDF download. Existing upload/edit/delete, public viewing, retries, likes and 320–1365px inline layout checks also pass. Local frontend changes are not deployed.

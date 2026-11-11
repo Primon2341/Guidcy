@@ -35,7 +35,7 @@
   // Full-screen readers are transient UI. Persist their document inline instead.
   copy.querySelectorAll('dialog.gnet-document-dialog').forEach(function(dialog){
    var reader=dialog.querySelector('.gnet-document'),placeholder=dialog.parentElement.querySelector(':scope > .gnet-document-placeholder');
-   if(reader&&placeholder){var expand=reader.querySelector('[data-pdf-expand]');if(expand)expand.setAttribute('aria-expanded','false');placeholder.replaceWith(reader)}
+   if(reader&&placeholder){var expand=reader.querySelector('[data-pdf-expand]'),page=reader.querySelector('.gnet-document-page');if(expand)expand.setAttribute('aria-expanded','false');if(page)page.replaceWith(page.querySelector('canvas'));placeholder.replaceWith(reader)}
    dialog.remove();
   });
   copy.querySelectorAll('script,iframe,object,embed,[data-auth-retry]').forEach(function(n){n.remove()});
