@@ -26740,8 +26740,8 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   var role='';
   try{role=clean((window.currentProfile&&window.currentProfile.role)||window.loggedIn).toLowerCase()}catch(_){}
   if(role==='admin')return dashboardUrl('swAD',dashboards.swAD.fallback);
-  if(role==='consultant')return dashboardUrl('swCD',dashboards.swCD.fallback);
-  return dashboardUrl('swUD',dashboards.swUD.fallback);
+  // A standalone sign-in opens the community; explicit return/booking paths win above.
+  return '/';
  }
  var loginPromise=null;
  window.guidcyPrepareOAuthLogin=async function(){

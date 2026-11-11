@@ -59,3 +59,6 @@ Find Expert mobile controls: the search field is reduced from 58px to 46px high,
 
 
 Profile loading now uses one shared header-shaped placeholder for user and consultant profiles, reserving the cover, avatar and text positions instead of a wide grey strip. Dedicated profile placeholders bypass the generic panel skeleton/extra loading bar; activity is treated as secondary content. Profile details and posts use small inline loading text. Existing cached profiles remain visible during revalidation, errors keep their retry UI, and booking markup is unchanged. Slow-read fixture checks cover cold member/consultant profiles at 390/1365px; the general loading lifecycle checks also pass.
+
+
+Normal user and consultant sign-in now falls back to the homepage instead of automatically opening a dashboard/Upcoming Sessions. Explicit return URLs and pending booking/purchase actions keep priority. The standalone admin login still opens the admin dashboard. Password and Google sign-in use the same final destination controller, and passive auth events do not replay it.

@@ -167,8 +167,9 @@ const server = http.createServer((req, res) => {
  assert.equal(new URL(page.url()).pathname, '/login');
  await page.locator('#li-pass').fill('test-password');
  assert.equal(await page.evaluate(() => window.doLogin()), true);
- const defaultPath = role === 'admin' ? '/admin-dashboard' : role === 'consultant' ? '/consultant-dashboard' : '/dashboard';
+ const defaultPath = role === 'admin' ? '/admin-dashboard' : '/';
  await page.waitForFunction(expected => location.pathname === expected, defaultPath);
+ await page.waitForTimeout(1000);assert.equal(new URL(page.url()).pathname,defaultPath,'direct login cannot be redirected to Upcoming Sessions by a delayed callback');
  assert.equal(await page.evaluate(() => window.currentProfile.role), role);
  await page.evaluate(() => window.logOut());
  await page.goto(origin + '/login');
