@@ -21997,7 +21997,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
       var seen=new Set(),matches=data.matches.filter(function(match){var id=match.consultant?.id;if(!id||!match.hits?.length||seen.has(String(id)))return false;seen.add(String(id));return true;});
       entry.at=Date.now();
       if(!matches.length){box.innerHTML='';box.style.display='none';return;}
-      box.innerHTML='<h3>Experts matching your search</h3><p>Registered consultants whose profiles match your keywords.</p><div class="grid browse-grid guidcy-recommended-expert-grid guidcy-adaptive-grid">'+matches.map(recCard).join('')+'</div>';
+      box.innerHTML='<h3>Need help landing this role?</h3><div class="grid browse-grid guidcy-recommended-expert-grid guidcy-adaptive-grid">'+matches.map(recCard).join('')+'</div>';
     }catch(error){
       if(current()){entry.at=0;box.innerHTML='<p>Expert suggestions are temporarily unavailable.</p><button type="button" class="btn" onclick="window.GuidcyAdaptiveExperts.run()">Try again</button>';}
     }finally{clearTimeout(timeout);if(sequence===entry.sequence){entry.pending=false;entry.controller=null;}}
