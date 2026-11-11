@@ -73,3 +73,5 @@ PDF attachments and their migration/deployment status are documented in [PDF pos
 Follow/Following controls now use an outlined rounded button with a plus/check icon, a stronger text weight and clear hover/focus states. Following uses a neutral outline instead of the old green badge appearance. The existing immediate toggle, counts, duplicate protection and error rollback remain unchanged across posts, profiles, suggestions and people lists.
 
 Follow/Following controls retain the icon, text weight and interaction behavior with their outer border removed.
+
+Follow and Following now remain bold (700) and Guidcy blue in both states, including while the request is pending. Pending controls remain temporarily disabled to prevent duplicate requests and expose aria-busy; the previous gray Following label and faded saving state are removed. Existing borderless styling, hover feedback and follow/unfollow rollback remain.

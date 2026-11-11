@@ -156,7 +156,7 @@
   }
   function syncFollow(id) {
     const p=person(id);
-    document.querySelectorAll(`[data-follow="${id}"]`).forEach(b=>{const pressed=String(!!p.is_following);if(b.getAttribute('aria-pressed')!==pressed||!b.querySelector('[data-follow-label]'))b.innerHTML=followLabel(p.is_following);b.setAttribute('aria-pressed',pressed);b.setAttribute('aria-label',(p.is_following?'Unfollow ':'Follow ')+p.name);b.disabled=state.follows.has(id);});
+    document.querySelectorAll(`[data-follow="${id}"]`).forEach(b=>{const pressed=String(!!p.is_following);if(b.getAttribute('aria-pressed')!==pressed||!b.querySelector('[data-follow-label]'))b.innerHTML=followLabel(p.is_following);b.setAttribute('aria-pressed',pressed);b.setAttribute('aria-label',(p.is_following?'Unfollow ':'Follow ')+p.name);b.disabled=state.follows.has(id);b.setAttribute('aria-busy',String(b.disabled));});
     document.querySelectorAll(`[data-follow-count="${id}"]`).forEach(el=>el.innerHTML=followCounts(p));
   }
   async function toggleFollow(id) {
