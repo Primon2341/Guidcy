@@ -27,3 +27,19 @@ The updated frontend is built locally in `public/`; it has not been deployed to 
 - `tests/post-documents-schema.cjs`: isolated PostgreSQL migration validation, old RPC compatibility, PDF-only posts, constraints, anonymous reading and owner-only post/storage mutations. Uses PGlite as a temporary test tool: install `@electric-sql/pglite@0.3.14` outside the project and point `GUIDCY_PGLITE_MODULE` to its module path, then run the test. No runtime dependency was added.
 
 References: [PDF.js examples](https://mozilla.github.io/pdf.js/examples/), [Supabase storage restrictions](https://supabase.com/docs/guides/storage/buckets/creating-buckets#restricting-uploads), [WebAssembly CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src#unsafe_webassembly_execution).
+
+
+## PDF alignment
+
+The reader reserves its full post width even under the global mobile max-width rule. Its stage has an explicit full width so the page's aspect ratio and height cap cannot shrink the stage against the left edge on desktop. The canvas is centered within that stage. Browser checks compare the horizontal centers of the post, reader, stage and canvas at 320/390/430/1365px and in profile Activity.
+
+Published PDF cards omit the document title, filename, page-total/size metadata header and PDF badge. Compact page-navigation controls and a download icon sit below the centered page. Original filenames remain available in the owner’s file-selection preview and downloads.
+
+
+## Reader restart and double-tap gestures
+
+A rapid desktop page hide/show could release the PDF canvas without triggering a new IntersectionObserver transition. This was reproduced on the public homepage with the existing uploaded file. Already-mounted visible readers now restart explicitly after that transition, while failure state prevents automatic retry loops. Manual retry can also restart a reader independently of a stale visibility flag. Optional text extraction cannot hide a successfully rendered page.
+
+The shared double-tap handler covers PDF pages, native video surfaces, images, text and non-interactive post space in the feed and profile Activity. It reuses the existing authenticated Like operation, blue-heart motion, duplicate protection and rollback. Native playback/seek strips, PDF buttons, links, forms and comment interactions retain their normal actions. Scrolling and PDF swipes do not like posts. Tests cover PDF double-click and actual touch input, photo/video touch input, repeated taps, swipe rejection, player controls, guest sign-in gating and the reader restart regression.
+
+These UI/reader fixes are built locally and require frontend deployment. The existing stored PDF was verified as intact and readable; this work did not replace or modify that file.

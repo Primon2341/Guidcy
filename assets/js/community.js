@@ -33,7 +33,7 @@
   function documentCard(p){
     const path=p.document_path;if(!/^[a-f0-9-]{36}\/[a-f0-9-]{36}[.]pdf$/.test(path||''))return '';
     const url=client().storage.from('community-documents').getPublicUrl(path).data.publicUrl;
-    return `<section class="gnet-document" data-document-path="${esc(path)}" data-document-pages="${Number(p.document_pages)||1}" aria-label="PDF: ${esc(p.document_name||'Document')}"><header><span class="gnet-document-kind" aria-hidden="true">PDF</span><span><strong>${esc(p.document_name||'Document')}</strong><small>${Number(p.document_pages)||1} pages · ${fileSize(p.document_bytes)}</small></span><a href="${esc(url)}?download=${encodeURIComponent(p.document_name||'document.pdf')}" target="_blank" rel="noopener noreferrer" aria-label="Download ${esc(p.document_name||'PDF')}">Download</a></header><div class="gnet-document-stage" role="group" tabindex="0" aria-label="PDF pages. Use the arrow keys to change pages."><canvas role="img" aria-label="PDF page" hidden></canvas><span role="status" class="gnet-document-status"></span><button type="button" class="gnet-button" data-action="load-document">Read PDF</button></div><div class="gnet-document-text sr-only"></div><nav class="gnet-document-controls" aria-label="PDF pages"><button type="button" data-pdf-prev aria-label="Previous page" disabled>←</button><span data-pdf-counter aria-live="polite">Page 1 of ${Number(p.document_pages)||1}</span><button type="button" data-pdf-next aria-label="Next page" disabled>→</button></nav></section>`;
+    return `<section class="gnet-document" data-document-path="${esc(path)}" data-document-pages="${Number(p.document_pages)||1}" aria-label="PDF attachment"><div class="gnet-document-stage" role="group" tabindex="0" aria-label="PDF pages. Use the arrow keys to change pages."><canvas role="img" aria-label="PDF page" hidden></canvas><span role="status" class="gnet-document-status"></span><button type="button" class="gnet-button" data-action="load-document">Read PDF</button></div><div class="gnet-document-text sr-only"></div><div class="gnet-document-footer"><nav class="gnet-document-controls" aria-label="PDF pages"><button type="button" data-pdf-prev aria-label="Previous page" disabled>←</button><span data-pdf-counter aria-live="polite" aria-label="Page 1 of ${Number(p.document_pages)||1}">1 / ${Number(p.document_pages)||1}</span><button type="button" data-pdf-next aria-label="Next page" disabled>→</button></nav><a class="gnet-document-download" href="${esc(url)}?download=${encodeURIComponent(p.document_name||'document.pdf')}" target="_blank" rel="noopener noreferrer" aria-label="Download PDF" title="Download PDF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></a></div></section>`;
   }
   function avatar(p,eager=false) {
     if(!p||!p.name||p.name==='Guidcy member')return brand();
@@ -201,11 +201,18 @@
     catch (_) {if(!save)clearLikeMotion(button);p[key]=before;p.likes=old;button.setAttribute('aria-pressed',String(before));paint();notice('Could not save your change. Please try again.');}
     finally {button.disabled=false;}
   }
-  function postContent(target) {
-    return target instanceof Element&&!target.closest('a,button,input,textarea,select')?target.closest('.gnet-post-body,.gnet-post-image'):null;
+  function postForCard(card){return card?(card.closest('#gnet-profile-posts')?profilePosts:state.rows).get(card.dataset.post):null;}
+  function postContent(target,event) {
+    if(!(target instanceof Element)||target.closest('a,button,input,textarea,select,summary,details,[role="button"],[contenteditable]:not([contenteditable="false"]),.gnet-comments'))return null;
+    const card=target.closest('.gnet-post[data-post]');if(!card)return null;
+    const video=target.closest('video');
+    // Native video controls are retargeted to the video element by the browser.
+    // Leave the playback/seek strip to the player instead of interpreting it as a like.
+    if(video?.controls&&event){const r=video.getBoundingClientRect();if(video.seeking||event.clientY>=r.bottom-Math.min(48,r.height*.3))return null;}
+    return target.closest('.gnet-document-stage,.gnet-post-body,.gnet-post-image,video')||card;
   }
   function likePostContent(content) {
-    const card=content?.closest('[data-post]'),p=card&&(profilePosts.get(card.dataset.post)||state.rows.get(card.dataset.post));
+    const card=content?.closest('[data-post]'),p=postForCard(card);
     const button=card?.querySelector('[data-action=like]');
     if(!p||!button||button.disabled)return;
     if(!p.liked)toggleReaction(button,p,false,content);
@@ -215,19 +222,19 @@
   let touchDown=null,lastTap=null;
   document.addEventListener('pointerdown',e=>{
     if(e.pointerType!=='touch')return;
-    const content=postContent(e.target);
+    const content=postContent(e.target,e);
     if(!e.isPrimary||!content){touchDown=null;lastTap=null;return;}
-    touchDown={content,id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp};
+    touchDown={content,card:content.closest('[data-post]'),id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp};
   },{passive:true});
   document.addEventListener('pointercancel',()=>{touchDown=null;lastTap=null;},{passive:true});
   document.addEventListener('pointerup',e=>{
     if(e.pointerType!=='touch')return;
     const down=touchDown;touchDown=null;
     if(!down||down.id!==e.pointerId||e.timeStamp-down.at>300||Math.hypot(e.clientX-down.x,e.clientY-down.y)>12){lastTap=null;return;}
-    if(lastTap&&lastTap.content===down.content&&e.timeStamp-lastTap.at<=320&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<=28){lastTap=null;likePostContent(down.content);}
-    else lastTap={content:down.content,x:e.clientX,y:e.clientY,at:e.timeStamp};
+    if(lastTap&&lastTap.card===down.card&&e.timeStamp-lastTap.at<=320&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<=28){lastTap=null;likePostContent(down.content);}
+    else lastTap={card:down.card,x:e.clientX,y:e.clientY,at:e.timeStamp};
   },{passive:true});
-  document.addEventListener('dblclick',e=>likePostContent(postContent(e.target)));
+  document.addEventListener('dblclick',e=>likePostContent(postContent(e.target,e)));
   async function compress(file) {
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw new Error('Choose a JPG, PNG or WebP image under 15 MB.');
     const bitmap=await createImageBitmap(file);
@@ -791,7 +798,7 @@
     const b=e.target.closest('button');if(!b||(!b.closest('.gnet-network,.gnet-dialog,.gnet-profile-page')&&b.dataset.action!=='organization-directory'))return;
     if(b.dataset.follow){toggleFollow(b.dataset.follow);return;}
     if(b.dataset.mode){if(['mine','saved','following'].includes(b.dataset.mode)&&!requireUser())return;state.mode=b.dataset.mode;document.querySelectorAll('.gnet-feed-toolbar [data-mode]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.mode===state.mode)));const u=new URL(location.href);u.searchParams.delete('post');u.searchParams.delete('author');history.replaceState(history.state,'',u.pathname+u.search);load(true);return;}
-    const action=b.dataset.action,card=b.closest('[data-post]'),p=card&&(profilePosts.get(card.dataset.post)||state.rows.get(card.dataset.post));
+    const action=b.dataset.action,card=b.closest('[data-post]'),p=postForCard(card);
     if(action==='compose'){compose(null);if(b.dataset.photo)$('gnet-file')?.click();if(b.dataset.document)$('gnet-document-file')?.click();}
     if(action==='load-document')documents().then(reader=>reader.mountAll()).catch(()=>notice('The PDF reader could not load. Please try again.'));
     if(action==='refresh'){load(true);sidebar();}
