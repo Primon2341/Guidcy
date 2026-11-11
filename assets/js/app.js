@@ -21959,16 +21959,13 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	  }
 	  function ensureRecContainer(pageId){
 	    var page=$(pageId); if(!page)return null;
+	    var resultId={'page-jobs':'jobs-main-area','page-smart-finder':'sf-results','page-opportunities':'opp-results-area'}[pageId];
+	    var anchor=resultId&&page.querySelector('#'+resultId);if(!anchor||!anchor.parentElement)return null;
 	    var id='guidcy-adaptive-recs-'+pageId.replace(/^page-/,'');
 	    var box=$(id);
-	    if(box)return box;
-	    box=document.createElement('section');
-	    box.id=id;
-	    box.className='guidcy-adaptive-recs';
-	    var anchor=null;
-	    anchor=page.querySelector('#jobs-main-area,#sf-results,#opp-results,.results,.grid')||page.firstElementChild||page;
-	    if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(box,anchor.nextSibling);
-	    else page.appendChild(box);
+	    if(!box){box=document.createElement('section');box.id=id;box.className='guidcy-adaptive-recs';}
+	    // Keep suggestions inside each finder's padded content column, including restored DOM.
+	    if(box.parentElement!==anchor.parentElement||box.previousElementSibling!==anchor)anchor.after(box);
 	    return box;
 	  }
   var recTimer=null,recState=new Map();

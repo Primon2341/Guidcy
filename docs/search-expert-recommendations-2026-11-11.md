@@ -19,3 +19,7 @@ Validation:
 - Read-only production schema/data queries confirmed matching public fields and real keyword matches for polymer, marketing and IIT Roorkee; an unrelated keyword returned none. No production writes.
 
 An unrelated existing test in `experience-description.test.mjs` still expects the retired `guidcy-exp-timeline-about` profile markup. That expectation was absent from HEAD before this change; no profile-rendering code was changed here.
+
+## Suggestion section alignment
+
+The “Need help landing this role?” section now anchors directly after each finder's actual results element, including `opp-results-area` on Funds & Grants. The old selector missed that element and could insert suggestions outside its padded, centered content wrapper. Existing misplaced sections are moved back into the results column. The heading retains consistent space above the cards without the removed description. Browser checks at 320/390/1280px verify both edges of the section, heading and grid match the results column across all four finder modes, alongside the existing functional checks. Build passes; frontend changes remain local.

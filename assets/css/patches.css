@@ -1864,7 +1864,7 @@ body.gmob-open{overflow:hidden}
 /* === guidcy-strict-auth-adaptive-recs-css === */
 .guidcy-provider-auth-removed{display:none!important}
 	  .guidcy-adaptive-recs{margin:32px 0 18px;padding-top:32px;border-top:1px solid #D8E8F5;background:transparent;box-shadow:none;border-radius:0}
-	  .guidcy-adaptive-recs h3{font-family:'Cormorant Garamond',serif;margin:0 0 6px;color:#10243E;font-size:clamp(20px,4vw,26px);font-weight:var(--font-weight-medium,500)}
+	  .guidcy-adaptive-recs h3{font-family:'Cormorant Garamond',serif;margin:0 0 18px;color:#10243E;font-size:clamp(20px,4vw,26px);font-weight:var(--font-weight-medium,500)}
 	  .guidcy-adaptive-recs p{margin:0 0 18px;color:#6B8298;font-size:13px;line-height:1.5}
 	  .guidcy-adaptive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-top:0}
 	  @media(max-width:560px){.guidcy-adaptive-grid{grid-template-columns:1fr}}
