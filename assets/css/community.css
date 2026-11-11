@@ -319,3 +319,13 @@
  .gnet-mobile-compose:hover{background:var(--blue-d);border-color:var(--blue-d)}
  .gnet-mobile-compose svg{flex-shrink:0;width:17px;height:17px}
 }
+
+/* Initial profile loads reserve the header shape instead of drawing a wide strip. */
+.gnet-profile-placeholder{padding-bottom:28px;min-height:230px}
+.gnet-placeholder-avatar{position:relative;width:112px;height:112px;margin:-46px 0 24px;border:4px solid #fff;border-radius:50%;background:#e9eff4}
+.gnet-placeholder-line{height:12px;max-width:100%;margin:0 0 14px;border-radius:6px;background:#edf1f4}
+.gnet-placeholder-line.is-name{width:48%;height:22px}
+.gnet-placeholder-line.is-headline{width:76%}
+.gnet-placeholder-line.is-meta{width:32%}
+.gnet-profile-secondary-loading{padding:12px 0;margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+@media(max-width:850px){.gnet-profile-placeholder{min-height:210px}.gnet-placeholder-avatar{width:96px;height:96px;margin-top:-36px;margin-bottom:20px}}

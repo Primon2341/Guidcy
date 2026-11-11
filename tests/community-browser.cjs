@@ -59,7 +59,7 @@ function socialFixture(){
   }
   if(name==='community_featureable_webinars')return {data:[],error:null};
   if(name==='community_featured')return {data:tables.profile_featured.filter(f=>f.profile_id===args.p_id).map(f=>{const e=tables.profile_entries.find(e=>e.id===f.entry_id),p=tables.community_posts.find(p=>p.id===f.post_id);return {...f,kind:e?.kind||'Post',title:e?.title||p?.body||'Featured resource'};}),error:null};
-  if(name==='community_profile'){await new Promise(r=>setTimeout(r,150));const p=people.find(p=>p.id===args.p_id);return {data:p?{...p,followers:tables.community_follows.filter(f=>f.following_id===p.id).length,following:tables.community_follows.filter(f=>f.follower_id===p.id).length,is_following:tables.community_follows.some(f=>f.follower_id===uid&&f.following_id===p.id),bio:p.bio||'A short professional introduction.',city:p.city||'Delhi',education:p.education??'M.Tech Polymer Science',cover_path:p.cover_path||null}:null,error:null};}
+  if(name==='community_profile'){await new Promise(r=>setTimeout(r,window.__profileDelay||150));const p=people.find(p=>p.id===args.p_id);return {data:p?{...p,followers:tables.community_follows.filter(f=>f.following_id===p.id).length,following:tables.community_follows.filter(f=>f.follower_id===p.id).length,is_following:tables.community_follows.some(f=>f.follower_id===uid&&f.following_id===p.id),bio:p.bio||'A short professional introduction.',city:p.city||'Delhi',education:p.education??'M.Tech Polymer Science',cover_path:p.cover_path||null}:null,error:null};}
   if(name==='community_update_profile'){Object.assign(people.find(p=>p.id===owner),{name:args.p_name,headline:args.p_headline,bio:args.p_bio,cover_path:args.p_cover});return {data:null,error:null};}
   if(name==='community_people')return {data:people.filter(p=>args.p_ids?args.p_ids.includes(p.id):p.consultant_id).map(p=>({...p,followers:tables.community_follows.filter(f=>f.following_id===p.id).length,following:tables.community_follows.filter(f=>f.follower_id===p.id).length,is_following:tables.community_follows.some(f=>f.following_id===p.id&&f.follower_id===uid)})),error:null};
   if(name==='community_profile_activity'){const r=await c.rpc('community_feed',{p_mode:'latest',p_author:args.p_id,p_before:args.p_before,p_before_id:args.p_before_id,p_kind:args.p_kind});return {...r,data:r.data.slice(0,6)}}
@@ -95,6 +95,19 @@ let browser;
   window.__legacyProfilePaints=[];
   new MutationObserver(()=>{if(document.querySelector('#page-profile.on .profile-avatar,#page-profile.on .profile-role,#page-profile.on .guidcy-profile-experience'))window.__legacyProfilePaints.push('legacy');}).observe(document,{childList:true,subtree:true});
  });
+ // Slow public profile reads show the same shaped header for members and consultants.
+ for(const width of [390,1365])for(const route of ['/profile?member='+OWNER,'/consultant/test-expert']){
+  const loadingPage=await context.newPage();await loadingPage.setViewportSize({width,height:900});await loadingPage.addInitScript(()=>window.__profileDelay=1000);
+  await loadingPage.goto(origin+route);await loadingPage.locator('.gnet-profile-header .gnet-profile-placeholder').waitFor();
+  assert.equal(await loadingPage.locator('#profile-layout .gnet-skeleton,#profile-layout.guidcy-panel-skeleton').count(),0,'profile never draws the generic strip');
+  assert.equal(await loadingPage.locator('#guidcy-loading-status').isVisible(),false,'the header skeleton needs no second loading bar');
+  assert.equal(await loadingPage.locator('.gnet-placeholder-avatar').isVisible(),true);assert.equal(await loadingPage.locator('.gnet-placeholder-line').count(),3);
+  assert.equal(await loadingPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await loadingPage.locator('.gnet-profile-header').screenshot({path:'/private/tmp/guidcy-profile-loading-'+(route.startsWith('/consultant')?'consultant':'member')+'-'+width+'.png'});
+  await loadingPage.locator('.gnet-profile-header .profile-name').waitFor();await loadingPage.waitForSelector('.gnet-profile-placeholder',{state:'detached'});
+  await loadingPage.close();
+ }
+ console.log('Member and consultant cold loads use a shaped header without loading strips at 390/1365px');
  const identityPage=await context.newPage();await identityPage.addInitScript(()=>window.__guest=true);
  await identityPage.goto(origin);
  await identityPage.locator('#gnet-compose-avatar img.gnet-brand').waitFor();

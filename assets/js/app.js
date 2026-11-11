@@ -2803,7 +2803,7 @@ async function openProfile(dbId,localId){
   const profileHTML=`
   <div class="profile-main">
     <div class="profile-hero gnet-card gnet-profile-header" aria-busy="true">
-      <div class="gnet-cover"></div><div class="gnet-profile-info gnet-profile-loading"><h1 class="profile-name sr-only">${guidcyEscapeHtml(c.name)}</h1><div class="gnet-skeleton"></div><p role="status">Loading professional profile…</p></div>
+      ${document.getElementById('guidcy-profile-loading-header').innerHTML}
     </div>
     <div class="sec-block">
       <h2 class="block-title">Client reviews (${revList.length})</h2>

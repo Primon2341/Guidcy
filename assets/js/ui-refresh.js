@@ -38,6 +38,9 @@
   }
 
   function isPlaceholder(html) {
+    // Profile-specific shells already reserve the final layout; don't replace
+    // them with the generic full-width skeleton or an additional loading bar.
+    if(/\bdata-guidcy-profile-placeholder\b/.test(String(html)))return false;
     var text = textOf(html);
     if(!text||text.length>PLACEHOLDER_MAX_TEXT||!PLACEHOLDER_WORDS.test(text))return false;
     if(/\b(?:unable|failed|could not|couldn['’]t|error)\b/i.test(text))return false;
@@ -63,7 +66,7 @@
   // Observe only registered content regions and their page visibility. The
   // status lives outside those regions so it never enters their cached markup.
   var automaticLoading=new WeakSet();
-  var secondaryLoading=new Set(['gnet-me','gnet-mobile-avatar','gnet-compose-avatar','gnet-experts','cons-rec-grid']);
+  var secondaryLoading=new Set(['gnet-me','gnet-mobile-avatar','gnet-compose-avatar','gnet-experts','gnet-profile-posts','cons-rec-grid']);
   var loadingNodes=new Set(), loadingPages=new Set(), loadingQueued=false;
   function finishLoading(target){
     automaticLoading.delete(target);setBusy(target,false);

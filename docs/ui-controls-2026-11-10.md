@@ -56,3 +56,6 @@ The mobile layout also hides the My Posts / Saved Posts / Following shortcuts an
 
 
 Find Expert mobile controls: the search field is reduced from 58px to 46px high, and the Filters toggle grows from 44px to 56px, transferring 12px of vertical space. The input stays 16px to prevent iOS focus zoom and the placeholder uses a compact 13px size. Sort, search suggestions, filter behavior and desktop sizing remain unchanged. Local checks cover 320/390/430px mobile widths plus 768/1280px, with no horizontal overflow and working search/filter toggles.
+
+
+Profile loading now uses one shared header-shaped placeholder for user and consultant profiles, reserving the cover, avatar and text positions instead of a wide grey strip. Dedicated profile placeholders bypass the generic panel skeleton/extra loading bar; activity is treated as secondary content. Profile details and posts use small inline loading text. Existing cached profiles remain visible during revalidation, errors keep their retry UI, and booking markup is unchanged. Slow-read fixture checks cover cold member/consultant profiles at 390/1365px; the general loading lifecycle checks also pass.

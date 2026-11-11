@@ -434,7 +434,7 @@
     side.hidden=false;
     main.querySelector('#gnet-portfolio-loading')?.remove();
     const loading=document.createElement('div');loading.id='gnet-portfolio-loading';
-    if(!main.querySelector('.gnet-prof-section'))loading.innerHTML='<div class="gnet-card gnet-loading"><div class="gnet-skeleton"></div></div>';
+    if(!main.querySelector('.gnet-prof-section'))loading.innerHTML='<p class="gnet-profile-secondary-loading" role="status">Loading profile details…</p>';
     main.append(loading);
     try {
       const [entries,featured]=await Promise.all([result(client().from('profile_entries').select('id,kind,title,organization,field,start_date,end_date,description,grade,activities,url').eq('profile_id',p.id).order('start_date',{ascending:false,nullsFirst:false}).order('id').limit(100)),result(client().rpc('community_featured',{p_id:p.id}))]);
@@ -556,7 +556,7 @@
     const epoch=++activityEpoch,owner=p.id;
     if(host.dataset.owner!==owner||host.dataset.activityTab!=='posts')host.replaceChildren();
     host.dataset.owner=owner;host.dataset.activityTab='posts';host.setAttribute('aria-busy','true');
-    if(!append){activityCursor=null;if(!host.firstChild)host.innerHTML='<div class="gnet-card gnet-loading"><div class="gnet-skeleton"></div><p>Loading activity…</p></div>';}
+    if(!append){activityCursor=null;if(!host.firstChild)host.innerHTML='<p class="gnet-profile-secondary-loading" data-guidcy-profile-placeholder role="status">Loading posts…</p>';}
     const more=$('gnet-activity-more');if(more)more.disabled=true;
     try {
       const rows=await result(client().rpc('community_profile_activity',{p_id:owner,p_kind:null,p_before:activityCursor?.created_at||null,p_before_id:activityCursor?.id||null}));
@@ -582,16 +582,17 @@
     $('profile-layout').removeAttribute('data-profile-loading');
     $('profile-layout').classList.add('gnet-profile-page','gnet-member-layout');
     const layout=$('profile-layout'),preserve=layout.dataset.profileTarget==='member:'+id&&$('gnet-member');
-    if(!preserve)layout.innerHTML='<div class="gnet-card gnet-loading"><div class="gnet-skeleton"></div></div>';
+    if(!preserve){layout.setAttribute('data-profile-loading','');layout.innerHTML=`<div class="profile-main"><section class="gnet-card gnet-profile-header" aria-busy="true">${$('guidcy-profile-loading-header').innerHTML}</section></div>`;}
     layout.dataset.profileTarget='member:'+id;
     try {const p=await profileInfo(id);if(epoch!==profileEpoch||params().get('member')!==id)return;
       if(p.consultant_id){window.guidcyNavigate(href(p),{replace:true});return;}
       profilePerson=p;
       if(preserve)$('gnet-member').innerHTML=profileHeader(p);
       else layout.innerHTML=`<div class="profile-main"><section id="gnet-member" class="gnet-card gnet-profile-header">${profileHeader(p)}</section>${activityShell(p)}</div>`;
+      layout.removeAttribute('data-profile-loading');
       window.guidcyFinishPanelRefresh?.(layout);
       activity(p);profileDetails(p);
-    }catch(_){if(epoch===profileEpoch){profileKey='';$('profile-layout').innerHTML='<div class="gnet-card gnet-empty"><h1>Profile unavailable</h1><a href="/" data-guidcy-back>Back</a></div>';window.guidcyFinishPanelRefresh?.(layout);}}
+    }catch(_){if(epoch===profileEpoch){profileKey='';$('profile-layout').removeAttribute('data-profile-loading');$('profile-layout').innerHTML='<div class="gnet-card gnet-empty"><h1>Profile unavailable</h1><a href="/" data-guidcy-back>Back</a></div>';window.guidcyFinishPanelRefresh?.(layout);}}
   }
   async function mountConsultant() {
     await startAuth();
