@@ -42,7 +42,7 @@
     s.canvas.hidden=true;s.stage.setAttribute('aria-busy','true');if(s.pdf){s.busy=true;s.status.textContent='Loading page…';controls(s,true);}
     dialog.querySelector('button').onclick=()=>closeExpanded(s);
     dialog.addEventListener('close',()=>closeExpanded(s),{once:true});
-    try{dialog.showModal();}catch(_){closeExpanded(s);return;}
+    try{dialog.showModal();dialog.tabIndex=-1;dialog.focus({preventScroll:true});}catch(_){closeExpanded(s);return;}
     window.guidcySyncModalScrollLock?.();
     requestAnimationFrame(()=>{if(!s.expanded)return;window.guidcySyncModalScrollLock?.();if(s.pdf)draw(s);else load(s);});
   }

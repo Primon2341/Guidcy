@@ -71,3 +71,5 @@ PDF attachments and their migration/deployment status are documented in [PDF pos
 
 
 Follow/Following controls now use an outlined rounded button with a plus/check icon, a stronger text weight and clear hover/focus states. Following uses a neutral outline instead of the old green badge appearance. The existing immediate toggle, counts, duplicate protection and error rollback remain unchanged across posts, profiles, suggestions and people lists.
+
+Follow/Following controls retain the icon, text weight and interaction behavior with their outer border removed.
