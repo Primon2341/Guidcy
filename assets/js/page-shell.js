@@ -32,6 +32,12 @@
  }
  function cleanHtml(el){
   var copy=el.cloneNode(true);
+  // Full-screen readers are transient UI. Persist their document inline instead.
+  copy.querySelectorAll('dialog.gnet-document-dialog').forEach(function(dialog){
+   var reader=dialog.querySelector('.gnet-document'),placeholder=dialog.parentElement.querySelector(':scope > .gnet-document-placeholder');
+   if(reader&&placeholder){var expand=reader.querySelector('[data-pdf-expand]');if(expand)expand.setAttribute('aria-expanded','false');placeholder.replaceWith(reader)}
+   dialog.remove();
+  });
   copy.querySelectorAll('script,iframe,object,embed,[data-auth-retry]').forEach(function(n){n.remove()});
   copy.querySelectorAll('input[type=password],input[type=hidden],input[type=file]').forEach(function(n){n.removeAttribute('value')});
   copy.querySelectorAll('textarea').forEach(function(n){n.textContent=''});

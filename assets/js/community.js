@@ -33,7 +33,7 @@
   function documentCard(p){
     const path=p.document_path;if(!/^[a-f0-9-]{36}\/[a-f0-9-]{36}[.]pdf$/.test(path||''))return '';
     const url=client().storage.from('community-documents').getPublicUrl(path).data.publicUrl;
-    return `<section class="gnet-document" data-document-path="${esc(path)}" data-document-pages="${Number(p.document_pages)||1}" aria-label="PDF attachment"><div class="gnet-document-stage" role="group" tabindex="0" aria-label="PDF pages. Use the arrow keys to change pages."><canvas role="img" aria-label="PDF page" hidden></canvas><span role="status" class="gnet-document-status"></span><button type="button" class="gnet-button" data-action="load-document">Read PDF</button></div><div class="gnet-document-text sr-only"></div><div class="gnet-document-footer"><nav class="gnet-document-controls" aria-label="PDF pages"><button type="button" data-pdf-prev aria-label="Previous page" disabled>←</button><span data-pdf-counter aria-live="polite" aria-label="Page 1 of ${Number(p.document_pages)||1}">1 / ${Number(p.document_pages)||1}</span><button type="button" data-pdf-next aria-label="Next page" disabled>→</button></nav><a class="gnet-document-download" href="${esc(url)}?download=${encodeURIComponent(p.document_name||'document.pdf')}" target="_blank" rel="noopener noreferrer" aria-label="Download PDF" title="Download PDF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></a></div></section>`;
+    return `<section class="gnet-document" data-document-path="${esc(path)}" data-document-pages="${Number(p.document_pages)||1}" aria-label="PDF attachment"><div class="gnet-document-stage" role="group" tabindex="0" aria-label="PDF pages. Use the arrow keys to change pages."><canvas role="img" aria-label="PDF page" hidden></canvas><span role="status" class="gnet-document-status"></span><button type="button" class="gnet-button" data-action="load-document">Read PDF</button></div><div class="gnet-document-text sr-only"></div><div class="gnet-document-footer"><button type="button" class="gnet-document-expand" data-pdf-expand disabled aria-label="Read PDF full screen" title="Full screen" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button><nav class="gnet-document-controls" aria-label="PDF pages"><button type="button" data-pdf-prev aria-label="Previous page" disabled>←</button><span data-pdf-counter aria-live="polite" aria-label="Page 1 of ${Number(p.document_pages)||1}">1 / ${Number(p.document_pages)||1}</span><button type="button" data-pdf-next aria-label="Next page" disabled>→</button></nav><a class="gnet-document-download" href="${esc(url)}?download=${encodeURIComponent(p.document_name||'document.pdf')}" target="_blank" rel="noopener noreferrer" aria-label="Download PDF" title="Download PDF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></a></div></section>`;
   }
   function avatar(p,eager=false) {
     if(!p||!p.name||p.name==='Guidcy member')return brand();
@@ -41,8 +41,11 @@
     const url=imageURL(raw);
     return url && p?.avatar_url ? `<img class="gnet-avatar" src="${esc(url)}" alt="" width="44" height="44" loading="${eager?'eager':'lazy'}" decoding="async">` : `<span class="gnet-avatar" aria-hidden="true">${esc((p?.name||'Guidcy').split(/\s+/).map(s=>s[0]).join('').slice(0,2).toUpperCase())}</span>`;
   }
+  function followLabel(following){
+    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${following?'m5 12 4 4L19 6':'M12 5v14M5 12h14'}"/></svg><span data-follow-label>${following?'Following':'Follow'}</span>`;
+  }
   function follow(p) {
-    return p.id===state.user?.id?'':`<button class="gnet-follow" data-follow="${esc(p.id)}" aria-pressed="${!!p.is_following}">${p.is_following?'Following':'＋ Follow'}</button>`;
+    return p.id===state.user?.id?'':`<button type="button" class="gnet-follow" data-follow="${esc(p.id)}" aria-label="${p.is_following?'Unfollow':'Follow'} ${esc(p.name)}" aria-pressed="${!!p.is_following}">${followLabel(p.is_following)}</button>`;
   }
   function identity(p,showCompany=true) {
     const headline=[p.headline,showCompany?p.company:''].filter(Boolean).join(' · ')||'Guidcy community member';
@@ -153,7 +156,7 @@
   }
   function syncFollow(id) {
     const p=person(id);
-    document.querySelectorAll(`[data-follow="${id}"]`).forEach(b=>{b.textContent=p.is_following?'Following':'＋ Follow';b.setAttribute('aria-pressed',String(!!p.is_following));b.disabled=state.follows.has(id);});
+    document.querySelectorAll(`[data-follow="${id}"]`).forEach(b=>{const pressed=String(!!p.is_following);if(b.getAttribute('aria-pressed')!==pressed||!b.querySelector('[data-follow-label]'))b.innerHTML=followLabel(p.is_following);b.setAttribute('aria-pressed',pressed);b.setAttribute('aria-label',(p.is_following?'Unfollow ':'Follow ')+p.name);b.disabled=state.follows.has(id);});
     document.querySelectorAll(`[data-follow-count="${id}"]`).forEach(el=>el.innerHTML=followCounts(p));
   }
   async function toggleFollow(id) {
@@ -183,9 +186,9 @@
       const heart=button.querySelector('svg');if(!heart?.animate)return;
       heart.animate([{transform:'scale(1)'},{transform:'scale(1.35)',offset:.4},{transform:'scale(.92)',offset:.75},{transform:'scale(1)'}],{duration:340,easing:'cubic-bezier(.2,.8,.2,1)'}).finished.catch(()=>{});
       if(!content)return;
-      const card=button.closest('[data-post]'),area=content.getBoundingClientRect(),bounds=card.getBoundingClientRect();
+      const card=button.closest('[data-post]'),root=content.closest('.gnet-document-dialog')||card,area=content.getBoundingClientRect(),bounds=root.getBoundingClientRect();
       const burst=document.createElement('span');burst.className='gnet-like-burst';burst.setAttribute('aria-hidden','true');burst.innerHTML=icon('like');
-      burst.style.left=(area.left-bounds.left-card.clientLeft+area.width/2)+'px';burst.style.top=(area.top-bounds.top-card.clientTop+area.height/2)+'px';card.append(burst);
+      burst.style.left=(area.left-bounds.left-root.clientLeft+area.width/2)+'px';burst.style.top=(area.top-bounds.top-root.clientTop+area.height/2)+'px';root.append(burst);
       const animation=burst.animate([{transform:'translate(-50%,-50%) scale(.35) rotate(-12deg)',opacity:0},{transform:'translate(-50%,-50%) scale(1.12)',opacity:1,offset:.25},{transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.6},{transform:'translate(-50%,-50%) scale(1.12)',opacity:0}],{duration:650,easing:'ease-out'});
       animation.finished.then(()=>burst.remove(),()=>burst.remove());
     } catch (_) {clearLikeMotion(button);}

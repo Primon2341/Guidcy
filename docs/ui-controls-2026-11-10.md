@@ -68,3 +68,6 @@ The profile Skills section now shows compact, non-interactive labels in a horizo
 
 
 PDF attachments and their migration/deployment status are documented in [PDF posts](community-pdf-posts-2026-11-11.md).
+
+
+Follow/Following controls now use an outlined rounded button with a plus/check icon, a stronger text weight and clear hover/focus states. Following uses a neutral outline instead of the old green badge appearance. The existing immediate toggle, counts, duplicate protection and error rollback remain unchanged across posts, profiles, suggestions and people lists.

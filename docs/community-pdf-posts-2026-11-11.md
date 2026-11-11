@@ -43,3 +43,10 @@ A rapid desktop page hide/show could release the PDF canvas without triggering a
 The shared double-tap handler covers PDF pages, native video surfaces, images, text and non-interactive post space in the feed and profile Activity. It reuses the existing authenticated Like operation, blue-heart motion, duplicate protection and rollback. Native playback/seek strips, PDF buttons, links, forms and comment interactions retain their normal actions. Scrolling and PDF swipes do not like posts. Tests cover PDF double-click and actual touch input, photo/video touch input, repeated taps, swipe rejection, player controls, guest sign-in gating and the reader restart regression.
 
 These UI/reader fixes are built locally and require frontend deployment. The existing stored PDF was verified as intact and readable; this work did not replace or modify that file.
+
+
+## Full-screen reading
+
+The expand button opens a native modal covering the viewport on desktop and mobile. It moves the same reader into the modal, retains the current page and PDF worker, and fits the page to the larger space. Arrows, swipes, keyboard paging, download and double-tap liking continue to work. Close/Escape restores the inline reader, focus and background scroll position. The shared modal manager locks background scrolling while open. Navigation/removal closes the expanded view, and refresh snapshots normalize it to an inline reader so a modal is never accidentally restored.
+
+Local browser checks cover 390/1365px full-screen dimensions, larger desktop rendering, page preservation, close/Escape, focus/scroll restoration, no duplicate document download, heart feedback in the modal, normalized snapshots and profile-navigation cleanup. The updated frontend remains local and requires deployment.

@@ -98,7 +98,7 @@ let browser;
   assert.equal(await loadingPage.locator('#guidcy-loading-status').isVisible(),false,'the header skeleton needs no second loading bar');
   assert.equal(await loadingPage.locator('.gnet-placeholder-avatar').isVisible(),true);assert.equal(await loadingPage.locator('.gnet-placeholder-line').count(),3);
   assert.equal(await loadingPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await loadingPage.locator('.gnet-profile-header').screenshot({path:'/private/tmp/guidcy-profile-loading-'+(route.startsWith('/consultant')?'consultant':'member')+'-'+width+'.png'});
+  await loadingPage.screenshot({path:'/private/tmp/guidcy-profile-loading-'+(route.startsWith('/consultant')?'consultant':'member')+'-'+width+'.png'});
   await loadingPage.locator('.gnet-profile-header .profile-name').waitFor();await loadingPage.waitForSelector('.gnet-profile-placeholder',{state:'detached'});
   await loadingPage.close();
  }
@@ -213,6 +213,7 @@ let browser;
  await page.goto(origin);await page.waitForSelector('.gnet-post');await page.waitForFunction(()=>document.querySelector('#gnet-compose-avatar .gnet-avatar')&&document.querySelector('#nav-right a.avatar-chip'));
  await page.locator('#gnet-more').click();await page.waitForFunction(()=>document.querySelectorAll('.gnet-post').length===15);assert.equal(await page.locator('#gnet-more').isVisible(),false);
  const first=page.locator('.gnet-post').first();await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelectorAll('[data-follow="'+id+'"][aria-pressed="true"]').length>1,EXPERT);
+ assert.equal(await first.locator('[data-follow] [data-follow-label]').innerText(),'Following');assert.equal(await first.locator('[data-follow] svg').count(),1);const followingStyle=await first.locator('[data-follow]').evaluate(el=>({background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderStyle,weight:getComputedStyle(el).fontWeight,radius:getComputedStyle(el).borderRadius}));assert.equal(followingStyle.background,'rgb(255, 255, 255)');assert.equal(followingStyle.border,'solid');assert.equal(followingStyle.weight,'600');assert.ok(parseFloat(followingStyle.radius)>=20,'Following is a rounded action button');await first.locator('[data-follow]').screenshot({path:'/private/tmp/guidcy-following-button.png'});
  await page.evaluate(()=>window.__failSocial=true);await first.locator('[data-follow]').click();await page.waitForFunction(id=>document.querySelector('[data-follow="'+id+'"]').getAttribute('aria-pressed')==='true'&&!document.querySelector('[data-follow="'+id+'"]').disabled,EXPERT);
  await page.emulateMedia({reducedMotion:'no-preference'}); await first.locator('.gnet-post-body').dblclick();await page.waitForFunction(()=>document.querySelector('[data-like-count]').textContent==='1 likes');assert.equal(await first.locator('.gnet-like-burst').count(),1,'double click shows a large heart');assert.ok(await first.locator('[data-action=like] svg').evaluate(el=>el.getAnimations().length)>0,'like icon animates');
  assert.equal(await first.locator('[data-action=like] svg').evaluate(el=>getComputedStyle(el).fill),'rgb(30, 114, 190)');
