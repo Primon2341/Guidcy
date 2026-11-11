@@ -71,12 +71,12 @@ test('nothing invents terms the reader did not type', () => {
 });
 
 test('the order is the rating, then reviews, then a stable tiebreak', () => {
-  const from = api.indexOf('const ranked = consultants');
+  const from = api.indexOf('const ranked = unique');
   const to = api.indexOf('.slice(0, form.limit);', from);
   const block = api.slice(from, to);
   const body = block.slice(block.indexOf('.sort((a, b) => {') + '.sort('.length, block.lastIndexOf('})') + 1);
-  const sort = new Function('ratingOf', 'reviewsOf', 'return ' + body + ';')(
-    c => Number(c.rating || 0) || 0, c => Number(c.reviews || 0) || 0);
+  const sort = new Function('ratingOf', 'reviewsOf', 'form', 'return ' + body + ';')(
+    c => Number(c.rating || 0) || 0, c => Number(c.reviews || 0) || 0, {});
   const row = (name, rating, reviews) => ({ consultant: { name, rating, reviews } });
   const order = [row('Zoe', 3.5, 2), row('Amy', 4.9, 1), row('Bob', 4.9, 40), row('Cal', 0, 0)]
     .sort(sort).map(x => x.consultant.name);

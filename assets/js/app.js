@@ -6352,8 +6352,7 @@ cancelBooking=async function(bookingId,role){
   };
 
   /* ── 6. JOBS PAGE — real Google Jobs with pagination ── */
-  const JOB_CAT_MAP={'Business Strategy':['Business Strategy','Startup','GTM','Strategy','Management','Consulting'],'Technology':['Technology','Engineering','CTO','Software','Tech','Developer','Data','AI'],'Finance':['Finance','Wealth','Tax','Investment','Accounting','CA','CFO'],'Legal':['Legal','Law','Compliance','Contract','Advocate'],'Career':['Career','Coaching','Resume','Interview','FAANG','HR','Recruitment'],'Healthcare':['Health','Medical','Wellness','Nutrition','Therapy','Doctor'],'Marketing':['Marketing','SEO','Growth','Branding','Social Media','Digital','Content'],'Education':['Education','Teaching','Tutoring','Exam','UPSC','JEE','Professor'],'Mental Health':['Mental Health','Therapy','CBT','Burnout','Anxiety','Mindfulness'],'Startup':['Startup','Entrepreneur','Fundraising','Venture','Pitch','Founder']};
-  let _allCons=[],_jobsCache={q:'',loc:'',jobs:[],page:1,hasMore:false},_jobsRecCache=[];
+  let _jobsCache={q:'',loc:'',jobs:[],page:1,hasMore:false};
   const JOBS_STATE_KEY='guidcy_jobs_last_state_v1';
   const JOBS_EXTERNAL_KEY='guidcy_jobs_external_open_v1';
   let _restoringJobsState=false;
@@ -6399,7 +6398,6 @@ cancelBooking=async function(bookingId,role){
       q,
       loc,
       jobs:_jobsCache.jobs.slice(0,100),
-      recs:Array.isArray(_jobsRecCache)?_jobsRecCache.slice(0,6):[],
       page:_jobsCache.page||1,
       hasMore:!!_jobsCache.hasMore,
       filters:currentJobFiltersForState(),
@@ -6423,115 +6421,6 @@ cancelBooking=async function(bookingId,role){
     return true;
   }
   try{window._jobsCache=_jobsCache;window.guidcyPersistJobsState=persistJobsState;window.guidcyMarkJobsExternalOpen=markJobsExternalOpen}catch(_){}
-  const GUIDCY_JOB_REC_SUFFIXES=new Set(['private','pvt','limited','ltd','incorporated','inc','llc','llp','corp','corporation','company','co','technologies','technology','systems','solutions','services','india','global','international','labs','lab']);
-  function recClean(v){return String(v==null?'':v).toLowerCase().replace(/[^\w.+#& ]+/g,' ').replace(/\s+/g,' ').trim();}
-  function recText(v){if(v==null)return'';if(typeof v==='string'||typeof v==='number'||typeof v==='boolean')return String(v);if(Array.isArray(v))return v.map(recText).join(' ');if(typeof v==='object')return Object.keys(v).map(k=>k+' '+recText(v[k])).join(' ');return'';}
-  function recArray(v){if(Array.isArray(v))return v.filter(Boolean);if(!v)return[];if(typeof v==='object')return[v];try{const parsed=JSON.parse(v);if(Array.isArray(parsed))return parsed.filter(Boolean);if(parsed&&typeof parsed==='object')return[parsed];}catch(_){}return String(v).split(/[,|;\n]/).map(x=>x.trim()).filter(Boolean);}
-  function recCompanyWords(v){return recClean(v).split(/\s+/).filter(w=>w&&!GUIDCY_JOB_REC_SUFFIXES.has(w));}
-  function recCompanyNorm(v){return recCompanyWords(v).join(' ');}
-  function recAcronymAll(v){return recClean(v).split(/\s+/).filter(Boolean).map(w=>w[0]).join('');}
-  function recCompanyMatches(query,company){
-    const a=recCompanyNorm(query),b=recCompanyNorm(company);
-    if(!a||!b)return false;
-    if(a===b)return true;
-    if(a.length>=3&&b.includes(a))return true;
-    if(b.length>=3&&a.includes(b))return true;
-    const companyAcr=recAcronymAll(company),queryAcr=recAcronymAll(query);
-    if(a.length>=2&&companyAcr===a)return true;
-    if(b.length>=2&&queryAcr===b)return true;
-    const aw=a.split(/\s+/).filter(w=>w.length>2);
-    return aw.length>1&&aw.every(w=>b.includes(w));
-  }
-  function recExperienceEntries(c){
-    const out=[];
-    ['previous_companies','previous_company_experience','company_experience','work_experience','experience_history','employment_history','experiences','experience'].forEach(field=>{
-      recArray(c&&c[field]).forEach(item=>{
-        if(typeof item==='string'){out.push({company_name:item});return;}
-        if(!item||typeof item!=='object')return;
-        out.push({
-          company_name:item.company_name||item.company||item.organization||item.organisation||item.employer||item.companyName||'',
-          designation:item.designation||item.job_title||item.title||item.role||item.position||'',
-          department:item.department||item.industry||item.function||'',
-          start_date:item.start_date||item.startDate||item.from||'',
-          end_date:item.end_date||item.endDate||item.to||'',
-          currently_working:item.currently_working===true||item.current===true||item.present===true||/present|current/i.test(String(item.end_date||item.endDate||item.to||''))
-        });
-      });
-    });
-    ['current_company','current_company_college','current_company_normalized','company','company_name','organization','employer_name'].forEach(field=>{
-      if(c&&c[field])out.push({company_name:c[field],designation:c.current_position||c.current_work||c.professional_title||c.role||'',department:c.department||c.industry||'',currently_working:true});
-    });
-    recArray(c&&c.experience_companies_normalized).forEach(name=>out.push({company_name:name}));
-    const seen=new Set();
-    return out.map(item=>Object.assign({},item,{company_name:String(item.company_name||'').trim(),designation:String(item.designation||'').trim(),department:String(item.department||'').trim()})).filter(item=>{
-      if(!item.company_name)return false;
-      const key=[recCompanyNorm(item.company_name),recClean(item.designation),item.start_date||'',item.end_date||''].join('|');
-      if(seen.has(key))return false;
-      seen.add(key);
-      return true;
-    });
-  }
-  function recIsApproved(c){
-    const status=recClean((c&&c.approval_status)||(c&&c.profile_status)||(c&&c.consultant_status)||(c&&c.status)||'');
-    if(/reject|pending|suspend|hidden|inactive|draft|blocked/.test(status))return false;
-    if(c&&c.is_active===false)return false;
-    if(c&&(c.hidden===true||c.is_hidden===true))return false;
-    return c&&(c.is_approved===true||c.approved===true||status==='approved'||status==='verified'||status===''||recClean(c.badge)==='verified'||recClean(c.badge)==='new');
-  }
-  async function fetchCons(){
-    if(_allCons.length>0)return _allCons;
-    const sb=getSB();if(!sb)return[];
-    try{
-      const{data,error}=await sb.from('consultants').select('*').eq('is_active',true).limit(1000);
-      if(error)throw error;
-      // Find Jobs recommendations must use the same canonical source as every
-      // other public consultant card: consultants table only. Do not merge
-      // profiles-table fallbacks, because that creates visibly different cards.
-      _allCons=(data||[]).filter(recIsApproved);
-    }catch(e){console.warn('Find Jobs consultant fetch failed:',e);_allCons=[];}
-    return _allCons;
-  }
-  function recYearsBetween(start,end,current){const sy=Number(String(start||'').match(/\b(19|20)\d{2}\b/)?.[0]||0),ey=current?new Date().getFullYear():Number(String(end||'').match(/\b(19|20)\d{2}\b/)?.[0]||0);return sy&&ey&&ey>=sy?ey-sy+1:0;}
-  function jobCompanyHints(jobs,q){
-    const hints=[],query=String(q||'').trim();
-    if(query)hints.push(query);
-    (jobs||[]).forEach(j=>{const co=(j&&j.company)||(j&&j.company_name)||(j&&j.employer_name)||'';if(co)hints.push(co);});
-    const seen=new Set();
-    return hints.map(x=>String(x||'').trim()).filter(x=>{const key=recCompanyNorm(x)||recClean(x);if(!key||seen.has(key))return false;seen.add(key);return true;}).slice(0,16);
-  }
-  function consScore(c,kws,companies){
-    let score=0,companyScore=0;
-    const entries=recExperienceEntries(c);
-    entries.forEach(exp=>{
-      companies.forEach(company=>{
-        if(recCompanyMatches(company,exp.company_name)){
-          const add=exp.currently_working?900:760;
-          companyScore=Math.max(companyScore,add);
-          score+=add+(recYearsBetween(exp.start_date,exp.end_date,exp.currently_working)*22);
-          if(recCompanyMatches(company,exp.designation))score+=80;
-          if(recCompanyMatches(company,exp.department))score+=40;
-        }
-      });
-      kws.forEach(k=>{
-        if(recCompanyMatches(k,exp.company_name)){companyScore=Math.max(companyScore,exp.currently_working?850:720);score+=exp.currently_working?850:720;}
-        const des=recClean(exp.designation),dept=recClean(exp.department),key=recClean(k);
-        if(key&&des.includes(key))score+=45;
-        if(key&&dept.includes(key))score+=30;
-      });
-    });
-    const hay=recClean([c.name,c.full_name,c.specialty,c.category,c.categories,c.bio,c.about,c.skills,c.expertise,c.tags,c.current_position,c.current_work,c.current_company,c.current_company_college,c.highest_education,c.college].map(recText).join(' '));
-    kws.forEach(k=>{const key=recClean(k);if(key&&hay.includes(key))score+=key.length>5?14:5;});
-    score+=Number(c.rating||0)*4+(Number(c.response_rate||0)||0)/15;
-    score+=['bio','about','avatar_url','current_position','current_work','highest_education','college','skills','category'].reduce((n,k)=>n+(c[k]?1:0),0);
-    return{score,companyScore};
-  }
-  function rankedJobConsultants(cons,kws,jobs,q){
-    const companies=jobCompanyHints(jobs,q);
-    const ranked=(cons||[]).map(c=>Object.assign({},c,consScore(c,kws,companies))).filter(c=>c.score>0).sort((a,b)=>(b.companyScore-a.companyScore)||(b.score-a.score));
-    const hasCompanyMatch=ranked.some(c=>c.companyScore>=700);
-    return hasCompanyMatch?ranked.filter(c=>c.companyScore>=700):ranked;
-  }
-  function consFits(c,kws){return consScore(c,kws,[]).score>0;}
   function timeAgo(d){if(!d)return'';try{const diff=Math.floor((Date.now()-new Date(d).getTime())/86400000);if(diff<=0)return'Today';if(diff===1)return'1d ago';if(diff<30)return diff+'d ago';return Math.floor(diff/30)+'mo ago';}catch(_){return'';}}
   const JOB_SOURCE_OPTIONS=[['','All job sites'],['linkedin','LinkedIn'],['naukri','Naukri'],['indeed','Indeed'],['glassdoor','Glassdoor'],['foundit','Foundit'],['timesjobs','TimesJobs'],['internshala','Internshala'],['wellfound','Wellfound'],['google','Google Jobs'],['company','Company career page'],['other','Other sites']];
   function jobSourceText(job){
@@ -6751,37 +6640,11 @@ cancelBooking=async function(bookingId,role){
           ${renderJobCards(filteredJobs)}
         </div>
         ${_jobsCache.hasMore?`<div style="text-align:center;margin-bottom:40px"><button id="jobs-load-more" onclick="window._runJobSearch&&window._runJobSearch(${(_jobsCache.page||1)+1})" style="padding:12px 32px;border:1.5px solid var(--border);background:var(--surface);border-radius:14px;font-size:14px;font-weight:var(--font-weight-medium,500);cursor:pointer;font-family:inherit;color:var(--ink)">Load more jobs ↓</button><div style="font-size:11px;color:var(--muted);margin-top:8px">Use Load more if the selected site has fewer visible results.</div></div>`:'<div style="text-align:center;margin-bottom:40px;font-size:13px;color:var(--muted)">All available results shown</div>'}
-        <div style="border-top:1px solid var(--border);padding-top:32px">
-          <div style="font-family:'Cormorant Garamond',serif;font-size:clamp(20px,4vw,26px);font-weight:var(--font-weight-medium,500);margin-bottom:6px">Need help landing this role?</div>
-          <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Book a Guidcy expert — resume review, interview prep, salary negotiation</div>
-          <div id="cons-rec-grid"></div>
-        </div>`;
+        `;
       setTimeout(()=>{try{window.guidcyUpdateJobSaveButtons&&window.guidcyUpdateJobSaveButtons();}catch(_){}},80);
-      if(_jobsRecCache&&_jobsRecCache.length){
-        setTimeout(()=>{try{consRecs(_jobsRecCache,$('cons-rec-grid'));}catch(_){}},40);
-      }else{
-        setTimeout(()=>{try{refreshJobConsultantsForCache(false);}catch(_){}},80);
-      }
+      window.GuidcyAdaptiveExperts?.schedule();
       companion.set(filteredJobs.length?'results':'empty',filteredJobs.length);
       persistJobsState();
-    }
-    async function refreshJobConsultantsForCache(force){
-      const target=$('cons-rec-grid');
-      if(!target||!_jobsCache||!Array.isArray(_jobsCache.jobs)||!_jobsCache.jobs.length)return;
-      if(!force&&_jobsRecCache&&_jobsRecCache.length){
-        consRecs(_jobsRecCache,target);
-        return;
-      }
-      const q=(_jobsCache.q||$('job-q')?.value||'').trim();
-      const qLower=q.toLowerCase();
-      let recKws=q.split(/\s+/).filter(w=>w.length>2);
-      Object.entries(JOB_CAT_MAP).forEach(([cat,kws])=>{if(kws.some(k=>qLower.includes(k.toLowerCase()))||qLower.includes(cat.toLowerCase())){recKws=[...recKws,...kws];}});
-      try{
-        const allCons=await fetchCons();
-        _jobsRecCache=rankedJobConsultants(allCons,recKws,_jobsCache.jobs,q).slice(0,6);
-        consRecs(_jobsRecCache,target);
-        persistJobsState();
-      }catch(e){console.warn('Find Jobs consultant restore failed:',e);}
     }
     function restoreJobsStateIfAvailable(){
       const state=readJobsState();
@@ -6789,7 +6652,6 @@ cancelBooking=async function(bookingId,role){
       _restoringJobsState=true;
       try{
         _jobsCache={q:state.q||'',loc:state.loc||'India',jobs:state.jobs||[],page:state.page||1,hasMore:!!state.hasMore};
-        _jobsRecCache=Array.isArray(state.recs)?state.recs.slice(0,6):[];
         try{window._jobsCache=_jobsCache}catch(_){}
         const qEl=$('job-q');if(qEl)qEl.value=state.q||'';
         const locEl=$('job-loc');if(locEl)locEl.value=state.loc||'India';
@@ -6846,18 +6708,8 @@ cancelBooking=async function(bookingId,role){
       _jobsCache.page=pageNum;
       _jobsCache.hasMore=newJobs.length>=8; // if we got a full page, likely more exist
       try{window._jobsCache=_jobsCache}catch(_){}
-      const qLower=q.toLowerCase();
-      let recKws=q.split(/\s+/).filter(w=>w.length>2);
-      Object.entries(JOB_CAT_MAP).forEach(([cat,kws])=>{if(kws.some(k=>qLower.includes(k.toLowerCase()))||qLower.includes(cat.toLowerCase())){recKws=[...recKws,...kws];}});
-      const consPromise=fetchCons();
-      window._renderFilteredJobs=function(){
-        renderJobsCache(area);
-      };
+      window._renderFilteredJobs=function(){renderJobsCache(area);};
       window._renderFilteredJobs();
-      const allCons=await consPromise;
-      if(sequence!==searchSequence||!area.isConnected)return;
-      _jobsRecCache=rankedJobConsultants(allCons,recKws,_jobsCache.jobs,q).slice(0,6);
-      consRecs(_jobsRecCache,$('cons-rec-grid'));
       persistJobsState();
     };
     restoreJobsStateIfAvailable();
@@ -6884,15 +6736,6 @@ cancelBooking=async function(bookingId,role){
     const starHtml=typeof starsHtml==='function'?starsHtml(rating):'★★★★★';
     return `<div class="ccard" data-consultant-id="${cid}" onclick="window.openProfile&&openProfile('${cid}',-1)"><div class="ccard-top">${av}${badge}<div class="c-name">${name}</div><div class="c-role">${category}</div>${work}${education}<div class="c-stars"><span style="color:#F59E0B;font-size:11px">${starHtml}</span><span class="c-rev" style="margin-left:4px">${rating>0?safe(rating.toFixed(1))+' ('+safe(reviews)+')':'New'}</span></div></div><div class="ccard-bot"><div><div class="c-price">${window.guidcyFormatINR(price)}</div><div class="c-price-label">per session${exp?' · '+safe(exp):''}</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile('${cid}',-1)">Book</button></div></div>`;
   }
-  function consRecs(cons,container){
-    if(!container)return;
-    if(!cons||!cons.length){
-      container.innerHTML=`<div style="font-size:13px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px">No matching consultants yet. <button class="btn" style="font-size:12px;padding:5px 14px;margin-left:8px" onclick="window.go&&go('browse')">Find all experts →</button></div>`;
-      return;
-    }
-    container.innerHTML=`<div class="grid browse-grid guidcy-recommended-expert-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">${cons.slice(0,6).map(guidcyCanonicalConsultantCard).join('')}</div>`;
-  }
-
   const _prevRenderPage=window.renderPage;
   window.renderPage=function(page){
     if(page==='jobs'){document.querySelectorAll('.page').forEach(p=>{if(p.id!=='page-jobs')p.classList.remove('on','active')});buildJobsPage().then(()=>{const jp=$('page-jobs');if(jp)jp.classList.add('on');window.scrollTo(0,0);});return;}
@@ -7241,6 +7084,7 @@ cancelBooking=async function(bookingId,role){
     // Mode switcher logic
     let currentMode='jobs';
     window._sfSetMode=function(mode){
+      window.GuidcyAdaptiveExperts?.clear();
       currentMode=mode;
       const jobCard=$('sf-mode-job'),eduCard=$('sf-mode-edu');
       const jobForm=$('sf-form-jobs'),eduForm=$('sf-form-edu');
@@ -7260,6 +7104,7 @@ cancelBooking=async function(bookingId,role){
     };
 
     window._sfSubmit=async function(){
+      window.GuidcyAdaptiveExperts?.schedule();
       const btn=$('sf-submit-btn'),results=$('sf-results');
       if(btn){btn.disabled=true;btn.textContent='🔍 Searching across the web...';}
 
@@ -9553,151 +9398,6 @@ cancelBooking=async function(bookingId,role){
     var setStatus=function(msg,color){var el=$('sf-resume-status');if(el){el.textContent=msg;if(color)el.style.color=color;}};
     var setPreview=function(text){var el=$('sf-resume-preview');if(!el)return;el.style.display='none';el.classList.remove('on');el.textContent='';};
     try{var file=ev&&ev.target&&ev.target.files&&ev.target.files[0]; if(!file)return; if(file.size>10*1024*1024){setStatus('File too large. Upload below 10 MB.','#B91C1C');return;} setStatus('Reading and analysing resume...','#1E72BE'); var name=file.name||'resume'; var ext=(name.split('.').pop()||'').toLowerCase(); var text=''; if(ext==='pdf'||file.type==='application/pdf')text=await extractPdf(file); else if(ext==='docx')text=await extractDocx(file); else text=await extractText(file).catch(function(){return ''}); text=clean(text); if(!text||text.length<40)throw new Error('Resume text could not be read. Try selectable PDF, DOCX, or TXT.'); window._sfResumeData={fileName:name,fileType:file.type||ext,fileSize:file.size,text:text,summary:text.slice(0,7000),uploadedAt:new Date().toISOString()}; setStatus('Uploaded and analysed: '+name,'#059669'); setPreview(text); var b=$('sf-clear-resume'); if(b)b.style.display='inline-flex'; autoFillResume(text);}catch(err){console.error('Resume upload failed',err); window._sfResumeData={}; setStatus(err.message||'Resume upload failed. Try PDF, DOCX, or TXT.','#B91C1C'); setPreview('');}}
-})();
-
-
-/* === guidcy-supabase-expert-recommendation-patch === */
-
-(function(){
-  function q(id){return document.getElementById(id)}
-  function esc(v){
-    if(window.safe) return window.safe(v==null?'':String(v));
-    return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]});
-  }
-  function init(name){
-    name=String(name||'Consultant').trim();
-    if(window.mkInit) return window.mkInit(name);
-    return name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'G';
-  }
-  function stars(r){
-    var n=Math.max(0,Math.min(5,Math.round(Number(r)||0)));
-    return '★★★★★'.split('').map(function(ch,i){return '<span style="color:'+(i<n?'#F59E0B':'#D8E8F5')+'">★</span>';}).join('');
-  }
-  function asArray(v){
-    if(Array.isArray(v)) return v;
-    if(!v) return [];
-    if(typeof v==='string') return v.split(/[,|;\n]/).map(function(x){return x.trim();}).filter(Boolean);
-    return [];
-  }
-  function roleOf(c){return c.role||c.specialty||c.category||c.profession||c.current_work||'Consultant'}
-  function priceOf(c){return Number(c.price||c.rate||c.session_price||c.video_price||c.consultation_fee||0)||0}
-  function getId(c){return esc(c.id||c.dbId||c.consultant_id||'')}
-  function consultantSearchText(c){
-    return [
-      c.name,c.role,c.specialty,c.category,c.bio,c.about,c.expertise,c.industry,c.current_work,c.current_company,c.highest_education,c.college,
-      asArray(c.tags).join(' '),asArray(c.skills).join(' '),asArray(c.categories).join(' ')
-    ].filter(Boolean).join(' ').toLowerCase();
-  }
-  var CATEGORY_KWS={
-    marketing:['marketing','digital marketing','seo','sem','social media','brand','branding','content','growth','sales','performance marketing','google ads','meta ads'],
-    career:['career','resume','interview','job','hr','recruitment','placement','salary','linkedin','career coach','counsellor','counselor'],
-    education:['education','college','university','admission','course','exam','jee','neet','mba','btech','study abroad','scholarship','counselling','counseling'],
-    technology:['technology','software','developer','data','ai','machine learning','cloud','python','java','react','engineering'],
-    finance:['finance','banking','investment','tax','accounting','ca','cfa','wealth','insurance'],
-    business:['business','strategy','startup','consulting','management','founder','entrepreneur','operations'],
-    legal:['legal','law','advocate','compliance','contract','company secretary'],
-    healthcare:['health','wellness','medical','doctor','nutrition','therapy','mental health'],
-    design:['design','ui','ux','graphic','creative','figma'],
-    manufacturing:['manufacturing','engineering','quality','production','supply chain','operations','plant','process']
-  };
-  function keywordsFromText(text, extra){
-    text=String(text||'').toLowerCase();
-    var out=[];
-    Object.keys(CATEGORY_KWS).forEach(function(cat){
-      var hit=text.indexOf(cat)>-1 || CATEGORY_KWS[cat].some(function(k){return text.indexOf(k)>-1});
-      if(hit) out=out.concat(CATEGORY_KWS[cat]).concat([cat]);
-    });
-    text.split(/[^a-z0-9.+#]+/i).forEach(function(w){if(w&&w.length>2)out.push(w)});
-    (extra||[]).forEach(function(w){if(w)out.push(String(w).toLowerCase())});
-    var seen={};
-    return out.filter(function(w){w=String(w).trim().toLowerCase(); if(!w||seen[w])return false; seen[w]=1; return true;}).slice(0,80);
-  }
-  async function fetchSupabaseConsultants(){
-    var sb=(typeof getSB==='function')?getSB():null;
-    if(!sb) return [];
-    try{
-      var res=await sb.from('consultants').select('*').eq('is_active',true).limit(250);
-      return (res&&res.data)||[];
-    }catch(e){
-      console.warn('Supabase consultant recommendation fetch failed',e);
-      return [];
-    }
-  }
-  window.fetchCons=fetchSupabaseConsultants;
-  function rankConsultants(cons,kws){
-    kws=(kws||[]).map(function(x){return String(x||'').toLowerCase().trim();}).filter(Boolean);
-    return (cons||[]).map(function(c){
-      var text=consultantSearchText(c);
-      var score=0;
-      kws.forEach(function(k){
-        if(!k)return;
-        if(text.indexOf(k)>-1)score+=1;
-        if(String(c.category||'').toLowerCase().indexOf(k)>-1)score+=3;
-        if(String(c.specialty||c.role||'').toLowerCase().indexOf(k)>-1)score+=2;
-      });
-      score+=(Number(c.rating)||0)*0.15;
-      return {c:c,score:score};
-    }).filter(function(x){return x.score>0}).sort(function(a,b){return b.score-a.score}).map(function(x){return x.c});
-  }
-  function renderExpertCards(container,cons,emptyText){
-    if(!container)return;
-    if(!cons||!cons.length){
-      container.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;color:var(--muted);font-size:13px">'+esc(emptyText||'No matching experts found right now.')+' <button class="btn" style="font-size:12px;padding:6px 14px;margin-left:8px" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div>';
-      return;
-    }
-    container.innerHTML='<div class="grid browse-grid" style="grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px">'+cons.slice(0,6).map(function(c){
-      var id=getId(c), role=esc(roleOf(c)), name=esc(c.name||'Consultant'), price=priceOf(c), rating=Number(c.rating)||0, reviews=Number(c.reviews||c.review_count||0)||0;
-      var avatar=c.avatar_url||c.photo_url||c.image_url||'';
-      var bg=esc(c.avatar_bg||c.bg||'#EBF4FF'), col=esc(c.avatar_color||c.color||'#1E72BE');
-      var badge=(String(c.badge||'').toLowerCase()==='verified'||c.is_verified||c.verified)?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">New</div>';
-      var edu=c.highest_education&&c.college ? '<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>' : '';
-      var work=c.current_work&&c.current_company ? '<div style="font-size:11px;color:var(--blue);margin-top:4px">'+esc(c.current_work)+', '+esc(c.current_company)+'</div>' : '';
-      var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+col+'22"></div>':'<div class="c-avatar" style="background:'+bg+';color:'+col+';border-color:'+col+'22">'+esc(init(c.name))+'</div>';
-      return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',null)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="font-size:11px">'+stars(rating)+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(price)+'</div><div class="c-price-label">per session'+(c.exp?' · '+esc(c.exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',null)">Book</button></div></div>';
-    }).join('')+'</div>';
-  }
-  window.consRecs=function(cons,container,kws){
-    var keywords=Array.isArray(kws)?kws:window._guidcyLastJobConsultantKeywords||[];
-    var ranked=rankConsultants(cons||[],keywords);
-    renderExpertCards(container,ranked,'No matching experts found for this keyword yet.');
-  };
-  function renderSmartFinderExperts(mode,data){
-    var results=q('sf-results'); if(!results)return;
-    var boxId='sf-supabase-consultants';
-    var old=q(boxId); if(old) old.remove();
-    var text='';
-    if(mode==='jobs'){
-      text=[q('sf-j-role')&&q('sf-j-role').value,q('sf-j-skills')&&q('sf-j-skills').value,q('sf-j-industry')&&q('sf-j-industry').value,q('sf-j-field')&&q('sf-j-field').value,q('sf-j-goal')&&q('sf-j-goal').value,(data.jobs||[]).map(function(j){return [j.title,j.description,j.company].join(' ')}).join(' ')].join(' ');
-    }else{
-      text=[q('sf-e-qual')&&q('sf-e-qual').value,q('sf-e-stream')&&q('sf-e-stream').value,q('sf-e-field')&&q('sf-e-field').value,q('sf-e-goal')&&q('sf-e-goal').value,(data.programs||[]).map(function(p){return [p.name,p.institution,p.whyFit].join(' ')}).join(' '),'education admission college career counselling'].join(' ');
-    }
-    var kws=keywordsFromText(text,mode==='jobs'?['career','resume','interview','job']:['education','college','admission','career']);
-    var wrap=document.createElement('div');
-    wrap.id=boxId;
-    wrap.style.cssText='margin-top:28px;border-top:1px solid var(--border);padding-top:28px';
-    wrap.innerHTML='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div><div style="font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:var(--font-weight-medium,500);margin-bottom:4px">Recommended Guidcy Experts</div><div style="font-size:13px;color:var(--muted)">Live approved consultants matched with your AI Finder profile.</div></div><button class="btn" onclick="window.go&&go(\'browse\')">Find the Expert →</button></div><div id="sf-supabase-consultants-grid"><div style="font-size:13px;color:var(--muted);padding:12px">Loading matching experts...</div></div>';
-    results.appendChild(wrap);
-    fetchSupabaseConsultants().then(function(cons){renderExpertCards(q('sf-supabase-consultants-grid'),rankConsultants(cons,kws),'No matching experts found for this profile yet.');});
-  }
-  var oldJobRender=window._sfRenderJobResults;
-  window._sfRenderJobResults=function(data){
-    if(oldJobRender) oldJobRender(data); else return;
-    setTimeout(function(){renderSmartFinderExperts('jobs',data||{});},80);
-  };
-  var oldEduRender=window._sfRenderEduResults;
-  window._sfRenderEduResults=function(data){
-    if(oldEduRender) oldEduRender(data); else return;
-    setTimeout(function(){renderSmartFinderExperts('education',data||{});},80);
-  };
-  /* Strengthen job-search consultant keywords using exact user search keyword + category/sector filters. */
-  var oldRun=window._runJobSearch;
-  if(oldRun){
-    window._runJobSearch=async function(pageNum){
-      var searchText=[q('jobs-query')&&q('jobs-query').value,q('job-search')&&q('job-search').value,q('job-sector')&&q('job-sector').value].filter(Boolean).join(' ');
-      window._guidcyLastJobConsultantKeywords=keywordsFromText(searchText,['career','resume','interview']);
-      return oldRun.apply(this,arguments);
-    };
-  }
 })();
 
 
@@ -15256,6 +14956,7 @@ function setOppTabVisualState(tab){
 
 /* ── Tabs ── */
 function oppSetTab(tab){
+  window.GuidcyAdaptiveExperts?.clear();
   clearTimeout(_searchTimer);
   ++_opportunitySearchRequestId;
   if(_activeOpportunitySearch){_activeOpportunitySearch.abort();_activeOpportunitySearch=null;}
@@ -15299,6 +15000,7 @@ window.oppDoSearch=async function(){
   const requestId=++_opportunitySearchRequestId;
 
   const f=getOppFilters();
+  window.GuidcyAdaptiveExperts?.schedule();
   _manualCat=(f.category||'').toLowerCase();
   _manualCountry=(f.country||'').toLowerCase();
 
@@ -15481,6 +15183,7 @@ window.addEventListener('focus',function(){setTimeout(ensureOpportunitiesRouteAf
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&window.__guidcyVisRefreshOK('oppRoute'))setTimeout(ensureOpportunitiesRouteAfterExternal,80)});
 
 /* ── Init ── */
+let opportunitiesInitialized=false;
 window.initOpportunitiesFinder=function(){
   const adminPanel=gid('opp-admin-panel');
   if(adminPanel)adminPanel.style.display=isAdmin()?'block':'none';
@@ -15488,6 +15191,9 @@ window.initOpportunitiesFinder=function(){
   if(notice)notice.style.display='none';
   updateSavedBadge();
   syncQuickButtons(_currentTab||'student');
+  // Navigation/auth can initialize twice; preserve an in-progress search.
+  if(opportunitiesInitialized)return;
+  opportunitiesInitialized=true;
   if(restoreOppStateIfAvailable())return;
   oppSetTab(_currentTab||'student');
 };
@@ -21686,36 +21392,6 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     }
     return null;
   }
-  function scoreConsultant(c,match){
-    var e=match.entry||{}, tenure=yearsBetween(e.start_date,e.end_date,e.currently_working);
-    var recent=e.currently_working?10000:Number(String(e.end_date||e.start_date||'0').replace(/[^0-9]/g,'')||0)/100;
-    var completion=['bio','highest_education','college','current_work','avatar_url','linkedin_url'].reduce(function(n,k){return n+(c[k]?1:0)},0);
-    return (e.currently_working?100000:0)+recent+(tenure*20)+(completion*5)+(Number(c.rating||0)*4)+(Number(c.response_rate||0)/10);
-  }
-  function matchBadge(company,match){
-    var e=match.entry||{}, role=e.designation||'Professional', co=e.company_name||company;
-    if(e.currently_working)return 'Current '+clean(co)+' '+clean(role);
-    if(e.designation)return 'Ex-'+clean(co)+' '+clean(role);
-    return 'Previously at '+clean(co);
-  }
-  function recCard(c,company,match){
-    return guidcyCanonicalConsultantCard(c);
-  }
-  async function recommendationsForCompany(company){
-    var all=await loadConsultants(false), exact=[], similar=[];
-    all.forEach(function(c){var m=matchForCompany(c,company,true); if(!m)return; (m.type==='exact'?exact:similar).push({c:c,m:m,score:scoreConsultant(c,m)})});
-    exact.sort(function(a,b){return b.score-a.score}); similar.sort(function(a,b){return b.score-a.score});
-    return {exact:exact,similar:similar};
-  }
-  async function renderCompanyRecommendations(container,company){
-    if(!container||!company)return;
-    var rec=await recommendationsForCompany(company), rows=(rec.exact.length?rec.exact:rec.similar).slice(0,4);
-    if(!rows.length)return;
-    container.innerHTML='<div class="guidcy-job-company-recs"><h3>'+(rec.exact.length?'Consultants with '+esc(company)+' Experience':'Similar Industry Experience')+'</h3><p>Need help landing this role? These approved experts have relevant company or adjacent industry experience.</p><div class="grid browse-grid guidcy-recommended-expert-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+rows.map(function(r){return recCard(r.c,company,r.m)}).join('')+'</div></div>';
-  }
-  function getLoadedJobs(){
-    try{return (window._jobsCache&&Array.isArray(window._jobsCache.jobs))?window._jobsCache.jobs:[]}catch(_){try{return _jobsCache.jobs||[]}catch(__){return []}}
-  }
   async function enhanceJobRecommendations(){
     var existing=$('guidcy-company-rec-wrap'); if(existing)existing.remove();
   }
@@ -22250,7 +21926,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	    var avatar=c.avatar_url||c.photo_url||c.image_url||c.profile_image_url||'';
 	    var initialsTxt=c.avatar_initials||c.initials||avatarInitials(rawName);
 	    var rating=Number(c.rating||0), reviews=Number(c.reviews||c.review_count||0)||0;
-	    var price=Number(c.video_price||c.price||c.rate||c.session_price||2000)||2000;
+	    var price=Number(c.rate??c.video_price??c.price??c.session_price??0)||0;
 	    var exp=c.exp||c.experience||'';
 	    var verified=String(c.badge||'').toLowerCase()==='verified'||c.is_verified||c.verified;
 	    var badge=verified?'<div class="verified-pill" style="margin-bottom:6px">✓ Verified</div>':'<div class="new-pill" style="margin-bottom:6px">New</div>';
@@ -22258,28 +21934,24 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	    var edu=(c.highest_education&&c.college)?'<div class="guidcy-card-edu" style="font-size:11px;color:var(--blue);margin-top:4px">🎓 '+esc(c.highest_education)+', '+esc(c.college)+'</div>':'';
 	    var av=avatar?'<div class="c-avatar" style="background:url(\''+esc(avatar)+'\') center/cover no-repeat;border-color:'+esc(col)+'22"></div>':'<div class="c-avatar" style="background:'+esc(bg)+';color:'+esc(col)+';border-color:'+esc(col)+'22">'+esc(initialsTxt)+'</div>';
 	    var starHtml=adaptiveStars(rating);
-	    return '<div class="ccard" onclick="window.openProfile&&openProfile(\''+id+'\',-1)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+starHtml+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(price)+'</div><div class="c-price-label">per session'+(exp?' · '+esc(exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',-1)">Book</button></div></div>';
+	    return '<div class="ccard" data-consultant-id="'+id+'" onclick="window.openProfile&&openProfile(\''+id+'\',-1)"><div class="ccard-top">'+av+badge+'<div class="c-name">'+name+'</div><div class="c-role">'+role+'</div>'+work+edu+'<div class="c-stars"><span style="color:#F59E0B;font-size:11px">'+starHtml+'</span><span class="c-rev" style="margin-left:4px">'+(rating>0?esc(rating.toFixed(1))+' ('+esc(reviews)+')':'New')+'</span></div></div><div class="ccard-bot"><div><div class="c-price">'+window.guidcyFormatINR(price)+'</div><div class="c-price-label">per session'+(exp?' · '+esc(exp):'')+'</div></div><button class="btn btn-blue" style="padding:6px 14px;font-size:12px;border-radius:100px" onclick="event.stopPropagation();window.openProfile&&openProfile(\''+id+'\',-1)">Book</button></div></div>';
 	  }
 	  function activePageId(){
 	    var page=document.querySelector('.page.on,.page.active');
 	    return page&&page.id||'';
 	  }
 	  function pageContext(){
-	    var id=activePageId(), page=$(id);
-	    if(!page)return null;
-	    var map={'page-jobs':'Find Jobs','page-smart-finder':'Career and College Finder','page-opportunities':'Funds and Grants Finder'};
-	    if(!map[id])return null;
-	    var values=[];
-	    if(id==='page-jobs'){
-	      ['job-q','job-filter-loc','job-sector','job-salary','job-exp','job-source'].forEach(function(x){var el=$(x), v=clean(el&&el.value); if(v&&!/^(all job sites|all fields \/ sectors|any salary|any experience)$/i.test(v))values.push(v)});
-	    }else{
-	      values=Array.from(page.querySelectorAll('input:not([type="hidden"]):not([type="file"]),textarea,select')).map(function(el){var v=clean(el.value);return /^(all|any|select|preferred location)$/i.test(v)?'':v}).filter(Boolean);
-	    }
-	    var modal=document.querySelector('[role="dialog"],.modal.on,.job-modal,.opp-modal');
-	    var modalText=modal?clean(modal.innerText||'').slice(0,700):'';
-	    var query=clean(values.join(' ')+' '+modalText);
-	    return {id:id,label:map[id],query:query};
-	  }
+    var id=activePageId(),page=$(id);if(!page)return null;
+    function value(name){return clean(($(name)||{}).value)}
+    var query='',mode='';
+    if(id==='page-jobs')query=value('job-q');
+    else if(id==='page-smart-finder'){
+      mode=$('sf-form-jobs')?.style.display==='none'?'education':'jobs';
+      query=mode==='jobs'?(value('sf-j-goal')||['sf-j-role','sf-j-skills','sf-j-field','sf-j-college','sf-j-certs','sf-j-industry'].map(value).join(' ')):(value('sf-e-goal')||['sf-e-stream','sf-e-work','sf-e-field'].map(value).join(' '));
+    }else if(id==='page-opportunities')query=value('opp-search-input')||value('opp-filter-cat');
+    else return null;
+    return {id:id,query:clean(query).slice(0,1200),mode:mode};
+  }
 	  function removeRecContainer(pageId){
 	    var id='guidcy-adaptive-recs-'+String(pageId||'').replace(/^page-/,'');
 	    var box=$(id);
@@ -22299,60 +21971,45 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	    else page.appendChild(box);
 	    return box;
 	  }
-	  var recTimer=null, lastRecKey='', recInFlight={};
-		  async function runAdaptiveRecommendations(force){
-		    var ctx=pageContext(); if(!ctx)return;
-		    var query=ctx.query.slice(0,1200);
-		    if(query.length<3){removeRecContainer(ctx.id);return}
-		    if(query.length<8&&!force)return;
-	    var key=ctx.id+'|'+query.slice(0,300);
-	    var renderedBox=document.getElementById('guidcy-adaptive-recs-'+ctx.id.replace(/^page-/,''));
-	    var nativeJobGrid=ctx.id==='page-jobs'?$('cons-rec-grid'):null;
-	    if(key===lastRecKey&&((renderedBox&&renderedBox.querySelector('.ccard'))||(nativeJobGrid&&nativeJobGrid.querySelector('.ccard'))))return;
-	    if(key===lastRecKey&&!force)return;
-	    if(recInFlight[ctx.id])return;
-	    lastRecKey=key;
-	    var box=ensureRecContainer(ctx.id); if(!box)return;
-	    recInFlight[ctx.id]=true;
-	    box.innerHTML='<h3>Relevant Guidcy consultants</h3><p>Finding approved consultants using profile, education, company, skill, and category signals...</p>';
-	    try{
-	      var res=await fetch('/api/expert-match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:query,sector:ctx.label,page_context:ctx.label,mode:'adaptive_recommendations',limit:6})});
-	      var data=await res.json();
-	      var matches=Array.isArray(data.matches)?data.matches:[];
-	      if(!matches.length){box.innerHTML='';box.style.display='none';return}
-	      box.style.display='';
-	      var grid='<div class="grid browse-grid guidcy-recommended-expert-grid guidcy-adaptive-grid">'+matches.map(recCard).join('')+'</div>';
-	      var target=ctx.id==='page-jobs'?$('cons-rec-grid'):null;
-	      if(target){
-	        target.innerHTML=grid;
-	        box.innerHTML='';
-	        box.style.display='none';
-	      }else{
-	        box.innerHTML='<h3>Need help with this?</h3><p>Book a Guidcy expert matched to your current search.</p>'+grid;
-	      }
-	    }catch(e){
-	      console.warn('Adaptive consultant recommendations failed:',e);
-	      box.innerHTML='';
-	      box.style.display='none';
-	    }finally{
-	      recInFlight[ctx.id]=false;
-	    }
-	  }
-	  function scheduleAdaptive(force){
-	    clearTimeout(recTimer);
-	    recTimer=setTimeout(function(){runAdaptiveRecommendations(!!force)},force?80:650);
-	  }
-	  var lastActivePage='';
-	  function watchActiveRecommendationPage(){
-	    var id=activePageId();
-	    if(id&&id!==lastActivePage){
-	      lastActivePage=id;
-	    }
-	  }
-	  window.GuidcyAdaptiveExperts={
-	    run:function(){return runAdaptiveRecommendations(true)},
-	    schedule:function(){return scheduleAdaptive(true)}
-	  };
+  var recTimer=null,recState=new Map();
+  function contextKey(ctx){return ctx.id+'|'+ctx.mode+'|'+low(ctx.query)}
+  function cancelRecommendations(pageId){
+    var entry=recState.get(pageId);if(entry){entry.sequence++;entry.controller?.abort();entry.controller=null;entry.pending=false;entry.key='';}
+    removeRecContainer(pageId);
+  }
+  async function runAdaptiveRecommendations(force){
+    var ctx=pageContext();if(!ctx)return;
+    if(ctx.query.length<2){cancelRecommendations(ctx.id);return;}
+    var key=contextKey(ctx),entry=recState.get(ctx.id);
+    if(!entry){entry={sequence:0,key:'',at:0,pending:false};recState.set(ctx.id,entry);}
+    var existing=$('guidcy-adaptive-recs-'+ctx.id.replace(/^page-/,''));
+    if(key===entry.key&&(entry.pending||(!force&&Date.now()-entry.at<60000&&existing)))return;
+    entry.controller?.abort();var controller=new AbortController(),sequence=++entry.sequence;
+    entry.controller=controller;entry.key=key;entry.pending=true;
+    var box=ensureRecContainer(ctx.id);if(!box)return;
+    box.style.display='';box.innerHTML='<p role="status">Finding consultants matching your keywords…</p>';
+    var timeout=setTimeout(function(){controller.abort()},12000);
+    function current(){var latest=pageContext();return sequence===entry.sequence&&latest&&contextKey(latest)===key&&box.isConnected;}
+    try{
+      var res=await fetch('/api/expert-match',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({goal:ctx.query,mode:'adaptive_recommendations',limit:6})});
+      var data=await res.json();if(!res.ok||data.ok!==true||!Array.isArray(data.matches))throw new Error('Recommendations unavailable');
+      if(!current())return;
+      var seen=new Set(),matches=data.matches.filter(function(match){var id=match.consultant?.id;if(!id||!match.hits?.length||seen.has(String(id)))return false;seen.add(String(id));return true;});
+      entry.at=Date.now();
+      if(!matches.length){box.innerHTML='';box.style.display='none';return;}
+      box.innerHTML='<h3>Experts matching your search</h3><p>Registered consultants whose profiles match your keywords.</p><div class="grid browse-grid guidcy-recommended-expert-grid guidcy-adaptive-grid">'+matches.map(recCard).join('')+'</div>';
+    }catch(error){
+      if(current()){entry.at=0;box.innerHTML='<p>Expert suggestions are temporarily unavailable.</p><button type="button" class="btn" onclick="window.GuidcyAdaptiveExperts.run()">Try again</button>';}
+    }finally{clearTimeout(timeout);if(sequence===entry.sequence){entry.pending=false;entry.controller=null;}}
+  }
+  function scheduleAdaptive(){clearTimeout(recTimer);var pageId=activePageId();recTimer=setTimeout(function(){if(activePageId()===pageId)runAdaptiveRecommendations(false)},100);}
+  var lastActivePage='';
+  function watchActiveRecommendationPage(){
+    var id=activePageId();if(id===lastActivePage)return;
+    if(lastActivePage){var entry=recState.get(lastActivePage);if(entry?.pending)cancelRecommendations(lastActivePage);}
+    lastActivePage=id;
+  }
+  window.GuidcyAdaptiveExperts={run:function(){return runAdaptiveRecommendations(true)},schedule:scheduleAdaptive,clear:function(){clearTimeout(recTimer);var ctx=pageContext();if(ctx)cancelRecommendations(ctx.id);}};
 	  var maintenanceTimer=null;
 	  function authUiVisible(){
 	    var id=activePageId();
@@ -22376,19 +22033,15 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
 	    };
 	    window.go.__guidcyStrictAdaptive=true;
 	  }
-	  function isSearchButton(el){
-	    var btn=el&&el.closest&&el.closest('#page-jobs button,#page-smart-finder button,#page-opportunities button');
-	    if(!btn)return false;
-	    var label=low(btn.textContent||btn.getAttribute('aria-label')||btn.id||btn.getAttribute('onclick')||'');
-	    if(/clear|saved|view|book|apply|post|login|sign|reset|close|cancel|download/.test(label))return false;
-	    return /search|find|analy[sz]e|match|recommend|submit|run|load more/.test(label);
-	  }
-	  document.addEventListener('click',function(e){
-	    if(isSearchButton(e.target))setTimeout(function(){scheduleAdaptive(true)},320);
-	  },true);
-	  document.addEventListener('keydown',function(e){
-	    if(e.key==='Enter'&&e.target&&e.target.matches('#page-jobs input,#page-jobs textarea,#page-smart-finder input,#page-smart-finder textarea,#page-opportunities input,#page-opportunities textarea'))setTimeout(function(){scheduleAdaptive(true)},320);
-	  },true);
+  // Editing a search invalidates stale suggestions; the actual search owns the request.
+  document.addEventListener('input',function(event){
+    if(!event.target.matches('#job-q,#opp-search-input,#sf-form-area input,#sf-form-area textarea'))return;
+    var ctx=pageContext(),entry=ctx&&recState.get(ctx.id);if(entry&&entry.key!==contextKey(ctx))cancelRecommendations(ctx.id);
+  });
+  document.addEventListener('change',function(event){
+    if(!event.target.matches('#sf-form-area select,#opp-filter-cat'))return;
+    var ctx=pageContext(),entry=ctx&&recState.get(ctx.id);if(entry&&entry.key!==contextKey(ctx))cancelRecommendations(ctx.id);
+  });
 	  // shared observer - see guidcy-maintenance-scheduler. This one previously
 	  // rescheduled on EVERY mutation record, not just added nodes.
 	  window.guidcyOnDomSettled(function(){runLightMaintenance(document)});

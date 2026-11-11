@@ -9,7 +9,10 @@ const {
 
 const STOP_WORDS = new Set([
   'and','for','the','with','from','that','this','need','want','help','best','good','find','your','about','into',
-  'after','before','work','role','page','guidcy','apply','make','show','tell','please','more','less','near'
+  'after','before','work','role','page','apply','make','show','tell','please','more','less','near',
+  'are','was','have','has','had','can','could','would','should','how','what','which','who','where','when','you','they','their','some','looking','seeking',
+  'in','of','on','to','is','it','at','as','am','be','by','or','not','our','me','my','we','us','do','does','did',
+  'expert','experts','consultant','consultants','mentor','mentors','guidance'
 ]);
 
 
@@ -46,7 +49,7 @@ function textOf(value) {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) return value.map(textOf).join(' ');
-  if (typeof value === 'object') return Object.keys(value).map(key => `${key} ${textOf(value[key])}`).join(' ');
+  if (typeof value === 'object') return Object.values(value).map(textOf).join(' ');
   return '';
 }
 
@@ -112,9 +115,9 @@ function educationEntries(c) {
 function consultantText(c) {
   return cleanPhrase([
     c.name, c.full_name, c.role, c.current_position, c.professional_title, c.current_work, c.specialty,
-    c.category, c.categories, c.skills, c.expertise, c.tags, c.bio, c.about, c.description, c.industry,
+    c.category, c.categories, c.skills, c.expertise, c.tags, c.certs, c.bio, c.about, c.description, c.industry,
     c.department, c.languages, c.services, c.services_offered, c.grants, c.projects, c.publications,
-    educationEntries(c).join(' '), experienceEntries(c).map(textOf).join(' ')
+    educationEntries(c).join(' '), experienceEntries(c).map(textOf).join(' '), c.portfolio
   ].map(textOf).join(' '));
 }
 
@@ -123,13 +126,13 @@ function roleOf(c) {
 }
 
 function priceOf(c) {
-  return Number(c.video_price || c.price || c.rate || c.session_price || c.consultation_fee || 0) || 0;
+  return Number(c.video_price ?? c.price ?? c.rate ?? c.session_price ?? c.consultation_fee ?? 0) || 0;
 }
 
 function isApproved(c) {
   const status = norm(c.approval_status || c.profile_status || c.consultant_status || c.status);
   if (/reject|pending|suspend|hidden|inactive|draft/.test(status)) return false;
-  if (c.is_active === false || c.hidden === true || c.is_hidden === true) return false;
+  if (c.is_active === false || c.is_approved === false || c.hidden === true || c.is_hidden === true) return false;
   return c.is_approved === true || c.approved === true || status === 'approved' || status === 'verified' || status === '';
 }
 
@@ -229,7 +232,7 @@ function publicConsultant(c) {
     total_sessions: c.total_sessions || 0,
     rate: priceOf(c),
     price: priceOf(c),
-    video_price: c.video_price || c.price || c.rate || c.session_price || 0,
+    video_price: priceOf(c),
     session_types: safeArray(c.session_types || c.sessionTypes).map(textOf).slice(0, 5)
   };
 }
@@ -246,22 +249,28 @@ function publicConsultant(c) {
    shared helper for these endpoints. */
 const supabaseRest = supabaseFetch;
 
+const MATCH_FIELDS='id,profile_id,name,avatar_initials,avatar_bg,avatar_color,avatar_url,current_position,current_work,current_company,current_company_college,company_experience,specialty,category,bio,tags,certs,experience,highest_education,education,college,rate,price,video_price,badge,rating,review_count,total_sessions,session_types,is_active,approval_status,is_approved';
 async function fetchConsultants() {
-  const attempts = [
-    '/rest/v1/consultants?select=*&approval_status=eq.approved&is_active=eq.true&limit=1000',
-    '/rest/v1/consultants?select=*&is_approved=eq.true&is_active=eq.true&limit=1000',
-    '/rest/v1/consultants?select=*&approval_status=eq.approved&limit=1000',
-    '/rest/v1/consultants?select=*&limit=1000'
-  ];
-  for (const path of attempts) {
-    try {
-      const rows = await supabaseRest(path);
-      if (Array.isArray(rows) && rows.length) return rows.filter(row => row && row.id && isApproved(row));
-    } catch (e) {
-      console.warn('Expert match consultant fetch attempt failed:', e.message || e);
+  const rows=[];
+  // Stable, bounded batches cover the directory without fetching private payout fields.
+  for(let offset=0;offset<10000;offset+=200){
+    const batch=await supabaseRest(`/rest/v1/consultants?select=${MATCH_FIELDS}&approval_status=eq.approved&is_approved=eq.true&is_active=eq.true&order=id&limit=200&offset=${offset}`);
+    if(!Array.isArray(batch))throw new Error('Consultant search unavailable');
+    rows.push(...batch.filter(row=>row&&row.id&&isApproved(row)));
+    if(batch.length<200)break;
+  }
+  const ids=[...new Set(rows.map(row=>row.profile_id).filter(Boolean))],entries=[];
+  for(let i=0;i<ids.length;i+=100){
+    const filter=encodeURIComponent('('+ids.slice(i,i+100).join(',')+')');
+    for(let offset=0;offset<10000;offset+=200){
+      const batch=await supabaseRest(`/rest/v1/profile_entries?select=profile_id,kind,title,organization,field,description&profile_id=in.${filter}&order=id&limit=200&offset=${offset}`);
+      if(!Array.isArray(batch))throw new Error('Profile search unavailable');
+      entries.push(...batch);if(batch.length<200)break;
     }
   }
-  return [];
+  const portfolio=new Map();
+  for(const entry of entries){const values=portfolio.get(entry.profile_id)||[];values.push([entry.title,entry.organization,entry.field,entry.description].filter(Boolean).join(' '));portfolio.set(entry.profile_id,values);}
+  return rows.map(row=>({...row,portfolio:portfolio.get(row.profile_id)||[]}));
 }
 
 
@@ -306,8 +315,8 @@ function relatedTerms(terms) {
 function goalTerms(form, vocab) {
   const phrase = cleanPhrase(form.goal);
   if (!phrase) return [];
-  const words = phrase.split(/\s+/).filter(w => w.length >= 3 && !STOP_WORDS.has(w));
-  const wanted = Array.from(new Set([phrase.length >= 3 ? phrase : '', ...words].filter(Boolean)));
+  const words = phrase.split(/\s+/).filter(w => w.length >= 2 && !/^\d+$/.test(w) && !STOP_WORDS.has(w));
+  const wanted = Array.from(new Set([words.length && phrase.length >= 2 ? phrase : '', ...words].filter(Boolean)));
   return correctTerms(wanted, vocab);
 }
 
@@ -315,7 +324,10 @@ function goalTerms(form, vocab) {
    including what they wrote about each role. */
 function profileHits(c, terms) {
   const text = consultantText(c);
-  return terms.filter(term => text.includes(term));
+  return terms.filter(term => {
+    const escaped=term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('(^|[^a-z0-9+#])'+escaped+'(?=$|[^a-z0-9+#])','i').test(text);
+  });
 }
 
 /* The reader's filters, applied only when they set one. */
@@ -342,6 +354,7 @@ module.exports = async function handler(req, res) {
     const body = await readBody(req);
     const form = {
       goal: validateQuestion(body.goal || body.query || body.question || ''),
+      mode: body.mode === 'adaptive_recommendations' ? body.mode : '',
       stage: body.stage || '',
       budget: body.budget || '',
       language: body.language || '',
@@ -367,10 +380,13 @@ module.exports = async function handler(req, res) {
 
     const ratingOf = c => Number(c.rating || c.average_rating || 0) || 0;
     const reviewsOf = c => Number(c.reviews || c.review_count || 0) || 0;
-    const ranked = consultants
+    const unique = Array.from(new Map(consultants.map(c=>[String(c.id),c])).values());
+    const ranked = unique
       .map(c => ({ consultant: c, hits: profileHits(c, terms) }))
       .filter(item => item.hits.length && passesFilters(item.consultant, form))
       .sort((a, b) => {
+        const relevance = form.mode === 'adaptive_recommendations' ? b.hits.length-a.hits.length : 0;
+        if(relevance)return relevance;
         const byRating = ratingOf(b.consultant) - ratingOf(a.consultant);
         if (byRating) return byRating;
         const byReviews = reviewsOf(b.consultant) - reviewsOf(a.consultant);
@@ -384,7 +400,7 @@ module.exports = async function handler(req, res) {
     /* Then a few profiles that do the same work under another name, kept
        separate so the reader can see which is which, and only ever alongside a
        direct answer - never as a way to fill an empty page. */
-    const alsoTerms = relatedTerms(terms);
+    const alsoTerms = form.mode === 'adaptive_recommendations' ? [] : relatedTerms(terms);
     const shown = new Set(ranked.map(item => String(item.consultant.id)));
     const related = alsoTerms.length ? consultants
       .filter(c => !shown.has(String(c.id)))
