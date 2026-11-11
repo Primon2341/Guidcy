@@ -62,3 +62,9 @@ Profile loading now uses one shared header-shaped placeholder for user and consu
 
 
 Normal user and consultant sign-in now falls back to the homepage instead of automatically opening a dashboard/Upcoming Sessions. Explicit return URLs and pending booking/purchase actions keep priority. The standalone admin login still opens the admin dashboard. Password and Google sign-in use the same final destination controller, and passive auth events do not replay it.
+
+
+The profile Skills section now shows compact, non-interactive labels in a horizontal wrapping list. Its owner editor and Add Profile Section entry are named Skills, and existing skills/expertise values are retained for discovery and backwards compatibility. Removed all endorsement rendering, counts, action handlers, retry UI and browser RPC requests. Existing historical database migrations/data are unchanged. Browser checks cover skill editing and absence of endorsement requests alongside the existing profile workflows.
+
+
+PDF attachments and their migration/deployment status are documented in [PDF posts](community-pdf-posts-2026-11-11.md).

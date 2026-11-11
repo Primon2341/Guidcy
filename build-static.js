@@ -110,6 +110,8 @@ fs.mkdirSync(path.dirname(supabaseBrowserDest), {recursive:true});
 fs.copyFileSync(supabaseBrowserSdk, supabaseBrowserDest);
 console.log("Copied: pinned Supabase browser SDK (local, same-origin)");
 for (const name of ["pdf.mjs", "pdf.worker.mjs"]) fs.copyFileSync(path.join(root,"node_modules","pdfjs-dist","build",name), path.join(publicDir,"assets","vendor",name));
+// PDF reader assets are requested on demand, never preloaded with the feed.
+for (const name of ["cmaps","standard_fonts","wasm","iccs"]) copyDirRecursive(path.join(root,"node_modules","pdfjs-dist",name),path.join(publicDir,"assets","vendor","pdf-assets",name));
 
 // Reduce the mobile download/parse cost while keeping the authored source
 // readable. Global names and function names remain stable because the legacy
@@ -134,7 +136,7 @@ function minifyDeployableJavaScript(relPath){
   const saved = source.length - result.code.length;
   console.log(`Optimized: ${relPath} (${saved.toLocaleString()} bytes removed)`);
 }
-["assets/js/feature-loader.js","assets/js/community.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js","assets/js/security-client.js","assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/profile-resources.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js","assets/js/controllers.js"].forEach(minifyDeployableJavaScript);
+["assets/js/feature-loader.js","assets/js/community.js","assets/js/post-documents.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js","assets/js/security-client.js","assets/js/page-shell.js","assets/js/auth-lifecycle.js","assets/js/jobs-search.js","assets/js/core.js","assets/js/app.js","assets/js/profile-resources.js","assets/js/shared-search.js","assets/js/webinar-flow.js","assets/js/ui-refresh.js","assets/js/razorpay-checkout.js","assets/js/controllers.js"].forEach(minifyDeployableJavaScript);
 
 function minifyDeployableCss(relPath){
   const full = path.join(publicDir, relPath);
@@ -170,7 +172,7 @@ function cacheBustAssets(html){
   const shellScript = fs.readFileSync(path.join(publicDir, 'assets/js/page-shell.js'), 'utf8');
   html = html.replace('<script src="/assets/js/page-shell.js"></script>', () => '<script>'+shellScript+'</script>');
   [
- "assets/js/feature-loader.js","assets/js/community.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js",
+ "assets/js/feature-loader.js","assets/js/community.js","assets/js/post-documents.js","assets/js/availability.js","assets/js/blog-content.js","assets/js/blog.js","assets/js/seo.js","assets/js/seo-client.js","assets/js/cookie-consent.js",
  "assets/css/cookie-consent.css",
  "assets/js/security-client.js",
  "assets/js/jobs-search.js",

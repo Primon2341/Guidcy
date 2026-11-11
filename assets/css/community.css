@@ -193,8 +193,8 @@
 .gnet-entry-skills{font-weight:500;margin-top:10px!important}
 .gnet-entry-edit{width:32px;height:32px;border:1px solid transparent;border-radius:50%;background:transparent;color:#5c7280;font-size:19px;flex-shrink:0}
 .gnet-entry-edit:hover{background:var(--blue-l);border-color:var(--border)}
-.gnet-skill-list{display:grid;gap:0}
-.gnet-skill-list span{font-size:12px;line-height:1.5;padding:5px 9px;border:1px solid #dfe9ed;border-radius:6px;color:#375467;background:#f6f9fa}
+.gnet-skill-list{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0}
+.gnet-skill-list .gnet-skill{max-width:100%;overflow-wrap:anywhere;font-size:12px;line-height:1.5;padding:5px 9px;border:1px solid #dfe9ed;border-radius:6px;color:#375467;background:#f6f9fa}
 .gnet-profile-page .profile-sidebar>.gnet-prof-section{padding:19px}
 .gnet-profile-page .profile-sidebar>.gnet-prof-section h2{font-size:15px}
 .gnet-profile-page .gnet-consultation{margin-bottom:20px!important}
@@ -227,7 +227,7 @@
 .gnet-section-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .gnet-section-choices button{min-height:48px;justify-content:flex-start}
 .gnet-feature-choice{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #e1e8ed;background:#fff;color:var(--ink);padding:15px 4px;min-height:48px;overflow-wrap:anywhere;font:inherit;font-size:13px}
-.gnet-dialog .gnet-danger{background:#fff;color:#a53737;border:1px solid #dfb9b9;min-height:44px}.gnet-dialog .gnet-danger:hover{background:#fff5f5;border-color:#a53737}.gnet-dialog{overscroll-behavior:contain}.gnet-skill{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:9px 0;border-bottom:1px solid #edf0f3}.gnet-skill:last-child{border:0}.gnet-skill-list .gnet-skill>span{padding:0;border:0;background:none}.gnet-skill [data-action=endorse]{min-height:36px;padding:5px 9px;font-size:11px}.gnet-skill [aria-pressed=true]{color:#235b34;border-color:#b4dcbf;background:#f3faf5}.gnet-skill-list .gnet-endorsement-count{font-size:11px;color:var(--muted);border:0;background:none;padding:0}
+.gnet-dialog .gnet-danger{background:#fff;color:#a53737;border:1px solid #dfb9b9;min-height:44px}.gnet-dialog .gnet-danger:hover{background:#fff5f5;border-color:#a53737}.gnet-dialog{overscroll-behavior:contain}
 @media(max-width:850px){
  .gnet-profile-page.profile-layout,.gnet-profile-page.gnet-member-layout{display:flex!important;flex-direction:column;gap:0!important;max-width:740px!important}
  .gnet-profile-page .profile-main,.gnet-profile-page .profile-sidebar{display:contents!important}
@@ -329,3 +329,28 @@
 .gnet-placeholder-line.is-meta{width:32%}
 .gnet-profile-secondary-loading{padding:12px 0;margin:0;color:var(--muted);font-size:12px;line-height:1.5}
 @media(max-width:850px){.gnet-profile-placeholder{min-height:210px}.gnet-placeholder-avatar{width:96px;height:96px;margin-top:-36px;margin-bottom:20px}}
+
+/* Documents stay inside the existing post card and render one page at a time. */
+.gnet-document{border-block:1px solid var(--gnet-line,#e0e6e9);margin:0 -20px;width:calc(100% + 40px);min-width:0;background:#fff}
+.gnet-document>header{display:flex;align-items:center;gap:10px;padding:12px 16px;min-width:0}
+.gnet-document-kind{flex-shrink:0;padding:6px;border:1px solid #cddfee;border-radius:6px;color:var(--blue);font-size:10px;font-weight:700}
+.gnet-document>header>span:nth-child(2){min-width:0;flex:1}
+.gnet-document strong{display:block;font-size:13px;font-weight:600;overflow-wrap:anywhere;line-height:1.4}
+.gnet-document small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.gnet-document>header>a{display:inline-flex;align-items:center;min-height:44px;color:var(--blue-d);font-size:11px;flex-shrink:0}
+.gnet-document-stage{position:relative;display:grid;place-items:center;min-height:180px;max-height:560px;aspect-ratio:3/4;overflow:hidden;background:#eef2f5;touch-action:pan-y pinch-zoom}
+.gnet-document-stage canvas{display:block;max-width:100%;max-height:100%;object-fit:contain;background:#fff}
+.gnet-document-stage>[role=status]{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:12px;color:var(--muted);padding:20px;pointer-events:none}
+.gnet-document-stage>[role=status]:empty{display:none}
+.gnet-document-stage>button{z-index:1;align-self:end;margin-bottom:25px}
+.gnet-document-stage canvas[hidden],.gnet-document-stage>button[hidden]{display:none!important}
+.gnet-document-controls{display:flex;align-items:center;justify-content:center;gap:18px;padding:6px 12px;border-top:1px solid var(--gnet-line,#e0e6e9)}
+.gnet-document-controls button{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid var(--border2);border-radius:50%;color:var(--blue-d);background:#fff;font-size:19px}
+.gnet-document-controls button:hover:not(:disabled){background:var(--blue-l)}
+.gnet-document-controls button:disabled{opacity:.4;cursor:default}
+.gnet-document-controls>span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gnet-document-preview{margin:16px 0;padding:14px;border:1px solid var(--border2);border-radius:8px;background:var(--blue-l);overflow-wrap:anywhere;font-size:13px}
+.gnet-document-preview>p{margin-top:5px;font-size:12px;color:var(--muted)}
+.gnet-attachment-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.gnet-attachment-inputs>div{min-width:0}.gnet-attachment-inputs .gnet-muted{margin-top:6px;font-size:11px}
+@media(max-width:700px){.gnet-document{margin:0 -14px;width:calc(100% + 28px)}.gnet-document>header{padding:10px 12px;gap:7px}.gnet-document strong{font-size:12px}.gnet-attachment-inputs{grid-template-columns:1fr}}

@@ -1,0 +1,25 @@
+// Run against an isolated in-memory PostgreSQL; never contacts production.
+const {PGlite}=require(process.env.GUIDCY_PGLITE_MODULE||'@electric-sql/pglite');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{const db=new PGlite();const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222',post='aaaaaaaa-aaaa-4aaa-8aaa-000000000001';try{
+await db.exec(`create role anon;create role authenticated;create schema auth;create schema storage;create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;grant usage on schema auth,storage to anon,authenticated;create table public.profiles(id uuid primary key);insert into public.profiles values('${owner}'),('${other}');create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,owner_id text);alter table storage.objects enable row level security;grant select,insert,delete on storage.objects to authenticated;`);
+const base=fs.readFileSync('supabase/migrations/20261001143257_community_feed.sql','utf8');await db.exec(base.slice(0,base.indexOf('-- A narrow public projection')));
+const start=base.indexOf('create function public.community_feed('),end=base.indexOf('insert into storage.buckets',start);await db.exec(base.slice(start,end));
+const portfolio=fs.readFileSync('supabase/migrations/20261002044148_professional_portfolio.sql','utf8');const activity=portfolio.slice(portfolio.indexOf('create function public.community_profile_activity('));await db.exec(activity.slice(0,activity.indexOf('grant execute on function public.community_profile_activity')+activity.slice(activity.indexOf('grant execute on function public.community_profile_activity')).indexOf(';')+1));
+await db.exec(fs.readFileSync('supabase/migrations/'+fs.readdirSync('supabase/migrations').find(name=>name.endsWith('_community_post_documents.sql')),'utf8'));
+await db.exec(`set role authenticated;select set_config('request.jwt.claim.sub','${owner}',false);`);
+const docpath=owner+'/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.pdf';
+await db.query('insert into community_posts(id,author_id,document_path,document_name,document_pages,document_bytes) values($1,$2,$3,$4,2,1000)',[post,owner,docpath,'Guidance.pdf']);
+await db.query('insert into community_posts(author_id,body) values($1,$2)',[owner,'Existing text posts still work']);
+await db.query('insert into community_posts(author_id,image_path) values($1,$2)',[owner,owner+'/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp']);
+const feed=await db.query('select * from community_feed_with_documents()');assert.equal(feed.rows.length,3);assert.equal(feed.rows.find(p=>p.id===post).document_name,'Guidance.pdf');
+assert.equal((await db.query('select * from community_profile_activity_with_documents($1)',[owner])).rows.length,3);
+const old=await db.query('select * from community_feed()');assert.equal(old.rows[0].document_path,undefined,'legacy projection unchanged');
+for(const [field,value] of [['document_pages',201],['document_bytes',20971521],['document_name',''],['document_path',other+'/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.pdf'],['image_path',owner+'/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp']])await assert.rejects(db.query('update community_posts set '+field+'=$1 where id=$2',[value,post]),e=>e.code==='23514');
+await assert.rejects(db.query('insert into community_posts(author_id,body) values($1,$2)',[other,'Spoof']),e=>e.code==='42501');
+await db.query('insert into storage.objects(bucket_id,name,owner_id) values($1,$2,$3)',['community-documents',docpath,owner]);
+await assert.rejects(db.query('insert into storage.objects(bucket_id,name,owner_id) values($1,$2,$3)',['community-documents',other+'/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.pdf',owner]),e=>e.code==='42501');
+await db.exec(`select set_config('request.jwt.claim.sub','${other}',false);`);assert.equal((await db.query('update community_posts set document_name=$1 where id=$2 returning id',['Stolen',post])).rows.length,0);assert.equal((await db.query('delete from storage.objects where name=$1 returning name',[docpath])).rows.length,0);
+await db.exec("reset role;set role anon;select set_config('request.jwt.claim.sub','',false);");const publicPost=(await db.query('select * from community_feed_with_documents(p_post=>$1)',[post])).rows[0];assert.equal(publicPost.document_path,docpath);assert.equal(publicPost.liked,false);assert.equal(publicPost.saved,false);
+await assert.rejects(db.query('insert into community_posts(author_id,body) values($1,$2)',[owner,'Anonymous']),e=>e.code==='42501');console.log('Local PostgreSQL: migration, legacy RPC compatibility, PDF-only posts, constraints, public reading and owner-only writes/storage passed.');
+}finally{await db.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

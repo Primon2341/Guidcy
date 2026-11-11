@@ -13,6 +13,28 @@
   const imageURL = value => /^data:image\/(?:jpeg|png|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(value||'')?value:safeURL(value);
   const href = p => p.consultant_id ? '/consultant/'+encodeURIComponent(p.consultant_id) : '/profile?member='+encodeURIComponent(p.id);
   const postURL = id => location.origin+'/?post='+encodeURIComponent(id);
+  const documentRPCs=new Map();
+  async function postResult(name,args){
+    if(documentRPCs.get(name)!==false){
+      const response=await client().rpc(name+'_with_documents',args);
+      if(!response.error){documentRPCs.set(name,true);return response.data||[];}
+      if(!['PGRST202','42883'].includes(response.error.code))throw response.error;
+      documentRPCs.set(name,false);
+    }
+    return result(client().rpc(name,args));
+  }
+  let documentFeature=null;
+  function documents(){
+    if(window.GuidcyPostDocuments)return Promise.resolve(window.GuidcyPostDocuments);
+    if(!documentFeature)documentFeature=window.guidcyLoadScript(document.querySelector('[data-guidcy-feature="post-documents"]').dataset.src).then(()=>window.GuidcyPostDocuments).catch(error=>{documentFeature=null;throw error;});
+    return documentFeature;
+  }
+  const fileSize=bytes=>Number(bytes)>=1048576?(Number(bytes)/1048576).toFixed(1)+' MB':Math.max(1,Math.ceil(Number(bytes)/1024))+' KB';
+  function documentCard(p){
+    const path=p.document_path;if(!/^[a-f0-9-]{36}\/[a-f0-9-]{36}[.]pdf$/.test(path||''))return '';
+    const url=client().storage.from('community-documents').getPublicUrl(path).data.publicUrl;
+    return `<section class="gnet-document" data-document-path="${esc(path)}" data-document-pages="${Number(p.document_pages)||1}" aria-label="PDF: ${esc(p.document_name||'Document')}"><header><span class="gnet-document-kind" aria-hidden="true">PDF</span><span><strong>${esc(p.document_name||'Document')}</strong><small>${Number(p.document_pages)||1} pages · ${fileSize(p.document_bytes)}</small></span><a href="${esc(url)}?download=${encodeURIComponent(p.document_name||'document.pdf')}" target="_blank" rel="noopener noreferrer" aria-label="Download ${esc(p.document_name||'PDF')}">Download</a></header><div class="gnet-document-stage" role="group" tabindex="0" aria-label="PDF pages. Use the arrow keys to change pages."><canvas role="img" aria-label="PDF page" hidden></canvas><span role="status" class="gnet-document-status"></span><button type="button" class="gnet-button" data-action="load-document">Read PDF</button></div><div class="gnet-document-text sr-only"></div><nav class="gnet-document-controls" aria-label="PDF pages"><button type="button" data-pdf-prev aria-label="Previous page" disabled>←</button><span data-pdf-counter aria-live="polite">Page 1 of ${Number(p.document_pages)||1}</span><button type="button" data-pdf-next aria-label="Next page" disabled>→</button></nav></section>`;
+  }
   function avatar(p,eager=false) {
     if(!p||!p.name||p.name==='Guidcy member')return brand();
     const raw=p?.avatar_url||'';
@@ -59,7 +81,7 @@
     const author=person(p.author_id), mine=p.author_id===state.user?.id;
     const image=p.image_path?client().storage.from('community-images').getPublicUrl(p.image_path).data.publicUrl:'';
     const date=new Date(p.created_at);
-    return `<article class="gnet-card gnet-post" data-post="${esc(p.id)}" aria-label="Post by ${esc(author.name)}"><header>${identity(author,false)}${follow(author)}${mine?`<details class="gnet-menu"><summary aria-label="Post options">•••</summary><div><button data-action="edit">Edit post</button><button data-action="delete">Delete post</button></div></details>`:''}</header><div class="gnet-post-meta"><a href="/?post=${esc(p.id)}"><time datetime="${esc(p.created_at)}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</time></a> · Public</div><div class="gnet-post-copy"><div class="gnet-post-body gnet-collapsed">${esc(p.body)}</div><button class="gnet-read-more" data-action="expand" aria-expanded="false" hidden>… more</button></div>${image?`<img class="gnet-post-image" src="${esc(image)}" alt="${esc(p.image_alt||'Image shared by '+author.name)}" loading="lazy" decoding="async" width="960" height="640">`:''}<div class="gnet-post-counts"><span data-like-count>${Number(p.likes)} likes</span><button data-action="comments"><span data-comment-count>${Number(p.comments)}</span> comments</button>${author.consultant_id?`<a href="${esc(href(author))}" class="gnet-text-link">View expert ↗</a>`:''}</div><div class="gnet-post-actions"><button data-action="like" aria-pressed="${!!p.liked}">${icon('like')} Like</button><button data-action="comments">${icon('comment')} Comment</button><button data-action="share">${icon('share')} Share</button><button data-action="save" aria-pressed="${!!p.saved}">${icon('save')} <span data-save-label>${p.saved?'Saved':'Save'}</span></button></div><section class="gnet-comments" aria-label="Comments" hidden></section></article>`;
+    return `<article class="gnet-card gnet-post" data-post="${esc(p.id)}" aria-label="Post by ${esc(author.name)}"><header>${identity(author,false)}${follow(author)}${mine?`<details class="gnet-menu"><summary aria-label="Post options">•••</summary><div><button data-action="edit">Edit post</button><button data-action="delete">Delete post</button></div></details>`:''}</header><div class="gnet-post-meta"><a href="/?post=${esc(p.id)}"><time datetime="${esc(p.created_at)}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</time></a> · Public</div><div class="gnet-post-copy"><div class="gnet-post-body gnet-collapsed">${esc(p.body)}</div><button class="gnet-read-more" data-action="expand" aria-expanded="false" hidden>… more</button></div>${image?`<img class="gnet-post-image" src="${esc(image)}" alt="${esc(p.image_alt||'Image shared by '+author.name)}" loading="lazy" decoding="async" width="960" height="640">`:''}${p.document_path?documentCard(p):''}<div class="gnet-post-counts"><span data-like-count>${Number(p.likes)} likes</span><button data-action="comments"><span data-comment-count>${Number(p.comments)}</span> comments</button>${author.consultant_id?`<a href="${esc(href(author))}" class="gnet-text-link">View expert ↗</a>`:''}</div><div class="gnet-post-actions"><button data-action="like" aria-pressed="${!!p.liked}">${icon('like')} Like</button><button data-action="comments">${icon('comment')} Comment</button><button data-action="share">${icon('share')} Share</button><button data-action="save" aria-pressed="${!!p.saved}">${icon('save')} <span data-save-label>${p.saved?'Saved':'Save'}</span></button></div><section class="gnet-comments" aria-label="Comments" hidden></section></article>`;
   }
   const previewBodies=new Set();
   function paintPostPreviews(bodies){
@@ -72,6 +94,7 @@
     const bodies=[...document.querySelectorAll('.gnet-post-body')];
     for(const body of bodies)if(!previewBodies.has(body)){previewBodies.add(body);previewObserver.observe(body);}
     paintPostPreviews(bodies);
+    if(document.querySelector('.gnet-document'))documents().then(reader=>reader.mountAll()).catch(()=>{});
   }
   document.fonts?.ready.then(syncPostPreviews);
   function paintHomeIdentity() {
@@ -104,7 +127,7 @@
     try {
       const post=params().get('post'),author=params().get('author');
       if((post&&!uuid(post))||(author&&!uuid(author)))throw new Error('invalid-link');
-      const rows=await result(client().rpc('community_feed',{p_mode:post||author?'latest':state.mode,p_before:state.cursor?.rank_at||null,p_before_id:state.cursor?.id||null,p_as_of:state.asOf,p_post:post||null,p_author:author||null}));
+      const rows=await postResult('community_feed',{p_mode:post||author?'latest':state.mode,p_before:state.cursor?.rank_at||null,p_before_id:state.cursor?.id||null,p_as_of:state.asOf,p_post:post||null,p_author:author||null});
       await people(rows.slice(0,12).map(p=>p.author_id));
       if(epoch!==state.epoch||!home())return;
       if(reset){state.rows.clear();$('gnet-feed').innerHTML=rows.slice(0,12).map(postCard).join('');rows.slice(0,12).forEach(p=>state.rows.set(p.id,p));}
@@ -212,36 +235,60 @@
   }
   function compose(post) {
     if(!requireUser())return;
-    let blob=null,previewURL='',removed=false,imageEpoch=0;
-    const d=dialog(post?'Edit your post':'Share with the community',`<form id="gnet-post-form"><p class="gnet-muted">Public · Visible to anyone, including people outside Guidcy</p><label class="sr-only" for="gnet-body">Post content</label><textarea id="gnet-body" maxlength="5000" rows="7" placeholder="What would you like to share?">${esc(post?.body||'')}</textarea><div id="gnet-preview"></div><label for="gnet-file">Add a photo</label><input type="file" id="gnet-file" data-no-avatar-crop accept="image/jpeg,image/png,image/webp"><p class="gnet-form-error" role="alert"></p><div class="gnet-dialog-actions"><span class="gnet-muted">Up to 5,000 characters</span><button class="gnet-button gnet-primary" type="submit">${post?'Save changes':'Publish post'}</button></div></form>`);
+    let attachment=post?.document_path?{kind:'pdf',path:post.document_path,name:post.document_name,pages:post.document_pages,bytes:post.document_bytes}:post?.image_path?{kind:'image',path:post.image_path}:null;
+    let previewURL='',selection=0;
+    const d=dialog(post?'Edit your post':'Share with the community',`<form id="gnet-post-form"><p class="gnet-muted">Public · Visible to anyone, including people outside Guidcy</p><label class="sr-only" for="gnet-body">Post content</label><textarea id="gnet-body" maxlength="5000" rows="7" placeholder="What would you like to share?">${esc(post?.body||'')}</textarea><div id="gnet-preview"></div><div class="gnet-attachment-inputs"><div><label for="gnet-file">Add a photo</label><input type="file" id="gnet-file" data-no-avatar-crop accept="image/jpeg,image/png,image/webp"></div><div><label for="gnet-document-file">Add a PDF</label><input type="file" id="gnet-document-file" data-no-avatar-crop accept="application/pdf,.pdf" aria-describedby="gnet-document-help"><p id="gnet-document-help" class="gnet-muted">Up to 20 MB · 200 pages · One photo or PDF per post</p></div></div><p class="gnet-form-error" role="alert"></p><div class="gnet-dialog-actions"><span class="gnet-muted">Up to 5,000 characters</span><button class="gnet-button gnet-primary" type="submit">${post?'Save changes':'Publish post'}</button></div></form>`);
     const preview=d.querySelector('#gnet-preview'),error=d.querySelector('.gnet-form-error'),submit=d.querySelector('[type=submit]');
-    function paintPreview(url){preview.innerHTML=url?`<img src="${esc(url)}" alt="Selected image preview"><button type="button" class="gnet-button" id="gnet-remove-image">Remove image</button>`:'';preview.querySelector('button')?.addEventListener('click',()=>{imageEpoch++;blob=null;removed=true;submit.disabled=false;d.querySelector('#gnet-file').value='';paintPreview('');});}
-    if(post?.image_path)paintPreview(client().storage.from('community-images').getPublicUrl(post.image_path).data.publicUrl);
-    d.querySelector('#gnet-file').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;const epoch=++imageEpoch;submit.disabled=true;error.textContent='';try{const next=await compress(file);if(epoch!==imageEpoch)return;blob=next;removed=false;if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(blob);paintPreview(previewURL);}catch(e){error.textContent=e.message;}finally{if(epoch===imageEpoch)submit.disabled=false;}});
-    d.addEventListener('close',()=>{imageEpoch++;if(previewURL)URL.revokeObjectURL(previewURL);});
+    function clearPreviewURL(){if(previewURL)URL.revokeObjectURL(previewURL);previewURL='';}
+    function paint(){
+      preview.innerHTML=attachment?(attachment.kind==='pdf'?`<div class="gnet-document-preview"><strong>${esc(attachment.name)}</strong><p>${Number(attachment.pages)} pages · ${fileSize(attachment.bytes)}</p></div><button type="button" class="gnet-button" id="gnet-remove-document">Remove PDF</button>`:`<img src="${esc(previewURL||client().storage.from('community-images').getPublicUrl(attachment.path).data.publicUrl)}" alt="Selected image preview"><button type="button" class="gnet-button" id="gnet-remove-image">Remove image</button>`):'';
+      preview.querySelector('button')?.addEventListener('click',()=>{selection++;attachment=null;clearPreviewURL();submit.disabled=false;d.querySelector('#gnet-file').value='';d.querySelector('#gnet-document-file').value='';paint();});
+    }
+    paint();
+    async function choose(file,kind){
+      if(!file)return;const epoch=++selection;submit.disabled=true;error.textContent='';
+      try{
+        const next=kind==='pdf'?{kind,...await (await documents()).validate(file)}:{kind:'image',file:await compress(file)};
+        if(epoch!==selection||!d.isConnected)return;
+        clearPreviewURL();attachment=next;
+        if(kind==='image'){previewURL=URL.createObjectURL(next.file);d.querySelector('#gnet-document-file').value='';}else d.querySelector('#gnet-file').value='';
+        paint();
+      }catch(e){if(epoch===selection&&d.isConnected)error.textContent=e.message;}
+      finally{if(epoch===selection)submit.disabled=false;}
+    }
+    d.querySelector('#gnet-file').addEventListener('change',e=>choose(e.target.files[0],'image'));
+    d.querySelector('#gnet-document-file').addEventListener('change',e=>choose(e.target.files[0],'pdf'));
+    d.addEventListener('close',()=>{selection++;clearPreviewURL();});
     d.querySelector('form').addEventListener('submit',async e=>{
       e.preventDefault();if(submit.disabled)return;
       const owner=state.user?.id;if(!owner){error.textContent='Please log in again before publishing.';return;}
-      const body=d.querySelector('#gnet-body').value.trim();let path=removed?null:post?.image_path||null,uploaded=null;
-      if(!body&&!blob&&!path){error.textContent='Add some text or an image to your post.';return;}
-      submit.disabled=true;error.textContent='';d.querySelectorAll('[data-close]').forEach(b=>b.disabled=true);d.oncancel=e=>e.preventDefault();
-      try {
-        if(blob){uploaded=owner+'/'+crypto.randomUUID()+'.webp';await result(client().storage.from('community-images').upload(uploaded,blob,{contentType:'image/webp',upsert:false}));path=uploaded;}
-        const data={body,image_path:path,image_alt:path===post?.image_path?(post.image_alt||''):''};
+      const body=d.querySelector('#gnet-body').value.trim();
+      if(!body&&!attachment){error.textContent='Add some text, a photo or a PDF to your post.';return;}
+      submit.disabled=true;error.textContent='';
+      d.querySelectorAll('input,textarea,[data-close],#gnet-preview button').forEach(el=>el.disabled=true);d.oncancel=e=>e.preventDefault();
+      let uploaded=null;
+      try{
+        let path=attachment?.path||null;
+        if(attachment?.file){const bucket=attachment.kind==='pdf'?'community-documents':'community-images',type=attachment.kind==='pdf'?'application/pdf':'image/webp';path=owner+'/'+crypto.randomUUID()+(attachment.kind==='pdf'?'.pdf':'.webp');uploaded={bucket,path};await result(client().storage.from(bucket).upload(path,attachment.file,{contentType:type,upsert:false}));}
+        const data={body,image_path:attachment?.kind==='image'?path:null,image_alt:attachment?.kind==='image'&&path===post?.image_path?(post.image_alt||''):''};
+        // Existing text/image writes remain compatible before the additive migration.
+        if(attachment?.kind==='pdf'||post?.document_path)Object.assign(data,{document_path:attachment?.kind==='pdf'?path:null,document_name:attachment?.kind==='pdf'?attachment.name:null,document_pages:attachment?.kind==='pdf'?attachment.pages:null,document_bytes:attachment?.kind==='pdf'?attachment.bytes:null});
         await result(post?client().from('community_posts').update(data).eq('id',post.id).eq('author_id',owner).select('id').single():client().from('community_posts').insert({...data,author_id:owner}).select('id').single());
-        if(post?.image_path&&post.image_path!==path)await cleanupImage(post.image_path);
-        d.close();state.at=0;if(home()){await load(true);sidebar();}else refreshActivity();notice(post?'Post updated.':'Your post is published.');
-      } catch (_) {if(uploaded)await cleanupImage(uploaded);error.textContent='Your post could not be saved. Your draft is still here; please try again.';}
-      finally {submit.disabled=false;d.querySelectorAll('[data-close]').forEach(b=>b.disabled=false);d.oncancel=null;}
+        if(post?.image_path&&post.image_path!==data.image_path)await cleanupImage(post.image_path);
+        if(post?.document_path&&post.document_path!==data.document_path)await cleanupUpload('community-documents',post.document_path);
+        d.close();state.at=0;if(home()){await load(true);sidebar();if(profilePerson?.id===owner)refreshActivity(true);}else refreshActivity();notice(post?'Post updated.':'Your post is published.');
+      }catch(_){if(uploaded)await cleanupUpload(uploaded.bucket,uploaded.path);error.textContent='Your post could not be saved. Your draft is still here; please try again.';}
+      finally{submit.disabled=false;d.querySelectorAll('input,textarea,[data-close],#gnet-preview button').forEach(el=>el.disabled=false);d.oncancel=null;}
     });
     d.querySelector('textarea').focus();
   }
   // ponytail: browser cleanup is best-effort; add a scheduled orphan sweep if storage grows.
-  async function cleanupImage(path) {try {const r=await client().storage.from('community-images').remove([path]);if(r.error)console.warn('Community image cleanup needs retry',r.error.code);}catch (_) {console.warn('Community image cleanup needs retry');}}
+  async function cleanupUpload(bucket,path) {try {const r=await client().storage.from(bucket).remove([path]);if(r.error)console.warn('Post attachment cleanup needs retry',r.error.code);}catch (_) {console.warn('Post attachment cleanup needs retry');}}
+  const cleanupImage=path=>cleanupUpload('community-images',path);
   function removePost(post) {
     if(!requireUser()||post.author_id!==state.user.id)return;
     const d=dialog('Delete this post?',`<p>This will remove your post and its likes, comments and saves.</p><p class="gnet-form-error" role="alert"></p><div class="gnet-dialog-actions"><button class="gnet-button" data-close>Keep post</button><button class="gnet-button gnet-danger" id="gnet-delete-confirm">Delete post</button></div>`);
-    d.querySelector('#gnet-delete-confirm').onclick=async e=>{e.target.disabled=true;try {await result(client().from('community_posts').delete().eq('id',post.id).eq('author_id',state.user.id).select('id').single());if(post.image_path)await cleanupImage(post.image_path);d.close();if(home())load(true);else refreshActivity();}catch(_){d.querySelector('.gnet-form-error').textContent='Could not delete the post. Please try again.';e.target.disabled=false;}};
+    d.querySelector('#gnet-delete-confirm').onclick=async e=>{e.target.disabled=true;try {await result(client().from('community_posts').delete().eq('id',post.id).eq('author_id',state.user.id).select('id').single());if(post.image_path)await cleanupImage(post.image_path);if(post.document_path)await cleanupUpload('community-documents',post.document_path);d.close();if(home()){load(true);if(profilePerson?.id===state.user.id)refreshActivity(true);}else refreshActivity();}catch(_){d.querySelector('.gnet-form-error').textContent='Could not delete the post. Please try again.';e.target.disabled=false;}};
   }
   async function comments(card,p,append=false) {
     const section=card.querySelector('.gnet-comments');
@@ -424,7 +471,7 @@
     return `<article class="gnet-career-entry" id="gnet-entry-${esc(e.id)}">${education?organizationMark(e.organization,'college',true):'<div class="gnet-entry-mark" aria-hidden="true">◇</div>'}<div class="gnet-entry-content"><h3>${esc(e.title)}</h3><p>${education?organizationName(e.organization,'college'):esc(e.organization||'')}${e.organization&&e.field?' · ':''}${esc(e.field||'')}</p>${dates?`<p class="gnet-muted">${esc(dates)}</p>`:''}${e.grade?`<p>Grade: ${esc(e.grade)}</p>`:''}${e.activities?`<p>Activities: ${esc(e.activities)}</p>`:''}${e.description?longText(e.description):''}${safeURL(e.url)?`<a class="gnet-text-link" href="${esc(safeURL(e.url))}" target="_blank" rel="noopener noreferrer">View ${esc(e.kind||'details')} ↗</a>`:''}</div>${ownProfile()?`<button class="gnet-entry-edit" data-action="edit-entry" data-entry="${esc(e.id)}" aria-label="Edit ${esc(e.title)}">✎</button>`:''}</article>`;
   }
   function strength(p,entries){
-    const checks=[['Profile photo',!!p.avatar_url,'photo'],['Headline',!!p.headline&&!/^(student|user|consultant)$/i.test(p.headline),'intro'],['About',!!p.bio?.trim(),'about'],['Experience',!!p.company_experience?.length,'experience'],['Education',!!p.college||!!p.education||entries.some(e=>e.kind==='education'),'education'],['Expertise & skills',!!tags(p).length,'skills']];
+    const checks=[['Profile photo',!!p.avatar_url,'photo'],['Headline',!!p.headline&&!/^(student|user|consultant)$/i.test(p.headline),'intro'],['About',!!p.bio?.trim(),'about'],['Experience',!!p.company_experience?.length,'experience'],['Education',!!p.college||!!p.education||entries.some(e=>e.kind==='education'),'education'],['Skills',!!tags(p).length,'skills']];
     const score=Math.round(checks.filter(x=>x[1]).length/checks.length*100),next=checks.find(x=>!x[1]);
     return section('strength','Your profile',`<p><strong>Profile strength: ${score}%</strong><span class="gnet-private">Only you</span></p><progress max="100" value="${score}" aria-label="Profile strength">${score}%</progress>${next?`<button class="gnet-text-link" data-action="profile-section" data-section="${next[2]}">Add ${next[0].toLowerCase()} →</button>`:'<p class="gnet-muted">Your professional essentials are in place.</p>'}`);
   }
@@ -443,8 +490,7 @@
       main.querySelectorAll(':scope > .gnet-prof-section').forEach(el=>el.remove());side.querySelectorAll(':scope > .gnet-prof-section').forEach(el=>el.remove());
       const hero=main.querySelector('.gnet-profile-header'),bio=p.bio||'';
       if(bio||ownProfile())hero.insertAdjacentHTML('afterend',section('about','About',bio?longText(bio):'<p class="gnet-muted">Introduce your work, interests and the guidance you can offer.</p>',editButton('about',bio?'Edit':'Add')));
-      const skills=tags(p);if(skills.length||ownProfile())side.insertAdjacentHTML('beforeend',section('skills','Expertise & Skills',skills.length?`<div class="gnet-skill-list">${skills.map(t=>`<div class="gnet-skill"><span>${esc(t)}</span><span data-endorsement="${esc(t)}"></span></div>`).join('')}</div>`:'<p class="gnet-muted">Add the areas you know best.</p>',editButton('skills')));
-      if(skills.length)loadEndorsements(p);
+      const skills=tags(p);if(skills.length||ownProfile())side.insertAdjacentHTML('beforeend',section('skills','Skills',skills.length?`<ul class="gnet-skill-list" aria-label="Skills">${skills.map(t=>`<li class="gnet-skill">${esc(t)}</li>`).join('')}</ul>`:'<p class="gnet-muted">Add the areas you know best.</p>',editButton('skills')));
       const experiences=experienceRows(p);
       const activityEl=main.querySelector('.gnet-activity');
       if(experiences.length||ownProfile())activityEl.insertAdjacentHTML('afterend',section('experience','Experience',experiences.length?experienceHTML(experiences):'<p class="gnet-muted">Add your roles, companies and career history.</p>',editButton('experience','＋ Add experience')));
@@ -468,7 +514,7 @@
     if(p.id===state.user?.id){if(window.currentProfile)Object.assign(window.currentProfile,{company_experience:p.company_experience,current_company:p.company,current_company_college:p.company,college:p.college,highest_education:p.education,skills:tags(p)});if(window.curCons?.profile_id===p.id)Object.assign(window.curCons,{company_experience:p.company_experience,current_company:p.company,current_company_college:p.company,college:p.college,highest_education:p.education,tags:tags(p)});window.guidcyBroadcastDataChange?.('consultants');}
     await profileDetails(p);state.at=0;sidebar();
   }
-  function addSection(){dialog('Add Profile Section',`<div class="gnet-section-choices">${[['about','About'],['experience','Experience'],['education','Education'],['skills','Expertise & Skills'],['featured','Featured'],...Object.entries(entryLabels).filter(([k])=>k!=='education')].map(([key,label])=>`<button class="gnet-button" data-action="profile-section" data-section="${key}">${label}</button>`).join('')}</div>`);}
+  function addSection(){dialog('Add Profile Section',`<div class="gnet-section-choices">${[['about','About'],['experience','Experience'],['education','Education'],['skills','Skills'],['featured','Featured'],...Object.entries(entryLabels).filter(([k])=>k!=='education')].map(([key,label])=>`<button class="gnet-button" data-action="profile-section" data-section="${key}">${label}</button>`).join('')}</div>`);}
   function profileSection(key){
     if(!ownProfile()||!requireUser())return;
     if(key==='intro'||key==='about')editProfile();
@@ -518,7 +564,7 @@
     organizationSuggestions(d.querySelector('#gp-company_name'),'company');
     const check=d.querySelector('[name=currently_working]');const sync=()=>{for(const field of ['end_month','end_year'])d.querySelector('[name='+field+']').disabled=check.checked;d.querySelector('#gp-end_year').required=index===null&&!check.checked;d.querySelector('label[for=gp-end_year]').textContent='End year'+(index===null&&!check.checked?' *':'');};check.onchange=sync;sync();
   }
-  function editSkills(){editor('Expertise & Skills',textareaField('skills','Up to 40 skills, separated by commas',tags(profilePerson).join(', '),2400),data=>result(client().rpc('community_update_professional',{p_section:'skills',p_data:[...new Set(data.get('skills').split(',').map(x=>x.trim()).filter(Boolean))]})));}
+  function editSkills(){editor('Skills',textareaField('skills','Up to 40 skills, separated by commas',tags(profilePerson).join(', '),2400),data=>result(client().rpc('community_update_professional',{p_section:'skills',p_data:[...new Set(data.get('skills').split(',').map(x=>x.trim()).filter(Boolean))]})));}
   function editEntry(id,kind){
     if(!ownProfile())return;
     const e=id?portfolio.entries.find(e=>e.id===id):{kind};if(!e)return;
@@ -559,7 +605,7 @@
     if(!append){activityCursor=null;if(!host.firstChild)host.innerHTML='<p class="gnet-profile-secondary-loading" data-guidcy-profile-placeholder role="status">Loading posts…</p>';}
     const more=$('gnet-activity-more');if(more)more.disabled=true;
     try {
-      const rows=await result(client().rpc('community_profile_activity',{p_id:owner,p_kind:null,p_before:activityCursor?.created_at||null,p_before_id:activityCursor?.id||null}));
+      const rows=await postResult('community_profile_activity',{p_id:owner,p_kind:null,p_before:activityCursor?.created_at||null,p_before_id:activityCursor?.id||null});
       if(epoch!==activityEpoch||!host.isConnected||profilePerson?.id!==owner)return;
       const visible=rows.slice(0,5);await people(visible.map(r=>r.author_id));if(epoch!==activityEpoch||!host.isConnected||profilePerson?.id!==owner)return;
       if(!append)profilePosts.clear();visible.forEach(post=>profilePosts.set(post.id,post));
@@ -574,7 +620,7 @@
   function activityShell(p) {
     return `<section class="gnet-activity" aria-label="Activity"><header><h2>Activity</h2>${p.id===state.user?.id?'<button class="gnet-text-link" data-action="compose">Create a post</button>':''}</header><div class="gnet-activity-tabs"><button class="gnet-button" data-action="refresh-activity" data-tab="posts" aria-pressed="true">Posts</button></div><div id="gnet-profile-posts" tabindex="0" role="region" aria-label="Posts — scroll horizontally to browse"></div><button id="gnet-activity-more" class="gnet-view-all" data-action="more-activity" hidden>Show all posts →</button></section>`;
   }
-  function refreshActivity(){if(profilePerson&&$('page-profile').classList.contains('on'))activity(profilePerson);}
+  function refreshActivity(force=false){if(profilePerson&&(force||$('page-profile').classList.contains('on')))activity(profilePerson);}
   async function member(id) {
     await startAuth();if(params().get('member')!==id)return;
     if(!uuid(id)){$('profile-layout').innerHTML='<p class="gnet-card gnet-empty">This profile link is invalid.</p>';return;}
@@ -655,18 +701,6 @@
     if(profilePerson?.id!==id)return;
     profilePerson=p;
     const hero=document.querySelector('.gnet-profile-header');if(hero){hero.innerHTML=profileHeader(p);window.guidcyRefreshSavedConsultant?.();}
-  }
-  async function loadEndorsements(p){
-    const section=$('gnet-section-skills');if(!section)return;
-    try{
-      const rows=await result(client().rpc('community_skill_endorsements',{p_id:p.id}));if(!section.isConnected||profilePerson?.id!==p.id)return;
-      section.querySelectorAll('[data-endorsement]').forEach(el=>{const skill=el.dataset.endorsement,row=rows.find(r=>r.skill===skill),count=Number(row?.endorsements||0);el.innerHTML=p.id===state.user?.id?`<span class="gnet-endorsement-count">${count} endorsement${count===1?'':'s'}</span>`:`<button class="gnet-button" data-action="endorse" data-skill="${esc(skill)}" aria-pressed="${!!row?.endorsed}">${row?.endorsed?'Endorsed':'Endorse'} · ${count}</button>`;});
-    }catch(_){if(section.isConnected)section.querySelectorAll('[data-endorsement]').forEach(el=>{el.innerHTML='<button class="gnet-text-link" data-action="retry-endorsements">Retry endorsements</button>';});}
-  }
-  async function endorse(button){
-    if(!requireUser()||!profilePerson)return;
-    const p=profilePerson;button.disabled=true;
-    try{await result(client().rpc('community_endorse_skill',{p_id:p.id,p_skill:button.dataset.skill,p_endorsed:button.getAttribute('aria-pressed')!=='true'}));await loadEndorsements(p);}catch(_){notice('Could not update this endorsement. Please try again.');}finally{button.disabled=false;}
   }
   async function photoOptions(kind){
     if(!['avatar','cover'].includes(kind)||!ownProfile()||!requireUser())return;
@@ -758,7 +792,8 @@
     if(b.dataset.follow){toggleFollow(b.dataset.follow);return;}
     if(b.dataset.mode){if(['mine','saved','following'].includes(b.dataset.mode)&&!requireUser())return;state.mode=b.dataset.mode;document.querySelectorAll('.gnet-feed-toolbar [data-mode]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.mode===state.mode)));const u=new URL(location.href);u.searchParams.delete('post');u.searchParams.delete('author');history.replaceState(history.state,'',u.pathname+u.search);load(true);return;}
     const action=b.dataset.action,card=b.closest('[data-post]'),p=card&&(profilePosts.get(card.dataset.post)||state.rows.get(card.dataset.post));
-    if(action==='compose'){compose(null);if(b.dataset.photo)$('gnet-file')?.click();}
+    if(action==='compose'){compose(null);if(b.dataset.photo)$('gnet-file')?.click();if(b.dataset.document)$('gnet-document-file')?.click();}
+    if(action==='load-document')documents().then(reader=>reader.mountAll()).catch(()=>notice('The PDF reader could not load. Please try again.'));
     if(action==='refresh'){load(true);sidebar();}
     if(action==='more')load();
     if(action==='network')network();
@@ -767,8 +802,6 @@
     if(action==='book')openBooking();
     if(action==='photo-options')photoOptions(b.dataset.photoKind);
     if(action==='edit-profile')editProfile();
-    if(action==='endorse')endorse(b);
-    if(action==='retry-endorsements'&&profilePerson)loadEndorsements(profilePerson);
     if(action==='add-section'&&ownProfile())addSection();
     if(action==='profile-section')profileSection(b.dataset.section);
     if(action==='edit-entry')editEntry(b.dataset.entry);
