@@ -97,6 +97,7 @@ let browser;
   assert.equal(await loadingPage.locator('#profile-layout .gnet-skeleton,.gnet-placeholder-avatar,.gnet-placeholder-line').count(),0,'profiles contain no loading shapes');
   assert.equal(await loadingPage.locator('.gnet-profile-header').isVisible(),false,'the empty header card is hidden while loading');
   assert.equal(await loadingPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await loadingPage.waitForFunction(()=>Number(getComputedStyle(document.getElementById('guidcy-loading-status')).opacity)>.99);
   await loadingPage.screenshot({path:'/private/tmp/guidcy-profile-loading-'+(route.startsWith('/consultant')?'consultant':'member')+'-'+width+'.png'});
   await loadingPage.locator('.gnet-profile-header .profile-name').waitFor();await loadingPage.waitForSelector('[data-guidcy-profile-loading]',{state:'detached'});await loadingPage.locator('#guidcy-loading-status').waitFor({state:'hidden'});
   await loadingPage.close();

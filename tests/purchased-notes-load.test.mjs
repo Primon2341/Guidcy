@@ -13,7 +13,7 @@ const fn = app.slice(app.indexOf('async function purchases(btn,mainId){'),
                      app.indexOf('async function redownload(id)'));
 
 test('a boot-time render waits for auth instead of an incidental repaint', () => {
-  assert.match(fn, /window\.guidcyOnAuthReady\(function\(\)\{awaitingAuthForPurchases=false;purchases\(btn,mainId\)\}\)/,
+  assert.match(fn, /window\.guidcyOnAuthReady\(function\(\)\{awaitingAuthForPurchases=false;window\.GuidcyMarketplace\.purchases\(btn,mainId\)\}\)/,
     'it must re-render itself the moment initAuth finishes');
   assert.doesNotMatch(fn, /if\(orders===null\)return;/,
     'returning here is what left the panel on Loading');

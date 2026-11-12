@@ -65,6 +65,7 @@ test('rendered records and loading failures are final content, not placeholders'
   PANEL.firstChild = {};
   for (const html of [
     '<article data-post="post-1">Loading lessons from my first job</article>',
+    '<article data-post="post-2">Use data-guidcy-profile-loading for a loading status.</article>',
     '<div><a href="/consultant/expert">Searching for a new role</a><button>Book Session</button></div>',
     '<table><tr><td>Loading specialist</td><td>Paid</td></tr></table>',
     '<p>Loading failed. Please try again.</p>',

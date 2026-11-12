@@ -1434,6 +1434,10 @@ body.gmob-open{overflow:hidden}
 .gmkt-admin-filterbar{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(4,minmax(145px,1fr)) auto;gap:10px;align-items:center;background:#fff;border:1px solid #dbeafe;border-radius:16px;padding:12px;margin:14px 0 16px;box-shadow:0 10px 26px rgba(15,23,42,.045)}
 .gmkt-admin-filterbar input,.gmkt-admin-filterbar select{height:38px;border:1px solid #d8e8f5;border-radius:11px;padding:0 10px;background:#f8fbff;color:#0f172a;font:inherit;font-size:12px;min-width:0}
 .gmkt-admin-filterbar .btn{height:38px;padding:0 12px;font-size:12px;white-space:nowrap}
+.btn.gmkt-purchase-download{min-height:32px;padding:0;border:0;background:transparent;font-size:12px;line-height:1.5}
+.gmkt-purchase-download>span{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border:1px solid var(--blue);border-radius:8px;background:var(--blue);color:#fff;white-space:nowrap}
+.gmkt-purchase-download:hover:not(:disabled)>span{background:var(--blue-d);border-color:var(--blue-d)}
+@media(pointer:coarse){.btn.gmkt-purchase-download{min-height:44px}}
 .gmkt-admin-result-note{font-size:12px;color:#64748b;font-weight:var(--font-weight-semibold,600);margin:0 0 8px}
 .gmkt-pay-action{width:auto!important;min-width:auto!important;padding:7px 12px!important;border-radius:999px!important;font-size:12px!important;line-height:1.1!important;min-height:0!important;box-shadow:none!important}
 .gmkt-modal-backdrop{position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.48);display:flex;align-items:center;justify-content:center;padding:18px}

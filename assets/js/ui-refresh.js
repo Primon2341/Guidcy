@@ -39,7 +39,7 @@
 
   function isPlaceholder(html) {
     // The booking DOM may already exist while the public profile is pending.
-    if(/\bdata-guidcy-profile-loading\b/.test(String(html)))return true;
+    if(/<[a-z][^>]*\sdata-guidcy-profile-loading(?:\s|=|>)/i.test(String(html)))return true;
     // Secondary activity reads do not cover the already loaded profile.
     if(/\bdata-guidcy-profile-placeholder\b/.test(String(html)))return false;
     var text = textOf(html);

@@ -442,15 +442,43 @@ window.guidcyBookingIsPaidForPayout=paidBooking;
     }catch(error){console.error('Weekly consultant payout failed:',error);toastSafe(error&&error.message||'Could not mark this weekly payout as paid.','red');if(button){button.disabled=false;button.textContent='Confirm Paid'}return false}
   };
 
-  /* Reconcile an interrupted Marketplace checkout before the existing Purchased
-     Notes renderer queries Supabase. It never unlocks an unverified order. */
+  /* Confirmed purchases render immediately; gateway recovery runs independently. */
+  var purchaseRecovery=null;
   async function reconcileOwnedMarketplaceOrders(){
-    var c=client(),user=await authUser();if(!c||!user||!user.id)return;
-    var result=await c.from('marketplace_orders').select('id,razorpay_order_id,payment_status,payment_verified').eq('buyer_id',user.id).eq('payment_status','pending').not('razorpay_order_id','is',null).limit(12);if(result.error)return;
-    var headers=await apiAuthHeaders();
-    await Promise.allSettled((result.data||[]).map(function(row){return fetch('/api/verify-payment',{method:'POST',headers:headers,body:JSON.stringify({flow:'marketplace',orderId:row.id,reconcile:true})}).then(function(response){if(!response.ok)throw new Error('Marketplace reconciliation failed');return response.json()})}));
+    var c=client(),user=await authUser();if(!c||!user||!user.id)return false;
+    var epoch=window.__guidcyAuthEpoch||0,key=user.id+':'+epoch;
+    if(purchaseRecovery?.key===key){if(purchaseRecovery.promise)return purchaseRecovery.promise;if(Date.now()-purchaseRecovery.at<15000)return false;}
+    var entry={key:key,at:0,promise:null};purchaseRecovery=entry;
+    entry.promise=(async function(){
+      var controller=new AbortController(),timer=setTimeout(function(){controller.abort()},12000);
+      try{
+        var query=c.from('marketplace_orders').select('id,razorpay_order_id,payment_status,payment_verified').eq('buyer_id',user.id).eq('payment_status','pending').not('razorpay_order_id','is',null).limit(12);
+        if(typeof query.abortSignal==='function')query=query.abortSignal(controller.signal);
+        var result=await query;if(result.error||controller.signal.aborted)throw result.error||new Error('Recovery timed out');
+        if(!result.data?.length)return false;
+        if(window.currentUser?.id!==user.id)return false;
+        var headers=await apiAuthHeaders();
+        var settled=await Promise.allSettled(result.data.map(function(row){return fetch('/api/verify-payment',{method:'POST',headers:headers,signal:controller.signal,body:JSON.stringify({flow:'marketplace',orderId:row.id,reconcile:true})}).then(function(response){if(!response.ok)throw new Error('Marketplace reconciliation failed');return response.json()})}));
+        return settled.some(function(item){return item.status==='fulfilled'&&item.value.ok===true&&item.value.verified===true;});
+      }finally{clearTimeout(timer);}
+    })().then(function(changed){entry.at=Date.now();if(changed&&window.currentUser?.id===user.id&&epoch===(window.__guidcyAuthEpoch||0))window.GuidcyMarketplace?.invalidatePurchases?.();return changed}).catch(function(error){console.warn('Marketplace background recovery deferred',error);return false}).finally(function(){entry.promise=null;});
+    return entry.promise;
   }
-  function installPurchaseReconciliation(){var marketplace=window.GuidcyMarketplace;if(!marketplace||typeof marketplace.purchases!=='function'||marketplace.purchases.__guidcyReconcilesSupabase)return;var previous=marketplace.purchases;marketplace.purchases=async function(){await reconcileOwnedMarketplaceOrders();return previous.apply(this,arguments)};marketplace.purchases.__guidcyReconcilesSupabase=true}
+  function installPurchaseReconciliation(){
+    var marketplace=window.GuidcyMarketplace;if(!marketplace||typeof marketplace.purchases!=='function'||marketplace.purchases.__guidcyReconcilesSupabase)return;
+    var previous=marketplace.purchases;
+    marketplace.purchases=function(){
+      var args=arguments,owner=window.currentUser?.id||'',epoch=window.__guidcyAuthEpoch||0,mainId=args[1]||'udash-main';
+      var paint=previous.apply(this,args),recovery=reconcileOwnedMarketplaceOrders();
+      Promise.all([paint,recovery]).then(function(result){
+        if(!result[1]||!owner||window.currentUser?.id!==owner||epoch!==(window.__guidcyAuthEpoch||0))return;
+        var main=document.getElementById(mainId);
+        if(main?.closest('.page.on')&&main.querySelector('[data-gmkt-purchases-owner="'+owner+'"]'))return previous.apply(marketplace,args);
+      }).catch(function(error){console.warn('Marketplace purchase refresh deferred',error)});
+      return paint;
+    };
+    marketplace.purchases.__guidcyReconcilesSupabase=true;
+  }
   window.guidcyInstallPurchaseReconciliation=installPurchaseReconciliation;
   installPurchaseReconciliation();document.addEventListener('DOMContentLoaded',function(){setTimeout(installPurchaseReconciliation,600)});window.addEventListener('load',function(){setTimeout(installPurchaseReconciliation,900)});
 
@@ -11232,7 +11260,7 @@ document.addEventListener('click',function(event){
       /^(success|successful|paid|free|captured|completed|verified)$/.test(payment) ||
       /^(success|successful|paid|free|captured|completed|verified)$/.test(status);
   }
-  async function ownedCompletedOrders(noteId){
+  async function ownedCompletedOrders(noteId,fields='*',signal){
     /* null = cannot answer yet (no client/session). [] = answered, nothing owned.
        Callers must not paint "nothing purchased" for the first case. */
     const c=sbc(); if(!c||!logged())return null;
@@ -11240,15 +11268,18 @@ document.addEventListener('click',function(event){
     const lookups=[];
     if(buyerId)lookups.push(['buyer_id',buyerId]);
     if(buyerEmail)lookups.push(['buyer_email',buyerEmail]);
+    const failures=[];
     const results=await Promise.all(lookups.map(async ([field,value])=>{
       try{
-        let q=c.from('marketplace_orders').select('*').eq(field,value);
+        let q=c.from('marketplace_orders').select(fields).eq(field,value);
+        if(signal&&typeof q.abortSignal==='function')q=q.abortSignal(signal);
         if(noteId)q=q.eq('note_id',noteId);
         const response=await q.order('created_at',{ascending:false});
         if(response.error)throw response.error;
         return response.data||[];
-      }catch(err){console.warn('Marketplace purchase lookup failed for '+field,err);return []}
+      }catch(err){failures.push(err);console.warn('Marketplace purchase lookup failed for '+field,err);return []}
     }));
+    if(fields!=='*'&&failures.length)throw failures[0];
     const seen=new Set();
     return results.flat().filter(order=>{
       const owned=(buyerId&&String(order.buyer_id||'')===buyerId)||(buyerEmail&&String(order.buyer_email||'').trim().toLowerCase()===buyerEmail);
@@ -11266,7 +11297,7 @@ document.addEventListener('click',function(event){
 	  async function handleRazorpayReturn(){return}
   async function grantDownload(n,order){const c=sbc(); try{await c.from('marketplace_download_logs').insert({note_id:n.id,user_id:uid(),order_id:order?.id||null}); await c.from('marketplace_notes').update({downloads_count:Number(n.downloads_count||0)+1,updated_at:new Date().toISOString()}).eq('id',n.id)}catch(_){ } try{const buckets=[n.file_bucket,n.storage_bucket,n.bucket,'marketplace-notes-private','marketplace-notes','notes'].filter(Boolean); const raw=[n.file_path,n.pdf_path,n.storage_path,n.file_url,n.download_url,n.secure_file_path].filter(Boolean); function cp(p,b){let s=String(p||'').trim();try{s=decodeURIComponent(s)}catch(_){}s=s.replace(/^\/+/,'').split('?')[0];b=String(b||'').replace(/^\/+|\/+$/g,'');if(b&&s.indexOf(b+'/')===0)s=s.slice(b.length+1);['/object/sign/','/object/public/','/storage/v1/object/sign/','/storage/v1/object/public/'].forEach(m=>{const i=s.indexOf(m);if(i>=0){const parts=s.slice(i+m.length).split('?')[0].split('/');if(parts.length>1)s=parts.slice(1).join('/')}});return s} async function restBlob(b,p){const base=(cfg().supabase_url||window.SUPABASE_URL||'').replace(/\/$/,'');const key=cfg().supabase_key||window.SUPABASE_ANON_KEY||'';if(!base||!key)return null;let token='';try{token=(await c.auth.getSession())?.data?.session?.access_token||''}catch(_){}try{token=token||window.currentSession?.access_token||window.currentSession?.session?.access_token||''}catch(_){}const u=base+'/storage/v1/object/'+encodeURIComponent(b)+'/'+String(p).split('/').map(encodeURIComponent).join('/');const r=await fetch(u,{headers:{apikey:key,Authorization:'Bearer '+(token||key)}});if(!r.ok)return null;return await r.blob()} let blob=null,path=''; for(const b of [...new Set(buckets)]){const paths=[...new Set(raw.flatMap(p=>[p,cp(p,b),...buckets.map(x=>cp(p,x))]).filter(Boolean))]; for(const p of paths){const dl=await c.storage.from(b).download(p).catch(e=>({error:e})); if(!dl.error&&dl.data){blob=dl.data;path=p;break} const rb=await restBlob(b,p).catch(()=>null); if(rb){blob=rb;path=p;break}} if(blob)break} if(!blob)throw new Error('download_failed'); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(String(n.title||path||'guidcy-notes').replace(/\.pdf$/i,'').replace(/[^a-z0-9\-_. ]/gi,'_').slice(0,90)||'guidcy-notes')+'.pdf'; a.rel='noopener'; a.style.display='none'; document.body.appendChild(a); window.__guidcyMarketplaceDownloadStarting=true; a.click(); toastSafe('Downloading your notes...','green'); setTimeout(()=>{window.__guidcyMarketplaceDownloadStarting=false},1200); let mobile=false; try{mobile=matchMedia('(max-width:820px)').matches||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'')}catch(_){} if(mobile)setTimeout(()=>{try{window.location.href=url}catch(_){}},350); setTimeout(()=>{try{URL.revokeObjectURL(url);a.remove()}catch(_){}},mobile?120000:45000);}catch(e){window.__guidcyMarketplaceDownloadStarting=false;console.error(e);toastSafe('Technical error while downloading. Please try again in a moment.','red')}} 
   async function sendMailOnce(order,kind,n){try{if(order[kind+'_email_sent'])return; const to=kind==='buyer'?email():''; const params={to_email:to||SUPPORT,buyer_name:name(),seller_name:n.uploader_name||'Seller',notes_title:n.title,price_paid:Number(order.price||0)>0?rupee(order.price):'Free',guidcy_commission:rupee(order.commission_amount),seller_payable:rupee(order.seller_payable),support_email:SUPPORT,subject:kind==='buyer'?'Your Guidcy notes purchase/download is ready':'Your notes were purchased/downloaded on Guidcy'}; if(window.guidcySendImportantEmail)await window.guidcySendImportantEmail({type:'marketplace_'+kind+'_email',to:params.to_email,subject:params.subject,data:params,dedupeKey:'marketplace_'+kind+'_'+order.id}); else if(window.emailjs&&window.CFG?.emailjs_service_id)await emailjs.send(CFG.emailjs_service_id,CFG.emailjs_template_user||CFG.emailjs_template_consultant,params); const patch={}; patch[kind+'_email_sent']=true; patch[kind+'_email_sent_at']=new Date().toISOString(); await sbc().from('marketplace_orders').update(patch).eq('id',order.id)}catch(e){console.warn('Marketplace email skipped:',e)}}
-  async function afterCompleted(n,order){const c=sbc(); await c.from('marketplace_notes').update({purchases_count:Number(n.purchases_count||0)+1,updated_at:new Date().toISOString()}).eq('id',n.id); await sendMailOnce(order,'buyer',n); await sendMailOnce(order,'seller',n)}
+  async function afterCompleted(n,order){invalidatePurchases();const c=sbc(); await c.from('marketplace_notes').update({purchases_count:Number(n.purchases_count||0)+1,updated_at:new Date().toISOString()}).eq('id',n.id); await sendMailOnce(order,'buyer',n); await sendMailOnce(order,'seller',n)}
   async function deleteNote(id){const n=await getNote(id); if(!n){toastSafe('Unable to find notes. Please try again.','red');return} if(!canManage(n)){toastSafe('Only the uploader or admin can delete these notes.','red');return} if(!confirm('Are you sure you want to delete this note? This will remove the PDF from storage and it will no longer be available for new buyers.'))return; const c=sbc(); try{const files=[n.file_path].filter(Boolean); if(files.length){const rm=await c.storage.from('marketplace-notes-private').remove(files); if(rm.error)throw rm.error} const previews=[n.preview_file_path,n.preview_pdf_path].filter(Boolean); if(previews.length){await c.storage.from(n.preview_bucket||'marketplace-previews').remove(previews)} let q=c.from('marketplace_notes').update({status:'removed',removed_at:new Date().toISOString(),removed_by:uid(),updated_at:new Date().toISOString()}).eq('id',id); if(!isAdmin())q=q.eq('uploader_id',uid()); const up=await q.select('id').single(); if(up.error)throw up.error; toastSafe('Notes deleted successfully.','green'); closeModal(); if(document.querySelector('#page-cons-dash.on'))await window.GuidcyMarketplace.seller(); else if(document.querySelector('#page-admin-dash.on'))await window.GuidcyMarketplace.admin(); else await render()}catch(e){console.error(e);toastSafe('Unable to delete notes. Please check storage permissions and try again.','red')}}
   function togglePrice(){const free=$('gmkt-is-free')?.value==='true', inp=$('gmkt-note-price'); if(inp){inp.value=free?'0':(inp.value==='0'?'99':inp.value); inp.disabled=free}}
   function reportNote(id){const m=ensureModal(); $('gmkt-modal-body').innerHTML='<h2 style="font-family:Cormorant Garamond,serif;font-size:32px;margin:0 0 8px">Report Notes</h2><p style="color:#64748B">Help keep Marketplace safe.</p><div class="gmkt-report-reasons">'+['Copyright issue','Wrong content','Poor quality','Spam','Other'].map((r,i)=>'<label><input type="radio" name="gmkt-report" value="'+esc(r)+'" '+(i===0?'checked':'')+'> '+esc(r)+'</label>').join('')+'</div><textarea id="gmkt-report-note" rows="3" placeholder="Optional details" style="width:100%;border:1px solid #D8E5F0;border-radius:14px;padding:12px"></textarea><button class="primary-btn" style="margin-top:12px" onclick="GuidcyMarketplace.submitReport(\''+esc(id)+'\')">Submit Report</button>'}
@@ -11277,33 +11308,35 @@ document.addEventListener('click',function(event){
   /* A consultant can buy notes too, so this view is no longer bolted to the user
      dashboard - the caller says which dashboard body to paint into. */
   let awaitingAuthForPurchases=false;
+  let purchaseCache=null;
+  const PURCHASE_FIELDS='id,note_id,buyer_id,buyer_email,price,created_at,note_title,note_category,seller_name,payment_status,order_status,download_granted,payment_verified,razorpay_status,razorpay_payment_id,payment_transaction_id,order_reference,marketplace_notes(title,category,uploader_name)';
+  const purchaseOwnerKey=()=>[uid(),email().toLowerCase(),window.__guidcyAuthEpoch||0].join('|');
+  function invalidatePurchases(){purchaseCache=null;}
+  window.addEventListener('guidcy:marketplace-purchase-updated',invalidatePurchases);
+  async function purchaseRows(){
+    if(!logged())return null;
+    const key=purchaseOwnerKey();
+    if(purchaseCache?.key===key){if(purchaseCache.promise)return purchaseCache.promise;if(Date.now()-purchaseCache.at<30000)return purchaseCache.rows;}
+    const entry={key,at:0,rows:null,promise:null},controller=new AbortController();purchaseCache=entry;
+    let timer;
+    entry.promise=Promise.race([ownedCompletedOrders(null,PURCHASE_FIELDS,controller.signal),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Purchased notes request timed out'));},12000);})]).then(rows=>{if(rows!==null){entry.rows=rows;entry.at=Date.now();}return rows;}).catch(error=>{if(purchaseCache===entry)purchaseCache=null;throw error;}).finally(()=>{clearTimeout(timer);entry.promise=null;});
+    return entry.promise;
+  }
   async function purchases(btn,mainId){
     const m=$(mainId||'udash-main'); if(!m)return;
     const c=sbc();
     m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Loading purchased notes...</div>';
+    const loading=m.lastElementChild;
     if(!c){m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Purchased notes are temporarily unavailable. Please try again.</div>';return}
-    /* The note lookup used to wait for the orders, purely to know which ids to
-       ask for - three sequential round trips (session, orders, notes) before the
-       table could paint, and each one is ~450ms away. The note titles are a tiny
-       set, so fetch them alongside the orders and join locally instead. */
-    /* Every other user tab either catches its loader or routes through
-       guidcyDashLoadFailed. This one did neither, so a rejected lookup left the
-       panel on "Loading purchased notes..." with nothing ever replacing it. */
-    let orders,noteRows;
+    const owner=purchaseOwnerKey();
+    let orders;
     try{
-      [orders,noteRows]=await Promise.all([
-      ownedCompletedOrders(),
-      (async()=>{
-        try{
-          const notes=await c.from('marketplace_notes').select('id,title,category,uploader_name');
-          if(notes.error)throw notes.error;
-          return notes.data||[];
-        }catch(err){console.warn('Marketplace purchased-note metadata lookup failed',err);return []}
-      })()
-      ]);
+      orders=await purchaseRows();
+      if(owner!==purchaseOwnerKey()||!m.isConnected||m.lastElementChild!==loading)return;
     }catch(err){
+      if(owner!==purchaseOwnerKey()||!m.isConnected||m.lastElementChild!==loading)return;
       console.error('Purchased notes failed to load',err);
-      m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Could not load your purchased notes. <button class="btn btn-blue" style="margin-left:8px" onclick="GuidcyMarketplace.purchases()">Retry</button></div>';
+      m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Could not load your purchased notes. <button class="btn btn-blue" style="margin-left:8px" onclick="GuidcyMarketplace.purchases(null,\''+esc(m.id)+'\')">Retry</button></div>';
       return;
     }
     /* No session yet. This is why the user dashboard felt slow and the
@@ -11317,17 +11350,15 @@ document.addEventListener('click',function(event){
     if(orders===null){
       if(!window.__guidcyAuthReadyFired&&typeof window.guidcyOnAuthReady==='function'&&!awaitingAuthForPurchases){
         awaitingAuthForPurchases=true;
-        window.guidcyOnAuthReady(function(){awaitingAuthForPurchases=false;purchases(btn,mainId)});
+        window.guidcyOnAuthReady(function(){awaitingAuthForPurchases=false;window.GuidcyMarketplace.purchases(btn,mainId)});
         return;
       }
       if(awaitingAuthForPurchases)return;
       m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="padding:20px;color:#64748B">Please sign in to see your purchased notes.</div>';
       return;
     }
-    const noteMap=new Map();
-    noteRows.forEach(note=>noteMap.set(String(note.id),note));
     const rows=orders.map(order=>{
-      const note=noteMap.get(String(order.note_id))||{};
+      const note=order.marketplace_notes||{};
       const title=note.title||order.note_title||order.note_id;
       const category=note.category||order.note_category||'';
       const seller=order.seller_name||note.uploader_name||'Guidcy seller';
@@ -11341,10 +11372,10 @@ document.addEventListener('click',function(event){
         '<td>'+(Number(order.price||0)>0?rupee(order.price):'Free')+'</td>'+
         '<td>'+esc(order.created_at?new Date(order.created_at).toLocaleString('en-IN'):'—')+'</td>'+
         '<td style="font-size:11px;color:var(--muted);word-break:break-all">'+(ref?esc(ref):'—')+'</td>'+
-        '<td><button class="btn btn-blue" onclick="GuidcyMarketplace.redownload(\''+esc(order.note_id)+'\')">View / Download</button></td>'+
+        '<td><button type="button" class="btn gmkt-purchase-download" onclick="GuidcyMarketplace.redownload(\''+esc(order.note_id)+'\')"><span>View / Download</span></button></td>'+
       '</tr>';
     }).join('');
-    m.innerHTML='<div class="dash-title">My Purchased Notes</div><div style="overflow-x:auto"><table class="gmkt-admin-table"><thead><tr><th>Notes</th><th>Seller</th><th>Amount</th><th>Purchase date</th><th>Payment / order ID</th><th>Action</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">No purchased notes yet.</td></tr>')+'</tbody></table></div>';
+    m.innerHTML='<div class="dash-title">My Purchased Notes</div><div data-gmkt-purchases-owner="'+esc(uid())+'" style="overflow-x:auto"><table class="gmkt-admin-table"><thead><tr><th>Notes</th><th>Seller</th><th>Amount</th><th>Purchase date</th><th>Payment / order ID</th><th>Action</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">No purchased notes yet.</td></tr>')+'</tbody></table></div>';
   }
   async function redownload(id){const n=await getNote(id), o=await existingOrder(id); if(n&&o)grantDownload(n,o)}
   function injectDashNav(){try{const a=document.querySelector('#page-admin-dash .side-nav'); if(a&&!a.querySelector('[data-gmkt-admin]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktAdmin='1'; b.dataset.adminSection='marketplace'; b.dataset.dashSection='marketplace'; b.textContent='🛒 Marketplace'; b.onclick=function(){window.swAD('marketplace',this)}; a.appendChild(b)}}catch(_){} try{const c=document.querySelector('#page-cons-dash .side-nav'); if(c&&!c.querySelector('[data-gmkt-seller]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktSeller='1'; b.dataset.dashSection='marketplace'; b.textContent='🛒 My Marketplace'; b.onclick=function(){window.swCD('marketplace',this)}; c.appendChild(b)}}catch(_){} try{const c2=document.querySelector('#page-cons-dash .side-nav'); if(c2&&!c2.querySelector('[data-gmkt-cons-buyer]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktConsBuyer='1'; b.dataset.dashSection='marketplace-purchases'; b.textContent='🛒 Purchased Notes'; b.onclick=function(){window.swCD('marketplace-purchases',this)}; c2.appendChild(b)}}catch(_){} try{const u=document.querySelector('#page-user-dash .side-nav'); if(u&&!u.querySelector('[data-gmkt-buyer]')){const b=document.createElement('button'); b.className='side-btn'; b.dataset.gmktBuyer='1'; b.dataset.dashSection='marketplace'; b.textContent='🛒 Purchased Notes'; b.onclick=function(){window.swUD('marketplace',this)}; u.appendChild(b)}}catch(_){}}
@@ -11352,7 +11383,7 @@ document.addEventListener('click',function(event){
   async function restorePending(){let a=null; try{a=JSON.parse(sessionStorage.getItem('guidcy_pending_marketplace_action')||'null')}catch(_){} if(!a||!logged())return; sessionStorage.removeItem('guidcy_pending_marketplace_action'); go('marketplace'); setTimeout(()=>{if(a.type==='marketplace_upload')openUpload(); else if(a.noteId)openDetails(a.noteId).then(()=>{if(a.type==='marketplace_buy_or_download')buyOrDownload(a.noteId)})},700)}
   function closeModal(){const m=$('gmkt-modal'); if(m){m.classList.remove('on'); const d=m.querySelector('.gmkt-dialog'); if(d)d.classList.remove('gmkt-full-dialog')} document.body.style.overflow=''} function closeAuth(){const m=$('gmkt-auth-modal'); if(m)m.classList.remove('on'); document.body.style.overflow=''}
   document.addEventListener('click',function(e){const b=e.target.closest('[data-gmkt-action]'); if(!b)return; const id=b.getAttribute('data-gmkt-id'), action=b.getAttribute('data-gmkt-action'); if(!id)return; e.preventDefault(); e.stopPropagation(); if(action==='preview')openPreview(id); else if(action==='details')openDetails(id); else if(action==='buy')buyOrDownload(id); else if(action==='generate')ensurePreviewForNote(id,false).then(()=>render()); else if(action==='edit')openEdit(id); else if(action==='delete')deleteNote(id);});
-  window.GuidcyMarketplace={previewUrl,loadPdfJs,render,renderList,openUpload,submitUpload,validateFile,togglePrice,toggleEditPrice,openDetails,openPreview,openEdit,submitEdit,buyOrDownload,deleteNote,generatePreview:ensurePreviewForNote,closeModal,closeAuth,goAuth:function(p){closeAuth(); setTimeout(()=>{try{go(p)}catch(_){window.guidcyNavigate(p==='signup'?'/get-started':'/login')}},60)},reportNote,submitReport,admin,markPayout,seller,purchases,redownload};
+  window.GuidcyMarketplace={previewUrl,loadPdfJs,render,renderList,openUpload,submitUpload,validateFile,togglePrice,toggleEditPrice,openDetails,openPreview,openEdit,submitEdit,buyOrDownload,deleteNote,generatePreview:ensurePreviewForNote,closeModal,closeAuth,goAuth:function(p){closeAuth(); setTimeout(()=>{try{go(p)}catch(_){window.guidcyNavigate(p==='signup'?'/get-started':'/login')}},60)},reportNote,submitReport,admin,markPayout,seller,purchases,invalidatePurchases,redownload};
   document.addEventListener('DOMContentLoaded',()=>{addNav();injectDashNav();wrapRoutes();scheduleMarketplaceHydration();setTimeout(()=>{addNav();injectDashNav();wrapRoutes();if(location.pathname.replace(/\/$/,'')==='/marketplace'){if(window.renderPage)window.renderPage('marketplace');else render()}else if(location.hash==='#marketplace'||new URLSearchParams(location.search).get('flow')==='marketplace'){if(window.go)go('marketplace');else render()}restorePending();handleRazorpayReturn()},400)});
   window.addEventListener('load',scheduleMarketplaceHydration);
   window.addEventListener('pageshow',scheduleMarketplaceHydration);
