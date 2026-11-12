@@ -49,6 +49,18 @@ let browser;
  await start();await page.evaluate(()=>document.querySelector('.page').classList.remove('on'));await loader.waitFor({state:'hidden'});
  await page.evaluate(()=>document.querySelector('.page').classList.add('on'));await loader.waitFor();
  await page.evaluate(()=>window.guidcyFinishPanelRefresh(document.querySelector('#browse-grid')));await stopped();
+ // Every primary cold-load surface uses the same animation without card/bar shapes.
+ for(const id of ['browse-grid','cats-full-grid','adash-main','cdash-main','udash-main','gnet-feed','profile-layout','jobs-main-area','sf-results','opp-results-area','gc-list','gmkt-grid','wbn-cards','page-blog']){
+  await page.evaluate(id=>{let el=document.getElementById(id);if(!el){el=document.createElement('div');el.id=id;document.querySelector('.page').append(el);}el.replaceChildren();window.guidcyAttachPanelRefresh();el.innerHTML='<span class="sr-only" role="status">Loading content…</span>';},id);
+  await loader.waitFor();
+  const state=await page.locator('#'+id).evaluate(el=>({before:getComputedStyle(el,'::before').content,after:getComputedStyle(el,'::after').content,visibleChildren:[...el.children].filter(child=>getComputedStyle(child).display!=='none').length}));
+  assert.deepEqual(state,{before:'none',after:'none',visibleChildren:0},id+' has no placeholder shapes or second loading message');
+  await page.evaluate(id=>{document.getElementById(id).innerHTML='<article>Loaded content</article>';},id);await loader.waitFor({state:'hidden'});
+ }
+ // The profile header finishes in a nested DOM update rather than a root assignment.
+ await page.evaluate(()=>{const el=document.getElementById('profile-layout');el.innerHTML='<article>Previous person</article>';el.innerHTML='<section><span data-guidcy-profile-loading>Loading profile…</span></section><button>Book Session</button>';});await loader.waitFor();
+ assert.doesNotMatch(await page.locator('#profile-layout').innerHTML(),/Previous person/,'changing profiles replaces the previous person and booking DOM');
+ await page.evaluate(()=>{document.querySelector('#profile-layout section').innerHTML='<h1>Loaded expert</h1>';});await loader.waitFor({state:'hidden'});assert.equal(await page.locator('#profile-layout').getAttribute('aria-busy'),null);
  assert.deepEqual(errors,[]);
  console.log('Loading completion, native DOM commits, errors, real records, secondary requests, navigation and Guidcy colors passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await browser?.close();server.close();});

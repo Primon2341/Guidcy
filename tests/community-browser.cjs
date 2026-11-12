@@ -90,19 +90,18 @@ let browser;
   window.__legacyProfilePaints=[];
   new MutationObserver(()=>{if(document.querySelector('#page-profile.on .profile-avatar,#page-profile.on .profile-role,#page-profile.on .guidcy-profile-experience'))window.__legacyProfilePaints.push('legacy');}).observe(document,{childList:true,subtree:true});
  });
- // Slow public profile reads show the same shaped header for members and consultants.
+ // Slow public profile reads show only the shared animation for both profile types.
  for(const width of [390,1365])for(const route of ['/profile?member='+OWNER,'/consultant/test-expert']){
   const loadingPage=await context.newPage();await loadingPage.setViewportSize({width,height:900});await loadingPage.addInitScript(()=>window.__profileDelay=1000);
-  await loadingPage.goto(origin+route);await loadingPage.locator('.gnet-profile-header .gnet-profile-placeholder').waitFor();
-  assert.equal(await loadingPage.locator('#profile-layout .gnet-skeleton,#profile-layout.guidcy-panel-skeleton').count(),0,'profile never draws the generic strip');
-  assert.equal(await loadingPage.locator('#guidcy-loading-status').isVisible(),false,'the header skeleton needs no second loading bar');
-  assert.equal(await loadingPage.locator('.gnet-placeholder-avatar').isVisible(),true);assert.equal(await loadingPage.locator('.gnet-placeholder-line').count(),3);
+  await loadingPage.goto(origin+route);await loadingPage.locator('#guidcy-loading-status').waitFor();
+  assert.equal(await loadingPage.locator('#profile-layout .gnet-skeleton,.gnet-placeholder-avatar,.gnet-placeholder-line').count(),0,'profiles contain no loading shapes');
+  assert.equal(await loadingPage.locator('.gnet-profile-header').isVisible(),false,'the empty header card is hidden while loading');
   assert.equal(await loadingPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await loadingPage.screenshot({path:'/private/tmp/guidcy-profile-loading-'+(route.startsWith('/consultant')?'consultant':'member')+'-'+width+'.png'});
-  await loadingPage.locator('.gnet-profile-header .profile-name').waitFor();await loadingPage.waitForSelector('.gnet-profile-placeholder',{state:'detached'});
+  await loadingPage.locator('.gnet-profile-header .profile-name').waitFor();await loadingPage.waitForSelector('[data-guidcy-profile-loading]',{state:'detached'});await loadingPage.locator('#guidcy-loading-status').waitFor({state:'hidden'});
   await loadingPage.close();
  }
- console.log('Member and consultant cold loads use a shaped header without loading strips at 390/1365px');
+ console.log('Member and consultant cold loads show only the loading animation at 390/1365px');
  const identityPage=await context.newPage();await identityPage.addInitScript(()=>window.__guest=true);
  await identityPage.goto(origin);
  await identityPage.locator('#gnet-compose-avatar img.gnet-brand').waitFor();

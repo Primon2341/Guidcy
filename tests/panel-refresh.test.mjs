@@ -31,6 +31,7 @@ test('only short loading-shaped markup counts as a placeholder', () => {
   assert.equal(isPlaceholder('<div>Searching experts...</div>'), true);
   assert.equal(isPlaceholder('<div>Filtering experts...</div>'), true);
   assert.equal(isPlaceholder('<div data-guidcy-profile-placeholder><span>Loading profile…</span></div>'), false, 'profile layout shells keep their own presentation');
+  assert.equal(isPlaceholder('<span data-guidcy-profile-loading>Loading profile…</span><button>Book Session</button>'), true, 'cold profile loading uses the shared animation while booking DOM initializes');
 
   // the three payloads that must never be held back
   assert.equal(isPlaceholder('<div>Unable to load booking and payout details. Please check access and try again.</div>'), false,

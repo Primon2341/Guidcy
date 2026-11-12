@@ -4457,8 +4457,8 @@ async function submitReview(){
 ═══════════════════════════════════════════ */
 async function initCategories(){
   const el=document.getElementById('cats-full-grid');if(!el)return;
-  // Show skeleton first
-  el.innerHTML=CATEGORIES_FULL.map(()=>`<div style="height:80px;background:var(--surface2);border-radius:12px;margin-bottom:14px;animation:pulse2 1.2s infinite"></div>`).join('');
+  // Show the shared loading animation.
+  el.innerHTML='<span class="sr-only" role="status">Loading categories…</span>';
   // Fetch real counts per category from DB
   const counts={};
   if(sb){
@@ -6342,7 +6342,7 @@ cancelBooking=async function(bookingId,role){
   window.initCategories=async function(){
     const grid=$('cats-full-grid');if(!grid)return;
     const cats=window.MAIN_CATEGORIES||window.CATEGORIES_FULL||[];
-    grid.innerHTML=cats.map(()=>`<div style="height:80px;background:var(--surface2);border-radius:12px;margin-bottom:14px"></div>`).join('');
+    grid.innerHTML='<span class="sr-only" role="status">Loading categories…</span>';
     const realCounts={};const sb=getSB();
     if(sb){try{const{data}=await sb.from('consultants').select('category,specialty').eq('is_active',true);(data||[]).forEach(c=>{const k=(c.category||c.specialty||'').trim().toLowerCase();cats.forEach(cat=>{const key=(cat.name||'').split(' ')[0].toLowerCase();if(k&&k.includes(key))realCounts[cat.name]=(realCounts[cat.name]||0)+1;});});}catch(e){}}
     grid.innerHTML=cats.map(cat=>{
@@ -6685,7 +6685,7 @@ cancelBooking=async function(bookingId,role){
         _jobsCache={q,loc,jobs:[],page:1,hasMore:false};
         try{window._jobsCache=_jobsCache}catch(_){}
         if(btn){btn.disabled=true;btn.textContent='Searching...';}
-        if(area)area.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:14px;margin-bottom:20px">${Array(8).fill(0).map(()=>`<div style="background:var(--surface2);border-radius:16px;height:190px;animation:pulse2 1.2s infinite"></div>`).join('')}</div>`;
+        if(area)area.innerHTML='<span class="sr-only" role="status">Searching jobs…</span>';
       } else {
         const loadMore=$('jobs-load-more');
         if(loadMore){loadMore.disabled=true;loadMore.textContent='Loading more...';}
@@ -7108,14 +7108,7 @@ cancelBooking=async function(bookingId,role){
       const btn=$('sf-submit-btn'),results=$('sf-results');
       if(btn){btn.disabled=true;btn.textContent='🔍 Searching across the web...';}
 
-      results.innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center">
-        <div style="font-size:36px;margin-bottom:16px;animation:pulse2 1.5s infinite">🤖</div>
-        <div style="font-size:16px;font-weight:var(--font-weight-semibold,600);margin-bottom:8px">AI is analysing your profile and resume...</div>
-        <div style="font-size:13px;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.6">Generating best-fit recommendations and ranking them by fit with your profile.</div>
-        <div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
-          ${Array(5).fill(0).map((_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:var(--blue,#3B82F6);animation:pulse2 1.2s ${i*0.2}s infinite"></div>`).join('')}
-        </div>
-      </div>`;
+      results.innerHTML='<span class="sr-only" role="status">Searching career and college matches…</span>';
 
       let profile;
       if(currentMode==='jobs'){
@@ -14803,12 +14796,12 @@ function setOppCompanion(state,count){
   }
 }
 
-/* ── Loading skeleton ── */
+/* ── Loading status ── */
 function showLoading(){
   setOppCompanion('searching');
   const area=gid('opp-results-area');
   if(!area)return;
-  area.innerHTML=`<div class="opp-loading">${Array(6).fill('<div class="opp-skeleton"></div>').join('')}</div>`;
+  area.innerHTML='<span class="sr-only" role="status">Searching opportunities…</span>';
 }
 
 /* ── Error state ── */
@@ -14895,9 +14888,9 @@ async function renderSavedTab(){
     return;
   }
 
-  // Show skeleton while loading from Supabase
+  // Show the shared loading animation while loading from Supabase
   setOppCompanion('savedLoading');
-  area.innerHTML=`<div class="opp-loading">${Array(3).fill('<div class="opp-skeleton"></div>').join('')}</div>`;
+  area.innerHTML='<span class="sr-only" role="status">Loading saved opportunities…</span>';
 
   const saved=await getSaved();
   const tracked=await getTracked();
@@ -15022,7 +15015,7 @@ window.oppDoSearch=async function(){
     return;
   }
 
-  // Show loading skeleton while fetching
+  // Show loading status while fetching
   showLoading();
   const controller=new AbortController();
   _activeOpportunitySearch=controller;
@@ -27202,11 +27195,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   }
 
   /* ── render ── */
-  function skeleton(n){
-    let out='';
-    for(let i=0;i<n;i++)out+='<div class="gc-skel"><div class="gc-skel-bar" style="width:26%;margin-bottom:12px"></div><div class="gc-skel-bar" style="width:52%;height:17px;margin-bottom:14px"></div><div class="gc-skel-bar" style="width:70%"></div></div>';
-    return out;
-  }
+  function careerLoading(){return '<span class="sr-only" role="status">Loading careers…</span>';}
   function card(j){
     const admin=isAdmin();
     const mine=myApp(j.id);
@@ -27280,9 +27269,9 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
     if(rendering)return; rendering=true;
     try{
       adminBar();
-      // Paint the skeleton once. Re-writing it on every retry made the list flash
+      // Start the loading state once. Re-writing it on every retry made the list flash
       // repeatedly while the data layer was still coming up.
-      if(!list.children.length&&list.dataset.state!=='ready'&&list.dataset.state!=='loading')list.innerHTML=skeleton(3);
+      if(!list.children.length&&list.dataset.state!=='ready'&&list.dataset.state!=='loading')list.innerHTML=careerLoading();
       const rows=await fetchOpenings();
       if(rows===null){
         const c0=$('gc-count');
@@ -27558,7 +27547,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
          and stop here when the row never arrives. Falling through with j=null
          rendered the blank "Post a new opening" form under an Edit click, so
          saving inserted a duplicate opening instead of updating the original. */
-      openModal('<div class="gc-modal-head"><div class="gc-job-title">Edit opening</div></div><div class="gc-modal-body"><div class="gc-skel-bar" style="width:60%"></div><div class="gc-skel-bar" style="width:38%;margin-top:10px"></div></div>');
+      openModal('<div class="gc-modal-head"><div class="gc-job-title">Edit opening</div></div><div class="gc-modal-body"><span role="status">Loading opening…</span></div>');
       j=await getRole(id);
       if(!j){toast('We could not open this opening. Please try again.','red');closeModal();return}
     }
@@ -27717,7 +27706,7 @@ var oldUD=window.swUD,oldCD=window.swCD,oldAD=window.swAD;if(oldUD?.__guidcyPers
   async function viewApplicants(id){
     if(!isAdmin())return;
     const c=sbc(); if(!c)return;
-    openModal('<div class="gc-modal-head"><div class="gc-job-title">Applicants</div></div><div class="gc-modal-body"><div class="gc-skel-bar" style="width:60%"></div></div>');
+    openModal('<div class="gc-modal-head"><div class="gc-job-title">Applicants</div></div><div class="gc-modal-body"><span role="status">Loading applicants…</span></div>');
     try{
       const {data,error}=await c.from('job_applications').select('*').eq('job_id',id).order('created_at',{ascending:false});
       if(error)throw error;

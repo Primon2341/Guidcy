@@ -252,7 +252,7 @@
 <script>window.guidcyRestoreNavShell();</script>
 
 <!-- Shown only while a JS-built page (jobs, marketplace, blog, finder) is still being constructed on a refresh. -->
-<div id="guidcy-boot-skeleton" aria-hidden="true"><div class="gbs-bar" style="width:38%"></div><div class="gbs-bar" style="width:62%"></div><div class="gbs-grid"><div class="gbs-card"></div><div class="gbs-card"></div><div class="gbs-card"></div></div></div>
+<div id="guidcy-boot-skeleton" aria-hidden="true"></div>
 
 <!-- ════ HOME ════ -->
 <div id="page-home" class="page on" role="main" data-community="true">
@@ -267,7 +267,7 @@
       <button type="button" class="gnet-mobile-compose" data-action="compose" aria-label="Create a post"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 4H4v16h16v-9M10 14l1-4L19 2l3 3-8 8-4 1Z"/></svg><span>Post</span></button>
     </div>
     <div class="gnet-columns">
-      <aside class="gnet-left" aria-label="Your profile and community navigation"><div id="gnet-me" class="gnet-card gnet-me"><div class="gnet-skeleton"></div></div><nav class="gnet-card gnet-shortcuts" aria-label="Community shortcuts"><button data-mode="mine">My Posts <span aria-hidden="true">↗</span></button><button data-mode="saved">Saved Posts <span aria-hidden="true">↗</span></button><button data-action="network">Following <span aria-hidden="true">↗</span></button></nav><div class="gnet-card gnet-explore"><p class="gnet-eyebrow">MORE ON GUIDCY</p><a href="/webinars">Webinars</a><a href="/jobs">Find Jobs</a><a href="/marketplace">Marketplace</a><a href="/categories">Explore categories</a><a href="/opportunities">Funds & Grants Finder</a><a href="/smart-finder">Career & College AI Finder</a><a href="/blog">Guidcy Blog</a></div></aside>
+      <aside class="gnet-left" aria-label="Your profile and community navigation"><div id="gnet-me" class="gnet-card gnet-me guidcy-panel-skeleton" aria-busy="true"><span class="sr-only" role="status">Loading…</span></div><nav class="gnet-card gnet-shortcuts" aria-label="Community shortcuts"><button data-mode="mine">My Posts <span aria-hidden="true">↗</span></button><button data-mode="saved">Saved Posts <span aria-hidden="true">↗</span></button><button data-action="network">Following <span aria-hidden="true">↗</span></button></nav><div class="gnet-card gnet-explore"><p class="gnet-eyebrow">MORE ON GUIDCY</p><a href="/webinars">Webinars</a><a href="/jobs">Find Jobs</a><a href="/marketplace">Marketplace</a><a href="/categories">Explore categories</a><a href="/opportunities">Funds & Grants Finder</a><a href="/smart-finder">Career & College AI Finder</a><a href="/blog">Guidcy Blog</a></div></aside>
       <section class="gnet-center" aria-label="Community feed">
         <div class="gnet-card gnet-composer">
           <button class="gnet-compose-trigger" data-action="compose"><span id="gnet-compose-avatar"><img class="gnet-avatar gnet-brand" src="/favicon-96x96.png?v=guidcy-mark-20261007" alt="Guidcy" width="44" height="44"></span><span>Start a post</span></button>
@@ -279,10 +279,10 @@
         </div>
         <div class="gnet-feed-toolbar"><nav aria-label="Feed view"><button data-mode="community" aria-pressed="true">For you</button><button data-mode="following" aria-pressed="false">Following</button><button data-mode="latest" aria-pressed="false">Latest</button></nav><button data-action="refresh" aria-label="Refresh feed">↻</button></div>
         <h2 id="gnet-view-label" class="gnet-view-label" hidden></h2>
-        <div id="gnet-feed" aria-busy="true"><div class="gnet-card gnet-loading" role="status"><div class="gnet-skeleton"></div><div class="gnet-skeleton"></div><span class="sr-only">Loading community posts</span></div></div>
+        <div id="gnet-feed" aria-busy="true"><span class="sr-only" role="status">Loading community posts…</span></div>
         <button id="gnet-more" class="gnet-button gnet-more" data-action="more" hidden>Load more posts</button>
       </section>
-      <aside class="gnet-right" aria-label="Expert discovery"><section class="gnet-card gnet-suggestions"><p class="gnet-eyebrow">GROW YOUR CIRCLE</p><h2>People you may want guidance from</h2><div id="gnet-experts"><div class="gnet-skeleton"></div></div><a class="gnet-text-link" href="/browse">Explore all experts <span aria-hidden="true">→</span></a></section><section class="gnet-guidance"><span class="gnet-eyebrow">A LITTLE CLARITY GOES A LONG WAY</span><h2>Turn an insight into your next step.</h2><p>Find someone who’s been there. Explore their experience and book a one-to-one consultation.</p><a class="gnet-button" href="/browse">Find your guide ↗</a></section><p class="gnet-small-links"><a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/help-center">Help</a><br>Guidcy · Learn. Connect. Grow.</p></aside>
+      <aside class="gnet-right" aria-label="Expert discovery"><section class="gnet-card gnet-suggestions"><p class="gnet-eyebrow">GROW YOUR CIRCLE</p><h2>People you may want guidance from</h2><div id="gnet-experts"><span class="sr-only" role="status">Loading…</span></div><a class="gnet-text-link" href="/browse">Explore all experts <span aria-hidden="true">→</span></a></section><section class="gnet-guidance"><span class="gnet-eyebrow">A LITTLE CLARITY GOES A LONG WAY</span><h2>Turn an insight into your next step.</h2><p>Find someone who’s been there. Explore their experience and book a one-to-one consultation.</p><a class="gnet-button" href="/browse">Find your guide ↗</a></section><p class="gnet-small-links"><a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/help-center">Help</a><br>Guidcy · Learn. Connect. Grow.</p></aside>
     </div>
   </div>
 </div>
@@ -356,14 +356,7 @@
 </div>
 
 <template id="guidcy-profile-loading-header">
-  <div class="gnet-cover" aria-hidden="true"></div>
-  <div class="gnet-profile-info gnet-profile-placeholder" data-guidcy-profile-placeholder aria-hidden="true">
-    <div class="gnet-placeholder-avatar"></div>
-    <div class="gnet-placeholder-line is-name"></div>
-    <div class="gnet-placeholder-line is-headline"></div>
-    <div class="gnet-placeholder-line is-meta"></div>
-  </div>
-  <span class="sr-only" role="status">Loading profile…</span>
+  <span class="sr-only" data-guidcy-profile-loading role="status">Loading profile…</span>
 </template>
 
 <!-- ════ PROFILE ════ -->

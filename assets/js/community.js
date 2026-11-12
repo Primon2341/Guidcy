@@ -123,7 +123,7 @@
   async function load(reset=false) {
     if(!home()||!client())return;
     if(!reset&&state.busy)return;
-    if(reset){state.epoch++;state.cursor=null;state.asOf=new Date().toISOString();if(state.key&&state.key!==feedKey()){$('gnet-feed').replaceChildren();state.rows.clear();}state.key=feedKey();$('gnet-feed').innerHTML='<div class="gnet-card gnet-loading" role="status"><div class="gnet-skeleton"></div><div class="gnet-skeleton"></div><span class="sr-only">Loading posts</span></div>';}
+    if(reset){state.epoch++;state.cursor=null;state.asOf=new Date().toISOString();if(state.key&&state.key!==feedKey()){$('gnet-feed').replaceChildren();state.rows.clear();}state.key=feedKey();$('gnet-feed').innerHTML='<span class="sr-only" role="status">Loading posts…</span>';}
     document.querySelectorAll('.gnet-feed-toolbar [data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode)));
     const label=$('gnet-view-label');label.textContent=params().has('author')?'Posts from this member':state.mode==='mine'?'My Posts':state.mode==='saved'?'Saved Posts':'';label.hidden=!label.textContent;
     const epoch=state.epoch;state.busy=true;$('gnet-feed').setAttribute('aria-busy','true');$('gnet-more').disabled=true;

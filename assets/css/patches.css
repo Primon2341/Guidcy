@@ -1357,9 +1357,6 @@ body.gmob-open{overflow:hidden}
 .opp-btn-saved{background:#FFF7ED;color:#C2410C;border-color:#FED7AA}
 .opp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:0}
 .opp-empty{background:#fff;border:1.5px dashed #D8E8F5;border-radius:16px;padding:48px 24px;text-align:center;color:#7089A0}
-.opp-loading{display:flex;flex-direction:column;gap:14px}
-.opp-skeleton{background:#F0F6FF;border-radius:16px;height:180px;animation:oppPulse 1.4s ease-in-out infinite}
-@keyframes oppPulse{0%,100%{opacity:1}50%{opacity:.5}}
 .opp-source-tag{
   display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
   border-radius:6px;background:#F0F6FF;color:#1E72BE;font-size:11px;font-weight:var(--font-weight-semibold,600);
@@ -2220,9 +2217,6 @@ body.guidcy-razorpay-opening #page-payment .green-btn{opacity:.88;transform:tran
 .gc-job-actions{display:flex;gap:9px;align-items:center;flex-shrink:0}
 .gc-empty{background:var(--surface3);border:1px dashed var(--border2);border-radius:18px;padding:52px 24px;text-align:center;color:var(--muted);font-size:14px}
 .gc-empty-icon{font-size:38px;display:block;margin-bottom:12px;opacity:.75}
-.gc-skel{background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px 24px;margin-bottom:14px}
-.gc-skel-bar{height:12px;border-radius:6px;background:linear-gradient(90deg,#EEF4FB 25%,#DCE9F6 37%,#EEF4FB 63%);background-size:400% 100%;animation:gcShimmer 1.3s ease infinite}
-@keyframes gcShimmer{0%,100%{opacity:1}50%{opacity:.55}}
 
 /* ── ADMIN BAR ── */
 .gc-admin-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:linear-gradient(135deg,var(--blue-l),var(--green-l));border:1px solid var(--blue-m);border-radius:16px;padding:14px 18px;margin-bottom:18px}

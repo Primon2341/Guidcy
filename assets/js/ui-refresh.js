@@ -1,5 +1,5 @@
-/* Hold existing regions during revalidation. Empty regions alone get a static
- * skeleton. No timeout clears content and no animation accompanies a swap. */
+/* Hold existing regions during revalidation. Cold loads use the shared centered
+ * animation without drawing placeholder cards, bars or profile shapes. */
 (function () {
   'use strict';
 
@@ -13,12 +13,12 @@
     /* dashboards */
     'adash-main', 'cdash-main', 'udash-main',
     /* browse, categories and the home rails */
-    'browse-grid', 'cats-full-grid', 'cons-rec-grid',
-    'sf-supabase-consultants-grid', 'gnet-me','gnet-mobile-avatar','gnet-compose-avatar', 'gnet-experts', 'gnet-feed', 'gnet-profile-posts',
+    'browse-grid', 'cats-full-grid', 'profile-layout',
+    'page-blog', 'gnet-me','gnet-mobile-avatar','gnet-compose-avatar', 'gnet-experts', 'gnet-feed', 'gnet-profile-posts',
     /* webinars */
     'wbn-cards', 'wbn-regs-list',
     /* marketplace and careers */
-    'gmkt-grid', 'gc-list', 'jobs-main-area', 'sf-results', 'opp-results'
+    'gmkt-grid', 'gc-list', 'jobs-main-area', 'sf-results', 'opp-results-area'
   ];
   /* The wording the existing renderers use for their placeholders. */
   var PLACEHOLDER_WORDS = /(loading|searching|filtering|please wait|fetching)/i;
@@ -38,8 +38,9 @@
   }
 
   function isPlaceholder(html) {
-    // Profile-specific shells already reserve the final layout; don't replace
-    // them with the generic full-width skeleton or an additional loading bar.
+    // The booking DOM may already exist while the public profile is pending.
+    if(/\bdata-guidcy-profile-loading\b/.test(String(html)))return true;
+    // Secondary activity reads do not cover the already loaded profile.
     if(/\bdata-guidcy-profile-placeholder\b/.test(String(html)))return false;
     var text = textOf(html);
     if(!text||text.length>PLACEHOLDER_MAX_TEXT||!PLACEHOLDER_WORDS.test(text))return false;
@@ -76,7 +77,9 @@
     records.forEach(function(record){
       // Native replaceChildren/append paths bypass our innerHTML setter. Only
       // finish flags we created, and only after root content is committed.
-      if(record.type==='childList'&&automaticLoading.has(record.target)&&hasContent(record.target))finishLoading(record.target);
+      if(record.type==='childList')for(var target=record.target;target;target=target.parentElement){
+        if(automaticLoading.has(target)&&hasContent(target))finishLoading(target);
+      }
     });
     scheduleLoading();
   }
@@ -87,7 +90,7 @@
   }
   function watchLoading(el){
     if(!el||!loadingObserver||loadingNodes.has(el))return;
-    loadingNodes.add(el);loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true});
+    loadingNodes.add(el);loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true,subtree:el.id==='profile-layout'});
     var page=el.closest('.page');
     if(page&&!loadingPages.has(page)){loadingPages.add(page);loadingObserver.observe(page,{attributes:true,attributeFilter:['class','hidden']})}
     scheduleLoading();
@@ -102,7 +105,7 @@
     loadingPages.forEach(function(el){if(!el.isConnected){loadingPages.delete(el);removed=true}});
     if(removed&&loadingObserver){
       loadingObserver.disconnect();
-      loadingNodes.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true})});
+      loadingNodes.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['aria-busy','class','data-guidcy-background-refresh'],childList:true,subtree:el.id==='profile-layout'})});
       loadingPages.forEach(function(el){loadingObserver.observe(el,{attributes:true,attributeFilter:['class','hidden']})});
     }
     var status=document.getElementById('guidcy-loading-status');
@@ -142,7 +145,9 @@
             if(skeleton){
               var incomingTitle=html.match(/class=["']dash-title["'][^>]*>([^<]*)/);
               var previousTitle=previous.match(/class=["']dash-title["'][^>]*>([^<]*)/);
-              sameSection=!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1];
+              // Profile renderers already preserve same-person refreshes themselves.
+              // A new loading header must install the new person's booking DOM.
+              sameSection=target.id!=='profile-layout'&&(!incomingTitle||!previousTitle||incomingTitle[1]===previousTitle[1]);
             }
             if (sameSection && skeleton && hasContent(target,previous)) {
               automaticLoading.add(target);
@@ -154,8 +159,8 @@
             // Preserve focused controls and mounted descendants for identical data.
             if(previous!==html)native.set.call(target, value);
             window.guidcyFinishPanelRefresh(target);
-            /* An empty panel keeps its placeholder, but drawn as a quiet skeleton
-               rather than a bare "Loading..." line; the real markup clears it. */
+            /* Hide cold-load status markup; only the shared animation is visible.
+               Keep the state class for cache and request lifecycle compatibility. */
             target.classList.toggle('guidcy-panel-skeleton', skeleton);
             if (skeleton) target.setAttribute('aria-busy', 'true'); else target.removeAttribute('aria-busy');
             if(skeleton)automaticLoading.add(target);
@@ -165,6 +170,9 @@
           }
         },
       });
+      if(isPlaceholder(native.get.call(el))){
+        el.classList.add('guidcy-panel-skeleton');el.setAttribute('aria-busy','true');automaticLoading.add(el);
+      }
     } catch (_) {
       el.__guidcyPanelRefresh = false;
     }

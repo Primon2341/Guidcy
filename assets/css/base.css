@@ -950,22 +950,17 @@ button,a,.btn,.primary-btn,.green-btn,.nav-link,.home-cat-card,.side-btn{touch-a
 
 /* ── Refresh / loading stability ──
    Reserve space for content that is still loading so sections do not collapse
-   to zero and jump open when data lands, and give empty panels a quiet skeleton
+   to zero and jump open when data lands, keeping loading feedback separate
    instead of a bare "Loading..." line. */
 #guidcy-boot-skeleton{display:none;max-width:1180px;margin:0 auto;padding:48px 24px}
-.gbs-bar,.gbs-card{background:linear-gradient(90deg,#EEF2F6 25%,#F6F8FA 50%,#EEF2F6 75%);background-size:200% 100%;animation:gbs-shimmer 1.4s ease-in-out infinite;border-radius:10px}
-.gbs-bar{height:22px;margin-bottom:14px}
-.gbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:28px}
-.gbs-card{height:200px;border-radius:16px}
-@keyframes gbs-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 #cons-grid:empty,#browse-grid:empty,#wbn-cards:empty,#gmkt-grid:empty,#cats-full-grid:empty,#reviews-grid:empty{min-height:280px}
 /* Loading placeholders participate in normal flow below the heading. Absolute
    top:60px strips overlapped the padded dashboard title (including descenders). */
 .dash-main:empty,.guidcy-panel-skeleton{min-height:220px}
 .guidcy-panel-skeleton>:not(.dash-title){display:none}
-.dash-main:empty::after,.guidcy-panel-skeleton::after{content:"";display:block;height:170px;margin-top:16px;border-radius:10px;background:#EDF3F9}
+.dash-main:empty::after,.guidcy-panel-skeleton::before,.guidcy-panel-skeleton::after{content:none!important}
 .guidcy-panel-skeleton:has(.dash-title){min-height:280px}
-@media (prefers-reduced-motion:reduce){.gbs-bar,.gbs-card{animation:none}}
+
 
 
 /* Shared semantic defaults; component sizes and brand font families are retained. */
